@@ -1,0 +1,1057 @@
+openapi: 3.0.0
+info:
+  title: Hospital Shift Management API
+  description: API for managing hospital employee shifts, capabilities, and workstations
+  version: 1.0.0
+  contact:
+    name: Support Team
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Development server
+  - url: https://api.example.com/api/v1
+    description: Production server
+
+tags:
+  - name: Employees
+    description: Employee management endpoints
+  - name: Shifts
+    description: Shift management endpoints
+  - name: Capabilities
+    description: Worker capability management endpoints
+  - name: Workstations
+    description: Workstation management endpoints
+  - name: Unavailability
+    description: Employee unavailability management endpoints
+
+paths:
+  /employees:
+    get:
+      tags:
+        - Employees
+      summary: List all employees
+      operationId: listEmployees
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of results
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          description: Number of results to skip
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of employees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Employee'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Employees
+      summary: Create a new employee
+      operationId: createEmployee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEmployeeRequest'
+      responses:
+        '201':
+          description: Employee created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email already exists
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employees/{employeeId}:
+    get:
+      tags:
+        - Employees
+      summary: Get an employee by ID
+      operationId: getEmployeeById
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Employee details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Employees
+      summary: Update an employee
+      operationId: updateEmployee
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEmployeeRequest'
+      responses:
+        '200':
+          description: Employee updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Email already exists
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employees/email/{email}:
+    get:
+      tags:
+        - Employees
+      summary: Get an employee by email
+      operationId: getEmployeeByEmail
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        '200':
+          description: Employee details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employees/{employeeId}/capabilities:
+    get:
+      tags:
+        - Employees
+      summary: Get all capabilities of an employee
+      operationId: getEmployeeCapabilities
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of capabilities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Capability'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Employees
+      summary: Add a capability to an employee
+      operationId: addEmployeeCapability
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - capability_id
+              properties:
+                capability_id:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: Capability added successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Employee already has this capability
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employees/{employeeId}/available-shifts:
+    get:
+      tags:
+        - Employees
+      summary: Get available shifts for an employee
+      operationId: getEmployeeAvailableShifts
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of available shifts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Shift'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Employees
+      summary: Add an available shift to an employee
+      operationId: addEmployeeAvailableShift
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - shift_id
+              properties:
+                shift_id:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: Shift added as available
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Shift already marked as available
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /shifts:
+    get:
+      tags:
+        - Shifts
+      summary: List all shifts
+      operationId: listShifts
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of results
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          description: Number of results to skip
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of shifts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Shift'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Shifts
+      summary: Create a new shift
+      operationId: createShift
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateShiftRequest'
+      responses:
+        '201':
+          description: Shift created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Shift'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /shifts/{shiftId}:
+    get:
+      tags:
+        - Shifts
+      summary: Get a shift by ID
+      operationId: getShiftById
+      parameters:
+        - name: shiftId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Shift details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Shift'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /capabilities:
+    get:
+      tags:
+        - Capabilities
+      summary: List all capabilities
+      operationId: listCapabilities
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of results
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          description: Number of results to skip
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of capabilities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Capability'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Capabilities
+      summary: Create a new capability
+      operationId: createCapability
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCapabilityRequest'
+      responses:
+        '201':
+          description: Capability created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Capability'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /capabilities/{capabilityId}:
+    get:
+      tags:
+        - Capabilities
+      summary: Get a capability by ID
+      operationId: getCapabilityById
+      parameters:
+        - name: capabilityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Capability details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Capability'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /workstations:
+    get:
+      tags:
+        - Workstations
+      summary: List all workstations
+      operationId: listWorkstations
+      parameters:
+        - name: available
+          in: query
+          description: Filter by availability status
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          description: Maximum number of results
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          description: Number of results to skip
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of workstations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Workstation'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Workstations
+      summary: Create a new workstation
+      operationId: createWorkstation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkstationRequest'
+      responses:
+        '201':
+          description: Workstation created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workstation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /workstations/{workstationId}:
+    get:
+      tags:
+        - Workstations
+      summary: Get a workstation by ID
+      operationId: getWorkstationById
+      parameters:
+        - name: workstationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Workstation details with capabilities
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkstationDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Workstations
+      summary: Update a workstation
+      operationId: updateWorkstation
+      parameters:
+        - name: workstationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkstationRequest'
+      responses:
+        '200':
+          description: Workstation updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workstation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /workstations/{workstationId}/availability:
+    patch:
+      tags:
+        - Workstations
+      summary: Set workstation availability status
+      operationId: setWorkstationAvailability
+      parameters:
+        - name: workstationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - available
+              properties:
+                available:
+                  type: boolean
+                active_shift_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+      responses:
+        '200':
+          description: Availability updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workstation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /workstations/{workstationId}/required-capabilities:
+    get:
+      tags:
+        - Workstations
+      summary: Get required capabilities for a workstation
+      operationId: getWorkstationRequiredCapabilities
+      parameters:
+        - name: workstationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of required capabilities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Capability'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Workstations
+      summary: Add a required capability to a workstation
+      operationId: addWorkstationRequiredCapability
+      parameters:
+        - name: workstationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - capability_id
+              properties:
+                capability_id:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: Capability added as required
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Capability already required for this workstation
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /unavailabilities:
+    get:
+      tags:
+        - Unavailability
+      summary: List all unavailabilities
+      operationId: listUnavailabilities
+      parameters:
+        - name: employee_id
+          in: query
+          description: Filter by employee ID
+          schema:
+            type: string
+            format: uuid
+        - name: from_date
+          in: query
+          description: Start date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          description: End date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          description: Maximum number of results
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          description: Number of results to skip
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of unavailabilities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Unavailability'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Unavailability
+      summary: Create a new unavailability
+      operationId: createUnavailability
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUnavailabilityRequest'
+      responses:
+        '201':
+          description: Unavailability created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Unavailability'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /unavailabilities/{unavailabilityId}:
+    get:
+      tags:
+        - Unavailability
+      summary: Get an unavailability by ID
+      operationId: getUnavailabilityById
+      parameters:
+        - name: unavailabilityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Unavailability details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Unavailability'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Unavailability
+      summary: Delete an unavailability
+      operationId: deleteUnavailability
+      parameters:
+        - name: unavailabilityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Unavailability deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    Employee:
+      type: object
+      required:
+        - id
+        - name
+        - email
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique employee identifier
+        name:
+          type: string
+          description: Employee full name
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          description: Employee email (unique)
+          example: "john.doe@hospital.com"
+
+    EmployeeDetail:
+      allOf:
+        - $ref: '#/components/schemas/Employee'
+        - type: object
+          properties:
+            capabilities:
+              type: array
+              items:
+                $ref: '#/components/schemas/Capability'
+            available_shifts:
+              type: array
+              items:
+                $ref: '#/components/schemas/Shift'
+            unavailabilities:
+              type: array
+              items:
+                $ref: '#/components/schemas/Unavailability'
+
+    CreateEmployeeRequest:
+      type: object
+      required:
+        - name
+        - email
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          minLength: 1
+          maxLength: 255
+          example: "john.doe@hospital.com"
+
+    UpdateEmployeeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          minLength: 1
+          maxLength: 255
+          example: "john.doe@hospital.com"
+
+    Shift:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Shift name
+          example: "Morning (8:00 - 16:00)"
+
+    CreateShiftRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: "Morning (8:00 - 16:00)"
+
+    Capability:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Capability name
+          example: "MRT"
+
+    CreateCapabilityRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: "MRT"
+
+    Workstation:
+      type: object
+      required:
+        - id
+        - name
+        - available
+        - active_shift_id
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Workstation name
+          example: "MRT Room 1"
+        available:
+          type: boolean
+          description: Whether the workstation is available for use
+        active_shift_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Currently active shift ID, if any
+
+    WorkstationDetail:
+      allOf:
+        - $ref: '#/components/schemas/Workstation'
+        - type: object
+          properties:
+            required_capabilities:
+              type: array
+              items:
+                $ref: '#/components/schemas/Capability'
+
+    CreateWorkstationRequest:
+      type: object
+      required:
+        - name
+        - available
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: "MRT Room 1"
+        available:
+          type: boolean
+        active_shift_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    UpdateWorkstationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: "MRT Room 1"
+        available:
+          type: boolean
+        active_shift_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    Unavailability:
+      type: object
+      required:
+        - id
+        - employee_id
+        - unavailable_date
+        - shift_id
+      properties:
+        id:
+          type: string
+          format: uuid
+        employee_id:
+          type: string
+          format: uuid
+          description: ID of the employee who is unavailable
+        unavailable_date:
+          type: string
+          format: date
+          description: Date of unavailability (YYYY-MM-DD)
+        shift_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional specific shift ID. If null, entire day is unavailable
+
+    CreateUnavailabilityRequest:
+      type: object
+      required:
+        - employee_id
+        - unavailable_date
+      properties:
+        employee_id:
+          type: string
+          format: uuid
+        unavailable_date:
+          type: string
+          format: date
+          description: Date of unavailability (YYYY-MM-DD)
+        shift_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional specific shift ID. If omitted, entire day is unavailable
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: string
+          description: Additional error details (optional)
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters or body
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

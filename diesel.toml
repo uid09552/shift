@@ -1,0 +1,4 @@
+[print_schema]
+file = "src/schema.rs"
+[print_schema.migration_directory]
+dir = "migrations"
