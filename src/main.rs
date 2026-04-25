@@ -1,4 +1,6 @@
 use clap::{Parser, Subcommand};
+use shift::{config::{self, CliArgs}, database, server};
+use std::net::SocketAddr;
 
 #[derive(Parser)]
 #[command(name = "backend")]
@@ -24,28 +26,77 @@ enum Commands {
         #[arg(long, short, default_value_t = false)]
         verbose: bool,
 
-        /// Enable development mode
-        #[arg(long, default_value_t = false)]
-        dev: bool,
+        /// Database URL
+        #[arg(long)]
+        database_url: Option<String>,
+
+        /// Database user
+        #[arg(long)]
+        database_user: Option<String>,
+
+        /// Database password
+        #[arg(long)]
+        database_password: Option<String>,
+
+        /// Database host
+        #[arg(long)]
+        database_host: Option<String>,
+
+        /// Database port
+        #[arg(long)]
+        database_port: Option<u16>,
+
+        /// Database name
+        #[arg(long)]
+        database_name: Option<String>,
     },
 }
 
-fn main() {
-       let cli = Cli::parse();
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let cli = Cli::parse();
 
     match cli.command {
         Commands::Serve {
             port,
             listen,
             verbose,
-            dev,
+            database_url,
+            database_user,
+            database_password,
+            database_host,
+            database_port,
+            database_name,
         } => {
-            println!("Starting server...");
-            println!("Listen: {}:{}", listen, port);
-            println!("Verbose: {}", verbose);
-            println!("Dev mode: {}", dev);
+            let cli_args = CliArgs {
+                port: Some(port),
+                listen: Some(listen),
+                verbose,
+                database_url,
+                database_user,
+                database_password,
+                database_host,
+                database_port,
+                database_name,
+            };
 
-            // here you'd start your server
+            let config = config::Config::from_env_and_args(&cli_args)
+                .expect("Failed to load configuration");
+
+            println!("Starting server...");
+            println!("Listen: {}:{}", config.server.listen, config.server.port);
+            println!("Verbose: {}", config.server.verbose);
+            println!("Database: {}", config.database.url);
+
+            // Initialize database
+            let pool = database::establish_connection_pool(&config.database);
+            database::run_migrations(&pool);
+
+            // Start server
+            let addr = format!("{}:{}", config.server.listen, config.server.port).parse::<SocketAddr>()?;
+            server::start_server(pool, addr).await?;
         }
     }
+
+    Ok(())
 }

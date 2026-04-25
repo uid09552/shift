@@ -9,6 +9,8 @@ help:
 	@echo "  release      Build in release mode"
 	@echo "  run          Run the app"
 	@echo "  serve        Run 'serve' command"
+	@echo "  db-up        Start PostgreSQL database with docker-compose"
+	@echo "  db-down      Stop PostgreSQL database"
 	@echo "  check        Check code without building"
 	@echo "  test         Run tests"
 	@echo "  clean        Clean build artifacts"
@@ -34,6 +36,14 @@ serve:
 		$(if $(LISTEN),--listen $(LISTEN),) \
 		$(if $(VERBOSE),--verbose,) \
 		$(if $(DEV),--dev,)
+
+.PHONY: db-up
+db-up:
+	docker compose up -d
+
+.PHONY: db-down
+db-down:
+	docker compose down
 
 .PHONY: check
 check:
