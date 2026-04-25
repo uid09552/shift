@@ -1,0 +1,25 @@
+/* You can add global styles to this file, and also import other style files */
+html, body {
+  height: 100%;
+  margin: 0;
+}
+body {
+  min-height: 100vh;
+}
+app-root,
+app-shell {
+  display: block;
+  min-height: 100vh;
+}
+mat-sidenav-container.app-container {
+  min-height: 100vh;
+  height: 100vh;
+}
+mat-sidenav-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+mat-sidenav-content > *:last-child {
+  flex: 1;
+}
