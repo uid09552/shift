@@ -6,7 +6,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::database::DbPool;
+use crate::repository::AppState;
 
 #[derive(Deserialize)]
 pub struct ListWorkstationsQuery {
@@ -20,13 +20,13 @@ pub struct WorkstationService;
 impl WorkstationService {
     pub async fn list_workstations(
         Query(_q): Query<ListWorkstationsQuery>,
-        State(_pool): State<DbPool>,
+        State(_state): State<AppState>,
     ) -> Json<Value> {
         todo!()
     }
 
     pub async fn create_workstation(
-        State(_pool): State<DbPool>,
+        State(_state): State<AppState>,
         Json(_body): Json<Value>,
     ) -> Json<Value> {
         todo!()
@@ -34,14 +34,14 @@ impl WorkstationService {
 
     pub async fn get_workstation_by_id(
         Path(_workstation_id): Path<Uuid>,
-        State(_pool): State<DbPool>,
+        State(_state): State<AppState>,
     ) -> Json<Value> {
         todo!()
     }
 
     pub async fn update_workstation(
         Path(_workstation_id): Path<Uuid>,
-        State(_pool): State<DbPool>,
+        State(_state): State<AppState>,
         Json(_body): Json<Value>,
     ) -> Json<Value> {
         todo!()
@@ -49,7 +49,7 @@ impl WorkstationService {
 
     pub async fn set_workstation_availability(
         Path(_workstation_id): Path<Uuid>,
-        State(_pool): State<DbPool>,
+        State(_state): State<AppState>,
         Json(_body): Json<Value>,
     ) -> Json<Value> {
         todo!()
@@ -57,14 +57,14 @@ impl WorkstationService {
 
     pub async fn get_workstation_required_capabilities(
         Path(_workstation_id): Path<Uuid>,
-        State(_pool): State<DbPool>,
+        State(_state): State<AppState>,
     ) -> Json<Value> {
         todo!()
     }
 
     pub async fn add_workstation_required_capability(
         Path(_workstation_id): Path<Uuid>,
-        State(_pool): State<DbPool>,
+        State(_state): State<AppState>,
         Json(_body): Json<Value>,
     ) -> Json<Value> {
         todo!()

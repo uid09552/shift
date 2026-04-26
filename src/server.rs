@@ -7,7 +7,7 @@ use serde_json::json;
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 
-use crate::database::DbPool;
+use crate::repository::AppState;
 use crate::services::{
     capability::CapabilityService,
     employee::EmployeeService,
@@ -20,7 +20,7 @@ pub async fn health_check() -> Json<serde_json::Value> {
     Json(json!({ "status": "ok" }))
 }
 
-pub fn create_router(pool: DbPool) -> Router {
+pub fn create_router(state: AppState) -> Router {
     let api_v1 = Router::new()
         // Employees
         .route("/employees", get(EmployeeService::list_employees).post(EmployeeService::create_employee))
@@ -65,11 +65,11 @@ pub fn create_router(pool: DbPool) -> Router {
         .route("/health", get(health_check))
         .nest("/api/v1", api_v1)
         .layer(CorsLayer::permissive())
-        .with_state(pool)
+        .with_state(state)
 }
 
-pub async fn start_server(pool: DbPool, addr: SocketAddr) -> std::io::Result<()> {
-    let app = create_router(pool);
+pub async fn start_server(state: AppState, addr: SocketAddr) -> std::io::Result<()> {
+    let app = create_router(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     println!("Server listening on {}", addr);

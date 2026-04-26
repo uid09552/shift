@@ -14,7 +14,8 @@ thiserror = "1.0"
 axum = "0.7"
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors"] }
-figment = { version = "0.10", features = ["env", "toml"] }
+figment = { version = "0.10", features = ["env", "yaml"] }
+url = "2"
 
 # Database
 diesel = { version = "2.1", features = ["postgres", "r2d2", "chrono", "uuid"] }

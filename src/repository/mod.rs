@@ -1,0 +1,33 @@
+pub mod domain;
+pub mod employeerepository;
+
+use std::sync::Arc;
+use crate::database::DbPool;
+use self::employeerepository::{
+    DieselCapabilityRepository,
+    DieselEmployeeRepository,
+    DieselShiftRepository,
+    DieselUnavailabilityRepository,
+    DieselWorkstationRepository,
+};
+
+#[derive(Clone)]
+pub struct AppState {
+    pub employee_repo: DieselEmployeeRepository,
+    pub shift_repo: DieselShiftRepository,
+    pub capability_repo: DieselCapabilityRepository,
+    pub workstation_repo: DieselWorkstationRepository,
+    pub unavailability_repo: DieselUnavailabilityRepository,
+}
+
+impl AppState {
+    pub fn new(pool: Arc<DbPool>) -> Self {
+        Self {
+            employee_repo: DieselEmployeeRepository { pool: Arc::clone(&pool) },
+            shift_repo: DieselShiftRepository { pool: Arc::clone(&pool) },
+            capability_repo: DieselCapabilityRepository { pool: Arc::clone(&pool) },
+            workstation_repo: DieselWorkstationRepository { pool: Arc::clone(&pool) },
+            unavailability_repo: DieselUnavailabilityRepository { pool },
+        }
+    }
+}

@@ -1,6 +1,8 @@
 use clap::{Parser, Subcommand};
-use shift::{config::{self, CliArgs}, database, server};
+use shift::{config::{self, CliArgs}, database, repository::AppState, server};
 use std::net::SocketAddr;
+use std::sync::Arc;
+use url::Url;
 
 #[derive(Parser)]
 #[command(name = "backend")]
@@ -53,7 +55,7 @@ enum Commands {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let cli = Cli::parse();
 
     match cli.command {
@@ -86,17 +88,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Starting server...");
             println!("Listen: {}:{}", config.server.listen, config.server.port);
             println!("Verbose: {}", config.server.verbose);
-            println!("Database: {}", config.database.url);
+            println!("Database: {}", mask_postgres_url(&config.database.url).unwrap_or_else(|_| "Failed to mask URL".into()));
 
             // Initialize database
             let pool = database::establish_connection_pool(&config.database);
-            database::run_migrations(&pool);
+            database::run_migrations(&pool)?;
+            let state = AppState::new(Arc::new(pool));
 
             // Start server
             let addr = format!("{}:{}", config.server.listen, config.server.port).parse::<SocketAddr>()?;
-            server::start_server(pool, addr).await?;
+            server::start_server(state, addr).await?;
         }
     }
 
     Ok(())
+}
+
+pub fn mask_postgres_url(input: &str) -> Result<String, url::ParseError> {
+    let mut url = Url::parse(input)?;
+
+    // Mask username if present
+    if !url.username().is_empty() {
+        url.set_username("****").ok();
+    }
+
+    // Mask password if present
+    if url.password().is_some() {
+        url.set_password(Some("****")).ok();
+    }
+
+    Ok(url.to_string())
 }

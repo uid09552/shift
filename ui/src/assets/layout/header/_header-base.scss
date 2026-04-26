@@ -1,0 +1,93 @@
+// Header Base
+
+.app-header {
+  height: $app-header-height;
+  display: flex;
+  align-items: center;
+  align-content: center;
+  z-index: 10;
+  transition: all .2s;
+  position: fixed;
+  width: 100%;
+
+  .logo-src {
+    display: none;
+  }
+
+  &.header-shadow {
+    box-shadow: $box-shadow-default;
+  }
+
+  .app-header__content {
+    display: flex;
+    align-items: center;
+    align-content: center;
+    flex: 1;
+    padding-left: $app-sidebar-width;
+    height: $app-header-height;
+    transition: padding-left .3s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+
+    .app-header-left {
+      display: flex;
+      align-items: center;
+      padding: 0 0 0 ($layout-spacer-x / 2);
+      
+      .hamburger {
+        padding: 10px;
+        display: inline-block;
+        cursor: pointer;
+        transition-property: opacity, filter;
+        transition-duration: .15s;
+        transition-timing-function: linear;
+        font: inherit;
+        color: inherit;
+        text-transform: none;
+        background-color: transparent;
+        border: 0;
+        margin: 0;
+        overflow: visible;
+        
+        &:hover {
+          opacity: .7;
+        }
+      }
+    }
+
+    .app-header-right {
+      align-items: center;
+      display: flex;
+      margin-left: auto;
+      padding: 0 $layout-spacer-x 0 0;
+    }
+  }
+
+  .header-user-info {
+    & > .widget-heading,
+    & > .widget-subheading {
+      white-space: nowrap;
+    }
+
+    & > .widget-subheading {
+      font-size: $font-size-xs;
+    }
+  }
+}
+
+.app-header__menu,
+.app-header__mobile-menu {
+  display: none;
+  padding: 0 $layout-spacer-x;
+  height: $app-header-height;
+  align-items: center;
+}
+
+// Modifiers
+
+@import "modifiers/header-dots";
+@import "modifiers/header-userarea";
+@import "header-dropdowns";
+
+// Header Themes
+
+@import "themes/header-light";
+@import "themes/header-dark";

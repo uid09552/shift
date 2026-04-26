@@ -1,0 +1,19 @@
+// Main Base
+
+.app-main__outer {
+  flex: 1;
+  flex-direction: column;
+  display: flex;
+  z-index: 8;
+  padding: $app-header-height 0 0 $app-sidebar-width;
+  transition: padding-left .3s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+}
+
+.app-main__inner {
+  padding: $grid-gutter-width $grid-gutter-width 0;
+  flex: 1;
+}
+
+// Themes
+
+@import "themes/main-white";

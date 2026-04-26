@@ -1,0 +1,31 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run Shift Backend (Serve)",
+            "type": "lldb",
+            "request": "launch",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=shift",
+                    "--package=shift"
+                ],
+                "filter": {
+                    "name": "shift",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "serve",
+                "--port", "8080",
+                "--listen", "127.0.0.1",
+                "--verbose"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CONFIG_PATH": "config.yaml"
+            }
+        }
+    ]
+}

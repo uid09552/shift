@@ -6,7 +6,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::database::DbPool;
+use crate::repository::AppState;
 
 #[derive(Deserialize)]
 pub struct ListUnavailabilitiesQuery {
@@ -22,13 +22,13 @@ pub struct UnavailabilityService;
 impl UnavailabilityService {
     pub async fn list_unavailabilities(
         Query(_q): Query<ListUnavailabilitiesQuery>,
-        State(_pool): State<DbPool>,
+        State(_state): State<AppState>,
     ) -> Json<Value> {
         todo!()
     }
 
     pub async fn create_unavailability(
-        State(_pool): State<DbPool>,
+        State(_state): State<AppState>,
         Json(_body): Json<Value>,
     ) -> Json<Value> {
         todo!()
@@ -36,14 +36,14 @@ impl UnavailabilityService {
 
     pub async fn get_unavailability_by_id(
         Path(_unavailability_id): Path<Uuid>,
-        State(_pool): State<DbPool>,
+        State(_state): State<AppState>,
     ) -> Json<Value> {
         todo!()
     }
 
     pub async fn delete_unavailability(
         Path(_unavailability_id): Path<Uuid>,
-        State(_pool): State<DbPool>,
+        State(_state): State<AppState>,
     ) -> Json<Value> {
         todo!()
     }

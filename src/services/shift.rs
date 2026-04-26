@@ -5,7 +5,7 @@ use axum::{
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::database::DbPool;
+use crate::repository::AppState;
 use crate::services::employee::PaginationQuery;
 
 pub struct ShiftService;
@@ -13,13 +13,13 @@ pub struct ShiftService;
 impl ShiftService {
     pub async fn list_shifts(
         Query(_q): Query<PaginationQuery>,
-        State(_pool): State<DbPool>,
+        State(_state): State<AppState>,
     ) -> Json<Value> {
         todo!()
     }
 
     pub async fn create_shift(
-        State(_pool): State<DbPool>,
+        State(_state): State<AppState>,
         Json(_body): Json<Value>,
     ) -> Json<Value> {
         todo!()
@@ -27,7 +27,7 @@ impl ShiftService {
 
     pub async fn get_shift_by_id(
         Path(_shift_id): Path<Uuid>,
-        State(_pool): State<DbPool>,
+        State(_state): State<AppState>,
     ) -> Json<Value> {
         todo!()
     }

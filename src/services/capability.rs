@@ -5,7 +5,7 @@ use axum::{
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::database::DbPool;
+use crate::repository::AppState;
 use crate::services::employee::PaginationQuery;
 
 pub struct CapabilityService;
@@ -13,13 +13,13 @@ pub struct CapabilityService;
 impl CapabilityService {
     pub async fn list_capabilities(
         Query(_q): Query<PaginationQuery>,
-        State(_pool): State<DbPool>,
+        State(_state): State<AppState>,
     ) -> Json<Value> {
         todo!()
     }
 
     pub async fn create_capability(
-        State(_pool): State<DbPool>,
+        State(_state): State<AppState>,
         Json(_body): Json<Value>,
     ) -> Json<Value> {
         todo!()
@@ -27,7 +27,7 @@ impl CapabilityService {
 
     pub async fn get_capability_by_id(
         Path(_capability_id): Path<Uuid>,
-        State(_pool): State<DbPool>,
+        State(_state): State<AppState>,
     ) -> Json<Value> {
         todo!()
     }

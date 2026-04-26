@@ -1,4 +1,4 @@
-use figment::{providers::{Env, Serialized}, Figment};
+use figment::{providers::{Env, Format, Serialized, Yaml}, Figment};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,8 +46,14 @@ impl Default for Config {
 
 impl Config {
     pub fn from_env_and_args(args: &CliArgs) -> Result<Self, figment::Error> {
-        let mut figment = Figment::new()
-            .merge(Serialized::defaults(Config::default()))
+        let config_path = std::env::var("CONFIG_PATH").unwrap_or_else(|_| "config.yaml".to_string());
+        let mut figment = Figment::new().merge(Serialized::defaults(Config::default()));
+
+        if std::path::Path::new(&config_path).exists() {
+            figment = figment.merge(Yaml::file(&config_path));
+        }
+
+        figment = figment
             .merge(Env::prefixed("SHIFT_"))
             .merge(Env::raw());
 

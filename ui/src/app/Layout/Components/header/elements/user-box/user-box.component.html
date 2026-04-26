@@ -1,0 +1,41 @@
+<div class="header-btn-lg d-flex align-items-center">
+  <div class="widget-content-left me-2">
+    <div class="widget-heading">John Doe</div>
+    <div class="widget-subheading">Senior Developer</div>
+  </div>
+  <div ngbDropdown placement="bottom-right">
+    <button type="button" class="btn btn-link p-0" ngbDropdownToggle>
+      <img width="42" src="./assets/images/avatars/1.jpg" alt="" class="rounded-circle">
+    </button>
+    <div ngbDropdownMenu class="dropdown-menu-sm">
+      <div class="dropdown-header text-center">
+        <img src="./assets/images/avatars/1.jpg" alt="Avatar" class="rounded-circle mb-2" width="60">
+        <h6 class="mb-0">John Doe</h6>
+        <small class="text-muted">john.doe&#64;example.com</small>
+      </div>
+      <div class="dropdown-divider"></div>
+      <button type="button" class="dropdown-item">
+        <i class="pe-7s-user me-2"></i>
+        My Profile
+      </button>
+      <button type="button" class="dropdown-item">
+        <i class="pe-7s-settings me-2"></i>
+        Settings
+      </button>
+      <button type="button" class="dropdown-item d-flex align-items-center">
+        <i class="pe-7s-bell me-2"></i>
+        Notifications
+        <span class="badge bg-warning text-dark ms-auto">3</span>
+      </button>
+      <div class="dropdown-divider"></div>
+      <button type="button" class="dropdown-item">
+        <i class="pe-7s-help1 me-2"></i>
+        Help
+      </button>
+      <button type="button" class="dropdown-item text-danger">
+        <i class="pe-7s-power me-2"></i>
+        Sign Out
+      </button>
+    </div>
+  </div>
+</div>
