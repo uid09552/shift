@@ -2,7 +2,11 @@ use axum::{
     response::Json,
     routing::{get, patch},
     Router,
+    extract::{ State},
+    http::StatusCode,
 };
+use tokio::task;
+
 use serde_json::json;
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
@@ -16,8 +20,22 @@ use crate::services::{
     workstation::WorkstationService,
 };
 
-pub async fn health_check() -> Json<serde_json::Value> {
-    Json(json!({ "status": "ok" }))
+pub async fn health_check(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let pool = state.pool.clone();
+
+    let result = task::spawn_blocking(move || {
+        pool.get().is_ok()
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if result {
+        Ok(Json(json!({ "status": "ok" })))
+    } else {
+        Err(StatusCode::SERVICE_UNAVAILABLE)
+    }
 }
 
 pub fn create_router(state: AppState) -> Router {

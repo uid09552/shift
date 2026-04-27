@@ -18,6 +18,7 @@ pub struct AppState {
     pub capability_repo: DieselCapabilityRepository,
     pub workstation_repo: DieselWorkstationRepository,
     pub unavailability_repo: DieselUnavailabilityRepository,
+    pub pool: Arc<DbPool>,
 }
 
 impl AppState {
@@ -27,7 +28,9 @@ impl AppState {
             shift_repo: DieselShiftRepository { pool: Arc::clone(&pool) },
             capability_repo: DieselCapabilityRepository { pool: Arc::clone(&pool) },
             workstation_repo: DieselWorkstationRepository { pool: Arc::clone(&pool) },
-            unavailability_repo: DieselUnavailabilityRepository { pool },
+            unavailability_repo: DieselUnavailabilityRepository { pool: Arc::clone(&pool) },
+            pool: pool,
+          
         }
     }
 }
