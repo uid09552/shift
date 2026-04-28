@@ -45,20 +45,20 @@ pub struct Unavailability {
 use async_trait::async_trait;
 
 #[async_trait]
-pub trait EmployeeRepository {
-    async fn create_employee(&self, name: &str, email: &str) -> Result<Employee, AppError>;
-    async fn get_employee(&self, id: Uuid) -> Result<Option<Employee>, Box<dyn std::error::Error + Send + Sync>>;
-    async fn get_employee_by_email(&self, email: &str) -> Result<Option<Employee>, Box<dyn std::error::Error + Send + Sync>>;
-    async fn list_employees(&self) -> Result<Vec<Employee>, Box<dyn std::error::Error + Send + Sync>>;
-    async fn get_employee_capabilities(&self, employee_id: Uuid) -> Result<Vec<Capability>, Box<dyn std::error::Error + Send + Sync>>;
-    async fn add_employee_capability(&self, employee_id: Uuid, capability_id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
-    async fn update_employee(&self, employee: Employee) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
-    async fn delete_employee(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
-}
+    pub trait EmployeeRepository {
+        async fn create_employee(&self, name: &str, email: &str) -> Result<Employee, AppError>;
+        async fn get_employee(&self, id: Uuid) -> Result<Option<Employee>, AppError>;
+        async fn get_employee_by_email(&self, email: &str) -> Result<Option<Employee>, AppError>;
+        async fn list_employees(&self) -> Result<Vec<Employee>, AppError>;
+        async fn get_employee_capabilities(&self, employee_id: Uuid) -> Result<Vec<Capability>, AppError>;
+        async fn add_employee_capability(&self, employee_id: Uuid, capability_id: Uuid) -> Result<(), AppError>;
+        async fn update_employee(&self, employee: Employee) -> Result<(), AppError>;
+        async fn delete_employee(&self, id: Uuid) -> Result<(), AppError>;
+    }
 
 #[async_trait]
-pub trait ShiftRepository {
-    async fn create_shift(&self, name: &str) -> Result<Shift, Box<dyn std::error::Error + Send + Sync>>;
+    pub trait ShiftRepository {
+        async fn create_shift(&self, name: &str) -> Result<Shift, AppError>;
     async fn get_shift(&self, id: Uuid) -> Result<Option<Shift>, Box<dyn std::error::Error + Send + Sync>>;
     async fn list_shifts(&self) -> Result<Vec<Shift>, Box<dyn std::error::Error + Send + Sync>>;
 }

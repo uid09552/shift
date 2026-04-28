@@ -8,11 +8,11 @@ use diesel::result::{Error as DieselError, DatabaseErrorKind};
 
 use crate::database::DbPool;
 use crate::repository::domain::{
-    CapabilityRepository, Capability, Employee, EmployeeRepository, Shift, ShiftRepository,
+    CapabilityRepository, Capability, Employee, EmployeeRepository, Shift,
     Unavailability, UnavailabilityRepository, Workstation,
 };
 use crate::models::{
-    NewCapability, NewEmployee, NewEmployeeCapability, NewShift, NewUnavailability, NewWorkstation,
+    NewCapability, NewEmployee, NewEmployeeCapability, NewUnavailability, NewWorkstation,
     NewWorkstationRequiredCapability,
 };
 use crate::models as models;
@@ -37,27 +37,24 @@ impl EmployeeRepository for DieselEmployeeRepository {
     async fn create_employee(
     &self,
     name: &str,
-    email: &str,
-) -> Result<Employee, AppError> {
+    email: &str,) -> Result<Employee, AppError> {
     let name = name.to_string();
     let email = email.to_string();
     let pool = Arc::clone(&self.pool);
 
-    task::spawn_blocking(move || {
-        let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+        task::spawn_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
 
         let new_employee = NewEmployee { name: &name, email: &email };
 
         diesel::insert_into(employees::table)
             .values(&new_employee)
             .get_result::<models::Employee>(&mut conn)
-            .map_err(|e| match e {
-                DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
-                    AppError::Duplicate
-                }
-                DieselError::NotFound => AppError::NotFound,
-                _ => AppError::DbError,
-            })
+                .map_err(|e| match e {
+                    DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => AppError::Duplicate,
+                    DieselError::NotFound => AppError::NotFound,
+                    _ => AppError::DbError,
+                })
             .map(|e| Employee {
                 id: e.id,
                 name: e.name,
@@ -70,15 +67,15 @@ impl EmployeeRepository for DieselEmployeeRepository {
     .map_err(|_| AppError::Internal)?
 }
 
-    async fn get_employee(&self, id: Uuid) -> Result<Option<Employee>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn get_employee(&self, id: Uuid) -> Result<Option<Employee>, AppError> {
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let employee = employees::table
                 .find(id)
                 .first::<models::Employee>(&mut conn)
                 .optional()
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            .map_err(|_| AppError::DbError)?;
 
             match employee {
                 Some(e) => {
@@ -87,7 +84,8 @@ impl EmployeeRepository for DieselEmployeeRepository {
                         .filter(employee_available_shifts::employee_id.eq(id))
                         .inner_join(shifts::table)
                         .select(shifts::all_columns)
-                        .load::<models::Shift>(&mut conn)?;
+                        .load::<models::Shift>(&mut conn)
+                        .map_err(|_| AppError::DbError)?;
 
                     let available_shifts = available_shifts
                         .into_iter()
@@ -99,7 +97,8 @@ impl EmployeeRepository for DieselEmployeeRepository {
                         .filter(employee_capabilities::employee_id.eq(id))
                         .inner_join(capabilities::table)
                         .select(capabilities::all_columns)
-                        .load::<models::Capability>(&mut conn)?;
+                        .load::<models::Capability>(&mut conn)
+                        .map_err(|_| AppError::DbError)?;
 
                     let capabilities = capabilities
                         .into_iter()
@@ -117,19 +116,19 @@ impl EmployeeRepository for DieselEmployeeRepository {
                 None => Ok(None),
             }
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn get_employee_by_email(&self, email: &str) -> Result<Option<Employee>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn get_employee_by_email(&self, email: &str) -> Result<Option<Employee>, AppError> {
         let email = email.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let employee = employees::table
                 .filter(employees::email.eq(&email))
                 .first::<models::Employee>(&mut conn)
                 .optional()
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            .map_err(|_| AppError::DbError)?;
 
             match employee {
                 Some(e) => {
@@ -138,7 +137,8 @@ impl EmployeeRepository for DieselEmployeeRepository {
                         .filter(employee_available_shifts::employee_id.eq(e.id))
                         .inner_join(shifts::table)
                         .select(shifts::all_columns)
-                        .load::<models::Shift>(&mut conn)?;
+                         .load::<models::Shift>(&mut conn)
+                         .map_err(|_| AppError::DbError)?;
 
                     let available_shifts = available_shifts
                         .into_iter()
@@ -150,7 +150,8 @@ impl EmployeeRepository for DieselEmployeeRepository {
                         .filter(employee_capabilities::employee_id.eq(e.id))
                         .inner_join(capabilities::table)
                         .select(capabilities::all_columns)
-                        .load::<models::Capability>(&mut conn)?;
+                         .load::<models::Capability>(&mut conn)
+                         .map_err(|_| AppError::DbError)?;
 
                     let capabilities = capabilities
                         .into_iter()
@@ -168,16 +169,16 @@ impl EmployeeRepository for DieselEmployeeRepository {
                 None => Ok(None),
             }
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn list_employees(&self) -> Result<Vec<Employee>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn list_employees(&self) -> Result<Vec<Employee>, AppError> {
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let employees_list = employees::table
                 .load::<models::Employee>(&mut conn)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            .map_err(|_| AppError::DbError)?;
 
             let mut result = vec![];
             for e in employees_list {
@@ -186,7 +187,8 @@ impl EmployeeRepository for DieselEmployeeRepository {
                     .filter(employee_available_shifts::employee_id.eq(e.id))
                     .inner_join(shifts::table)
                     .select(shifts::all_columns)
-                    .load::<models::Shift>(&mut conn)?;
+                     .load::<models::Shift>(&mut conn)
+                     .map_err(|_| AppError::DbError)?;
 
                 let available_shifts = available_shifts
                     .into_iter()
@@ -197,7 +199,8 @@ impl EmployeeRepository for DieselEmployeeRepository {
                     .filter(employee_capabilities::employee_id.eq(e.id))
                     .inner_join(capabilities::table)
                     .select(capabilities::all_columns)
-                    .load::<models::Capability>(&mut conn)?;
+                     .load::<models::Capability>(&mut conn)
+                     .map_err(|_| AppError::DbError)?;
 
                 let capabilities = capabilities
                     .into_iter()
@@ -214,110 +217,74 @@ impl EmployeeRepository for DieselEmployeeRepository {
             }
             Ok(result)
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn get_employee_capabilities(&self, employee_id: Uuid) -> Result<Vec<Capability>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn get_employee_capabilities(&self, employee_id: Uuid) -> Result<Vec<Capability>, AppError> {
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
 
             let capabilities = employee_capabilities::table
                 .filter(employee_capabilities::employee_id.eq(employee_id))
                 .inner_join(capabilities::table)
                 .select(capabilities::all_columns)
-                .load::<models::Capability>(&mut conn)?
+                .load::<models::Capability>(&mut conn)
+                .map_err(|_| AppError::DbError)?
                 .into_iter()
                 .map(|c| Capability { id: c.id, name: c.name })
                 .collect();
 
             Ok(capabilities)
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn add_employee_capability(&self, employee_id: Uuid, capability_id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn add_employee_capability(&self, employee_id: Uuid, capability_id: Uuid) -> Result<(), AppError> {
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         let new_employee_capability = NewEmployeeCapability { employee_id, capability_id };
 
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             diesel::insert_into(employee_capabilities::table)
                 .values(&new_employee_capability)
                 .execute(&mut conn)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            .map_err(|_| AppError::DbError)?;
             Ok(())
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn update_employee(&self, _employee: Employee) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // TODO: Implement update
-        Ok(())
+    async fn update_employee(&self, employee: Employee) -> Result<(), AppError> {
+        // Update employee fields (name and email) in DB
+        let pool: Arc<DbPool> = Arc::clone(&self.pool);
+        let emp_id = employee.id;
+        let emp_name = employee.name.clone();
+        let emp_email = employee.email.clone();
+        task::spawn_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            diesel::update(crate::schema::employees::table.find(emp_id))
+                .set((crate::schema::employees::name.eq(emp_name), crate::schema::employees::email.eq(emp_email)))
+                .execute(&mut conn)
+                .map_err(|_| AppError::DbError)?;
+            Ok(())
+        })
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn delete_employee(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn delete_employee(&self, id: Uuid) -> Result<(), AppError> {
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             diesel::delete(employees::table.find(id))
                 .execute(&mut conn)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|_| AppError::DbError)?;
             Ok(())
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 }
 
-// Implement other repositories similarly
-#[derive(Clone)]
-pub struct DieselShiftRepository {
-    pub pool: Arc<DbPool>,
-}
-
-#[async_trait]
-impl ShiftRepository for DieselShiftRepository {
-    async fn create_shift(&self, name: &str) -> Result<Shift, Box<dyn std::error::Error + Send + Sync>> {
-        let name = name.to_string();
-        let pool: Arc<DbPool> = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
-            let new_shift = NewShift { name: &name };
-            diesel::insert_into(shifts::table)
-                .values(&new_shift)
-                .get_result::<models::Shift>(&mut conn)
-                .map(|s| Shift { id: s.id, name: s.name })
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-        })
-        .await?
-    }
-
-    async fn get_shift(&self, id: Uuid) -> Result<Option<Shift>, Box<dyn std::error::Error + Send + Sync>> {
-        let pool: Arc<DbPool> = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
-            shifts::table
-                .find(id)
-                .first::<models::Shift>(&mut conn)
-                .optional()
-                .map(|s: Option<models::Shift>| s.map(|s| Shift { id: s.id, name: s.name }))
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-        })
-        .await?
-    }
-
-    async fn list_shifts(&self) -> Result<Vec<Shift>, Box<dyn std::error::Error + Send + Sync>> {
-        let pool: Arc<DbPool> = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
-            shifts::table
-                .load::<models::Shift>(&mut conn)
-                .map(|shifts: Vec<models::Shift>| shifts.into_iter().map(|s| Shift { id: s.id, name: s.name }).collect())
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-        })
-        .await?
-    }
-}
 
 // Implement CapabilityRepository and UnavailabilityRepository similarly
 #[derive(Clone)]
@@ -331,7 +298,7 @@ impl CapabilityRepository for DieselCapabilityRepository {
         let name = name.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let new_capability = NewCapability { name: &name };
             diesel::insert_into(capabilities::table)
                 .values(&new_capability)
@@ -388,7 +355,7 @@ impl UnavailabilityRepository for DieselUnavailabilityRepository {
             diesel::insert_into(unavailabilities::table)
                 .values(&new_unavailability)
                 .execute(&mut conn)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|_| AppError::DbError)?;
             Ok(())
         })
         .await?
@@ -397,7 +364,7 @@ impl UnavailabilityRepository for DieselUnavailabilityRepository {
     async fn get_unavailabilities_for_employee(&self, employee_id: Uuid) -> Result<Vec<Unavailability>, Box<dyn std::error::Error + Send + Sync>> {
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             unavailabilities::table
                 .filter(unavailabilities::employee_id.eq(employee_id))
                 .load::<models::Unavailability>(&mut conn)
@@ -418,7 +385,7 @@ impl UnavailabilityRepository for DieselUnavailabilityRepository {
             let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
             diesel::delete(unavailabilities::table.find(id))
                 .execute(&mut conn)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|_| AppError::DbError)?;
             Ok(())
         })
         .await?
@@ -436,7 +403,7 @@ impl crate::repository::domain::WorkstationRepository for DieselWorkstationRepos
         let name = name.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let new_workstation = NewWorkstation { name: &name, available, active_shift_id };
             diesel::insert_into(workstations::table)
                 .values(&new_workstation)
@@ -461,7 +428,7 @@ impl crate::repository::domain::WorkstationRepository for DieselWorkstationRepos
                 .find(id)
                 .first::<models::Workstation>(&mut conn)
                 .optional()
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|_| AppError::DbError)?;
 
             match workstation {
                 Some(ws) => {
@@ -469,8 +436,8 @@ impl crate::repository::domain::WorkstationRepository for DieselWorkstationRepos
                         .filter(workstation_required_capabilities::workstation_id.eq(id))
                         .inner_join(capabilities::table)
                         .select(capabilities::all_columns)
-                        .load::<models::Capability>(&mut conn)
-                        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .load::<models::Capability>(&mut conn)
+                .map_err(|_| AppError::DbError)?;
 
                     let required_capabilities = required_capabilities
                         .into_iter()
@@ -505,7 +472,8 @@ impl crate::repository::domain::WorkstationRepository for DieselWorkstationRepos
                     .filter(workstation_required_capabilities::workstation_id.eq(ws.id))
                     .inner_join(capabilities::table)
                     .select(capabilities::all_columns)
-                    .load::<models::Capability>(&mut conn)?;
+                    .load::<models::Capability>(&mut conn)
+                    .map_err(|_| AppError::DbError)?;
 
                 let required_capabilities = required_capabilities
                     .into_iter()

@@ -66,11 +66,42 @@ impl EmployeeService {
     }
 
     pub async fn update_employee(
-        Path(_employee_id): Path<Uuid>,
-        State(_state): State<AppState>,
-        Json(_body): Json<Value>,
+        Path(employee_id): Path<Uuid>,
+        State(state): State<AppState>,
+        Json(body): Json<Value>,
     ) -> Json<Value> {
-        todo!()
+        // Extract optional fields from request body
+        let name_opt = body.get("name").and_then(|v| v.as_str());
+        let email_opt = body.get("email").and_then(|v| v.as_str());
+
+        // Retrieve existing employee
+        let existing = state
+            .employee_repo
+            .get_employee(employee_id)
+            .await
+            .expect("Error loading employee");
+
+        match existing {
+            Some(mut employee) => {
+                // Update mutable fields if provided
+                if let Some(name) = name_opt {
+                    employee.name = name.to_string();
+                }
+                if let Some(email) = email_opt {
+                    employee.email = email.to_string();
+                }
+
+                // Persist changes via repository
+                state
+                    .employee_repo
+                    .update_employee(employee.clone())
+                    .await
+                    .expect("Error updating employee");
+
+                Json(serde_json::to_value(employee).unwrap())
+            }
+            None => Json(serde_json::json!({ "error": "Employee not found" })),
+        }
     }
 
     pub async fn get_employee_by_email(

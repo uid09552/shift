@@ -1,15 +1,16 @@
 pub mod domain;
 pub mod employeerepository;
+pub mod shiftrepository;
 
 use std::sync::Arc;
 use crate::database::DbPool;
 use self::employeerepository::{
     DieselCapabilityRepository,
     DieselEmployeeRepository,
-    DieselShiftRepository,
     DieselUnavailabilityRepository,
     DieselWorkstationRepository,
 };
+use self::shiftrepository::DieselShiftRepository;
 
 #[derive(Clone)]
 pub struct AppState {
