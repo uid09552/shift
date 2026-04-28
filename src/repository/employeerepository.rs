@@ -3,6 +3,8 @@ use diesel::prelude::*;
 use std::sync::Arc;
 use tokio::task;
 use uuid::Uuid;
+use crate::errors::AppError;
+use diesel::result::{Error as DieselError, DatabaseErrorKind};
 
 use crate::database::DbPool;
 use crate::repository::domain::{
@@ -32,27 +34,41 @@ pub struct DieselEmployeeRepository {
 
 #[async_trait]
 impl EmployeeRepository for DieselEmployeeRepository {
-    async fn create_employee(&self, name: &str, email: &str) -> Result<Employee, Box<dyn std::error::Error + Send + Sync>> {
-        let name = name.to_string();
-        let email = email.to_string();
-        let pool: Arc<DbPool> = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
-            let new_employee = NewEmployee { name: &name, email: &email };
-            diesel::insert_into(employees::table)
-                .values(&new_employee)
-                .get_result::<models::Employee>(&mut conn)
-                .map(|e| Employee {
-                    id: e.id,
-                    name: e.name,
-                    email: e.email,
-                    available_shifts: vec![], // TODO: load
-                    capabilities: vec![],     // TODO: load
-                })
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-        })
-        .await?
-    }
+    async fn create_employee(
+    &self,
+    name: &str,
+    email: &str,
+) -> Result<Employee, AppError> {
+    let name = name.to_string();
+    let email = email.to_string();
+    let pool = Arc::clone(&self.pool);
+
+    task::spawn_blocking(move || {
+        let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+
+        let new_employee = NewEmployee { name: &name, email: &email };
+
+        diesel::insert_into(employees::table)
+            .values(&new_employee)
+            .get_result::<models::Employee>(&mut conn)
+            .map_err(|e| match e {
+                DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
+                    AppError::Duplicate
+                }
+                DieselError::NotFound => AppError::NotFound,
+                _ => AppError::DbError,
+            })
+            .map(|e| Employee {
+                id: e.id,
+                name: e.name,
+                email: e.email,
+                available_shifts: vec![],
+                capabilities: vec![],
+            })
+    })
+    .await
+    .map_err(|_| AppError::Internal)?
+}
 
     async fn get_employee(&self, id: Uuid) -> Result<Option<Employee>, Box<dyn std::error::Error + Send + Sync>> {
         let pool: Arc<DbPool> = Arc::clone(&self.pool);

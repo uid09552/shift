@@ -1,6 +1,7 @@
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use crate::errors::AppError;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Employee {
@@ -45,7 +46,7 @@ use async_trait::async_trait;
 
 #[async_trait]
 pub trait EmployeeRepository {
-    async fn create_employee(&self, name: &str, email: &str) -> Result<Employee, Box<dyn std::error::Error + Send + Sync>>;
+    async fn create_employee(&self, name: &str, email: &str) -> Result<Employee, AppError>;
     async fn get_employee(&self, id: Uuid) -> Result<Option<Employee>, Box<dyn std::error::Error + Send + Sync>>;
     async fn get_employee_by_email(&self, email: &str) -> Result<Option<Employee>, Box<dyn std::error::Error + Send + Sync>>;
     async fn list_employees(&self) -> Result<Vec<Employee>, Box<dyn std::error::Error + Send + Sync>>;

@@ -5,7 +5,7 @@ use axum::{
 use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
-
+use crate::errors::AppError;
 use crate::repository::AppState;
 use crate::repository::domain::EmployeeRepository;
 
@@ -25,17 +25,38 @@ pub struct EmployeeService;
 impl EmployeeService {
     pub async fn list_employees(
         Query(_q): Query<PaginationQuery>,
-        State(_state): State<AppState>,
+        State(state): State<AppState>,
     ) -> Json<Value> {
-        todo!()
+        // Retrieve list of employees from repository
+        let employees = state
+            .employee_repo
+            .list_employees()
+            .await
+            .expect("Error loading employees");
+        Json(serde_json::to_value(employees).unwrap())
     }
 
     pub async fn create_employee(
-        State(_state): State<AppState>,
-        Json(_body): Json<Value>,
-    ) -> Json<Value> {
-        todo!()
-    }
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    let name = body
+        .get("name")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::Validation("Missing 'name'".into()))?;
+
+    let email = body
+        .get("email")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::Validation("Missing 'email'".into()))?;
+
+    let employee = state
+        .employee_repo
+        .create_employee(name, email)
+        .await?;
+
+    Ok(Json(serde_json::to_value(employee).unwrap()))
+}
 
     pub async fn get_employee_by_id(
         Path(_employee_id): Path<Uuid>,
@@ -53,10 +74,19 @@ impl EmployeeService {
     }
 
     pub async fn get_employee_by_email(
-        Path(_email): Path<String>,
-        State(_state): State<AppState>,
+        Path(email): Path<String>,
+        State(state): State<AppState>,
     ) -> Json<Value> {
-        todo!()
+        // Retrieve employee by email using repository
+        let employee_opt = state
+            .employee_repo
+            .get_employee_by_email(&email)
+            .await
+            .expect("Error loading employee by email");
+        match employee_opt {
+            Some(employee) => Json(serde_json::to_value(employee).unwrap()),
+            None => Json(serde_json::json!({ "error": "Employee not found" })),
+        }
     }
 
     pub async fn get_employee_capabilities(
