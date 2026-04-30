@@ -148,17 +148,33 @@ impl EmployeeService {
     }
 
     pub async fn get_employee_available_shifts(
-        Path(_employee_id): Path<Uuid>,
-        State(_state): State<AppState>,
-    ) -> Json<Value> {
-        todo!()
+        Path(employee_id): Path<Uuid>,
+        State(state): State<AppState>,
+    ) -> Result<Json<Value>, AppError> {
+        let shifts = state
+            .employee_repo
+            .get_employee_available_shifts(employee_id)
+            .await?;
+        Ok(Json(serde_json::to_value(shifts).unwrap()))
     }
 
     pub async fn add_employee_available_shift(
-        Path(_employee_id): Path<Uuid>,
-        State(_state): State<AppState>,
-        Json(_body): Json<Value>,
-    ) -> Json<Value> {
-        todo!()
+        Path(employee_id): Path<Uuid>,
+        State(state): State<AppState>,
+        Json(body): Json<Value>,
+    ) -> Result<Json<Value>, AppError> {
+        let shift_id = body
+            .get("shift_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| AppError::Validation("Missing 'shift_id'".into()))?
+            .parse::<Uuid>()
+            .map_err(|_| AppError::Validation("Invalid 'shift_id' UUID".into()))?;
+
+        state
+            .employee_repo
+            .add_employee_available_shift(employee_id, shift_id)
+            .await?;
+
+        Ok(Json(serde_json::json!({ "message": "Available shift added successfully" })))
     }
 }

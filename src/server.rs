@@ -1,6 +1,6 @@
 use axum::{
     response::Json,
-    routing::{get, patch},
+    routing::{delete, get, patch, post},
     Router,
     extract::{ State},
     http::StatusCode,
@@ -55,6 +55,8 @@ pub fn create_router(state: AppState) -> Router {
         // Shifts
         .route("/shifts", get(ShiftService::list_shifts).post(ShiftService::create_shift))
         .route("/shifts/:shift_id", get(ShiftService::get_shift_by_id))
+        .route("/shifts/:shift_id/weekday-times", post(ShiftService::set_weekday_time))
+        .route("/shifts/:shift_id/weekday-times/:weekday", delete(ShiftService::delete_weekday_time))
         // Capabilities
         .route("/capabilities", get(CapabilityService::list_capabilities).post(CapabilityService::create_capability))
         .route("/capabilities/:capability_id", get(CapabilityService::get_capability_by_id))

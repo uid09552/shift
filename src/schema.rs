@@ -35,6 +35,16 @@ diesel::table! {
 }
 
 diesel::table! {
+    shift_weekday_times (id) {
+        id -> Uuid,
+        shift_id -> Uuid,
+        weekday -> Int2,
+        start_time -> Time,
+        end_time -> Time,
+    }
+}
+
+diesel::table! {
     workstations (id) {
         id -> Uuid,
         name -> Varchar,
@@ -67,6 +77,7 @@ diesel::joinable!(workstation_required_capabilities -> capabilities (capability_
 diesel::joinable!(workstation_required_capabilities -> workstations (workstation_id));
 diesel::joinable!(unavailabilities -> employees (employee_id));
 diesel::joinable!(unavailabilities -> shifts (shift_id));
+diesel::joinable!(shift_weekday_times -> shifts (shift_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     capabilities,
@@ -74,6 +85,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     employee_capabilities,
     employees,
     shifts,
+    shift_weekday_times,
     workstations,
     workstation_required_capabilities,
     unavailabilities,

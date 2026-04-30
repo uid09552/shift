@@ -366,6 +366,73 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /shifts/{shiftId}/weekday-times:
+    post:
+      tags:
+        - Shifts
+      summary: Set start/end time for a weekday on a shift
+      description: |
+        Creates or updates the start_time and end_time for a specific weekday (0=Monday, 6=Sunday) on the given shift.
+        If a time entry already exists for that (shiftId, weekday) pair, it will be updated.
+      operationId: setShiftWeekdayTime
+      parameters:
+        - name: shiftId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetWeekdayTimeRequest'
+      responses:
+        '200':
+          description: Weekday time set successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeekdayTime'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /shifts/{shiftId}/weekday-times/{weekday}:
+    delete:
+      tags:
+        - Shifts
+      summary: Delete a weekday time entry for a shift
+      operationId: deleteShiftWeekdayTime
+      parameters:
+        - name: shiftId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: weekday
+          in: path
+          required: true
+          description: Weekday number (0=Monday, 6=Sunday)
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 6
+      responses:
+        '200':
+          description: Weekday time deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /capabilities:
     get:
       tags:
@@ -862,6 +929,7 @@ components:
       required:
         - id
         - name
+        - weekday_times
       properties:
         id:
           type: string
@@ -870,6 +938,59 @@ components:
           type: string
           description: Shift name
           example: "Morning (8:00 - 16:00)"
+        weekday_times:
+          type: array
+          description: Start/end times per weekday for this shift
+          items:
+            $ref: '#/components/schemas/WeekdayTime'
+
+    WeekdayTime:
+      type: object
+      required:
+        - weekday
+        - start_time
+        - end_time
+      properties:
+        weekday:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: Weekday number (0=Monday, 1=Tuesday, ..., 6=Sunday)
+          example: 0
+        start_time:
+          type: string
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+          description: Shift start time in HH:MM or HH:MM:SS format
+          example: "06:00"
+        end_time:
+          type: string
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+          description: Shift end time in HH:MM or HH:MM:SS format
+          example: "14:00"
+
+    SetWeekdayTimeRequest:
+      type: object
+      required:
+        - weekday
+        - start_time
+        - end_time
+      properties:
+        weekday:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: Weekday number (0=Monday, 1=Tuesday, ..., 6=Sunday)
+          example: 0
+        start_time:
+          type: string
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+          description: Shift start time in HH:MM or HH:MM:SS format
+          example: "06:00"
+        end_time:
+          type: string
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+          description: Shift end time in HH:MM or HH:MM:SS format
+          example: "14:00"
 
     CreateShiftRequest:
       type: object

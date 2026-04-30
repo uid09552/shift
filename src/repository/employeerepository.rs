@@ -12,7 +12,7 @@ use crate::repository::domain::{
     Unavailability, UnavailabilityRepository, Workstation,
 };
 use crate::models::{
-    NewCapability, NewEmployee, NewEmployeeCapability, NewUnavailability, NewWorkstation,
+    NewCapability, NewEmployee, NewEmployeeAvailableShift, NewEmployeeCapability, NewUnavailability, NewWorkstation,
     NewWorkstationRequiredCapability,
 };
 use crate::models as models;
@@ -89,7 +89,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
 
                     let available_shifts = available_shifts
                         .into_iter()
-                        .map(|s| Shift { id: s.id, name: s.name })
+                        .map(|s| Shift { id: s.id, name: s.name, weekday_times: vec![] })
                         .collect();
 
                     // Load capabilities
@@ -142,7 +142,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
 
                     let available_shifts = available_shifts
                         .into_iter()
-                        .map(|s| Shift { id: s.id, name: s.name })
+                        .map(|s| Shift { id: s.id, name: s.name, weekday_times: vec![] })
                         .collect();
 
                     // Load capabilities
@@ -192,7 +192,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
 
                 let available_shifts = available_shifts
                     .into_iter()
-                    .map(|s| Shift { id: s.id, name: s.name })
+                    .map(|s| Shift { id: s.id, name: s.name, weekday_times: vec![] })
                     .collect();
 
                 let capabilities = employee_capabilities::table
@@ -277,6 +277,43 @@ impl EmployeeRepository for DieselEmployeeRepository {
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             diesel::delete(employees::table.find(id))
+                .execute(&mut conn)
+                .map_err(|_| AppError::DbError)?;
+            Ok(())
+        })
+        .await.map_err(|_| AppError::Internal)?
+    }
+
+    async fn get_employee_available_shifts(&self, employee_id: Uuid) -> Result<Vec<Shift>, AppError> {
+        let pool: Arc<DbPool> = Arc::clone(&self.pool);
+        task::spawn_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+
+            let available_shifts = employee_available_shifts::table
+                .filter(employee_available_shifts::employee_id.eq(employee_id))
+                .inner_join(shifts::table)
+                .select(shifts::all_columns)
+                .load::<models::Shift>(&mut conn)
+                .map_err(|_| AppError::DbError)?;
+
+            let available_shifts = available_shifts
+                .into_iter()
+                .map(|s| Shift { id: s.id, name: s.name, weekday_times: vec![] })
+                .collect();
+
+            Ok(available_shifts)
+        })
+        .await.map_err(|_| AppError::Internal)?
+    }
+
+    async fn add_employee_available_shift(&self, employee_id: Uuid, shift_id: Uuid) -> Result<(), AppError> {
+        let pool: Arc<DbPool> = Arc::clone(&self.pool);
+        let new_entry = NewEmployeeAvailableShift { employee_id, shift_id };
+
+        task::spawn_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            diesel::insert_into(employee_available_shifts::table)
+                .values(&new_entry)
                 .execute(&mut conn)
                 .map_err(|_| AppError::DbError)?;
             Ok(())

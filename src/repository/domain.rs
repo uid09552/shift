@@ -1,4 +1,5 @@
 use chrono::NaiveDate;
+use chrono::NaiveTime;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::errors::AppError;
@@ -13,9 +14,17 @@ pub struct Employee {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WeekdayTime {
+    pub weekday: i16,
+    pub start_time: NaiveTime,
+    pub end_time: NaiveTime,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Shift {
     pub id: Uuid,
     pub name: String,
+    pub weekday_times: Vec<WeekdayTime>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -54,6 +63,8 @@ use async_trait::async_trait;
         async fn add_employee_capability(&self, employee_id: Uuid, capability_id: Uuid) -> Result<(), AppError>;
         async fn update_employee(&self, employee: Employee) -> Result<(), AppError>;
         async fn delete_employee(&self, id: Uuid) -> Result<(), AppError>;
+        async fn get_employee_available_shifts(&self, employee_id: Uuid) -> Result<Vec<Shift>, AppError>;
+        async fn add_employee_available_shift(&self, employee_id: Uuid, shift_id: Uuid) -> Result<(), AppError>;
     }
 
 #[async_trait]
