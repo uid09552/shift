@@ -46,16 +46,19 @@ impl WorkstationService {
             .and_then(|v| v.as_bool())
             .unwrap_or(true);
 
-        let active_shift_id = body
-            .get("active_shift_id")
-            .and_then(|v| v.as_str())
-            .map(|s| s.parse::<Uuid>())
-            .transpose()
-            .map_err(|_| AppError::Validation("Invalid 'active_shift_id'".into()))?;
+        let active_shift_ids = body
+            .get("active_shift_ids")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().and_then(|s| s.parse::<Uuid>().ok()))
+                    .collect::<Vec<Uuid>>()
+            })
+            .unwrap_or_default();
 
         let workstation = state
             .workstation_repo
-            .create_workstation(name, available, active_shift_id)
+            .create_workstation(name, available, active_shift_ids)
             .await
             .map_err(|_| AppError::Internal)?;
 
@@ -89,22 +92,21 @@ impl WorkstationService {
                 .map_err(|_| AppError::Internal)?;
         }
 
-        // Update active shift if provided (including explicitly setting to null)
-        if let Some(active_shift_val) = body.get("active_shift_id") {
-            let active_shift_id = if active_shift_val.is_null() {
-                None
+        // Update active shifts if provided
+        if let Some(active_shift_ids_val) = body.get("active_shift_ids") {
+            let active_shift_ids = if active_shift_ids_val.is_null() {
+                vec![]
             } else {
-                Some(
-                    active_shift_val
-                        .as_str()
-                        .ok_or_else(|| AppError::Validation("Invalid 'active_shift_id'".into()))?
-                        .parse::<Uuid>()
-                        .map_err(|_| AppError::Validation("Invalid 'active_shift_id' UUID".into()))?,
-                )
+                active_shift_ids_val
+                    .as_array()
+                    .ok_or_else(|| AppError::Validation("Invalid 'active_shift_ids': expected array".into()))?
+                    .iter()
+                    .filter_map(|v| v.as_str().and_then(|s| s.parse::<Uuid>().ok()))
+                    .collect::<Vec<Uuid>>()
             };
             state
                 .workstation_repo
-                .set_workstation_active_shift(workstation_id, active_shift_id)
+                .set_workstation_active_shifts(workstation_id, active_shift_ids)
                 .await
                 .map_err(|_| AppError::Internal)?;
         }
@@ -136,22 +138,21 @@ impl WorkstationService {
             .await
             .map_err(|_| AppError::Internal)?;
 
-        // Also update active_shift_id if provided
-        if let Some(active_shift_val) = body.get("active_shift_id") {
-            let active_shift_id = if active_shift_val.is_null() {
-                None
+        // Also update active_shift_ids if provided
+        if let Some(active_shift_ids_val) = body.get("active_shift_ids") {
+            let active_shift_ids = if active_shift_ids_val.is_null() {
+                vec![]
             } else {
-                Some(
-                    active_shift_val
-                        .as_str()
-                        .ok_or_else(|| AppError::Validation("Invalid 'active_shift_id'".into()))?
-                        .parse::<Uuid>()
-                        .map_err(|_| AppError::Validation("Invalid 'active_shift_id' UUID".into()))?,
-                )
+                active_shift_ids_val
+                    .as_array()
+                    .ok_or_else(|| AppError::Validation("Invalid 'active_shift_ids': expected array".into()))?
+                    .iter()
+                    .filter_map(|v| v.as_str().and_then(|s| s.parse::<Uuid>().ok()))
+                    .collect::<Vec<Uuid>>()
             };
             state
                 .workstation_repo
-                .set_workstation_active_shift(workstation_id, active_shift_id)
+                .set_workstation_active_shifts(workstation_id, active_shift_ids)
                 .await
                 .map_err(|_| AppError::Internal)?;
         }

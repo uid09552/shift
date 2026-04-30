@@ -49,7 +49,7 @@ diesel::table! {
         id -> Uuid,
         name -> Varchar,
         available -> Bool,
-        active_shift_id -> Nullable<Uuid>,
+        active_shift_ids -> Array<Uuid>,
     }
 }
 

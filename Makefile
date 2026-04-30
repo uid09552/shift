@@ -1,6 +1,9 @@
 # Binary name (adjust if needed)
 BIN := myapp
 
+# Docker container name for PostgreSQL
+CONTAINER ?= shift_postgres
+
 # Default target
 .PHONY: help
 help:
@@ -11,6 +14,7 @@ help:
 	@echo "  serve        Run 'serve' command"
 	@echo "  db-up        Start PostgreSQL database with docker-compose"
 	@echo "  db-down      Stop PostgreSQL database"
+	@echo "  dev-run      Reset DB, run server, and seed data"
 	@echo "  check        Check code without building"
 	@echo "  test         Run tests"
 	@echo "  clean        Clean build artifacts"
@@ -56,3 +60,13 @@ test:
 .PHONY: clean
 clean:
 	cargo clean
+
+.PHONY: dev-run
+dev-run:
+	docker exec $(CONTAINER) psql -U postgres -c "DROP DATABASE IF EXISTS shift;"
+	docker exec $(CONTAINER) psql -U postgres -c "CREATE DATABASE shift;"
+	cargo run -- serve \
+		$(if $(PORT),--port $(PORT),) \
+		$(if $(LISTEN),--listen $(LISTEN),) \
+		$(if $(VERBOSE),--verbose,) \
+		$(if $(DEV),--dev,) & sleep 2s && ./seed_data.sh; wait

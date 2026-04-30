@@ -38,7 +38,7 @@ pub struct Workstation {
     pub id: Uuid,
     pub name: String,
     pub available: bool,
-    pub active_shift_id: Option<Uuid>,
+    pub active_shift_ids: Vec<Uuid>,
     pub required_capabilities: Vec<Capability>,
 }
 
@@ -83,18 +83,20 @@ pub trait CapabilityRepository {
 
 #[async_trait]
 pub trait UnavailabilityRepository {
-    async fn create_unavailability(&self, unavailability: Unavailability) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    async fn create_unavailability(&self, unavailability: Unavailability) -> Result<Unavailability, Box<dyn std::error::Error + Send + Sync>>;
+    async fn get_unavailability(&self, id: Uuid) -> Result<Option<Unavailability>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn list_unavailabilities(&self) -> Result<Vec<Unavailability>, Box<dyn std::error::Error + Send + Sync>>;
     async fn get_unavailabilities_for_employee(&self, employee_id: Uuid) -> Result<Vec<Unavailability>, Box<dyn std::error::Error + Send + Sync>>;
     async fn delete_unavailability(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 }
 
 #[async_trait]
 pub trait WorkstationRepository {
-    async fn create_workstation(&self, name: &str, available: bool, active_shift_id: Option<Uuid>) -> Result<Workstation, Box<dyn std::error::Error + Send + Sync>>;
+    async fn create_workstation(&self, name: &str, available: bool, active_shift_ids: Vec<Uuid>) -> Result<Workstation, Box<dyn std::error::Error + Send + Sync>>;
     async fn get_workstation(&self, id: Uuid) -> Result<Option<Workstation>, Box<dyn std::error::Error + Send + Sync>>;
     async fn list_workstations(&self) -> Result<Vec<Workstation>, Box<dyn std::error::Error + Send + Sync>>;
     async fn set_workstation_availability(&self, id: Uuid, available: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
-    async fn set_workstation_active_shift(&self, id: Uuid, active_shift_id: Option<Uuid>) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    async fn set_workstation_active_shifts(&self, id: Uuid, active_shift_ids: Vec<Uuid>) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn add_required_capability(&self, workstation_id: Uuid, capability_id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn list_required_capabilities(&self, workstation_id: Uuid) -> Result<Vec<Capability>, Box<dyn std::error::Error + Send + Sync>>;
 }

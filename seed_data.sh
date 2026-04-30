@@ -238,10 +238,52 @@ for WI in "${!WS_NAMES[@]}"; do
 done
 echo "  ✓ Assigned ${WS_ASSIGNED} workstation capability links total"
 
+# ─── Unavailabilities ─────────────────────────────────────────────────────────
+echo ""
+echo "--- Creating random unavailabilities ---"
+
+UNAV_CREATED=0
+# Generate unavailabilities for the next 30 days
+for I in "${!EMPLOYEE_IDS[@]}"; do
+  EMP_ID="${EMPLOYEE_IDS[$I]}"
+  # ~30% of employees get 1-3 unavailability entries
+  if [ $(( I % 10 )) -lt 3 ]; then
+    NUM_UNAV=$(( (I % 3) + 1 ))
+    for J in $(seq 1 "$NUM_UNAV"); do
+      # Random day offset 1-30
+      DAY_OFFSET=$(( (I * 7 + J * 3) % 30 + 1 ))
+      UNAV_DATE=$(date -d "+${DAY_OFFSET} days" +%Y-%m-%d 2>/dev/null || date -v+${DAY_OFFSET}d +%Y-%m-%d 2>/dev/null || echo "2026-06-0$(( DAY_OFFSET % 9 + 1 ))")
+
+      # 50% chance of being whole-day (no shift_id), 50% with a specific shift
+      if [ $(( (I + J) % 2 )) -eq 0 ]; then
+        # Whole day unavailability
+        RESP=$(curl -s -X POST "${BASE_URL}/unavailabilities" \
+          -H "Content-Type: application/json" \
+          -d "{\"employee_id\": \"${EMP_ID}\", \"unavailable_date\": \"${UNAV_DATE}\"}")
+      else
+        # Shift-specific unavailability
+        SHIFT_IDX=$(( (I + J) % ${#SHIFT_IDS[@]} ))
+        SHIFT_ID="${SHIFT_IDS[$SHIFT_IDX]}"
+        RESP=$(curl -s -X POST "${BASE_URL}/unavailabilities" \
+          -H "Content-Type: application/json" \
+          -d "{\"employee_id\": \"${EMP_ID}\", \"unavailable_date\": \"${UNAV_DATE}\", \"shift_id\": \"${SHIFT_ID}\"}")
+      fi
+
+      if echo "$RESP" | grep -qi "error"; then
+        echo "  ✗ Failed to create unavailability for employee '${EMP_ID}': ${RESP}"
+      else
+        UNAV_CREATED=$((UNAV_CREATED + 1))
+      fi
+    done
+  fi
+done
+echo "  ✓ Created ${UNAV_CREATED} unavailability entries"
+
 # ─── Summary ──────────────────────────────────────────────────────────────────
 echo ""
 echo "=== Seeding complete ==="
-echo "  Shifts:       ${#SHIFT_IDS[@]} (with weekday times)"
-echo "  Capabilities: ${#CAP_IDS[@]}"
-echo "  Employees:    ${#EMPLOYEE_IDS[@]}"
-echo "  Workstations: ${#WS_IDS[@]}"
+echo "  Shifts:          ${#SHIFT_IDS[@]} (with weekday times)"
+echo "  Capabilities:    ${#CAP_IDS[@]}"
+echo "  Employees:       ${#EMPLOYEE_IDS[@]}"
+echo "  Workstations:    ${#WS_IDS[@]}"
+echo "  Unavailabilities: ${UNAV_CREATED}"
