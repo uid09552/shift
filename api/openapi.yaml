@@ -652,10 +652,12 @@ paths:
               properties:
                 available:
                   type: boolean
-                active_shift_id:
-                  type: string
-                  format: uuid
-                  nullable: true
+                active_shift_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  description: List of active shift IDs for the workstation
       responses:
         '200':
           description: Availability updated
@@ -1034,7 +1036,7 @@ components:
         - id
         - name
         - available
-        - active_shift_id
+        - active_shift_ids
       properties:
         id:
           type: string
@@ -1046,11 +1048,12 @@ components:
         available:
           type: boolean
           description: Whether the workstation is available for use
-        active_shift_id:
-          type: string
-          format: uuid
-          nullable: true
-          description: Currently active shift ID, if any
+        active_shift_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: List of active shift IDs the workstation is working in
 
     WorkstationDetail:
       allOf:
@@ -1075,10 +1078,13 @@ components:
           example: "MRT Room 1"
         available:
           type: boolean
-        active_shift_id:
-          type: string
-          format: uuid
-          nullable: true
+        active_shift_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: List of shift IDs the workstation is active in
+          default: []
 
     UpdateWorkstationRequest:
       type: object
@@ -1090,10 +1096,12 @@ components:
           example: "MRT Room 1"
         available:
           type: boolean
-        active_shift_id:
-          type: string
-          format: uuid
-          nullable: true
+        active_shift_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: List of shift IDs the workstation is active in. Set to empty array to clear.
 
     Unavailability:
       type: object
