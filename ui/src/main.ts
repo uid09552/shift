@@ -1,13 +1,9 @@
-import { enableProdMode } from '@angular/core';
-import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
+import { bootstrapApplication } from '@angular/platform-browser';
+import { appConfig } from './app/app.config';
+import { AppComponent } from './app/app.component';
+import { register as registerSwiperElements } from 'swiper/element/bundle';
 
-import { AppModule } from './app/app.module';
-import { environment } from './environments/environment';
+registerSwiperElements();
 
-if (environment.production) {
-  enableProdMode();
-}
-
-// Angular 21 is zoneless by default - no provideZoneChangeDetection() needed
-platformBrowserDynamic().bootstrapModule(AppModule)
-  .catch(err => console.error(err));
+bootstrapApplication(AppComponent, appConfig)
+  .catch((err) => console.error(err));

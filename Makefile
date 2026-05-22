@@ -8,16 +8,19 @@ CONTAINER ?= shift_postgres
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  build        Build the project"
-	@echo "  release      Build in release mode"
-	@echo "  run          Run the app"
-	@echo "  serve        Run 'serve' command"
-	@echo "  db-up        Start PostgreSQL database with docker-compose"
-	@echo "  db-down      Stop PostgreSQL database"
-	@echo "  dev-run      Reset DB, run server, and seed data"
-	@echo "  check        Check code without building"
-	@echo "  test         Run tests"
-	@echo "  clean        Clean build artifacts"
+	@echo "  build          Build the project"
+	@echo "  release        Build in release mode"
+	@echo "  run            Run the app"
+	@echo "  serve          Run 'serve' command"
+	@echo "  db-up          Start PostgreSQL database with docker-compose"
+	@echo "  db-down        Stop PostgreSQL database"
+	@echo "  dev-run        Reset DB, run server, and seed data"
+	@echo "  build-compose  Build docker-compose images (backend + postgres)"
+	@echo "  up    Build and start docker-compose services"
+	@echo "  down   Stop and remove docker-compose services"
+	@echo "  check          Check code without building"
+	@echo "  test           Run tests"
+	@echo "  clean          Clean build artifacts"
 
 .PHONY: build
 build:
@@ -70,3 +73,17 @@ dev-run:
 		$(if $(LISTEN),--listen $(LISTEN),) \
 		$(if $(VERBOSE),--verbose,) \
 		$(if $(DEV),--dev,) & sleep 2s && ./seed_data.sh; wait
+
+.PHONY: build-compose
+build-compose:
+	docker compose -f deploy/docker-compose.yml build
+
+.PHONY: run-compose
+up:
+	docker compose -f deploy/docker-compose.yml up --build -d
+	docker compose -f ui/deploy/docker-compose.yml up --build -d
+
+.PHONY: down-compose
+down:
+	docker compose -f deploy/docker-compose.yml down
+	docker compose -f ui/deploy/docker-compose.yml down

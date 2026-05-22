@@ -2,16 +2,14 @@
 
 # Compiled output
 /dist
-/.angular
 /tmp
 /out-tsc
 /bazel-out
 
 # Node
 /node_modules
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+npm-debug.log
+yarn-error.log
 
 # IDEs and editors
 .idea/
@@ -28,7 +26,6 @@ yarn-error.log*
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
-!.vscode/mcp.json
 .history/*
 
 # Miscellaneous
@@ -39,7 +36,6 @@ yarn-error.log*
 /libpeerconnection.log
 testem.log
 /typings
-__screenshots__/
 
 # System files
 .DS_Store

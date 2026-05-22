@@ -172,11 +172,22 @@ impl EmployeeRepository for DieselEmployeeRepository {
         .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn list_employees(&self) -> Result<Vec<Employee>, AppError> {
+    async fn list_employees(&self, limit: Option<i64>, offset: Option<i64>) -> Result<Vec<Employee>, AppError> {
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
-            let employees_list = employees::table
+            let mut query = employees::table.into_boxed();
+
+            if let Some(l) = limit {
+                query = query.limit(l);
+            } else {
+                query = query.limit(50);
+            }
+            if let Some(o) = offset {
+                query = query.offset(o);
+            }
+
+            let employees_list = query
                 .load::<models::Employee>(&mut conn)
             .map_err(|_| AppError::DbError)?;
 
@@ -216,6 +227,19 @@ impl EmployeeRepository for DieselEmployeeRepository {
                 });
             }
             Ok(result)
+        })
+        .await.map_err(|_| AppError::Internal)?
+    }
+
+    async fn count_employees(&self) -> Result<i64, AppError> {
+        let pool: Arc<DbPool> = Arc::clone(&self.pool);
+        task::spawn_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            let count = employees::table
+                .count()
+                .get_result(&mut conn)
+                .map_err(|_| AppError::DbError)?;
+            Ok(count)
         })
         .await.map_err(|_| AppError::Internal)?
     }

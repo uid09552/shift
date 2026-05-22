@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 use crate::errors::AppError;
@@ -15,6 +15,14 @@ pub struct PaginationQuery {
     pub offset: Option<i32>,
 }
 
+#[derive(Serialize)]
+pub struct PaginatedResponse<T: Serialize> {
+    pub data: Vec<T>,
+    pub total: i64,
+    pub limit: i64,
+    pub offset: i64,
+}
+
 #[derive(Deserialize)]
 pub struct AddCapabilityRequest {
     pub capability_id: Uuid,
@@ -24,16 +32,33 @@ pub struct EmployeeService;
 
 impl EmployeeService {
     pub async fn list_employees(
-        Query(_q): Query<PaginationQuery>,
+        Query(q): Query<PaginationQuery>,
         State(state): State<AppState>,
     ) -> Json<Value> {
-        // Retrieve list of employees from repository
+        let limit = q.limit.map(|l| l as i64);
+        let offset = q.offset.map(|o| o as i64);
+
+        // Retrieve paginated list of employees from repository
         let employees = state
             .employee_repo
-            .list_employees()
+            .list_employees(limit, offset)
             .await
             .expect("Error loading employees");
-        Json(serde_json::to_value(employees).unwrap())
+
+        // Get total count for pagination metadata
+        let total = state
+            .employee_repo
+            .count_employees()
+            .await
+            .expect("Error counting employees");
+
+        let response = PaginatedResponse {
+            data: employees,
+            total,
+            limit: limit.unwrap_or(50),
+            offset: offset.unwrap_or(0),
+        };
+        Json(serde_json::to_value(response).unwrap())
     }
 
     pub async fn create_employee(
