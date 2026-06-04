@@ -12,7 +12,24 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
     restart: unless-stopped
+
+  nats:
+    image: nats:2
+    container_name: shift_nats
+    command: ["-js"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    networks:
+      - backend
+    restart: unless-stopped
+
+networks:
+  backend:
+    driver: bridge
 
 volumes:
   postgres_data:

@@ -46,11 +46,11 @@ serve:
 
 .PHONY: db-up
 db-up:
-	docker compose up -d
+	docker compose -f dev/docker-compose.yml up -d
 
 .PHONY: db-down
 db-down:
-	docker compose down
+	docker compose -f dev/docker-compose.yml down
 
 .PHONY: check
 check:

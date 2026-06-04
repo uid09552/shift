@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
+    pub broker: BrokerConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,6 +25,12 @@ pub struct DatabaseConfig {
     pub database: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BrokerConfig {
+    pub host: String,
+    pub port: u16,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -39,6 +46,10 @@ impl Default for Config {
                 host: "localhost".to_string(),
                 port: 5432,
                 database: "shift".to_string(),
+            },
+            broker: BrokerConfig {
+                host: "127.0.0.1".to_string(),
+                port: 4222,
             },
         }
     }
@@ -85,6 +96,12 @@ impl Config {
         if let Some(db_name) = args.database_name.clone() {
             figment = figment.merge(("database.database", db_name));
         }
+        if let Some(broker_host) = args.broker_host.clone() {
+            figment = figment.merge(("broker.host", broker_host));
+        }
+        if let Some(broker_port) = args.broker_port {
+            figment = figment.merge(("broker.port", broker_port));
+        }
 
         figment.extract()
     }
@@ -101,4 +118,6 @@ pub struct CliArgs {
     pub database_host: Option<String>,
     pub database_port: Option<u16>,
     pub database_name: Option<String>,
+    pub broker_host: Option<String>,
+    pub broker_port: Option<u16>,
 }

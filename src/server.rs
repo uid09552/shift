@@ -15,6 +15,7 @@ use crate::repository::AppState;
 use crate::services::{
     capability::CapabilityService,
     employee::EmployeeService,
+    planner::PlannerService,
     shift::ShiftService,
     unavailability::UnavailabilityService,
     workstation::WorkstationService,
@@ -79,7 +80,9 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/unavailabilities/:unavailability_id",
             get(UnavailabilityService::get_unavailability_by_id).delete(UnavailabilityService::delete_unavailability),
-        );
+        )
+        // Planner
+        .route("/planner/plan", post(PlannerService::trigger_plan));
 
     Router::new()
         .route("/health", get(health_check))

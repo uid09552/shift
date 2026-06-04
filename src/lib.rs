@@ -1,8 +1,9 @@
+pub mod broker;
 pub mod config;
 pub mod database;
+pub mod errors;
 pub mod models;
 pub mod repository;
 pub mod schema;
 pub mod server;
 pub mod services;
-pub mod errors;

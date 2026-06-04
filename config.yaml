@@ -5,3 +5,7 @@ server:
 
 database:
   url: "postgresql://postgres:postgres@localhost:5432/shift"
+
+broker:
+  host: "127.0.0.1"
+  port: 4222

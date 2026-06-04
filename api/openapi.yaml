@@ -23,6 +23,8 @@ tags:
     description: Workstation management endpoints
   - name: Unavailability
     description: Employee unavailability management endpoints
+  - name: Planner
+    description: Shift scheduling planner endpoints
 
 paths:
   /employees:
@@ -852,6 +854,29 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /planner/plan:
+    post:
+      tags:
+        - Planner
+      summary: Trigger shift scheduling planning
+      description: Starts an asynchronous shift scheduling task. Returns a task ID that can be used to track the planning progress.
+      operationId: triggerPlan
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanRequest'
+      responses:
+        '202':
+          description: Planning task accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
 components:
   schemas:
     Employee:
@@ -874,6 +899,31 @@ components:
           format: email
           description: Employee email (unique)
           example: "john.doe@hospital.com"
+
+    PlanRequest:
+      type: object
+      properties:
+        start_date:
+          type: string
+          format: date
+          description: Start date of the planning period
+          example: "2026-06-09"
+        end_date:
+          type: string
+          format: date
+          description: End date of the planning period
+          example: "2026-06-15"
+
+    PlanResponse:
+      type: object
+      required:
+        - task_id
+      properties:
+        task_id:
+          type: string
+          format: uuid
+          description: Unique identifier for the planning task
+          example: "550e8400-e29b-41d4-a716-446655440000"
 
     EmployeeDetail:
       allOf:

@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use shift::{config::{self, CliArgs}, database, repository::AppState, server};
+use shift::{broker, config::{self, CliArgs}, database, repository::AppState, server};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use url::Url;
@@ -51,6 +51,14 @@ enum Commands {
         /// Database name
         #[arg(long)]
         database_name: Option<String>,
+
+        /// Broker host
+        #[arg(long)]
+        broker_host: Option<String>,
+
+        /// Broker port
+        #[arg(long)]
+        broker_port: Option<u16>,
     },
 }
 
@@ -69,6 +77,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             database_host,
             database_port,
             database_name,
+            broker_host,
+            broker_port,
         } => {
             let cli_args = CliArgs {
                 port: Some(port),
@@ -80,6 +90,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 database_host,
                 database_port,
                 database_name,
+                broker_host,
+                broker_port,
             };
 
             let config = config::Config::from_env_and_args(&cli_args)
@@ -89,13 +101,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             println!("Listen: {}:{}", config.server.listen, config.server.port);
             println!("Verbose: {}", config.server.verbose);
             println!("Database: {}", mask_postgres_url(&config.database.url).unwrap_or_else(|_| "Failed to mask URL".into()));
+            println!("Broker: {}:{}", config.broker.host, config.broker.port);
 
             // Initialize database
             let pool = database::establish_connection_pool(&config.database);
             database::run_migrations(&pool)?;
-            let state = AppState::new(Arc::new(pool));
+
+            // Connect to NATS broker
+            let broker_conn = broker::connect(&config.broker).await?;
 
             // Start server
+            let state = AppState::with_nats(Arc::new(pool), broker_conn.client, broker_conn.jetstream_status);
             let addr = format!("{}:{}", config.server.listen, config.server.port).parse::<SocketAddr>()?;
             server::start_server(state, addr).await?;
         }
