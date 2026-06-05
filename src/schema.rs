@@ -31,6 +31,8 @@ diesel::table! {
     shifts (id) {
         id -> Uuid,
         name -> Varchar,
+        short_name -> Varchar,
+        color -> Varchar,
     }
 }
 

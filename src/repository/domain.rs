@@ -24,6 +24,8 @@ pub struct WeekdayTime {
 pub struct Shift {
     pub id: Uuid,
     pub name: String,
+    pub short_name: String,
+    pub color: String,
     pub weekday_times: Vec<WeekdayTime>,
 }
 
@@ -70,7 +72,7 @@ use async_trait::async_trait;
 
 #[async_trait]
     pub trait ShiftRepository {
-        async fn create_shift(&self, name: &str) -> Result<Shift, AppError>;
+        async fn create_shift(&self, name: &str, short_name: &str, color: &str) -> Result<Shift, AppError>;
     async fn get_shift(&self, id: Uuid) -> Result<Option<Shift>, Box<dyn std::error::Error + Send + Sync>>;
     async fn list_shifts(&self) -> Result<Vec<Shift>, Box<dyn std::error::Error + Send + Sync>>;
 }

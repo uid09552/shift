@@ -44,6 +44,8 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
         <table class="min-w-full">
           <thead class="border-b border-gray-100 dark:border-white/[0.05]">
             <tr>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Color</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Short Name</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Name</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Weekday Times</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Actions</th>
@@ -65,6 +67,24 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
             } @else {
               @for (shift of shifts; track shift.id) {
                 <tr>
+                  <td class="px-5 py-4 sm:px-6 text-start">
+                    <div class="flex items-center gap-2">
+                      <div
+                        class="w-6 h-6 rounded border border-gray-200 dark:border-gray-700"
+                        [style.backgroundColor]="shift.color"
+                        [title]="shift.color"
+                      ></div>
+                      <span class="text-xs font-mono text-gray-500 dark:text-gray-400">{{ shift.color }}</span>
+                    </div>
+                  </td>
+                  <td class="px-5 py-4 sm:px-6 text-start">
+                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                      [style.backgroundColor]="shift.color + '20'"
+                      [style.color]="shift.color"
+                    >
+                      {{ shift.short_name }}
+                    </span>
+                  </td>
                   <td class="px-5 py-4 sm:px-6 text-start">
                     <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
                       {{ shift.name }}
@@ -126,6 +146,44 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
               [value]="formName"
               (valueChange)="onNameChange($event)"
             />
+          </div>
+
+          <!-- Short Name -->
+          <div class="mb-5">
+            <app-label for="shortName" className="mb-1.5">Short Name</app-label>
+            <app-input-field
+              id="shortName"
+              name="shortName"
+              type="text"
+              placeholder="e.g. M"
+              maxlength="10"
+              [value]="formShortName"
+              (valueChange)="onShortNameChange($event)"
+            />
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Maximum 10 characters</p>
+          </div>
+
+          <!-- Color Picker -->
+          <div class="mb-5">
+            <app-label for="color" className="mb-1.5">Color</app-label>
+            <div class="flex items-center gap-3">
+              <input
+                id="color"
+                type="color"
+                [value]="formColor"
+                (change)="onColorChange($event)"
+                class="h-10 w-16 rounded border border-gray-300 cursor-pointer dark:border-gray-600 dark:bg-gray-700"
+              />
+              <div
+                class="flex items-center gap-2 px-3 py-2 rounded border border-gray-300 dark:border-gray-600"
+              >
+                <div
+                  class="w-6 h-6 rounded border border-gray-200 dark:border-gray-700"
+                  [style.backgroundColor]="formColor"
+                ></div>
+                <span class="font-mono text-sm text-gray-700 dark:text-gray-300">{{ formColor }}</span>
+              </div>
+            </div>
           </div>
 
           <!-- Weekday Times (only in edit mode) -->
@@ -196,6 +254,8 @@ export class ShiftsComponent implements OnInit {
   showForm = false;
   editingShift: Shift | null = null;
   formName = '';
+  formShortName = '';
+  formColor = '#3B82F6';
 
   weekdayOptions = WEEKDAY_NAMES.map((name, i) => ({ label: name, value: i }));
 
@@ -231,6 +291,8 @@ export class ShiftsComponent implements OnInit {
   openAddForm(): void {
     this.editingShift = null;
     this.formName = '';
+    this.formShortName = '';
+    this.formColor = '#3B82F6';
     this.resetWeekdayForm();
     this.showForm = true;
   }
@@ -238,6 +300,8 @@ export class ShiftsComponent implements OnInit {
   openEditForm(shift: Shift): void {
     this.editingShift = shift;
     this.formName = shift.name;
+    this.formShortName = shift.short_name;
+    this.formColor = shift.color;
     this.resetWeekdayForm();
 
     // Populate weekday form from existing shift data
@@ -256,6 +320,8 @@ export class ShiftsComponent implements OnInit {
     this.showForm = false;
     this.editingShift = null;
     this.formName = '';
+    this.formShortName = '';
+    this.formColor = '#3B82F6';
   }
 
   toggleWeekday(weekday: number, event: Event): void {
@@ -267,6 +333,15 @@ export class ShiftsComponent implements OnInit {
     this.formName = String(value);
   }
 
+  onShortNameChange(value: string | number): void {
+    this.formShortName = String(value);
+  }
+
+  onColorChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.formColor = input.value;
+  }
+
   onTimeChange(weekday: number, field: 'start_time' | 'end_time', value: string | number): void {
     this.formWeekdays[weekday][field] = String(value);
   }
@@ -275,46 +350,66 @@ export class ShiftsComponent implements OnInit {
     if (!this.formName || !this.formName.trim()) {
       return;
     }
+    if (!this.formShortName || !this.formShortName.trim()) {
+      return;
+    }
 
     if (this.editingShift) {
-      // Update existing shift: save weekday times
-      const requests: Observable<any>[] = [];
+      // Update existing shift: save color/short_name first, then weekday times
+      const updateRequest: any = {
+        name: this.formName.trim(),
+        short_name: this.formShortName.trim(),
+        color: this.formColor,
+      };
 
-      for (let i = 0; i < 7; i++) {
-        const wd = this.formWeekdays[i];
-        if (wd.enabled && wd.start_time && wd.end_time) {
-          requests.push(
-            this.shiftService.setWeekdayTime(this.editingShift!.id, {
-              weekday: i,
-              start_time: wd.start_time,
-              end_time: wd.end_time,
-            })
-          );
-        } else if (!wd.enabled) {
-          // Check if there was a previous time for this weekday — if so, delete it
-          const existing = this.editingShift!.weekday_times.find(wt => wt.weekday === i);
-          if (existing) {
-            requests.push(
-              this.shiftService.deleteWeekdayTime(this.editingShift!.id, i)
-            );
+      this.shiftService.updateShift(this.editingShift!.id, updateRequest).subscribe({
+        next: () => {
+          // Now save weekday times
+          const requests: Observable<any>[] = [];
+
+          for (let i = 0; i < 7; i++) {
+            const wd = this.formWeekdays[i];
+            if (wd.enabled && wd.start_time && wd.end_time) {
+              requests.push(
+                this.shiftService.setWeekdayTime(this.editingShift!.id, {
+                  weekday: i,
+                  start_time: wd.start_time,
+                  end_time: wd.end_time,
+                })
+              );
+            } else if (!wd.enabled) {
+              // Check if there was a previous time for this weekday — if so, delete it
+              const existing = this.editingShift!.weekday_times.find(wt => wt.weekday === i);
+              if (existing) {
+                requests.push(
+                  this.shiftService.deleteWeekdayTime(this.editingShift!.id, i)
+                );
+              }
+            }
           }
-        }
-      }
 
-      if (requests.length > 0) {
-        forkJoin(requests).subscribe({
-          next: () => {
+          if (requests.length > 0) {
+            forkJoin(requests).subscribe({
+              next: () => {
+                this.loadShifts();
+                this.cancelForm();
+              },
+              error: (err) => console.error('Failed to update shift times', err),
+            });
+          } else {
             this.loadShifts();
             this.cancelForm();
-          },
-          error: (err) => console.error('Failed to update shift times', err),
-        });
-      } else {
-        this.cancelForm();
-      }
+          }
+        },
+        error: (err) => console.error('Failed to update shift', err),
+      });
     } else {
       // Create new shift
-      this.shiftService.createShift({ name: this.formName.trim() }).subscribe({
+      this.shiftService.createShift({
+        name: this.formName.trim(),
+        short_name: this.formShortName.trim(),
+        color: this.formColor,
+      }).subscribe({
         next: (newShift) => {
           this.shifts = [...this.shifts, newShift];
           // Open edit form immediately to configure weekday times

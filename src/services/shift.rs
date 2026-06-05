@@ -43,9 +43,24 @@ impl ShiftService {
             .and_then(|v| v.as_str())
             .ok_or_else(|| AppError::Validation("Missing 'name'".into()))?;
 
+        let short_name = body
+            .get("short_name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| AppError::Validation("Missing 'short_name'".into()))?;
+
+        let color = body
+            .get("color")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| AppError::Validation("Missing 'color'".into()))?;
+
+        // Validate hex color format
+        if !color.starts_with('#') || color.len() != 7 || !color[1..].chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(AppError::Validation("Invalid 'color' format, must be hex color e.g. #3B82F6".into()));
+        }
+
         let shift = state
             .shift_repo
-            .create_shift(name)
+            .create_shift(name, short_name, color)
             .await?;
 
         Ok(Json(serde_json::to_value(shift).unwrap()))

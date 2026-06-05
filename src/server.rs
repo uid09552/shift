@@ -82,7 +82,8 @@ pub fn create_router(state: AppState) -> Router {
             get(UnavailabilityService::get_unavailability_by_id).delete(UnavailabilityService::delete_unavailability),
         )
         // Planner
-        .route("/planner/plan", post(PlannerService::trigger_plan));
+        .route("/planner/plan", post(PlannerService::trigger_plan))
+        .route("/planner/tasks", get(PlannerService::list_tasks).delete(PlannerService::delete_all_tasks));
 
     Router::new()
         .route("/health", get(health_check))

@@ -16,21 +16,35 @@ echo "--- Creating shifts ---"
 SHIFT_IDS=()
 
 declare -A SHIFT_TIMES
+declare -A SHIFT_SHORT_NAMES
+declare -A SHIFT_COLORS
 # Frühschicht: Mon-Fri 06:00-14:00
 SHIFT_TIMES["Frühschicht"]="0:06:00-14:00 1:06:00-14:00 2:06:00-14:00 3:06:00-14:00 4:06:00-14:00"
+SHIFT_SHORT_NAMES["Frühschicht"]="F"
+SHIFT_COLORS["Frühschicht"]="#22C55E"
 # Spätschicht: Mon-Fri 14:00-22:00
 SHIFT_TIMES["Spätschicht"]="0:14:00-22:00 1:14:00-22:00 2:14:00-22:00 3:14:00-22:00 4:14:00-22:00"
+SHIFT_SHORT_NAMES["Spätschicht"]="S"
+SHIFT_COLORS["Spätschicht"]="#F97316"
 # Nachtschicht: Mon-Fri 22:00-06:00
 SHIFT_TIMES["Nachtschicht"]="0:22:00-06:00 1:22:00-06:00 2:22:00-06:00 3:22:00-06:00 4:22:00-06:00"
+SHIFT_SHORT_NAMES["Nachtschicht"]="N"
+SHIFT_COLORS["Nachtschicht"]="#6366F1"
 # Zwischenschicht: Mon-Fri 10:00-18:00
 SHIFT_TIMES["Zwischenschicht"]="0:10:00-18:00 1:10:00-18:00 2:10:00-18:00 3:10:00-18:00 4:10:00-18:00"
+SHIFT_SHORT_NAMES["Zwischenschicht"]="Z"
+SHIFT_COLORS["Zwischenschicht"]="#EAB308"
 # Langdienst: Mon-Fri 08:00-20:00
 SHIFT_TIMES["Langdienst"]="0:08:00-20:00 1:08:00-20:00 2:08:00-20:00 3:08:00-20:00 4:08:00-20:00"
+SHIFT_SHORT_NAMES["Langdienst"]="L"
+SHIFT_COLORS["Langdienst"]="#3B82F6"
 
 for SHIFT_NAME in "Frühschicht" "Spätschicht" "Nachtschicht" "Zwischenschicht" "Langdienst"; do
+  SHORT="${SHIFT_SHORT_NAMES[$SHIFT_NAME]}"
+  COLOR="${SHIFT_COLORS[$SHIFT_NAME]}"
   RESP=$(curl -s -X POST "${BASE_URL}/shifts" \
     -H "Content-Type: application/json" \
-    -d "{\"name\": \"${SHIFT_NAME}\"}")
+    -d "{\"name\": \"${SHIFT_NAME}\", \"short_name\": \"${SHORT}\", \"color\": \"${COLOR}\"}")
   ID=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || true)
   if [ -n "$ID" ]; then
     SHIFT_IDS+=("$ID")

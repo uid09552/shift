@@ -1,0 +1,43 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TaskDTO {
+    pub planning_period: PlanningPeriod,
+    pub shifts: Vec<ShiftTask>,
+    pub workstations: Vec<WorkstationTask>,
+    pub employees: Vec<EmployeeTask>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PlanningPeriod {
+    pub start_date: String,
+    pub end_date: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ShiftTask {
+    pub id: String,
+    pub name: String,
+    pub start_time: String,
+    pub end_time: String,
+    pub weekdays: Vec<String>,
+    pub is_night_shift: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WorkstationTask {
+    pub id: String,
+    pub name: String,
+    pub required_skills: Vec<String>,
+    pub priority: String,
+    pub operating_shifts: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct EmployeeTask {
+    pub id: String,
+    pub name: String,
+    pub skills: Vec<String>,
+    pub available_shifts: Vec<String>,
+    pub unavailability: Vec<String>,
+}

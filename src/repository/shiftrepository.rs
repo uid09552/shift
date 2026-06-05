@@ -39,12 +39,14 @@ fn load_weekday_times_for_shifts(
 
 #[async_trait]
 impl ShiftRepository for DieselShiftRepository {
-    async fn create_shift(&self, name: &str) -> Result<Shift, AppError> {
+    async fn create_shift(&self, name: &str, short_name: &str, color: &str) -> Result<Shift, AppError> {
         let name = name.to_string();
+        let short_name = short_name.to_string();
+        let color = color.to_string();
         let pool = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
-            let new_shift = NewShift { name: &name };
+            let new_shift = NewShift { name: &name, short_name: &short_name, color: &color };
             let shift = diesel::insert_into(shifts::table)
                 .values(&new_shift)
                 .get_result::<models::Shift>(&mut conn)
@@ -58,6 +60,8 @@ impl ShiftRepository for DieselShiftRepository {
             Ok(Shift {
                 id: shift.id,
                 name: shift.name,
+                short_name: shift.short_name,
+                color: shift.color,
                 weekday_times: vec![],
             })
         })
@@ -81,6 +85,8 @@ impl ShiftRepository for DieselShiftRepository {
                     Ok(Some(Shift {
                         id: shift.id,
                         name: shift.name,
+                        short_name: shift.short_name,
+                        color: shift.color,
                         weekday_times: wt_map.get(&shift.id).cloned().unwrap_or_default(),
                     }))
                 }
@@ -105,6 +111,8 @@ impl ShiftRepository for DieselShiftRepository {
             let result = shifts_list.into_iter().map(|s| Shift {
                 id: s.id,
                 name: s.name,
+                short_name: s.short_name,
+                color: s.color,
                 weekday_times: wt_map.get(&s.id).cloned().unwrap_or_default(),
             }).collect();
 

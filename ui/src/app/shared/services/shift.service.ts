@@ -11,11 +11,21 @@ export interface WeekdayTime {
 export interface Shift {
   id: string;
   name: string;
+  short_name: string;
+  color: string;
   weekday_times: WeekdayTime[];
 }
 
 export interface CreateShiftRequest {
   name: string;
+  short_name: string;
+  color: string;
+}
+
+export interface UpdateShiftRequest {
+  name?: string;
+  short_name?: string;
+  color?: string;
 }
 
 export interface SetWeekdayTimeRequest {
@@ -50,5 +60,9 @@ export class ShiftService {
 
   deleteWeekdayTime(shiftId: string, weekday: number): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/shifts/${shiftId}/weekday-times/${weekday}`);
+  }
+
+  updateShift(shiftId: string, request: UpdateShiftRequest): Observable<Shift> {
+    return this.http.patch<Shift>(`${this.apiUrl}/shifts/${shiftId}`, request);
   }
 }

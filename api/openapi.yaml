@@ -981,6 +981,8 @@ components:
       required:
         - id
         - name
+        - short_name
+        - color
         - weekday_times
       properties:
         id:
@@ -990,6 +992,16 @@ components:
           type: string
           description: Shift name
           example: "Morning (8:00 - 16:00)"
+        short_name:
+          type: string
+          description: Short abbreviation for the shift
+          maxLength: 10
+          example: "M"
+        color:
+          type: string
+          description: Color coding as hex value
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          example: "#3B82F6"
         weekday_times:
           type: array
           description: Start/end times per weekday for this shift
@@ -1048,12 +1060,23 @@ components:
       type: object
       required:
         - name
+        - short_name
+        - color
       properties:
         name:
           type: string
           minLength: 1
           maxLength: 255
           example: "Morning (8:00 - 16:00)"
+        short_name:
+          type: string
+          minLength: 1
+          maxLength: 10
+          example: "M"
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          example: "#3B82F6"
 
     Capability:
       type: object

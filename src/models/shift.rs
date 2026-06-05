@@ -11,12 +11,16 @@ use crate::schema::shift_weekday_times;
 pub struct Shift {
     pub id: Uuid,
     pub name: String,
+    pub short_name: String,
+    pub color: String,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
 #[diesel(table_name = shifts)]
 pub struct NewShift<'a> {
     pub name: &'a str,
+    pub short_name: &'a str,
+    pub color: &'a str,
 }
 
 #[derive(Queryable, Identifiable, Serialize, Deserialize, Debug)]
