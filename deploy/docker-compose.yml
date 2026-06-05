@@ -30,7 +30,7 @@ services:
   backend:
     build:
       context: ..
-      dockerfile: deploy/Dockerfile
+      dockerfile: deploy/Dockerfile.backend
     container_name: shift_deploy_backend
     ports:
       - "8080:8080"
@@ -40,6 +40,21 @@ services:
     networks:
       - backend
     restart: unless-stopped
+
+  planner-ui:
+    build:
+      context: ../ui
+      dockerfile: ../deploy/Dockerfile.ui
+    container_name: shift_planner_ui
+    ports:
+      - "8888:80"
+    depends_on:
+      - backend
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    networks:
+      - backend
 
 networks:
   backend:
