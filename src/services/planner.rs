@@ -1,7 +1,9 @@
 use axum::{
-    extract::State,
+    extract::{State, Path},
     Json,
     http::StatusCode,
+    body::Body,
+    response::Response,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -36,7 +38,7 @@ impl PlannerService {
         Json(_body): Json<Value>,
     ) -> Result<Json<PlanResponse>, AppError> {
         let task_id = if let Some(nats_client) = &state.nats_client {
-            let scheduling_service = SchedulingService::new(nats_client.clone(), state.jetstream_status);
+            let scheduling_service = SchedulingService::new(nats_client.clone(), state.jetstream_status, state.clone());
             match scheduling_service.request_scheduling().await {
                 Ok(ack_id) => ack_id,
                 Err(e) => {
@@ -55,7 +57,7 @@ impl PlannerService {
         State(state): State<AppState>,
     ) -> Result<Json<ListTasksResponse>, AppError> {
         if let Some(nats_client) = &state.nats_client {
-            let scheduling_service = SchedulingService::new(nats_client.clone(), state.jetstream_status);
+            let scheduling_service = SchedulingService::new(nats_client.clone(), state.jetstream_status, state.clone());
             match scheduling_service.list_tasks().await {
                 Ok(tasks) => {
                     let count = tasks.len();
@@ -71,11 +73,35 @@ impl PlannerService {
         }
     }
 
+    pub async fn get_task(
+        State(state): State<AppState>,
+        Path(task_id): Path<u64>,
+    ) -> Result<Response, AppError> {
+        if let Some(nats_client) = &state.nats_client {
+            let scheduling_service = SchedulingService::new(nats_client.clone(), state.jetstream_status, state.clone());
+            match scheduling_service.get_task(task_id).await {
+                Ok(payload) => {
+                    Ok(Response::builder()
+                        .status(StatusCode::OK)
+                        .header("content-type", "application/json")
+                        .body(Body::from(payload))
+                        .map_err(|_| AppError::Internal)?)
+                }
+                Err(e) => {
+                    eprintln!("Failed to get task: {}", e);
+                    Err(AppError::Internal)
+                }
+            }
+        } else {
+            Err(AppError::Internal)
+        }
+    }
+
     pub async fn delete_all_tasks(
         State(state): State<AppState>,
     ) -> Result<StatusCode, AppError> {
         if let Some(nats_client) = &state.nats_client {
-            let scheduling_service = SchedulingService::new(nats_client.clone(), state.jetstream_status);
+            let scheduling_service = SchedulingService::new(nats_client.clone(), state.jetstream_status, state.clone());
             if let Err(e) = scheduling_service.delete_all_tasks().await {
                 eprintln!("Failed to delete tasks: {}", e);
                 return Err(AppError::Internal);

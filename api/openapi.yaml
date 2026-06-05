@@ -877,6 +877,66 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /planner/tasks:
+    get:
+      tags:
+        - Planner
+      summary: List all scheduling tasks
+      description: Returns a list of all scheduling tasks currently in the queue.
+      operationId: listTasks
+      responses:
+        '200':
+          description: Successfully retrieved list of tasks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListTasksResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - Planner
+      summary: Delete all scheduling tasks
+      description: Removes all scheduling tasks from the queue and recreates an empty stream.
+      operationId: deleteAllTasks
+      responses:
+        '204':
+          description: All tasks successfully deleted
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /planner/tasks/{task_id}:
+    get:
+      tags:
+        - Planner
+      summary: Get a single scheduling task
+      description: Returns the raw message body of a specific scheduling task by ID.
+      operationId: getTask
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          description: The ID of the scheduling task to retrieve
+          schema:
+            type: integer
+            format: uint64
+      responses:
+        '200':
+          description: Successfully retrieved task
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Raw task payload (JSON structure)
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
 components:
   schemas:
     Employee:
@@ -924,6 +984,38 @@ components:
           format: uuid
           description: Unique identifier for the planning task
           example: "550e8400-e29b-41d4-a716-446655440000"
+
+    PlacedTask:
+      type: object
+      required:
+        - id
+        - status
+      properties:
+        id:
+          type: string
+          description: Unique task identifier
+          example: "1"
+        status:
+          type: string
+          description: Current status of the task
+          enum: [queued]
+          example: "queued"
+
+    ListTasksResponse:
+      type: object
+      required:
+        - tasks
+        - count
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlacedTask'
+          description: List of scheduled tasks
+        count:
+          type: integer
+          description: Total number of tasks in the queue
+          example: 5
 
     EmployeeDetail:
       allOf:
