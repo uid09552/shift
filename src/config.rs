@@ -6,6 +6,7 @@ pub struct Config {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
     pub broker: BrokerConfig,
+    pub optimizer: OptimizerConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,6 +32,11 @@ pub struct BrokerConfig {
     pub port: u16,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OptimizerConfig {
+    pub url: String,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -50,6 +56,9 @@ impl Default for Config {
             broker: BrokerConfig {
                 host: "127.0.0.1".to_string(),
                 port: 4222,
+            },
+            optimizer: OptimizerConfig {
+                url: "http://localhost:8888".to_string(),
             },
         }
     }
@@ -102,6 +111,9 @@ impl Config {
         if let Some(broker_port) = args.broker_port {
             figment = figment.merge(("broker.port", broker_port));
         }
+        if let Some(optimizer_url) = args.optimizer_url.clone() {
+            figment = figment.merge(("optimizer.url", optimizer_url));
+        }
 
         figment.extract()
     }
@@ -120,4 +132,5 @@ pub struct CliArgs {
     pub database_name: Option<String>,
     pub broker_host: Option<String>,
     pub broker_port: Option<u16>,
+    pub optimizer_url: Option<String>,
 }

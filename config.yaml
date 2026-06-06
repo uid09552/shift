@@ -9,3 +9,6 @@ database:
 broker:
   host: "127.0.0.1"
   port: 4222
+
+optimizer:
+  url: "http://localhost:8888"

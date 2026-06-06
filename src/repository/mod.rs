@@ -23,6 +23,7 @@ pub struct AppState {
     pub pool: Arc<DbPool>,
     pub nats_client: Option<async_nats::Client>,
     pub jetstream_status: JetStreamStatus,
+    pub optimizer_url: String,
 }
 
 impl AppState {
@@ -36,10 +37,11 @@ impl AppState {
             pool: pool,
             nats_client: None,
             jetstream_status: JetStreamStatus::Unavailable,
+            optimizer_url: "http://localhost:8888".to_string(),
         }
     }
 
-    pub fn with_nats(pool: Arc<DbPool>, nats_client: async_nats::Client, jetstream_status: JetStreamStatus) -> Self {
+    pub fn with_nats(pool: Arc<DbPool>, nats_client: async_nats::Client, jetstream_status: JetStreamStatus, optimizer_url: String) -> Self {
         Self {
             employee_repo: DieselEmployeeRepository { pool: Arc::clone(&pool) },
             shift_repo: DieselShiftRepository { pool: Arc::clone(&pool) },
@@ -49,6 +51,7 @@ impl AppState {
             pool,
             nats_client: Some(nats_client),
             jetstream_status,
+            optimizer_url,
         }
     }
 }

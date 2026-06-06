@@ -195,16 +195,51 @@ WS_NAMES=(
   "Mammographie-1" "Angiographie-1" "Fluoroskopie-1" "PET-CT-1"
 )
 
+# Workstation prefixes that operate 24/7 (Früh, Spät, Nacht)
+WS_24H_PREFIXES=("MRT" "CT" "PET-CT")
+# Others operate daytime only (Früh, Spät)
+
 WS_IDS=()
 
 for WS_NAME in "${WS_NAMES[@]}"; do
+  PREFIX="${WS_NAME%%-*}"
+
+  # Determine active shifts based on workstation type
+  ACTIVE_SHIFT_IDS=()
+  IS_24H=false
+  for P in "${WS_24H_PREFIXES[@]}"; do
+    if [ "$PREFIX" = "$P" ]; then
+      IS_24H=true
+      break
+    fi
+  done
+
+  if [ "$IS_24H" = true ]; then
+    # 24/7 workstations: Frühschicht, Spätschicht, Nachtschicht
+    for SI in 0 1 2; do
+      if [ -n "${SHIFT_IDS[$SI]:-}" ]; then
+        ACTIVE_SHIFT_IDS+=("\"${SHIFT_IDS[$SI]}\"")
+      fi
+    done
+  else
+    # Daytime workstations: Frühschicht, Spätschicht
+    for SI in 0 1; do
+      if [ -n "${SHIFT_IDS[$SI]:-}" ]; then
+        ACTIVE_SHIFT_IDS+=("\"${SHIFT_IDS[$SI]}\"")
+      fi
+    done
+  fi
+
+  # Build JSON array string for active_shift_ids
+  ACTIVE_SHIFTS_JSON=$(IFS=,; echo "[${ACTIVE_SHIFT_IDS[*]}]")
+
   RESP=$(curl -s -X POST "${BASE_URL}/workstations" \
     -H "Content-Type: application/json" \
-    -d "{\"name\": \"${WS_NAME}\", \"available\": true}")
+    -d "{\"name\": \"${WS_NAME}\", \"available\": true, \"active_shift_ids\": ${ACTIVE_SHIFTS_JSON}}")
   ID=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || true)
   if [ -n "$ID" ]; then
     WS_IDS+=("$ID")
-    echo "  ✓ Workstation '${WS_NAME}' → ${ID}"
+    echo "  ✓ Workstation '${WS_NAME}' → ${ID} (active_shifts: ${ACTIVE_SHIFTS_JSON})"
   else
     echo "  ✗ Failed to create workstation '${WS_NAME}': ${RESP}"
   fi

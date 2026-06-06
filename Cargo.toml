@@ -28,6 +28,9 @@ r2d2 = "0.8"
 # Message broker
 async-nats = "0.38"
 
+# HTTP client
+reqwest = { version = "0.12", features = ["json"] }
+
 
 [dev-dependencies]
 tower-test = "0.4"

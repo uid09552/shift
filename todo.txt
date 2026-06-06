@@ -1,1 +1,2 @@
-1) place task to nats
+1) active shifts in workstations empty via seed file
+2) planner json validation of placed task

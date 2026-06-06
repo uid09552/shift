@@ -59,6 +59,10 @@ enum Commands {
         /// Broker port
         #[arg(long)]
         broker_port: Option<u16>,
+
+        /// Optimizer service URL
+        #[arg(long)]
+        optimizer_url: Option<String>,
     },
 }
 
@@ -79,6 +83,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             database_name,
             broker_host,
             broker_port,
+            optimizer_url,
         } => {
             let cli_args = CliArgs {
                 port: Some(port),
@@ -92,6 +97,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 database_name,
                 broker_host,
                 broker_port,
+                optimizer_url,
             };
 
             let config = config::Config::from_env_and_args(&cli_args)
@@ -102,6 +108,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             println!("Verbose: {}", config.server.verbose);
             println!("Database: {}", mask_postgres_url(&config.database.url).unwrap_or_else(|_| "Failed to mask URL".into()));
             println!("Broker: {}:{}", config.broker.host, config.broker.port);
+            println!("Optimizer: {}", config.optimizer.url);
 
             // Initialize database
             let pool = database::establish_connection_pool(&config.database);
@@ -111,7 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let broker_conn = broker::connect(&config.broker).await?;
 
             // Start server
-            let state = AppState::with_nats(Arc::new(pool), broker_conn.client, broker_conn.jetstream_status);
+            let state = AppState::with_nats(Arc::new(pool), broker_conn.client, broker_conn.jetstream_status, config.optimizer.url.clone());
             let addr = format!("{}:{}", config.server.listen, config.server.port).parse::<SocketAddr>()?;
             server::start_server(state, addr).await?;
         }

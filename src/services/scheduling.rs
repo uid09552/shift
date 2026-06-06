@@ -6,13 +6,17 @@ use serde::{Deserialize, Serialize};
 use chrono::Local;
 use uuid;
 
+/// Global constant for the optimizer REST API path.
+pub const OPTIMIZER_API_PATH: &str = "/api/v1/optimize";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlacedTask {
     pub id: String,
     pub status: String,
 }
 
-/// Service responsible for publishing scheduling tasks to the NATS broker.
+/// Service responsible for publishing scheduling tasks to the NATS broker
+/// and forwarding the input JSON to the optimizer REST API.
 pub struct SchedulingService {
     client: Client,
     jetstream_status: JetStreamStatus,
@@ -79,7 +83,7 @@ impl SchedulingService {
                     .iter()
                     .map(|c| c.name.clone())
                     .collect(),
-                priority: "normal".to_string(),
+                priority: "medium".to_string(),
                 operating_shifts: ws.active_shift_ids.iter().map(|id| id.to_string()).collect(),
             })
             .collect();
@@ -115,7 +119,7 @@ impl SchedulingService {
             JetStreamStatus::Available => {
                 let jetstream = async_nats::jetstream::new(self.client.clone());
                 let ack = jetstream
-                    .publish("scheduling".to_string(), payload.into())
+                    .publish("scheduling".to_string(), payload.clone().into())
                     .await?
                     .await?;
                 let task_id = ack.sequence.to_string();
@@ -124,7 +128,7 @@ impl SchedulingService {
             }
             JetStreamStatus::Unavailable => {
                 self.client
-                    .publish("scheduling".to_string(), payload.into())
+                    .publish("scheduling".to_string(), payload.clone().into())
                     .await?;
                 self.client.flush().await?;
                 let task_id = uuid::Uuid::new_v4().to_string();
@@ -132,6 +136,24 @@ impl SchedulingService {
                 task_id
             }
         };
+
+        // Publish the input JSON to the optimizer REST API
+        let optimizer_url = format!("{}{}", self.state.optimizer_url, OPTIMIZER_API_PATH);
+        println!("Publishing scheduling payload to optimizer at: {}", optimizer_url);
+        match reqwest::Client::new()
+            .post(&optimizer_url)
+            .header("Content-Type", "application/json")
+            .body(payload.clone())
+            .send()
+            .await
+        {
+            Ok(resp) => {
+                println!("Optimizer service responded with status: {}", resp.status());
+            }
+            Err(e) => {
+                eprintln!("Failed to publish to optimizer service: {}", e);
+            }
+        }
 
         Ok(task_id)
     }
