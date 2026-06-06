@@ -1,2 +1,5 @@
 1) active shifts in workstations empty via seed file
 2) planner json validation of placed task
+3) api fixed shift plan for each user
+4) api for proposed future shift plan
+5) optimizer response to struct as api response, right now only text

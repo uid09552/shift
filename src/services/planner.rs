@@ -6,10 +6,9 @@ use axum::{
     response::Response,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use uuid::Uuid;
 
 use crate::errors::AppError;
+use crate::models::TaskDTO;
 use crate::repository::AppState;
 use crate::services::scheduling::{SchedulingService, PlacedTask};
 
@@ -17,11 +16,6 @@ use crate::services::scheduling::{SchedulingService, PlacedTask};
 pub struct PlanRequest {
     pub start_date: Option<String>,
     pub end_date: Option<String>,
-}
-
-#[derive(Serialize)]
-pub struct PlanResponse {
-    pub task_id: String,
 }
 
 #[derive(Serialize)]
@@ -35,22 +29,25 @@ pub struct PlannerService;
 impl PlannerService {
     pub async fn trigger_plan(
         State(state): State<AppState>,
-        Json(_body): Json<Value>,
-    ) -> Result<Json<PlanResponse>, AppError> {
-        let task_id = if let Some(nats_client) = &state.nats_client {
+    ) -> Result<Response, AppError> {
+        if let Some(nats_client) = &state.nats_client {
             let scheduling_service = SchedulingService::new(nats_client.clone(), state.jetstream_status, state.clone());
             match scheduling_service.request_scheduling().await {
-                Ok(ack_id) => ack_id,
+                Ok(body) => {
+                    Ok(Response::builder()
+                        .status(StatusCode::OK)
+                        .header("content-type", "application/json")
+                        .body(Body::from(body))
+                        .map_err(|_| AppError::Internal)?)
+                }
                 Err(e) => {
                     eprintln!("Failed to send scheduling request: {}", e);
-                    return Err(AppError::Internal);
+                    Err(AppError::Internal)
                 }
             }
         } else {
-            Uuid::new_v4().to_string()
-        };
-
-        Ok(Json(PlanResponse { task_id }))
+            Err(AppError::Internal)
+        }
     }
 
     pub async fn list_tasks(
@@ -110,5 +107,20 @@ impl PlannerService {
             return Err(AppError::Internal);
         }
         Ok(StatusCode::NO_CONTENT)
+    }
+
+    /// Prepare an optimization request by building the `TaskDTO` structure
+    /// from the current database state and returning it without actually
+    /// triggering the optimizer.
+    pub async fn prepare(
+        State(state): State<AppState>,
+    ) -> Result<Json<TaskDTO>, AppError> {
+        match SchedulingService::build_task_dto(&state).await {
+            Ok(task_dto) => Ok(Json(task_dto)),
+            Err(e) => {
+                eprintln!("Failed to prepare task DTO: {}", e);
+                Err(AppError::Internal)
+            }
+        }
     }
 }

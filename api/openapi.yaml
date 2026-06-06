@@ -877,6 +877,23 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /planner/prepare:
+    get:
+      tags:
+        - Planner
+      summary: Prepare optimization request
+      description: Builds the TaskDTO structure from the current database state (shifts, employees, workstations) and returns it without triggering the optimizer.
+      operationId: preparePlan
+      responses:
+        '200':
+          description: Successfully prepared the optimization request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskDTO'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /planner/tasks:
     get:
       tags:
@@ -1311,6 +1328,150 @@ components:
           format: uuid
           nullable: true
           description: Optional specific shift ID. If omitted, entire day is unavailable
+
+    TaskDTO:
+      type: object
+      required:
+        - planning_period
+        - shifts
+        - workstations
+        - employees
+      properties:
+        planning_period:
+          $ref: '#/components/schemas/PlanningPeriod'
+        shifts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShiftTask'
+          description: List of shifts for the optimization request
+        workstations:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkstationTask'
+          description: List of workstations for the optimization request
+        employees:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmployeeTask'
+          description: List of employees for the optimization request
+
+    PlanningPeriod:
+      type: object
+      required:
+        - start_date
+        - end_date
+      properties:
+        start_date:
+          type: string
+          format: date
+          description: Start date of the planning period
+          example: "2026-06-09"
+        end_date:
+          type: string
+          format: date
+          description: End date of the planning period
+          example: "2026-07-09"
+
+    ShiftTask:
+      type: object
+      required:
+        - id
+        - name
+        - start_time
+        - end_time
+        - weekdays
+        - is_night_shift
+      properties:
+        id:
+          type: string
+          description: Shift identifier
+        name:
+          type: string
+          description: Shift name
+          example: "Morning (8:00 - 16:00)"
+        start_time:
+          type: string
+          description: Shift start time
+          example: "06:00"
+        end_time:
+          type: string
+          description: Shift end time
+          example: "14:00"
+        weekdays:
+          type: array
+          items:
+            type: string
+          description: List of weekday numbers this shift applies to
+          example: ["0", "1", "2", "3", "4"]
+        is_night_shift:
+          type: boolean
+          description: Whether this is a night shift
+          example: false
+
+    WorkstationTask:
+      type: object
+      required:
+        - id
+        - name
+        - required_skills
+        - priority
+        - operating_shifts
+      properties:
+        id:
+          type: string
+          description: Workstation identifier
+        name:
+          type: string
+          description: Workstation name
+          example: "MRT Room 1"
+        required_skills:
+          type: array
+          items:
+            type: string
+          description: List of required capability names
+          example: ["MRT"]
+        priority:
+          type: string
+          description: Workstation priority level
+          example: "medium"
+        operating_shifts:
+          type: array
+          items:
+            type: string
+          description: List of shift IDs this workstation operates in
+
+    EmployeeTask:
+      type: object
+      required:
+        - id
+        - name
+        - skills
+        - available_shifts
+        - unavailability
+      properties:
+        id:
+          type: string
+          description: Employee identifier
+        name:
+          type: string
+          description: Employee full name
+          example: "John Doe"
+        skills:
+          type: array
+          items:
+            type: string
+          description: List of capability names the employee possesses
+          example: ["MRT", "CT"]
+        available_shifts:
+          type: array
+          items:
+            type: string
+          description: List of shift IDs the employee is available for
+        unavailability:
+          type: array
+          items:
+            type: string
+          description: List of unavailability entries for the employee
 
     Error:
       type: object

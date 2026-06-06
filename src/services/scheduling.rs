@@ -4,7 +4,6 @@ use crate::models::{TaskDTO, PlanningPeriod, ShiftTask, WorkstationTask, Employe
 use crate::repository::{AppState, domain::*};
 use serde::{Deserialize, Serialize};
 use chrono::Local;
-use uuid;
 
 /// Global constant for the optimizer REST API path.
 pub const OPTIMIZER_API_PATH: &str = "/api/v1/optimize";
@@ -32,43 +31,16 @@ impl SchedulingService {
         }
     }
 
-    /// Publish a scheduling task to the broker. When JetStream is available the
-    /// message is published through JetStream and the ack sequence is returned
-    /// as the task ID. Otherwise a plain publish is used and a UUID-based task
-    /// ID is generated.
-    fn build_shift_tasks(shifts: Vec<Shift>) -> Vec<ShiftTask> {
-        shifts
-            .into_iter()
-            .map(|shift| ShiftTask {
-                id: shift.id.to_string(),
-                name: shift.name,
-                start_time: shift
-                    .weekday_times
-                    .first()
-                    .map(|wt| wt.start_time.to_string())
-                    .unwrap_or_default(),
-                end_time: shift
-                    .weekday_times
-                    .first()
-                    .map(|wt| wt.end_time.to_string())
-                    .unwrap_or_default(),
-                weekdays: shift
-                    .weekday_times
-                    .iter()
-                    .map(|wt| wt.weekday.to_string())
-                    .collect(),
-                is_night_shift: false,
-            })
-            .collect()
-    }
-
-    pub async fn request_scheduling(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    /// Build a `TaskDTO` from the current database state.
+    /// This fetches shifts, employees and workstations and converts them into
+    /// the optimizer-friendly DTO structure.
+    pub async fn build_task_dto(state: &AppState) -> Result<TaskDTO, Box<dyn std::error::Error + Send + Sync>> {
         println!("Fetching scheduling data from database...");
 
         // Fetch data from repositories
-        let shifts = self.state.shift_repo.list_shifts().await?;
-        let employees = self.state.employee_repo.list_employees(None, None).await?;
-        let workstations = self.state.workstation_repo.list_workstations().await?;
+        let shifts = state.shift_repo.list_shifts().await?;
+        let employees = state.employee_repo.list_employees(None, None).await?;
+        let workstations = state.workstation_repo.list_workstations().await?;
 
         // Convert domain models to TaskDTO structures
         let shift_tasks = Self::build_shift_tasks(shifts);
@@ -111,51 +83,86 @@ impl SchedulingService {
             employees: employee_tasks,
         };
 
+        Ok(task_dto)
+    }
+
+    /// Publish a scheduling task to the broker. When JetStream is available the
+    /// message is published through JetStream and the ack sequence is returned
+    /// as the task ID. Otherwise a plain publish is used and a UUID-based task
+    /// ID is generated.
+    fn build_shift_tasks(shifts: Vec<Shift>) -> Vec<ShiftTask> {
+        shifts
+            .into_iter()
+            .map(|shift| ShiftTask {
+                id: shift.id.to_string(),
+                name: shift.name,
+                start_time: shift
+                    .weekday_times
+                    .first()
+                    .map(|wt| wt.start_time.to_string())
+                    .unwrap_or_default(),
+                end_time: shift
+                    .weekday_times
+                    .first()
+                    .map(|wt| wt.end_time.to_string())
+                    .unwrap_or_default(),
+                weekdays: shift
+                    .weekday_times
+                    .iter()
+                    .map(|wt| wt.weekday.to_string())
+                    .collect(),
+                is_night_shift: false,
+            })
+            .collect()
+    }
+
+    pub async fn request_scheduling(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        let task_dto = Self::build_task_dto(&self.state).await?;
+
         // Serialize to JSON
         let payload = serde_json::to_string(&task_dto)?;
         println!("Publishing scheduling task with payload: {}", payload);
 
-        let task_id = match self.jetstream_status {
+        match self.jetstream_status {
             JetStreamStatus::Available => {
                 let jetstream = async_nats::jetstream::new(self.client.clone());
                 let ack = jetstream
                     .publish("scheduling".to_string(), payload.clone().into())
                     .await?
                     .await?;
-                let task_id = ack.sequence.to_string();
-                println!("Published scheduling task with ack id: {}", task_id);
-                task_id
+                println!("Published scheduling task with ack id: {}", ack.sequence);
             }
             JetStreamStatus::Unavailable => {
                 self.client
                     .publish("scheduling".to_string(), payload.clone().into())
                     .await?;
                 self.client.flush().await?;
-                let task_id = uuid::Uuid::new_v4().to_string();
-                println!("Published scheduling task (plain) with id: {}", task_id);
-                task_id
+                println!("Published scheduling task (plain)");
             }
         };
 
-        // Publish the input JSON to the optimizer REST API
+        // Publish the input JSON to the optimizer REST API and return the response body
         let optimizer_url = format!("{}{}", self.state.optimizer_url, OPTIMIZER_API_PATH);
         println!("Publishing scheduling payload to optimizer at: {}", optimizer_url);
-        match reqwest::Client::new()
+        let response = reqwest::Client::new()
             .post(&optimizer_url)
             .header("Content-Type", "application/json")
             .body(payload.clone())
             .send()
             .await
-        {
-            Ok(resp) => {
-                println!("Optimizer service responded with status: {}", resp.status());
-            }
-            Err(e) => {
+            .map_err(|e| {
                 eprintln!("Failed to publish to optimizer service: {}", e);
-            }
-        }
+                e
+            })?;
 
-        Ok(task_id)
+        let status = response.status();
+        let body = response.text().await.map_err(|e| {
+            eprintln!("Failed to read optimizer response body: {}", e);
+            e
+        })?;
+        println!("Optimizer service responded with status: {}", status);
+
+        Ok(body)
     }
 
     /// List all tasks currently in the queue from NATS JetStream

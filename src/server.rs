@@ -83,6 +83,7 @@ pub fn create_router(state: AppState) -> Router {
         )
         // Planner
         .route("/planner/plan", post(PlannerService::trigger_plan))
+        .route("/planner/prepare", get(PlannerService::prepare))
         .route("/planner/tasks", get(PlannerService::list_tasks).delete(PlannerService::delete_all_tasks))
         .route("/planner/tasks/:task_id", get(PlannerService::get_task));
 
