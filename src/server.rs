@@ -17,6 +17,7 @@ use crate::services::{
     employee::EmployeeService,
     planner::PlannerService,
     shift::ShiftService,
+    shift_assignment::ShiftAssignmentService,
     unavailability::UnavailabilityService,
     workstation::WorkstationService,
 };
@@ -85,7 +86,16 @@ pub fn create_router(state: AppState) -> Router {
         .route("/planner/plan", post(PlannerService::trigger_plan))
         .route("/planner/prepare", get(PlannerService::prepare))
         .route("/planner/tasks", get(PlannerService::list_tasks).delete(PlannerService::delete_all_tasks))
-        .route("/planner/tasks/:task_id", get(PlannerService::get_task));
+        .route("/planner/tasks/:task_id", get(PlannerService::get_task))
+        // Shift Assignments
+        .route(
+            "/employees/:employee_id/shift-assignments",
+            get(ShiftAssignmentService::get_employee_shift_assignments).post(ShiftAssignmentService::create_shift_assignment),
+        )
+        .route(
+            "/shift-assignments/:assignment_id",
+            delete(ShiftAssignmentService::delete_shift_assignment),
+        );
 
     Router::new()
         .route("/health", get(health_check))

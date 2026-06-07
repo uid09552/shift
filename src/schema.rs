@@ -24,6 +24,7 @@ diesel::table! {
         id -> Uuid,
         name -> Varchar,
         email -> Varchar,
+        monthly_working_hours -> Float8,
     }
 }
 
@@ -71,6 +72,15 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    employee_shift_assignments (id) {
+        id -> Uuid,
+        employee_id -> Uuid,
+        shift_id -> Uuid,
+        date -> Date,
+    }
+}
+
 diesel::joinable!(employee_available_shifts -> employees (employee_id));
 diesel::joinable!(employee_available_shifts -> shifts (shift_id));
 diesel::joinable!(employee_capabilities -> capabilities (capability_id));
@@ -80,6 +90,8 @@ diesel::joinable!(workstation_required_capabilities -> workstations (workstation
 diesel::joinable!(unavailabilities -> employees (employee_id));
 diesel::joinable!(unavailabilities -> shifts (shift_id));
 diesel::joinable!(shift_weekday_times -> shifts (shift_id));
+diesel::joinable!(employee_shift_assignments -> employees (employee_id));
+diesel::joinable!(employee_shift_assignments -> shifts (shift_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     capabilities,
@@ -91,4 +103,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     workstations,
     workstation_required_capabilities,
     unavailabilities,
+    employee_shift_assignments,
 );

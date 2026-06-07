@@ -75,9 +75,14 @@ impl EmployeeService {
         .and_then(|v| v.as_str())
         .ok_or_else(|| AppError::Validation("Missing 'email'".into()))?;
 
+    let monthly_working_hours = body
+        .get("monthly_working_hours")
+        .and_then(|v| v.as_f64())
+        .ok_or_else(|| AppError::Validation("Missing 'monthly_working_hours'".into()))?;
+
     let employee = state
         .employee_repo
-        .create_employee(name, email)
+        .create_employee(name, email, monthly_working_hours)
         .await?;
 
     Ok(Json(serde_json::to_value(employee).unwrap()))
@@ -98,6 +103,7 @@ impl EmployeeService {
         // Extract optional fields from request body
         let name_opt = body.get("name").and_then(|v| v.as_str());
         let email_opt = body.get("email").and_then(|v| v.as_str());
+        let monthly_working_hours_opt = body.get("monthly_working_hours").and_then(|v| v.as_f64());
 
         // Retrieve existing employee
         let existing = state
@@ -114,6 +120,9 @@ impl EmployeeService {
                 }
                 if let Some(email) = email_opt {
                     employee.email = email.to_string();
+                }
+                if let Some(monthly_working_hours) = monthly_working_hours_opt {
+                    employee.monthly_working_hours = monthly_working_hours;
                 }
 
                 // Persist changes via repository

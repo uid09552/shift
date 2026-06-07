@@ -40,4 +40,5 @@ pub struct EmployeeTask {
     pub skills: Vec<String>,
     pub available_shifts: Vec<String>,
     pub unavailability: Vec<String>,
+    pub monthly_working_hours: f64,
 }

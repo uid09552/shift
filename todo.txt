@@ -1,5 +1,6 @@
-1) active shifts in workstations empty via seed file
+
 2) planner json validation of placed task
-3) api fixed shift plan for each user
+3) api fixed shift plan for each user (done), seed is open
 4) api for proposed future shift plan
 5) optimizer response to struct as api response, right now only text
+6) planned hours per month, per day, calculalte also breaks

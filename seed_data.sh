@@ -112,6 +112,7 @@ LAST_NAMES=(
 )
 
 EMPLOYEE_IDS=()
+MONTHLY_HOURS=(16 20 35 40)
 
 for I in $(seq 1 100); do
   FI=$(( (I - 1) % ${#FIRST_NAMES[@]} ))
@@ -125,10 +126,12 @@ for I in $(seq 1 100); do
   fi
   NAME="${FIRST}${SUFFIX} ${LAST}"
   EMAIL="$(echo "${FIRST}${SUFFIX}.${LAST}" | tr '[:upper:]' '[:lower:]')@klinik.de"
+  MH_IDX=$(( (I - 1) % ${#MONTHLY_HOURS[@]} ))
+  MH="${MONTHLY_HOURS[$MH_IDX]}"
 
   RESP=$(curl -s -X POST "${BASE_URL}/employees" \
     -H "Content-Type: application/json" \
-    -d "{\"name\": \"${NAME}\", \"email\": \"${EMAIL}\"}")
+    -d "{\"name\": \"${NAME}\", \"email\": \"${EMAIL}\", \"monthly_working_hours\": ${MH}.0}")
   ID=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || true)
   if [ -n "$ID" ]; then
     EMPLOYEE_IDS+=("$ID")

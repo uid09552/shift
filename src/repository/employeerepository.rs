@@ -37,7 +37,9 @@ impl EmployeeRepository for DieselEmployeeRepository {
     async fn create_employee(
     &self,
     name: &str,
-    email: &str,) -> Result<Employee, AppError> {
+    email: &str,
+    monthly_working_hours: f64,
+    ) -> Result<Employee, AppError> {
     let name = name.to_string();
     let email = email.to_string();
     let pool = Arc::clone(&self.pool);
@@ -45,7 +47,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
 
-        let new_employee = NewEmployee { name: &name, email: &email };
+        let new_employee = NewEmployee { name: &name, email: &email, monthly_working_hours };
 
         diesel::insert_into(employees::table)
             .values(&new_employee)
@@ -59,6 +61,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
                 id: e.id,
                 name: e.name,
                 email: e.email,
+                monthly_working_hours: e.monthly_working_hours,
                 available_shifts: vec![],
                 capabilities: vec![],
             })
@@ -109,6 +112,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
                         id: e.id,
                         name: e.name,
                         email: e.email,
+                        monthly_working_hours: e.monthly_working_hours,
                         available_shifts,
                         capabilities,
                     }))
@@ -162,6 +166,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
                         id: e.id,
                         name: e.name,
                         email: e.email,
+                        monthly_working_hours: e.monthly_working_hours,
                         available_shifts,
                         capabilities,
                     }))
@@ -222,6 +227,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
                     id: e.id,
                     name: e.name,
                     email: e.email,
+                    monthly_working_hours: e.monthly_working_hours,
                     available_shifts,
                     capabilities,
                 });
@@ -280,15 +286,20 @@ impl EmployeeRepository for DieselEmployeeRepository {
     }
 
     async fn update_employee(&self, employee: Employee) -> Result<(), AppError> {
-        // Update employee fields (name and email) in DB
+        // Update employee fields (name, email, monthly_working_hours) in DB
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         let emp_id = employee.id;
         let emp_name = employee.name.clone();
         let emp_email = employee.email.clone();
+        let emp_monthly_working_hours = employee.monthly_working_hours;
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             diesel::update(crate::schema::employees::table.find(emp_id))
-                .set((crate::schema::employees::name.eq(emp_name), crate::schema::employees::email.eq(emp_email)))
+                .set((
+                    crate::schema::employees::name.eq(emp_name),
+                    crate::schema::employees::email.eq(emp_email),
+                    crate::schema::employees::monthly_working_hours.eq(emp_monthly_working_hours),
+                ))
                 .execute(&mut conn)
                 .map_err(|_| AppError::DbError)?;
             Ok(())

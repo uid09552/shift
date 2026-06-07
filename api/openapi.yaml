@@ -25,6 +25,8 @@ tags:
     description: Employee unavailability management endpoints
   - name: Planner
     description: Shift scheduling planner endpoints
+  - name: Shift Assignments
+    description: Fixed shift assignment management endpoints
 
 paths:
   /employees:
@@ -954,6 +956,109 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /employees/{employeeId}/shift-assignments:
+    get:
+      tags:
+        - Shift Assignments
+      summary: Get fixed shift assignments for an employee
+      description: Returns the real, assigned fixed shift plan for a specific employee. Supports optional date range filtering via from_date/to_date query parameters. Returns both future and historical assignments.
+      operationId: getEmployeeShiftAssignments
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: from_date
+          in: query
+          description: Start date for filtering (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          description: End date for filtering (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: List of shift assignments for the employee
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EmployeeShiftAssignment'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Shift Assignments
+      summary: Create a fixed shift assignment for an employee
+      description: Assigns a specific shift to an employee on a given date. Each employee can only have one shift assignment per date.
+      operationId: createShiftAssignment
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateShiftAssignmentRequest'
+      responses:
+        '201':
+          description: Shift assignment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeShiftAssignment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Employee already has a shift assignment for this date
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /shift-assignments/{assignmentId}:
+    delete:
+      tags:
+        - Shift Assignments
+      summary: Delete a shift assignment
+      description: Removes a specific fixed shift assignment by its ID.
+      operationId: deleteShiftAssignment
+      parameters:
+        - name: assignmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Shift assignment deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+                    example: true
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
 components:
   schemas:
     Employee:
@@ -962,6 +1067,7 @@ components:
         - id
         - name
         - email
+        - monthly_working_hours
       properties:
         id:
           type: string
@@ -976,6 +1082,11 @@ components:
           format: email
           description: Employee email (unique)
           example: "john.doe@hospital.com"
+        monthly_working_hours:
+          type: number
+          format: double
+          description: Monthly working hours for the employee
+          example: 160.0
 
     PlanRequest:
       type: object
@@ -1057,6 +1168,7 @@ components:
       required:
         - name
         - email
+        - monthly_working_hours
       properties:
         name:
           type: string
@@ -1069,6 +1181,11 @@ components:
           minLength: 1
           maxLength: 255
           example: "john.doe@hospital.com"
+        monthly_working_hours:
+          type: number
+          format: double
+          description: Monthly working hours for the employee
+          example: 160.0
 
     UpdateEmployeeRequest:
       type: object
@@ -1084,6 +1201,11 @@ components:
           minLength: 1
           maxLength: 255
           example: "john.doe@hospital.com"
+        monthly_working_hours:
+          type: number
+          format: double
+          description: Monthly working hours for the employee
+          example: 160.0
 
     Shift:
       type: object
@@ -1448,6 +1570,7 @@ components:
         - skills
         - available_shifts
         - unavailability
+        - monthly_working_hours
       properties:
         id:
           type: string
@@ -1472,6 +1595,11 @@ components:
           items:
             type: string
           description: List of unavailability entries for the employee
+        monthly_working_hours:
+          type: number
+          format: double
+          description: Monthly working hours for the employee
+          example: 160.0
 
     Error:
       type: object
@@ -1488,6 +1616,48 @@ components:
         details:
           type: string
           description: Additional error details (optional)
+
+    EmployeeShiftAssignment:
+      type: object
+      required:
+        - id
+        - employee_id
+        - shift_id
+        - date
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique assignment identifier
+        employee_id:
+          type: string
+          format: uuid
+          description: ID of the assigned employee
+        shift_id:
+          type: string
+          format: uuid
+          description: ID of the assigned shift
+        date:
+          type: string
+          format: date
+          description: Date of the shift assignment (YYYY-MM-DD)
+          example: "2026-06-09"
+
+    CreateShiftAssignmentRequest:
+      type: object
+      required:
+        - shift_id
+        - date
+      properties:
+        shift_id:
+          type: string
+          format: uuid
+          description: ID of the shift to assign
+        date:
+          type: string
+          format: date
+          description: Date of the shift assignment (YYYY-MM-DD)
+          example: "2026-06-09"
 
   responses:
     BadRequest:

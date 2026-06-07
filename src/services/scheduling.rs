@@ -68,6 +68,7 @@ impl SchedulingService {
                 skills: emp.capabilities.iter().map(|c| c.name.clone()).collect(),
                 available_shifts: emp.available_shifts.iter().map(|s| s.id.to_string()).collect(),
                 unavailability: Vec::new(),
+                monthly_working_hours: emp.monthly_working_hours,
             })
             .collect();
 

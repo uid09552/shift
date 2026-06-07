@@ -1,0 +1,1 @@
+ALTER TABLE employees ADD COLUMN monthly_working_hours DOUBLE PRECISION NOT NULL DEFAULT 0;

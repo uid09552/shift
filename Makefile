@@ -66,6 +66,7 @@ clean:
 
 .PHONY: dev-run
 dev-run:
+	-killall shift
 	docker exec $(CONTAINER) psql -U postgres -c "DROP DATABASE IF EXISTS shift;"
 	docker exec $(CONTAINER) psql -U postgres -c "CREATE DATABASE shift;"
 	cargo run -- serve \
