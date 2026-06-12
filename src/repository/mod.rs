@@ -2,6 +2,8 @@ pub mod domain;
 pub mod employeerepository;
 pub mod shiftrepository;
 pub mod shiftassignmentrepository;
+pub mod confirmedshiftplanrepository;
+pub mod optimizedshiftresultrepository;
 
 use std::sync::Arc;
 use crate::database::DbPool;
@@ -14,6 +16,8 @@ use self::employeerepository::{
 };
 use self::shiftrepository::DieselShiftRepository;
 use self::shiftassignmentrepository::DieselEmployeeShiftAssignmentRepository;
+use self::confirmedshiftplanrepository::DieselConfirmedShiftPlanRepository;
+use self::optimizedshiftresultrepository::DieselOptimizedShiftResultRepository;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -23,6 +27,8 @@ pub struct AppState {
     pub workstation_repo: DieselWorkstationRepository,
     pub unavailability_repo: DieselUnavailabilityRepository,
     pub shift_assignment_repo: DieselEmployeeShiftAssignmentRepository,
+    pub confirmed_shift_plan_repo: DieselConfirmedShiftPlanRepository,
+    pub optimized_shift_result_repo: DieselOptimizedShiftResultRepository,
     pub pool: Arc<DbPool>,
     pub nats_client: Option<async_nats::Client>,
     pub jetstream_status: JetStreamStatus,
@@ -38,6 +44,8 @@ impl AppState {
             workstation_repo: DieselWorkstationRepository { pool: Arc::clone(&pool) },
             unavailability_repo: DieselUnavailabilityRepository { pool: Arc::clone(&pool) },
             shift_assignment_repo: DieselEmployeeShiftAssignmentRepository { pool: Arc::clone(&pool) },
+            confirmed_shift_plan_repo: DieselConfirmedShiftPlanRepository { pool: Arc::clone(&pool) },
+            optimized_shift_result_repo: DieselOptimizedShiftResultRepository { pool: Arc::clone(&pool) },
             pool: pool,
             nats_client: None,
             jetstream_status: JetStreamStatus::Unavailable,
@@ -53,6 +61,8 @@ impl AppState {
             workstation_repo: DieselWorkstationRepository { pool: Arc::clone(&pool) },
             unavailability_repo: DieselUnavailabilityRepository { pool: Arc::clone(&pool) },
             shift_assignment_repo: DieselEmployeeShiftAssignmentRepository { pool: Arc::clone(&pool) },
+            confirmed_shift_plan_repo: DieselConfirmedShiftPlanRepository { pool: Arc::clone(&pool) },
+            optimized_shift_result_repo: DieselOptimizedShiftResultRepository { pool: Arc::clone(&pool) },
             pool,
             nats_client: Some(nats_client),
             jetstream_status,

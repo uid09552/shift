@@ -1,6 +1,6 @@
 use async_nats::Client;
 use crate::broker::JetStreamStatus;
-use crate::models::{TaskDTO, PlanningPeriod, ShiftTask, WorkstationTask, EmployeeTask};
+use crate::models::{TaskDTO, PlanningPeriod, ShiftTask, WorkstationTask, EmployeeTask, TaskResultDto};
 use crate::repository::{AppState, domain::*};
 use serde::{Deserialize, Serialize};
 use chrono::Local;
@@ -117,7 +117,7 @@ impl SchedulingService {
             .collect()
     }
 
-    pub async fn request_scheduling(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn request_scheduling(&self) -> Result<OptimizedShiftResultDomain, Box<dyn std::error::Error + Send + Sync>> {
         let task_dto = Self::build_task_dto(&self.state).await?;
 
         // Serialize to JSON
@@ -142,7 +142,7 @@ impl SchedulingService {
             }
         };
 
-        // Publish the input JSON to the optimizer REST API and return the response body
+        // Publish the input JSON to the optimizer REST API and deserialize the response
         let optimizer_url = format!("{}{}", self.state.optimizer_url, OPTIMIZER_API_PATH);
         println!("Publishing scheduling payload to optimizer at: {}", optimizer_url);
         let response = reqwest::Client::new()
@@ -157,13 +157,36 @@ impl SchedulingService {
             })?;
 
         let status = response.status();
-        let body = response.text().await.map_err(|e| {
-            eprintln!("Failed to read optimizer response body: {}", e);
+        let result: TaskResultDto = response.json().await.map_err(|e| {
+            eprintln!("Failed to deserialize optimizer response into TaskResultDto: {}", e);
             e
         })?;
         println!("Optimizer service responded with status: {}", status);
 
-        Ok(body)
+        // Store the result in the database
+        let result_json = serde_json::to_value(&result)?;
+        let stored = self.state
+            .optimized_shift_result_repo
+            .create_optimized_shift_result(result_json)
+            .await
+ .map_err(|e| {
+                eprintln!("Failed to store optimized shift result: {}", e);
+                e
+            })?;
+        println!("Stored optimized shift result with id: {}", stored.id);
+
+        // Fetch it back from the database for the response
+        let from_db = self.state
+            .optimized_shift_result_repo
+            .get_optimized_shift_result_by_id(stored.id)
+            .await
+            .map_err(|e| {
+                eprintln!("Failed to fetch stored optimized shift result: {}", e);
+                e
+            })?
+            .ok_or("Stored result not found in database")?;
+
+        Ok(from_db)
     }
 
     /// List all tasks currently in the queue from NATS JetStream

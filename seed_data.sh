@@ -331,11 +331,67 @@ for I in "${!EMPLOYEE_IDS[@]}"; do
 done
 echo "  ✓ Created ${UNAV_CREATED} unavailability entries"
 
+# ─── Confirmed Shift Plans ────────────────────────────────────────────────────
+echo ""
+echo "--- Creating confirmed shift plans ---"
+
+CSP_CREATED=0
+ABSENCE_TYPES=("sick" "day_off" "holiday" "unknown")
+
+for I in "${!EMPLOYEE_IDS[@]}"; do
+  EMP_ID="${EMPLOYEE_IDS[$I]}"
+  # Create 5-10 confirmed shift plan entries per employee for the next 14 days
+  NUM_PLANS=$(( (I % 6) + 5 ))
+  for J in $(seq 1 "$NUM_PLANS"); do
+    DAY_OFFSET=$(( J ))
+    PLAN_DATE=$(date -d "+${DAY_OFFSET} days" +%Y-%m-%d 2>/dev/null || date -v+${DAY_OFFSET}d +%Y-%m-%d 2>/dev/null || echo "2026-06-$(( J % 30 + 1 ))")
+
+    # Pick a shift for this employee (rotate through available shifts)
+    SHIFT_IDX=$(( (I + J) % ${#SHIFT_IDS[@]} ))
+    SHIFT_ID="${SHIFT_IDS[$SHIFT_IDX]}"
+
+    # ~15% chance the employee was absent
+    if [ $(( (I * 13 + J * 7) % 100 )) -lt 15 ]; then
+      IS_PRESENT=false
+      ABS_IDX=$(( (I + J) % ${#ABSENCE_TYPES[@]} ))
+      ABS_TYPE="${ABSENCE_TYPES[$ABS_IDX]}"
+      # For automated entries, use creation_type "automated" ~30% of the time
+      if [ $(( (I * 3 + J * 11) % 10 )) -lt 3 ]; then
+        CREATION_TYPE="automated"
+      else
+        CREATION_TYPE="manual"
+      fi
+      RESP=$(curl -s -X POST "${BASE_URL}/employees/${EMP_ID}/confirmed-shift-plans" \
+        -H "Content-Type: application/json" \
+        -d "{\"shift_id\": \"${SHIFT_ID}\", \"date\": \"${PLAN_DATE}\", \"is_present\": false, \"absence_type\": \"${ABS_TYPE}\", \"creation_type\": \"${CREATION_TYPE}\"}")
+    else
+      IS_PRESENT=true
+      # For automated entries, use creation_type "automated" ~20% of the time
+      if [ $(( (I * 5 + J * 9) % 10 )) -lt 2 ]; then
+        CREATION_TYPE="automated"
+      else
+        CREATION_TYPE="manual"
+      fi
+      RESP=$(curl -s -X POST "${BASE_URL}/employees/${EMP_ID}/confirmed-shift-plans" \
+        -H "Content-Type: application/json" \
+        -d "{\"shift_id\": \"${SHIFT_ID}\", \"date\": \"${PLAN_DATE}\", \"is_present\": true, \"creation_type\": \"${CREATION_TYPE}\"}")
+    fi
+
+    if echo "$RESP" | grep -qi "error"; then
+      echo "  ✗ Failed to create confirmed shift plan for employee '${EMP_ID}': ${RESP}"
+    else
+      CSP_CREATED=$((CSP_CREATED + 1))
+    fi
+  done
+done
+echo "  ✓ Created ${CSP_CREATED} confirmed shift plan entries"
+
 # ─── Summary ──────────────────────────────────────────────────────────────────
 echo ""
 echo "=== Seeding complete ==="
-echo "  Shifts:          ${#SHIFT_IDS[@]} (with weekday times)"
-echo "  Capabilities:    ${#CAP_IDS[@]}"
-echo "  Employees:       ${#EMPLOYEE_IDS[@]}"
-echo "  Workstations:    ${#WS_IDS[@]}"
-echo "  Unavailabilities: ${UNAV_CREATED}"
+echo "  Shifts:               ${#SHIFT_IDS[@]} (with weekday times)"
+echo "  Capabilities:         ${#CAP_IDS[@]}"
+echo "  Employees:            ${#EMPLOYEE_IDS[@]}"
+echo "  Workstations:         ${#WS_IDS[@]}"
+echo "  Unavailabilities:     ${UNAV_CREATED}"
+echo "  Confirmed Shift Plans: ${CSP_CREATED}"

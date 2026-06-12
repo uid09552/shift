@@ -27,6 +27,8 @@ tags:
     description: Shift scheduling planner endpoints
   - name: Shift Assignments
     description: Fixed shift assignment management endpoints
+  - name: Confirmed Shift Plans
+    description: Confirmed shift plan management endpoints per employee
 
 paths:
   /employees:
@@ -861,7 +863,7 @@ paths:
       tags:
         - Planner
       summary: Trigger shift scheduling planning
-      description: Starts an asynchronous shift scheduling task. Returns a task ID that can be used to track the planning progress.
+      description: Starts a shift scheduling optimization task. The result is stored in the database and returned with its persistent ID and creation date.
       operationId: triggerPlan
       requestBody:
         required: false
@@ -870,12 +872,12 @@ paths:
             schema:
               $ref: '#/components/schemas/PlanRequest'
       responses:
-        '202':
-          description: Planning task accepted
+        '200':
+          description: Optimization result stored and returned
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PlanResponse'
+                $ref: '#/components/schemas/OptimizedShiftResultResponse'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -953,6 +955,90 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /planner/optimized-shifts:
+    get:
+      tags:
+        - Planner
+      summary: List stored optimized shift results
+      description: Returns a paginated list of stored optimization results, ordered by creation date descending. When latest=true, returns only the most recent optimization result.
+      operationId: listOptimizedShifts
+      parameters:
+        - name: latest
+          in: query
+          description: When true, returns only the most recent optimization result
+          schema:
+            type: boolean
+            default: false
+        - name: limit
+          in: query
+          description: Maximum number of results to return (ignored when latest=true)
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          description: Number of results to skip (ignored when latest=true)
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Paginated list of optimized shift results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOptimizedShiftResultsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /planner/optimized-shifts/{resultId}:
+    get:
+      tags:
+        - Planner
+      summary: Get a specific optimized shift result
+      description: Returns a specific stored optimization result by its ID.
+      operationId: getOptimizedShift
+      parameters:
+        - name: resultId
+          in: path
+          required: true
+          description: The ID of the optimized shift result to retrieve
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Optimized shift result details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptimizedShiftResultResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - Planner
+      summary: Delete a specific optimized shift result
+      description: Removes a specific stored optimization result by its ID.
+      operationId: deleteOptimizedShift
+      parameters:
+        - name: resultId
+          in: path
+          required: true
+          description: The ID of the optimized shift result to delete
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Optimized shift result deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -1056,6 +1142,209 @@ paths:
                     example: true
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /confirmed-shift-plans:
+    get:
+      tags:
+        - Confirmed Shift Plans
+      summary: List all confirmed shift plans
+      description: "Returns a paginated list of confirmed shift plans. Supports optional from_date/to_date query parameters for date range filtering, and limit/offset for pagination."
+      operationId: listConfirmedShiftPlans
+      parameters:
+        - name: from_date
+          in: query
+          description: Start date for filtering (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          description: End date for filtering (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          description: Maximum number of results to return
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          description: Number of results to skip
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Paginated list of confirmed shift plans
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfirmedShiftPlanPaginatedResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /confirmed-shift-plans/{planId}:
+    get:
+      tags:
+        - Confirmed Shift Plans
+      summary: Get a confirmed shift plan by ID
+      description: Returns a specific confirmed shift plan by its ID.
+      operationId: getConfirmedShiftPlanById
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Confirmed shift plan details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfirmedShiftPlan'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Confirmed Shift Plans
+      summary: Update a confirmed shift plan
+      description: Updates a specific confirmed shift plan by its ID.
+      operationId: updateConfirmedShiftPlan
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateConfirmedShiftPlanRequest'
+      responses:
+        '200':
+          description: Confirmed shift plan updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfirmedShiftPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Confirmed Shift Plans
+      summary: Delete a confirmed shift plan
+      description: Removes a specific confirmed shift plan by its ID.
+      operationId: deleteConfirmedShiftPlan
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Confirmed shift plan deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+                    example: true
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employees/{employeeId}/confirmed-shift-plans:
+    get:
+      tags:
+        - Confirmed Shift Plans
+      summary: Get confirmed shift plans for an employee
+      description: Returns the confirmed shift plans for a specific employee. Supports optional from_date/to_date query parameters for date range filtering.
+      operationId: getEmployeeConfirmedShiftPlans
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: from_date
+          in: query
+          description: Start date for filtering (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          description: End date for filtering (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: List of confirmed shift plans for the employee
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConfirmedShiftPlan'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Confirmed Shift Plans
+      summary: Create a confirmed shift plan for an employee
+      description: Creates a new confirmed shift plan entry for an employee. Each employee can only have one confirmed shift plan per date.
+      operationId: createConfirmedShiftPlan
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConfirmedShiftPlanRequest'
+      responses:
+        '201':
+          description: Confirmed shift plan created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfirmedShiftPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Employee already has a confirmed shift plan for this date
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -1658,6 +1947,413 @@ components:
           format: date
           description: Date of the shift assignment (YYYY-MM-DD)
           example: "2026-06-09"
+
+    ConfirmedShiftPlanPaginatedResponse:
+      type: object
+      required:
+        - data
+        - total
+        - limit
+        - offset
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConfirmedShiftPlan'
+          description: List of confirmed shift plans for the current page
+        total:
+          type: integer
+          description: Total number of confirmed shift plans matching the query
+          example: 150
+        limit:
+          type: integer
+          description: Maximum number of results returned
+          example: 50
+        offset:
+          type: integer
+          description: Number of results skipped
+          example: 0
+
+    ConfirmedShiftPlan:
+      type: object
+      required:
+        - id
+        - employee_id
+        - shift_id
+        - date
+        - is_present
+        - creation_type
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique confirmed shift plan identifier
+        employee_id:
+          type: string
+          format: uuid
+          description: ID of the employee
+        shift_id:
+          type: string
+          format: uuid
+          description: ID of the shift
+        workstation_id:
+          type: string
+          format: uuid
+          description: ID of the workstation the employee is assigned to for this shift
+          nullable: true
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        date:
+          type: string
+          format: date
+          description: Date of the confirmed shift plan (YYYY-MM-DD)
+          example: "2026-06-09"
+        is_present:
+          type: boolean
+          description: Whether the employee was actually present (true) or only planned but not there (false)
+          example: true
+        absence_type:
+          type: string
+          description: "Type of absence when is_present is false. One of: sick, day_off, holiday, unknown"
+          enum:
+            - sick
+            - day_off
+            - holiday
+            - unknown
+          nullable: true
+          example: null
+        creation_type:
+          type: string
+          description: "How the record was created. One of: manual, automated"
+          enum:
+            - manual
+            - automated
+          example: "manual"
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the record was created
+          example: "2026-06-09T08:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the record was last updated
+          example: "2026-06-09T08:00:00Z"
+
+    CreateConfirmedShiftPlanRequest:
+      type: object
+      required:
+        - shift_id
+        - date
+      properties:
+        shift_id:
+          type: string
+          format: uuid
+          description: ID of the shift
+        workstation_id:
+          type: string
+          format: uuid
+          description: ID of the workstation the employee is assigned to for this shift
+          nullable: true
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        date:
+          type: string
+          format: date
+          description: Date of the confirmed shift plan (YYYY-MM-DD)
+          example: "2026-06-09"
+        is_present:
+          type: boolean
+          description: Whether the employee was actually present. Defaults to true.
+          default: true
+          example: true
+        absence_type:
+          type: string
+          description: "Type of absence when is_present is false. Required when is_present is false. One of: sick, day_off, holiday, unknown"
+          enum:
+            - sick
+            - day_off
+            - holiday
+            - unknown
+          nullable: true
+          example: null
+        creation_type:
+          type: string
+          description: How the record was created. Defaults to manual.
+          enum:
+            - manual
+            - automated
+          default: manual
+          example: "manual"
+
+    UpdateConfirmedShiftPlanRequest:
+      type: object
+      properties:
+        shift_id:
+          type: string
+          format: uuid
+          description: ID of the shift
+          nullable: true
+        workstation_id:
+          type: string
+          format: uuid
+          description: ID of the workstation the employee is assigned to for this shift. Pass null to clear the workstation assignment.
+          nullable: true
+        is_present:
+          type: boolean
+          description: Whether the employee was actually present
+          nullable: true
+        absence_type:
+          type: string
+          description: "Type of absence when is_present is false. One of: sick, day_off, holiday, unknown"
+          enum:
+            - sick
+            - day_off
+            - holiday
+            - unknown
+          nullable: true
+        creation_type:
+          type: string
+          description: "How the record was created. One of: manual, automated"
+          enum:
+            - manual
+            - automated
+          nullable: true
+
+    OptimizedShiftResultResponse:
+      type: object
+      required:
+        - id
+        - result
+        - creation_date
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the stored optimization result
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        result:
+          $ref: '#/components/schemas/TaskResultDto'
+        creation_date:
+          type: string
+          format: date-time
+          description: Timestamp when the optimization result was stored
+          example: "2026-06-12T19:00:00Z"
+
+    PaginatedOptimizedShiftResultsResponse:
+      type: object
+      required:
+        - data
+        - total
+        - limit
+        - offset
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/OptimizedShiftResultResponse'
+          description: List of optimized shift results for the current page
+        total:
+          type: integer
+          description: Total number of stored optimization results
+          example: 25
+        limit:
+          type: integer
+          description: Maximum number of results returned
+          example: 50
+        offset:
+          type: integer
+          description: Number of results skipped
+          example: 0
+
+    TaskResultDto:
+      type: object
+      required:
+        - status
+        - objective_value
+        - planning_period
+        - schedule
+        - employee_summary
+      properties:
+        status:
+          type: string
+          description: Status of the optimization result
+          example: "optimal"
+        objective_value:
+          type: number
+          format: double
+          description: The objective value of the optimization
+          example: 42.5
+        planning_period:
+          $ref: '#/components/schemas/PlanningPeriodResult'
+        schedule:
+          type: array
+          items:
+            $ref: '#/components/schemas/DaySchedule'
+          description: Day-by-day schedule across the planning period
+        employee_summary:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmployeeSummary'
+          description: Per-employee summary across the planning period
+        message:
+          type: string
+          nullable: true
+          description: Optional message from the optimizer
+          example: null
+
+    PlanningPeriodResult:
+      type: object
+      required:
+        - start_date
+        - end_date
+      properties:
+        start_date:
+          type: string
+          description: Start date of the planning period
+          example: "2026-06-09"
+        end_date:
+          type: string
+          description: End date of the planning period
+          example: "2026-07-09"
+
+    DaySchedule:
+      type: object
+      required:
+        - date
+        - weekday
+        - shifts
+      properties:
+        date:
+          type: string
+          description: Date of the schedule entry
+          example: "2026-06-09"
+        weekday:
+          type: string
+          description: Weekday name
+          example: "Monday"
+        shifts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShiftSchedule'
+          description: Shift assignments for this day
+
+    ShiftSchedule:
+      type: object
+      required:
+        - shift_id
+        - shift_name
+        - assigned_dates
+      properties:
+        shift_id:
+          type: string
+          description: Shift identifier
+        shift_name:
+          type: string
+          description: Shift name
+          example: "Morning (8:00 - 16:00)"
+        assigned_dates:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShiftAssignmentResult'
+          description: Employee-to-workstation assignments for this shift
+
+    ShiftAssignmentResult:
+      type: object
+      required:
+        - date
+        - employee_id
+        - employee_name
+        - workstation_id
+        - workstation_name
+      properties:
+        date:
+          type: string
+          description: Date of the assignment
+          example: "2026-06-09"
+        employee_id:
+          type: string
+          description: Employee identifier
+        employee_name:
+          type: string
+          description: Employee full name
+          example: "John Doe"
+        workstation_id:
+          type: string
+          description: Workstation identifier
+        workstation_name:
+          type: string
+          description: Workstation name
+          example: "MRT Room 1"
+
+    EmployeeSummary:
+      type: object
+      required:
+        - employee_id
+        - employee_name
+        - total_shifts
+        - night_shifts
+        - total_working_hours
+        - per_shift
+        - assigned_dates
+      properties:
+        employee_id:
+          type: string
+          description: Employee identifier
+        employee_name:
+          type: string
+          description: Employee full name
+          example: "John Doe"
+        total_shifts:
+          type: integer
+          description: Total number of shifts assigned
+          example: 20
+        night_shifts:
+          type: integer
+          description: Number of night shifts assigned
+          example: 2
+        total_working_hours:
+          type: number
+          format: double
+          description: Total working hours across the planning period
+          example: 160.0
+        per_shift:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmployeeShiftSummary'
+          description: Per-shift breakdown
+        assigned_dates:
+          type: array
+          items:
+            type: string
+          description: List of dates the employee is assigned
+          example: ["2026-06-09", "2026-06-10"]
+
+    EmployeeShiftSummary:
+      type: object
+      required:
+        - shift_id
+        - shift_name
+        - total_assignments
+        - assigned_dates
+      properties:
+        shift_id:
+          type: string
+          description: Shift identifier
+        shift_name:
+          type: string
+          description: Shift name
+          example: "Morning (8:00 - 16:00)"
+        total_assignments:
+          type: integer
+          description: Number of assignments for this shift
+          example: 15
+        assigned_dates:
+          type: array
+          items:
+            type: string
+          description: Dates assigned for this shift
+          example: ["2026-06-09", "2026-06-10"]
 
   responses:
     BadRequest:

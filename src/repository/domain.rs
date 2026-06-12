@@ -61,6 +61,27 @@ pub struct EmployeeShiftAssignment {
     pub date: NaiveDate,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ConfirmedShiftPlan {
+    pub id: Uuid,
+    pub employee_id: Uuid,
+    pub shift_id: Uuid,
+    pub workstation_id: Option<Uuid>,
+    pub date: NaiveDate,
+    pub is_present: bool,
+    pub absence_type: Option<String>,
+    pub creation_type: String,
+    pub created_at: chrono::NaiveDateTime,
+    pub updated_at: chrono::NaiveDateTime,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct OptimizedShiftResultDomain {
+    pub id: Uuid,
+    pub result: serde_json::Value,
+    pub creation_date: chrono::NaiveDateTime,
+}
+
 // Repository traits
 use async_trait::async_trait;
 
@@ -119,4 +140,28 @@ pub trait EmployeeShiftAssignmentRepository {
     async fn get_assignments_for_employee(&self, employee_id: Uuid) -> Result<Vec<EmployeeShiftAssignment>, Box<dyn std::error::Error + Send + Sync>>;
     async fn get_assignments_for_employee_in_range(&self, employee_id: Uuid, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<EmployeeShiftAssignment>, Box<dyn std::error::Error + Send + Sync>>;
     async fn delete_assignment(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+}
+
+#[async_trait]
+pub trait ConfirmedShiftPlanRepository {
+    async fn create_confirmed_shift_plan(&self, plan: ConfirmedShiftPlan) -> Result<ConfirmedShiftPlan, Box<dyn std::error::Error + Send + Sync>>;
+    async fn get_confirmed_shift_plans_for_employee(&self, employee_id: Uuid) -> Result<Vec<ConfirmedShiftPlan>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn get_confirmed_shift_plans_for_employee_in_range(&self, employee_id: Uuid, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<ConfirmedShiftPlan>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn get_confirmed_shift_plan_by_id(&self, id: Uuid) -> Result<Option<ConfirmedShiftPlan>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn update_confirmed_shift_plan(&self, id: Uuid, shift_id: Option<Uuid>, workstation_id: Option<Option<Uuid>>, is_present: Option<bool>, absence_type: Option<String>, creation_type: Option<String>) -> Result<ConfirmedShiftPlan, Box<dyn std::error::Error + Send + Sync>>;
+    async fn delete_confirmed_shift_plan(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    async fn list_confirmed_shift_plans(&self, limit: Option<i64>, offset: Option<i64>) -> Result<Vec<ConfirmedShiftPlan>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn count_confirmed_shift_plans(&self) -> Result<i64, Box<dyn std::error::Error + Send + Sync>>;
+    async fn get_confirmed_shift_plans_for_date_range(&self, from_date: NaiveDate, to_date: NaiveDate, limit: Option<i64>, offset: Option<i64>) -> Result<Vec<ConfirmedShiftPlan>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn count_confirmed_shift_plans_for_date_range(&self, from_date: NaiveDate, to_date: NaiveDate) -> Result<i64, Box<dyn std::error::Error + Send + Sync>>;
+}
+
+#[async_trait]
+pub trait OptimizedShiftResultRepository {
+    async fn create_optimized_shift_result(&self, result: serde_json::Value) -> Result<OptimizedShiftResultDomain, Box<dyn std::error::Error + Send + Sync>>;
+    async fn get_optimized_shift_result_by_id(&self, id: Uuid) -> Result<Option<OptimizedShiftResultDomain>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn get_latest_optimized_shift_result(&self) -> Result<Option<OptimizedShiftResultDomain>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn list_optimized_shift_results(&self, limit: Option<i64>, offset: Option<i64>) -> Result<Vec<OptimizedShiftResultDomain>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn count_optimized_shift_results(&self) -> Result<i64, Box<dyn std::error::Error + Send + Sync>>;
+    async fn delete_optimized_shift_result(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 }

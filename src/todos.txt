@@ -1,3 +1,0 @@
-1) shfits with shortcut and color coding
-2) ui for shift
-3) call planner task as cli first

@@ -18,7 +18,7 @@ figment = { version = "0.10", features = ["env", "yaml"] }
 url = "2"
 
 # Database
-diesel = { version = "2.1", features = ["postgres", "r2d2", "chrono", "uuid"] }
+diesel = { version = "2.1", features = ["postgres", "r2d2", "chrono", "uuid", "serde_json"] }
 diesel_migrations = "2.1"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }

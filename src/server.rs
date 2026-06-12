@@ -14,6 +14,7 @@ use tower_http::cors::CorsLayer;
 use crate::repository::AppState;
 use crate::services::{
     capability::CapabilityService,
+    confirmed_shift_plan::ConfirmedShiftPlanService,
     employee::EmployeeService,
     planner::PlannerService,
     shift::ShiftService,
@@ -87,6 +88,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/planner/prepare", get(PlannerService::prepare))
         .route("/planner/tasks", get(PlannerService::list_tasks).delete(PlannerService::delete_all_tasks))
         .route("/planner/tasks/:task_id", get(PlannerService::get_task))
+        .route("/planner/optimized-shifts", get(PlannerService::list_optimized_shifts))
+        .route("/planner/optimized-shifts/:result_id", get(PlannerService::get_optimized_shift).delete(PlannerService::delete_optimized_shift))
         // Shift Assignments
         .route(
             "/employees/:employee_id/shift-assignments",
@@ -95,6 +98,19 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/shift-assignments/:assignment_id",
             delete(ShiftAssignmentService::delete_shift_assignment),
+        )
+        // Confirmed Shift Plans
+        .route(
+            "/confirmed-shift-plans",
+            get(ConfirmedShiftPlanService::list_confirmed_shift_plans),
+        )
+        .route(
+            "/confirmed-shift-plans/:plan_id",
+            get(ConfirmedShiftPlanService::get_confirmed_shift_plan_by_id).put(ConfirmedShiftPlanService::update_confirmed_shift_plan).delete(ConfirmedShiftPlanService::delete_confirmed_shift_plan),
+        )
+        .route(
+            "/employees/:employee_id/confirmed-shift-plans",
+            get(ConfirmedShiftPlanService::get_employee_confirmed_shift_plans).post(ConfirmedShiftPlanService::create_confirmed_shift_plan),
         );
 
     Router::new()

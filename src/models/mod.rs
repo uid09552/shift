@@ -1,21 +1,27 @@
 pub mod capability;
+pub mod confirmed_shift_plan;
 pub mod employee;
 pub mod employee_available_shifts;
 pub mod employee_capabilities;
 pub mod employee_shift_assignment;
+pub mod optimized_shift_result;
 pub mod shift;
 pub mod task_dto;
+pub mod task_result_dto;
 pub mod unavailability;
 pub mod workstation;
 pub mod workstation_required_capabilities;
 
 pub use capability::{Capability, NewCapability};
+pub use confirmed_shift_plan::{ConfirmedShiftPlan, NewConfirmedShiftPlan, UpdateConfirmedShiftPlan};
 pub use employee::{Employee, NewEmployee};
 pub use employee_available_shifts::{EmployeeAvailableShift, NewEmployeeAvailableShift};
 pub use employee_capabilities::{EmployeeCapability, NewEmployeeCapability};
 pub use employee_shift_assignment::{EmployeeShiftAssignment, NewEmployeeShiftAssignment};
+pub use optimized_shift_result::{OptimizedShiftResult, NewOptimizedShiftResult};
 pub use shift::{Shift, NewShift, ShiftWeekdayTime, NewShiftWeekdayTime};
 pub use task_dto::{TaskDTO, PlanningPeriod, ShiftTask, WorkstationTask, EmployeeTask};
+pub use task_result_dto::{TaskResultDto, PlanningPeriodResult, DaySchedule, ShiftSchedule, ShiftAssignment, EmployeeSummary, EmployeeShiftSummary};
 pub use unavailability::{NewUnavailability, Unavailability};
 pub use workstation::{NewWorkstation, Workstation};
 pub use workstation_required_capabilities::{NewWorkstationRequiredCapability, WorkstationRequiredCapability};

@@ -81,6 +81,29 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    confirmed_shift_plans (id) {
+        id -> Uuid,
+        employee_id -> Uuid,
+        shift_id -> Uuid,
+        workstation_id -> Nullable<Uuid>,
+        date -> Date,
+        is_present -> Bool,
+        absence_type -> Nullable<Varchar>,
+        creation_type -> Varchar,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    optimized_shift_results (id) {
+        id -> Uuid,
+        result -> Jsonb,
+        creation_date -> Timestamptz,
+    }
+}
+
 diesel::joinable!(employee_available_shifts -> employees (employee_id));
 diesel::joinable!(employee_available_shifts -> shifts (shift_id));
 diesel::joinable!(employee_capabilities -> capabilities (capability_id));
@@ -92,6 +115,9 @@ diesel::joinable!(unavailabilities -> shifts (shift_id));
 diesel::joinable!(shift_weekday_times -> shifts (shift_id));
 diesel::joinable!(employee_shift_assignments -> employees (employee_id));
 diesel::joinable!(employee_shift_assignments -> shifts (shift_id));
+diesel::joinable!(confirmed_shift_plans -> employees (employee_id));
+diesel::joinable!(confirmed_shift_plans -> shifts (shift_id));
+diesel::joinable!(confirmed_shift_plans -> workstations (workstation_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     capabilities,
@@ -104,4 +130,6 @@ diesel::allow_tables_to_appear_in_same_query!(
     workstation_required_capabilities,
     unavailabilities,
     employee_shift_assignments,
+    confirmed_shift_plans,
+    optimized_shift_results,
 );
