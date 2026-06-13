@@ -1,5 +1,7 @@
 import { Component, ElementRef, ViewChild } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { SidebarService } from '../../services/sidebar.service';
+import { GlobalSearchService } from '../../services/global-search.service';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { ThemeToggleButtonComponent } from '../../components/common/theme-toggle/theme-toggle-button.component';
@@ -10,6 +12,7 @@ import { UserDropdownComponent } from '../../components/header/user-dropdown/use
   selector: 'app-header',
   imports: [
     CommonModule,
+    FormsModule,
     RouterModule,
     ThemeToggleButtonComponent,
     NotificationDropdownComponent,
@@ -20,10 +23,14 @@ import { UserDropdownComponent } from '../../components/header/user-dropdown/use
 export class AppHeaderComponent {
   isApplicationMenuOpen = false;
   readonly isMobileOpen$;
+  searchQuery = '';
 
   @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
 
-  constructor(public sidebarService: SidebarService) {
+  constructor(
+    public sidebarService: SidebarService,
+    private globalSearchService: GlobalSearchService,
+  ) {
     this.isMobileOpen$ = this.sidebarService.isMobileOpen$;
   }
 
@@ -45,6 +52,10 @@ export class AppHeaderComponent {
 
   ngOnDestroy() {
     document.removeEventListener('keydown', this.handleKeyDown);
+  }
+
+  onSearch(term: string): void {
+    this.globalSearchService.setSearchTerm(term);
   }
 
   handleKeyDown = (event: KeyboardEvent) => {

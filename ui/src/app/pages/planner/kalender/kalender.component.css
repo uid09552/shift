@@ -1,0 +1,148 @@
+/* Kalender component styles */
+
+.kalender-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.kalender-table th,
+.kalender-table td {
+  vertical-align: middle;
+}
+
+/* Employee name column */
+.employee-col {
+  width: 200px;
+  min-width: 120px;
+  max-width: 400px;
+}
+
+/* Column resize handle */
+.col-resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background-color 0.15s;
+  z-index: 11;
+}
+
+.col-resize-handle:hover,
+.col-resize-handle:active {
+  background-color: #3b82f6;
+}
+
+.dark .col-resize-handle:hover,
+.dark .col-resize-handle:active {
+  background-color: #6366f1;
+}
+
+/* Day columns - wider for shift chips */
+.day-col {
+  width: auto;
+  min-width: 90px;
+}
+
+/* Shift chip styling */
+.shift-chip {
+  min-width: 56px;
+  cursor: default;
+}
+
+/* Sticky left column shadow on scroll */
+.kalender-table td.sticky,
+.kalender-table th.sticky {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+}
+
+/* Empty cell styling */
+.empty-cell {
+  min-width: 56px;
+}
+
+/* Smooth hover transitions */
+.shift-chip:hover {
+  transform: translateY(-1px);
+}
+
+/* Cell container for positioning dropdowns */
+.cell-container {
+  position: relative;
+}
+
+/* Action buttons on shift chips */
+.cell-actions {
+  z-index: 20;
+}
+
+.cell-actions button {
+  font-size: 0;
+  line-height: 0;
+}
+
+/* Shift dropdown */
+.shift-dropdown {
+  max-height: 240px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
+.shift-dropdown::-webkit-scrollbar {
+  width: 4px;
+}
+
+.shift-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.shift-dropdown::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 2px;
+}
+
+.dark .shift-dropdown {
+  scrollbar-color: #374151 transparent;
+}
+
+.dark .shift-dropdown::-webkit-scrollbar-thumb {
+  background-color: #374151;
+}
+
+/* Delete confirmation */
+.delete-confirm {
+  z-index: 20;
+}
+
+/* Scrollbar styling for the overflow container */
+.overflow-x-auto {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
+.overflow-x-auto::-webkit-scrollbar {
+  height: 6px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 3px;
+}
+
+.dark .overflow-x-auto {
+  scrollbar-color: #374151 transparent;
+}
+
+.dark .overflow-x-auto::-webkit-scrollbar-thumb {
+  background-color: #374151;
+}

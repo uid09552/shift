@@ -12,6 +12,7 @@ help:
 	@echo "  release        Build in release mode"
 	@echo "  run            Run the app"
 	@echo "  serve          Run 'serve' command"
+	@echo "  ui-serve       Run Angular dev server (ng serve)"
 	@echo "  db-up          Start PostgreSQL database with docker-compose"
 	@echo "  db-down        Stop PostgreSQL database"
 	@echo "  dev-run        Reset DB, run server, and seed data"
@@ -43,6 +44,10 @@ serve:
 		$(if $(LISTEN),--listen $(LISTEN),) \
 		$(if $(VERBOSE),--verbose,) \
 		$(if $(DEV),--dev,)
+
+.PHONY: ui-serve
+ui-serve:
+	cd ui && make serve
 
 .PHONY: db-up
 db-up:

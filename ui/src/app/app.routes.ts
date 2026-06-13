@@ -5,6 +5,7 @@ import { AppLayoutComponent } from './shared/layout/app-layout/app-layout.compon
 import { SignInComponent } from './pages/auth-pages/sign-in/sign-in.component';
 import { SignUpComponent } from './pages/auth-pages/sign-up/sign-up.component';
 import { KalenderComponent } from './pages/planner/kalender/kalender.component';
+import { EmployeeCalendarComponent } from './pages/planner/employee-calendar/employee-calendar.component';
 import { SchedulerComponent } from './pages/planner/scheduler/scheduler.component';
 import { UserProfilesComponent } from './pages/planner/user-profiles/user-profiles.component';
 import { ShiftsComponent } from './pages/configuration/shifts/shifts.component';
@@ -25,7 +26,12 @@ export const routes: Routes = [
       {
         path:'kalender',
         component:KalenderComponent,
-        title:'ShiftPlanner - Kalender'
+        title:'ShiftPlanner - Weekly Schedule'
+      },
+      {
+        path:'employee-calendar',
+        component:EmployeeCalendarComponent,
+        title:'ShiftPlanner - Employee Calendar'
       },
       {
         path:'scheduler',

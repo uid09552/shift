@@ -1,0 +1,386 @@
+<app-page-breadcrumb pageTitle="Employee Calendar" />
+
+<div
+  class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
+  (click)="onDocumentClick($event)"
+>
+  <!-- Header: Employee selector + Month navigation -->
+  <div
+    class="flex flex-col gap-4 border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:flex-row sm:items-center sm:justify-between sm:px-6"
+  >
+    <!-- Employee dropdown -->
+    <div class="flex items-center gap-3">
+      <label
+        for="employee-select"
+        class="text-sm font-medium text-gray-600 dark:text-gray-400"
+      >
+        Employee:
+      </label>
+      <select
+        id="employee-select"
+        [(ngModel)]="selectedEmployeeId"
+        (ngModelChange)="onEmployeeChange()"
+        class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm transition focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+      >
+        <option value="">— Select employee —</option>
+        @for (emp of employees; track emp.id) {
+          <option [value]="emp.id">{{ emp.name }}</option>
+        }
+      </select>
+    </div>
+
+    <!-- Month navigation -->
+    <div class="flex items-center gap-2">
+      <button
+        (click)="goToday()"
+        class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
+      >
+        Today
+      </button>
+
+      <button
+        (click)="prevMonth()"
+        class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
+        aria-label="Previous month"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M15 19L8 12L15 5"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+
+      <span
+        class="min-w-[160px] text-center text-sm font-semibold text-gray-700 dark:text-gray-300"
+      >
+        {{ monthLabel }}
+      </span>
+
+      <button
+        (click)="nextMonth()"
+        class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
+        aria-label="Next month"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M9 5L16 12L9 19"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Calendar grid -->
+  <div class="p-4 sm:p-6">
+    @if (loading) {
+      <div
+        class="flex items-center justify-center py-20 text-gray-400 dark:text-gray-500"
+      >
+        <svg
+          class="mr-2 h-5 w-5 animate-spin"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <circle
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="4"
+            class="opacity-25"
+          ></circle>
+          <path
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+            class="opacity-75"
+          ></path>
+        </svg>
+        Loading data…
+      </div>
+    } @else if (error) {
+      <div
+        class="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500"
+      >
+        <p class="text-sm">{{ error }}</p>
+      </div>
+    } @else {
+      <!-- Day headers -->
+      <div class="calendar-grid mb-1">
+        @for (dayName of DAY_NAMES; track dayName) {
+          <div
+            class="flex items-center justify-center py-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400"
+          >
+            {{ dayName }}
+          </div>
+        }
+      </div>
+
+      <!-- Calendar weeks -->
+      <div class="relative">
+        @if (loadingPlans) {
+          <div
+            class="absolute inset-0 z-10 flex items-center justify-center bg-white/60 dark:bg-gray-900/60"
+          >
+            <svg
+              class="h-5 w-5 animate-spin text-brand-500"
+              viewBox="0 0 24 24"
+              fill="none"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+                class="opacity-25"
+              ></circle>
+              <path
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                class="opacity-75"
+              ></path>
+            </svg>
+          </div>
+        }
+
+        @for (week of weeks; track $index) {
+          <div class="calendar-grid">
+            @for (day of week.days; track $index) {
+              <div
+                class="calendar-cell"
+                [class.other-month]="!day.isCurrentMonth"
+                [class.today]="day.isToday"
+                [class.weekend]="day.isWeekend"
+                [class.cell-editing]="isEditing(formatDate(day.date)) || isDeleting(formatDate(day.date))"
+              >
+                <div class="day-number">{{ day.dayNum }}</div>
+                @if (day.isCurrentMonth && day.plan) {
+                  <div
+                    class="shift-chip group/chip relative flex flex-col items-center gap-0.5 rounded-lg px-2 py-1.5 text-center transition-shadow hover:shadow-sm"
+                    [style.backgroundColor]="(day.shiftColor || '#6B7280') + '18'"
+                    [style.borderLeft]="'3px solid ' + (day.shiftColor || '#6B7280')"
+                  >
+                    @if (day.shiftName) {
+                      <span
+                        class="text-xs font-bold leading-tight"
+                        [style.color]="day.shiftColor || '#6B7280'"
+                      >
+                        {{ day.shiftName }}
+                      </span>
+                    }
+                    @if (day.workstationName) {
+                      <span
+                        class="truncate text-[10px] leading-tight text-gray-500 dark:text-gray-400"
+                        [title]="day.workstationName"
+                      >
+                        {{ day.workstationName }}
+                      </span>
+                    }
+
+                    <!-- Action buttons (visible on hover) -->
+                    <div
+                      class="cell-actions absolute -top-1 right-0 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/chip:opacity-100"
+                      (click)="$event.stopPropagation()"
+                    >
+                      <button
+                        (click)="startEdit(formatDate(day.date), $event)"
+                        class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 shadow-sm ring-1 ring-gray-200 transition hover:text-brand-600 hover:ring-brand-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-brand-400 dark:hover:ring-brand-600"
+                        title="Change shift type"
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                        </svg>
+                      </button>
+                      <button
+                        (click)="startDelete(formatDate(day.date), day.plan!.id, $event)"
+                        class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 shadow-sm ring-1 ring-gray-200 transition hover:text-red-600 hover:ring-red-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-red-400 dark:hover:ring-red-600"
+                        title="Delete shift assignment"
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Shift type dropdown (edit mode) -->
+                  @if (isEditing(formatDate(day.date))) {
+                    <div
+                      class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[140px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                      (click)="$event.stopPropagation()"
+                    >
+                      <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+                        Change shift
+                      </div>
+                      @for (shift of shifts; track shift.id) {
+                        <button
+                          (click)="onShiftSelect(formatDate(day.date), shift.id)"
+                          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                          [class.bg-brand-50]="day.plan.shift_id === shift.id"
+                          [class.dark:bg-brand-500/10]="day.plan.shift_id === shift.id"
+                        >
+                          <span
+                            class="inline-block h-3 w-3 rounded-sm"
+                            [style.backgroundColor]="shift.color"
+                          ></span>
+                          <span
+                            class="font-medium"
+                            [class.text-brand-600]="day.plan.shift_id === shift.id"
+                            [class.dark:text-brand-400]="day.plan.shift_id === shift.id"
+                          >
+                            {{ shift.short_name }}
+                          </span>
+                          <span class="text-gray-400 dark:text-gray-500">–</span>
+                          <span class="text-gray-500 dark:text-gray-400">{{ shift.name }}</span>
+                        </button>
+                      }
+                      <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
+                      <button
+                        (click)="cancelEdit()"
+                        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-500 transition hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  }
+
+                  <!-- Delete confirmation -->
+                  @if (isDeleting(formatDate(day.date))) {
+                    <div
+                      class="delete-confirm absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-red-200 bg-white p-2 shadow-lg dark:border-red-800 dark:bg-gray-800"
+                      (click)="$event.stopPropagation()"
+                    >
+                      <p class="mb-2 text-xs text-gray-600 dark:text-gray-300">
+                        Delete this shift assignment?
+                      </p>
+                      <div class="flex items-center gap-2">
+                        <button
+                          (click)="confirmDelete()"
+                          class="flex-1 rounded-md bg-red-500 px-2 py-1 text-xs font-medium text-white transition hover:bg-red-600"
+                        >
+                          Delete
+                        </button>
+                        <button
+                          (click)="cancelDelete()"
+                          class="flex-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  }
+
+                  <!-- Processing spinner -->
+                  @if (isProcessing(formatDate(day.date))) {
+                    <div class="absolute inset-0 z-20 flex items-center justify-center rounded-lg bg-white/60 dark:bg-gray-900/60">
+                      <svg class="h-4 w-4 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+                        <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
+                      </svg>
+                    </div>
+                  }
+                } @else if (day.isCurrentMonth && day.plan && !day.plan.is_present && day.plan.absence_type) {
+                  <div
+                    class="absence-chip"
+                  >
+                    {{ day.plan.absence_type }}
+                  </div>
+                } @else if (day.isCurrentMonth && !day.plan && selectedEmployeeId) {
+                  <div
+                    class="empty-cell group/empty flex h-full cursor-pointer items-center justify-center rounded-lg px-2 py-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-white/[0.05]"
+                    (click)="startEdit(formatDate(day.date), $event)"
+                  >
+                    <span
+                      class="text-xs text-gray-300 transition-colors group-hover/empty:text-gray-400 dark:text-gray-700 dark:group-hover/empty:text-gray-500"
+                    >
+                      +
+                    </span>
+                  </div>
+
+                  <!-- Shift type dropdown for empty cell (add mode) -->
+                  @if (isEditing(formatDate(day.date))) {
+                    <div
+                      class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[140px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                      (click)="$event.stopPropagation()"
+                    >
+                      <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+                        Assign shift
+                      </div>
+                      @for (shift of shifts; track shift.id) {
+                        <button
+                          (click)="onShiftSelect(formatDate(day.date), shift.id)"
+                          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                        >
+                          <span
+                            class="inline-block h-3 w-3 rounded-sm"
+                            [style.backgroundColor]="shift.color"
+                          ></span>
+                          <span class="font-medium">
+                            {{ shift.short_name }}
+                          </span>
+                          <span class="text-gray-400 dark:text-gray-500">–</span>
+                          <span class="text-gray-500 dark:text-gray-400">{{ shift.name }}</span>
+                        </button>
+                      }
+                      <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
+                      <button
+                        (click)="cancelEdit()"
+                        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-500 transition hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  }
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Legend -->
+      <div
+        class="mt-4 flex flex-wrap items-center gap-4 border-t border-gray-100 px-1 pt-3 dark:border-white/[0.05]"
+      >
+        <span
+          class="text-xs font-medium text-gray-500 dark:text-gray-400"
+        >
+          Legend:
+        </span>
+        @for (shift of shifts; track shift.id) {
+          <div class="flex items-center gap-1.5">
+            <div
+              class="h-3 w-3 rounded-sm border border-gray-200 dark:border-gray-700"
+              [style.backgroundColor]="shift.color"
+            ></div>
+            <span
+              class="text-xs text-gray-600 dark:text-gray-400"
+            >
+              {{ shift.short_name }} – {{ shift.name }}
+            </span>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</div>

@@ -1,0 +1,214 @@
+/* Employee Calendar component styles */
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background-color: #f1f5f9;
+  border-radius: 0.5rem;
+  overflow: visible;
+}
+
+.dark .calendar-grid {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.calendar-cell {
+  min-height: 90px;
+  padding: 6px 8px;
+  background-color: #ffffff;
+  transition: background-color 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative; /* anchor for absolutely-positioned dropdowns */
+  z-index: 1;
+}
+
+.calendar-cell.cell-editing {
+  z-index: 40;
+}
+
+.dark .calendar-cell {
+  background-color: #1a1d21;
+}
+
+.calendar-cell.other-month {
+  background-color: #f8fafc;
+}
+
+.dark .calendar-cell.other-month {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.calendar-cell.other-month .day-number {
+  color: #cbd5e1;
+}
+
+.dark .calendar-cell.other-month .day-number {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.calendar-cell.today {
+  background-color: #eff6ff;
+}
+
+.dark .calendar-cell.today {
+  background-color: rgba(59, 130, 246, 0.08);
+}
+
+.calendar-cell.today .day-number {
+  background-color: #3b82f6;
+  color: #ffffff;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendar-cell.weekend {
+  background-color: #fefce8;
+}
+
+.dark .calendar-cell.weekend {
+  background-color: rgba(250, 204, 21, 0.03);
+}
+
+.calendar-cell.weekend.other-month {
+  background-color: #f8fafc;
+}
+
+.dark .calendar-cell.weekend.other-month {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.day-number {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.dark .day-number {
+  color: #94a3b8;
+}
+
+.cell-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.shift-chip {
+  min-width: 56px;
+  cursor: default;
+}
+
+.shift-chip:hover {
+  transform: translateY(-1px);
+}
+
+.workstation-label {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 500;
+  color: #64748b;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.dark .workstation-label {
+  color: #94a3b8;
+}
+
+.absence-chip {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.dark .absence-chip {
+  background-color: rgba(220, 38, 38, 0.1);
+  color: #f87171;
+  border-color: rgba(220, 38, 38, 0.3);
+}
+
+.no-shift {
+  font-size: 0.65rem;
+  color: #cbd5e1;
+  line-height: 1;
+}
+
+.dark .no-shift {
+  color: rgba(255, 255, 255, 0.15);
+}
+
+/* Cell action buttons */
+.cell-actions {
+  z-index: 20;
+}
+
+.cell-actions button {
+  font-size: 0;
+  line-height: 0;
+}
+
+/* Shift dropdown */
+.shift-dropdown {
+  max-height: 240px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
+.shift-dropdown::-webkit-scrollbar {
+  width: 4px;
+}
+
+/* Delete confirmation */
+.delete-confirm {
+  z-index: 30;
+}
+
+/* Empty cell click target */
+.empty-cell {
+  min-height: 32px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .calendar-cell {
+    min-height: 60px;
+    padding: 4px;
+  }
+
+  .shift-chip {
+    font-size: 0.55rem;
+    padding: 1px 4px;
+  }
+
+  .workstation-label {
+    font-size: 0.5rem;
+  }
+
+  .day-number {
+    font-size: 0.65rem;
+  }
+}

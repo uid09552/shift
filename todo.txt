@@ -1,5 +1,7 @@
 
-1) ui kalender shift
+1) ui kalender shift make workstation editable
+2) delete in ui
+2) confirmed shift plan, add workstation, its missing
 3) api fixed shift plan for each user (done), seed is open
 5) optimizer response to struct as api response, right now only text
 6) planned hours per month, per day, calculalte also breaks
