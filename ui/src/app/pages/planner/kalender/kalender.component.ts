@@ -138,7 +138,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
       d.setDate(d.getDate() + i);
       this.days.push({
         date: d,
-        label: this.DAY_NAMES[i],
+        label: this.DAY_NAMES_FULL[d.getDay() === 0 ? 6 : d.getDay() - 1].substring(0, 3),
         dayNum: d.getDate(),
         isToday: d.getTime() === today.getTime(),
       });
@@ -146,27 +146,32 @@ export class KalenderComponent implements OnInit, OnDestroy {
   }
 
   prevWeek(): void {
+    const monday = this.getMonday(this.weekStart);
     this.weekStart = new Date(
-      this.weekStart.getFullYear(),
-      this.weekStart.getMonth(),
-      this.weekStart.getDate() - 7,
+      monday.getFullYear(),
+      monday.getMonth(),
+      monday.getDate() - 7,
     );
     this.computeDays();
     this.loadPlans();
   }
 
   nextWeek(): void {
+    const monday = this.getMonday(this.weekStart);
     this.weekStart = new Date(
-      this.weekStart.getFullYear(),
-      this.weekStart.getMonth(),
-      this.weekStart.getDate() + 7,
+      monday.getFullYear(),
+      monday.getMonth(),
+      monday.getDate() + 7,
     );
     this.computeDays();
     this.loadPlans();
   }
 
   goToday(): void {
-    this.weekStart = this.getMonday(new Date());
+    // Center the view on today: show 3 days before, today, 3 days after
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    this.weekStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 3);
     this.computeDays();
     this.loadPlans();
   }

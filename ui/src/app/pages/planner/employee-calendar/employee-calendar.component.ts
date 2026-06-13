@@ -185,11 +185,13 @@ export class EmployeeCalendarComponent implements OnInit {
   }
 
   private loadPlansForMonth(): void {
-    this.buildCalendar();
-
     if (!this.selectedEmployeeId) {
+      this.planMap.clear();
+      this.buildCalendar();
       return;
     }
+
+    this.buildCalendar();
 
     this.loadingPlans = true;
 

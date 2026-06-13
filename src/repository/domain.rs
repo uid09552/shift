@@ -156,6 +156,28 @@ pub trait ConfirmedShiftPlanRepository {
     async fn count_confirmed_shift_plans_for_date_range(&self, from_date: NaiveDate, to_date: NaiveDate) -> Result<i64, Box<dyn std::error::Error + Send + Sync>>;
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WorkstationDailyHoursDomain {
+    pub date: NaiveDate,
+    pub workstation_id: Uuid,
+    pub workstation_name: String,
+    pub planned_hours: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WorkstationDailyEmployeesDomain {
+    pub date: NaiveDate,
+    pub workstation_id: Uuid,
+    pub workstation_name: String,
+    pub planned_employees: i64,
+}
+
+#[async_trait]
+pub trait AnalysisRepository {
+    async fn get_planned_hours_per_day_per_workstation(&self, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<WorkstationDailyHoursDomain>, AppError>;
+    async fn get_planned_employees_per_day_per_workstation(&self, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<WorkstationDailyEmployeesDomain>, AppError>;
+}
+
 #[async_trait]
 pub trait OptimizedShiftResultRepository {
     async fn create_optimized_shift_result(&self, result: serde_json::Value) -> Result<OptimizedShiftResultDomain, Box<dyn std::error::Error + Send + Sync>>;

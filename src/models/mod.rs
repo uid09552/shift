@@ -1,3 +1,4 @@
+pub mod analysis;
 pub mod capability;
 pub mod confirmed_shift_plan;
 pub mod employee;
@@ -12,6 +13,7 @@ pub mod unavailability;
 pub mod workstation;
 pub mod workstation_required_capabilities;
 
+pub use analysis::{WorkstationDailyHours, WorkstationDailyEmployees};
 pub use capability::{Capability, NewCapability};
 pub use confirmed_shift_plan::{ConfirmedShiftPlan, NewConfirmedShiftPlan, UpdateConfirmedShiftPlan};
 pub use employee::{Employee, NewEmployee};

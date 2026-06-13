@@ -14,12 +14,6 @@ import { RouterModule } from '@angular/router';
       <p class="mb-4 text-gray-500 text-theme-sm dark:text-gray-400">
         Shift Planning & Scheduling Application.
       </p>
-      <a
-        routerLink="/profile"
-        class="flex items-center justify-center p-3 font-medium text-white rounded-lg bg-brand-500 text-theme-sm hover:bg-brand-600"
-      >
-        My Profile
-      </a>
     </div>
   `
 })

@@ -350,6 +350,10 @@ for I in "${!EMPLOYEE_IDS[@]}"; do
     SHIFT_IDX=$(( (I + J) % ${#SHIFT_IDS[@]} ))
     SHIFT_ID="${SHIFT_IDS[$SHIFT_IDX]}"
 
+    # Pick a workstation (rotate through workstations)
+    WS_IDX=$(( (I + J) % ${#WS_IDS[@]} ))
+    WS_ID="${WS_IDS[$WS_IDX]}"
+
     # ~15% chance the employee was absent
     if [ $(( (I * 13 + J * 7) % 100 )) -lt 15 ]; then
       IS_PRESENT=false
@@ -363,7 +367,7 @@ for I in "${!EMPLOYEE_IDS[@]}"; do
       fi
       RESP=$(curl -s -X POST "${BASE_URL}/employees/${EMP_ID}/confirmed-shift-plans" \
         -H "Content-Type: application/json" \
-        -d "{\"shift_id\": \"${SHIFT_ID}\", \"date\": \"${PLAN_DATE}\", \"is_present\": false, \"absence_type\": \"${ABS_TYPE}\", \"creation_type\": \"${CREATION_TYPE}\"}")
+        -d "{\"shift_id\": \"${SHIFT_ID}\", \"workstation_id\": \"${WS_ID}\", \"date\": \"${PLAN_DATE}\", \"is_present\": false, \"absence_type\": \"${ABS_TYPE}\", \"creation_type\": \"${CREATION_TYPE}\"}")
     else
       IS_PRESENT=true
       # For automated entries, use creation_type "automated" ~20% of the time
@@ -374,7 +378,7 @@ for I in "${!EMPLOYEE_IDS[@]}"; do
       fi
       RESP=$(curl -s -X POST "${BASE_URL}/employees/${EMP_ID}/confirmed-shift-plans" \
         -H "Content-Type: application/json" \
-        -d "{\"shift_id\": \"${SHIFT_ID}\", \"date\": \"${PLAN_DATE}\", \"is_present\": true, \"creation_type\": \"${CREATION_TYPE}\"}")
+        -d "{\"shift_id\": \"${SHIFT_ID}\", \"workstation_id\": \"${WS_ID}\", \"date\": \"${PLAN_DATE}\", \"is_present\": true, \"creation_type\": \"${CREATION_TYPE}\"}")
     fi
 
     if echo "$RESP" | grep -qi "error"; then

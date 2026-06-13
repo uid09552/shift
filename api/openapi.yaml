@@ -29,6 +29,8 @@ tags:
     description: Fixed shift assignment management endpoints
   - name: Confirmed Shift Plans
     description: Confirmed shift plan management endpoints per employee
+  - name: Analysis
+    description: Analysis and summary endpoints for shift planning data
 
 paths:
   /employees:
@@ -1348,6 +1350,78 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /analysis/planned-hours-per-day-per-workstation:
+    get:
+      tags:
+        - Analysis
+      summary: Get planned hours per day per workstation
+      description: "Returns the total planned working hours per day per workstation based on confirmed shift plans. Calculates hours from shift weekday times. Requires from_date and to_date query parameters."
+      operationId: getPlannedHoursPerDayPerWorkstation
+      parameters:
+        - name: from_date
+          in: query
+          required: true
+          description: Start date for the analysis period (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          required: true
+          description: End date for the analysis period (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: List of planned hours per day per workstation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkstationDailyHours'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /analysis/planned-employees-per-day-per-workstation:
+    get:
+      tags:
+        - Analysis
+      summary: Get planned employees per day per workstation
+      description: "Returns the number of planned employees per day per workstation based on confirmed shift plans. Only counts employees who are marked as present. Requires from_date and to_date query parameters."
+      operationId: getPlannedEmployeesPerDayPerWorkstation
+      parameters:
+        - name: from_date
+          in: query
+          required: true
+          description: Start date for the analysis period (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          required: true
+          description: End date for the analysis period (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: List of planned employee counts per day per workstation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkstationDailyEmployees'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
 components:
   schemas:
     Employee:
@@ -2354,6 +2428,62 @@ components:
             type: string
           description: Dates assigned for this shift
           example: ["2026-06-09", "2026-06-10"]
+
+    WorkstationDailyHours:
+      type: object
+      required:
+        - date
+        - workstation_id
+        - workstation_name
+        - planned_hours
+      properties:
+        date:
+          type: string
+          format: date
+          description: The date of the planned hours
+          example: "2026-06-09"
+        workstation_id:
+          type: string
+          format: uuid
+          description: Unique identifier of the workstation
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        workstation_name:
+          type: string
+          description: Name of the workstation
+          example: "MRT Room 1"
+        planned_hours:
+          type: number
+          format: double
+          description: Total planned working hours for this workstation on this date
+          example: 16.0
+
+    WorkstationDailyEmployees:
+      type: object
+      required:
+        - date
+        - workstation_id
+        - workstation_name
+        - planned_employees
+      properties:
+        date:
+          type: string
+          format: date
+          description: The date of the planned employee count
+          example: "2026-06-09"
+        workstation_id:
+          type: string
+          format: uuid
+          description: Unique identifier of the workstation
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        workstation_name:
+          type: string
+          description: Name of the workstation
+          example: "MRT Room 1"
+        planned_employees:
+          type: integer
+          format: int64
+          description: Number of employees planned for this workstation on this date
+          example: 2
 
   responses:
     BadRequest:

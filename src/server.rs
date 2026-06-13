@@ -13,6 +13,7 @@ use tower_http::cors::CorsLayer;
 
 use crate::repository::AppState;
 use crate::services::{
+    analysis::AnalysisService,
     capability::CapabilityService,
     confirmed_shift_plan::ConfirmedShiftPlanService,
     employee::EmployeeService,
@@ -111,6 +112,15 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/employees/:employee_id/confirmed-shift-plans",
             get(ConfirmedShiftPlanService::get_employee_confirmed_shift_plans).post(ConfirmedShiftPlanService::create_confirmed_shift_plan),
+        )
+        // Analysis
+        .route(
+            "/analysis/planned-hours-per-day-per-workstation",
+            get(AnalysisService::get_planned_hours_per_day_per_workstation),
+        )
+        .route(
+            "/analysis/planned-employees-per-day-per-workstation",
+            get(AnalysisService::get_planned_employees_per_day_per_workstation),
         );
 
     Router::new()
