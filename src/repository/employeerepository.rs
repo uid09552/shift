@@ -235,6 +235,59 @@ impl EmployeeRepository for DieselEmployeeRepository {
         .await.map_err(|_| AppError::Internal)?
     }
 
+    async fn list_employees_by_ids(&self, ids: &[Uuid]) -> Result<Vec<Employee>, AppError> {
+        let pool: Arc<DbPool> = Arc::clone(&self.pool);
+        let ids = ids.to_vec();
+        task::spawn_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+
+            let employees_list = employees::table
+                .filter(employees::id.eq_any(&ids))
+                .load::<models::Employee>(&mut conn)
+                .map_err(|_| AppError::DbError)?;
+
+            let mut result = vec![];
+            for e in employees_list {
+                // Load available shifts
+                let available_shifts = employee_available_shifts::table
+                    .filter(employee_available_shifts::employee_id.eq(e.id))
+                    .inner_join(shifts::table)
+                    .select(shifts::all_columns)
+                    .load::<models::Shift>(&mut conn)
+                    .map_err(|_| AppError::DbError)?;
+
+                let available_shifts = available_shifts
+                    .into_iter()
+                    .map(|s| Shift { id: s.id, name: s.name, short_name: s.short_name, color: s.color, order: s.order, weekday_times: vec![] })
+                    .collect();
+
+                // Load capabilities
+                let capabilities = employee_capabilities::table
+                    .filter(employee_capabilities::employee_id.eq(e.id))
+                    .inner_join(capabilities::table)
+                    .select(capabilities::all_columns)
+                    .load::<models::Capability>(&mut conn)
+                    .map_err(|_| AppError::DbError)?;
+
+                let capabilities = capabilities
+                    .into_iter()
+                    .map(|c| Capability { id: c.id, name: c.name })
+                    .collect();
+
+                result.push(Employee {
+                    id: e.id,
+                    name: e.name,
+                    email: e.email,
+                    monthly_working_hours: e.monthly_working_hours,
+                    available_shifts,
+                    capabilities,
+                });
+            }
+            Ok(result)
+        })
+        .await.map_err(|_| AppError::Internal)?
+    }
+
     async fn count_employees(&self) -> Result<i64, AppError> {
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {

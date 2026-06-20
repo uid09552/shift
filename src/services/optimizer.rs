@@ -25,6 +25,7 @@ pub struct PlacedTask {
 pub struct PlanRequest {
     pub start_date: Option<String>,
     pub end_date: Option<String>,
+    pub employee_ids: Option<Vec<Uuid>>,
 }
 
 #[derive(Serialize)]
@@ -66,11 +67,24 @@ impl OptimizerService {
         Self { client, jetstream_status, state }
     }
 
-    pub async fn build_task_dto(state: &AppState) -> Result<TaskDTO, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn build_task_dto(state: &AppState, employee_filter: Option<&[Uuid]>) -> Result<TaskDTO, Box<dyn std::error::Error + Send + Sync>> {
         println!("Fetching optimization data from database...");
         let shifts = state.shift_repo.list_shifts().await?;
-        // Fetch ALL employees (None limit = no cap)
-        let employees = state.employee_repo.list_employees(None, None).await?;
+        
+        // Fetch employees - either filtered by IDs or all employees
+        let employees = if let Some(ids) = employee_filter {
+            if ids.is_empty() {
+                // Empty filter means all employees
+                state.employee_repo.list_employees(None, None).await?
+            } else {
+                // Filter by specific employee IDs
+                state.employee_repo.list_employees_by_ids(ids).await?
+            }
+        } else {
+            // No filter means all employees
+            state.employee_repo.list_employees(None, None).await?
+        };
+        
         let workstations = state.workstation_repo.list_workstations().await?;
 
         // Fetch all unavailabilities and group by employee_id for O(1) lookup
@@ -130,8 +144,8 @@ impl OptimizerService {
         }).collect()
     }
 
-    pub async fn request_optimization(&self) -> Result<OptimizedShiftResultDomain, Box<dyn std::error::Error + Send + Sync>> {
-        let task_dto = Self::build_task_dto(&self.state).await?;
+    pub async fn request_optimization(&self, employee_filter: Option<&[Uuid]>) -> Result<OptimizedShiftResultDomain, Box<dyn std::error::Error + Send + Sync>> {
+        let task_dto = Self::build_task_dto(&self.state, employee_filter).await?;
         let payload = serde_json::to_string(&task_dto)?;
         println!("Publishing optimization task with payload: {}", payload);
         match self.jetstream_status {
@@ -230,10 +244,14 @@ impl OptimizerService {
     }
 }
 
-pub async fn trigger_plan(State(state): State<AppState>) -> Result<Json<OptimizedShiftResultResponse>, AppError> {
+pub async fn trigger_plan(
+    State(state): State<AppState>,
+    Json(request): Json<PlanRequest>,
+) -> Result<Json<OptimizedShiftResultResponse>, AppError> {
     if let Some(nats_client) = &state.nats_client {
         let optimizer_service = OptimizerService::new(nats_client.clone(), state.jetstream_status, state.clone());
-        match optimizer_service.request_optimization().await {
+        let employee_filter = request.employee_ids.as_deref();
+        match optimizer_service.request_optimization(employee_filter).await {
             Ok(stored) => {
                 let result_dto: TaskResultDto = serde_json::from_value(stored.result)
                     .map_err(|e| { eprintln!("Failed to deserialize stored result: {}", e); AppError::Internal })?;
@@ -337,8 +355,12 @@ pub async fn delete_all_tasks(State(state): State<AppState>) -> Result<StatusCod
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn prepare(State(state): State<AppState>) -> Result<Json<TaskDTO>, AppError> {
-    match OptimizerService::build_task_dto(&state).await {
+pub async fn prepare(
+    State(state): State<AppState>,
+    Json(request): Json<PlanRequest>,
+) -> Result<Json<TaskDTO>, AppError> {
+    let employee_filter = request.employee_ids.as_deref();
+    match OptimizerService::build_task_dto(&state, employee_filter).await {
         Ok(task_dto) => Ok(Json(task_dto)),
         Err(e) => {
             eprintln!("Failed to prepare task DTO: {}", e);

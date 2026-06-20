@@ -884,12 +884,18 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
   /planner/prepare:
-    get:
+    post:
       tags:
         - Planner
       summary: Prepare optimization request
-      description: Builds the TaskDTO structure from the current database state (shifts, employees, workstations) and returns it without triggering the optimizer.
+      description: Builds the TaskDTO structure from the current database state (shifts, employees, workstations) and returns it without triggering the optimizer. Optionally filters by a list of employee IDs.
       operationId: preparePlan
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanRequest'
       responses:
         '200':
           description: Successfully prepared the optimization request
@@ -1464,6 +1470,15 @@ components:
           format: date
           description: End date of the planning period
           example: "2026-06-15"
+        employee_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: |
+            Optional list of employee IDs to include in planning.
+            If not provided or empty, all employees will be considered.
+          example: ["550e8400-e29b-41d4-a716-446655440000", "660e8400-e29b-41d4-a716-446655440001"]
 
     PlanResponse:
       type: object

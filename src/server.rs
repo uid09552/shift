@@ -86,7 +86,7 @@ pub fn create_router(state: AppState) -> Router {
         )
         // Planner
         .route("/planner/plan", post(optimizer::trigger_plan))
-        .route("/planner/prepare", get(optimizer::prepare))
+        .route("/planner/prepare", post(optimizer::prepare))
         .route("/planner/tasks", get(optimizer::list_tasks).delete(optimizer::delete_all_tasks))
         .route("/planner/tasks/:task_id", get(optimizer::get_task))
         .route("/planner/optimized-shifts", get(optimizer::list_optimized_shifts))

@@ -94,6 +94,7 @@ use async_trait::async_trait;
         async fn get_employee(&self, id: Uuid) -> Result<Option<Employee>, AppError>;
         async fn get_employee_by_email(&self, email: &str) -> Result<Option<Employee>, AppError>;
         async fn list_employees(&self, limit: Option<i64>, offset: Option<i64>) -> Result<Vec<Employee>, AppError>;
+        async fn list_employees_by_ids(&self, ids: &[Uuid]) -> Result<Vec<Employee>, AppError>;
         async fn count_employees(&self) -> Result<i64, AppError>;
         async fn get_employee_capabilities(&self, employee_id: Uuid) -> Result<Vec<Capability>, AppError>;
         async fn add_employee_capability(&self, employee_id: Uuid, capability_id: Uuid) -> Result<(), AppError>;
