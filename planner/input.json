@@ -1,0 +1,127 @@
+{
+  "planning_period": {
+    "start_date": "2026-05-04",
+    "end_date": "2026-05-17"
+  },
+  "shifts": [
+    {
+      "id": "morning",
+      "name": "Morning Shift",
+      "start_time": "06:00",
+      "end_time": "14:00",
+      "weekdays": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+      "is_night_shift": false
+    },
+    {
+      "id": "afternoon",
+      "name": "Afternoon Shift",
+      "start_time": "14:00",
+      "end_time": "22:00",
+      "weekdays": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+      "is_night_shift": false
+    },
+    {
+      "id": "night",
+      "name": "Night Shift",
+      "start_time": "22:00",
+      "end_time": "06:00",
+      "weekdays": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+      "is_night_shift": true
+    }
+  ],
+  "workstations": [
+    {
+      "id": "W1",
+      "name": "Assembly Line A",
+      "required_skills": ["assembly"],
+      "priority": "high",
+      "operating_shifts": ["morning", "afternoon", "night"]
+    },
+    {
+      "id": "W2",
+      "name": "Assembly Line B",
+      "required_skills": ["assembly"],
+      "priority": "medium",
+      "operating_shifts": ["morning", "afternoon"]
+    },
+    {
+      "id": "W3",
+      "name": "Packaging Station",
+      "required_skills": ["packaging"],
+      "priority": "high",
+      "operating_shifts": ["morning", "afternoon"]
+    },
+    {
+      "id": "W4",
+      "name": "Quality Control",
+      "required_skills": ["quality_control"],
+      "priority": "medium",
+      "operating_shifts": ["morning", "afternoon"]
+    },
+    {
+      "id": "W5",
+      "name": "Shipping Dock",
+      "required_skills": ["shipping"],
+      "priority": "low",
+      "operating_shifts": ["afternoon"]
+    }
+  ],
+  "employees": [
+    {
+      "id": "E1",
+      "name": "Alice",
+      "skills": ["assembly", "packaging"],
+      "available_shifts": ["morning", "afternoon"],
+      "unavailability": ["2026-05-06", "2026-05-13"]
+    },
+    {
+      "id": "E2",
+      "name": "Bob",
+      "skills": ["assembly", "quality_control"],
+      "available_shifts": ["morning", "afternoon", "night"],
+      "unavailability": []
+    },
+    {
+      "id": "E3",
+      "name": "Carol",
+      "skills": ["packaging", "shipping"],
+      "available_shifts": ["morning", "afternoon"],
+      "unavailability": ["2026-05-09"]
+    },
+    {
+      "id": "E4",
+      "name": "Dave",
+      "skills": ["assembly", "packaging"],
+      "available_shifts": ["morning", "night"],
+      "unavailability": []
+    },
+    {
+      "id": "E5",
+      "name": "Eve",
+      "skills": ["quality_control", "packaging"],
+      "available_shifts": ["morning", "afternoon"],
+      "unavailability": ["2026-05-11"]
+    },
+    {
+      "id": "E6",
+      "name": "Frank",
+      "skills": ["assembly", "quality_control"],
+      "available_shifts": ["morning", "afternoon", "night"],
+      "unavailability": []
+    },
+    {
+      "id": "E7",
+      "name": "Grace",
+      "skills": ["shipping", "packaging"],
+      "available_shifts": ["morning", "afternoon"],
+      "unavailability": ["2026-05-07"]
+    },
+    {
+      "id": "E8",
+      "name": "Hank",
+      "skills": ["quality_control", "shipping"],
+      "available_shifts": ["afternoon", "night"],
+      "unavailability": []
+    }
+  ]
+}

@@ -6,6 +6,8 @@ export interface WeekdayTime {
   weekday: number;
   start_time: string;
   end_time: string;
+  min_employees: number;
+  max_employees: number | null;
 }
 
 export interface Shift {
@@ -13,6 +15,7 @@ export interface Shift {
   name: string;
   short_name: string;
   color: string;
+  order: number;
   weekday_times: WeekdayTime[];
 }
 
@@ -20,18 +23,22 @@ export interface CreateShiftRequest {
   name: string;
   short_name: string;
   color: string;
+  order?: number;
 }
 
 export interface UpdateShiftRequest {
   name?: string;
   short_name?: string;
   color?: string;
+  order?: number;
 }
 
 export interface SetWeekdayTimeRequest {
   weekday: number;
   start_time: string;
   end_time: string;
+  min_employees?: number;
+  max_employees?: number | null;
 }
 
 @Injectable({
@@ -63,6 +70,10 @@ export class ShiftService {
   }
 
   updateShift(shiftId: string, request: UpdateShiftRequest): Observable<Shift> {
-    return this.http.patch<Shift>(`${this.apiUrl}/shifts/${shiftId}`, request);
+    return this.http.put<Shift>(`${this.apiUrl}/shifts/${shiftId}`, request);
+  }
+
+  deleteShift(shiftId: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/shifts/${shiftId}`);
   }
 }

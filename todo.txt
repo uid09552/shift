@@ -1,8 +1,3 @@
-
-1) ui kalender shift make workstation editable
-2) delete in ui
-2) confirmed shift plan, add workstation, its missing
-3) api fixed shift plan for each user (done), seed is open
-5) optimizer response to struct as api response, right now only text
-6) planned hours per month, per day, calculalte also breaks
-7) edit ui now below but on top
+1) vacation and sick as mass operation for user edit in ui
+2) plan optimization takes now long time, change api spec to provide a task id and be asynchronous response. ui should reflect the taskid, that something is still running. errors should be shown as "failed, contact support"
+3) create priotization of workstations, ui, api, planner (input), api spec

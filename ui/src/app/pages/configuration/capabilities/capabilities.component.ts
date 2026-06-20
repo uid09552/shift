@@ -43,18 +43,19 @@ import { ButtonComponent } from '../../../shared/components/ui/button/button.com
             <tr>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Name</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">ID</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
             @if (loading) {
               <tr>
-                <td colspan="2" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
+                <td colspan="3" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
                   Loading capabilities...
                 </td>
               </tr>
             } @else if (capabilities.length === 0) {
               <tr>
-                <td colspan="2" class="px-5 py-8 text-center text-gray-400 dark:text-gray-500">
+                <td colspan="3" class="px-5 py-8 text-center text-gray-400 dark:text-gray-500">
                   No capabilities found. Click "Add Capability" to create one.
                 </td>
               </tr>
@@ -72,6 +73,15 @@ import { ButtonComponent } from '../../../shared/components/ui/button/button.com
                     >
                       {{ capability.id.substring(0, 8) }}…
                     </span>
+                  </td>
+                  <td class="px-4 py-3 text-start text-theme-sm">
+                    <app-button
+                      size="sm"
+                      variant="danger"
+                      (btnClick)="deleteCapability(capability)"
+                    >
+                      Delete
+                    </app-button>
                   </td>
                 </tr>
               }
@@ -184,5 +194,16 @@ export class CapabilitiesComponent implements OnInit {
       },
       error: (err) => console.error('Failed to create capability', err),
     });
+  }
+
+  deleteCapability(capability: Capability): void {
+    if (confirm(`Are you sure you want to delete "${capability.name}"?`)) {
+      this.capabilityService.deleteCapability(capability.id).subscribe({
+        next: () => {
+          this.loadCapabilities();
+        },
+        error: (err) => console.error('Failed to delete capability', err),
+      });
+    }
   }
 }

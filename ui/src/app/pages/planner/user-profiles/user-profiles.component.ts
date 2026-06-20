@@ -1,7 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Observable, forkJoin } from 'rxjs';
+import { Observable, forkJoin, Subscription } from 'rxjs';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
 import { InputFieldComponent } from '../../../shared/components/form/input/input-field.component';
 import { LabelComponent } from '../../../shared/components/form/label/label.component';
@@ -9,6 +9,8 @@ import { ButtonComponent } from '../../../shared/components/ui/button/button.com
 import { EmployeeService, EmployeeProfile, CreateEmployeeRequest, PaginatedEmployeeResponse } from '../../../shared/services/employee.service';
 import { CapabilityService, Capability } from '../../../shared/services/capability.service';
 import { ShiftService, Shift } from '../../../shared/services/shift.service';
+import { UnavailabilityService, Unavailability } from '../../../shared/services/unavailability.service';
+import { GlobalSearchService } from '../../../shared/services/global-search.service';
 
 @Component({
   selector: 'app-user-profiles',
@@ -23,6 +25,185 @@ import { ShiftService, Shift } from '../../../shared/services/shift.service';
   ],
   template: `
     <app-page-breadcrumb pageTitle="User Profiles" />
+
+    <!-- Add / Edit Form Mask -->
+    @if (showForm) {
+      <div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+        <div class="px-5 py-4 sm:px-6">
+          <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
+            {{ editingEmployee ? 'Edit User' : 'New User' }}
+          </h3>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {{ editingEmployee ? 'Modify user details, capabilities and shifts.' : 'Enter name and email for the new user.' }}
+          </p>
+        </div>
+
+        <div class="px-5 pb-5 sm:px-6">
+          <!-- Name -->
+          <div class="mb-5">
+            <app-label for="userName" className="mb-1.5">Name</app-label>
+            <app-input-field
+              id="userName"
+              name="userName"
+              type="text"
+              placeholder="e.g. Max Mustermann"
+              [value]="formName"
+              (valueChange)="onNameChange($event)"
+            />
+          </div>
+
+          <!-- Email -->
+          <div class="mb-5">
+            <app-label for="userEmail" className="mb-1.5">Email</app-label>
+            <app-input-field
+              id="userEmail"
+              name="userEmail"
+              type="email"
+              placeholder="e.g. max@example.com"
+              [value]="formEmail"
+              (valueChange)="onEmailChange($event)"
+            />
+          </div>
+
+          <!-- Capabilities (only in edit mode) -->
+          @if (editingEmployee) {
+            <div class="mb-5">
+              <app-label className="mb-2">Capabilities</app-label>
+              @if (allCapabilities.length === 0) {
+                <p class="text-sm text-gray-400 dark:text-gray-500">No capabilities available. Create some in Configuration → Capabilities first.</p>
+              } @else {
+                <div class="flex flex-wrap gap-3">
+                  @for (cap of allCapabilities; track cap.id) {
+                    <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        [checked]="formCapabilities[cap.id]"
+                        (change)="toggleCapability(cap.id, $event)"
+                        class="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-700"
+                      />
+                      {{ cap.name }}
+                    </label>
+                  }
+                </div>
+              }
+            </div>
+
+            <!-- Shifts (only in edit mode) -->
+            <div class="mb-5">
+              <app-label className="mb-2">Available Shifts</app-label>
+              @if (allShifts.length === 0) {
+                <p class="text-sm text-gray-400 dark:text-gray-500">No shifts available. Create some in Configuration → Shifts first.</p>
+              } @else {
+                <div class="flex flex-wrap gap-3">
+                  @for (shift of allShifts; track shift.id) {
+                    <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        [checked]="formShifts[shift.id]"
+                        (change)="toggleShift(shift.id, $event)"
+                        class="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-700"
+                      />
+                      {{ shift.name }}
+                    </label>
+                  }
+                </div>
+              }
+            </div>
+
+            <!-- Unavailabilities (only in edit mode) -->
+            <div class="mb-5">
+              <app-label className="mb-2">Unavailabilities</app-label>
+              <p class="mb-3 text-sm text-gray-500 dark:text-gray-400">
+                Add dates when this employee is unavailable for work.
+              </p>
+              
+              <!-- Add new unavailability -->
+              <div class="mb-4 flex flex-wrap items-end gap-3">
+                <div class="flex-1 min-w-[200px]">
+                  <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Date</label>
+                  <input
+                    type="date"
+                    [value]="newUnavailabilityDate"
+                    (input)="onUnavailabilityDateChange($event)"
+                    class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                  />
+                </div>
+                <div class="flex-1 min-w-[150px]">
+                  <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Shift (optional)</label>
+                  <select
+                    [value]="newUnavailabilityShiftId"
+                    (change)="onUnavailabilityShiftChange($event)"
+                    class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                  >
+                    <option value="">All shifts</option>
+                    @for (shift of allShifts; track shift.id) {
+                      <option [value]="shift.id">{{ shift.name }}</option>
+                    }
+                  </select>
+                </div>
+                <app-button
+                  size="sm"
+                  variant="outline"
+                  (btnClick)="addUnavailability()"
+                  [disabled]="!newUnavailabilityDate"
+                >
+                  Add
+                </app-button>
+              </div>
+
+              <!-- List existing unavailabilities -->
+              @if (employeeUnavailabilities.length === 0) {
+                <p class="text-sm text-gray-400 dark:text-gray-500">No unavailabilities recorded.</p>
+              } @else {
+                <div class="space-y-2">
+                  @for (unavail of employeeUnavailabilities; track unavail.id) {
+                    <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800">
+                      <div class="flex items-center gap-3">
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          {{ unavail.unavailable_date }}
+                        </span>
+                        @if (unavail.shift_id) {
+                          <span class="text-xs text-gray-500 dark:text-gray-400">
+                            ({{ getShiftName(unavail.shift_id) }})
+                          </span>
+                        }
+                      </div>
+                      <button
+                        type="button"
+                        (click)="deleteUnavailability(unavail.id)"
+                        class="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+
+          <!-- Actions -->
+          <div class="flex items-center gap-3">
+            <app-button
+              size="sm"
+              variant="primary"
+              (btnClick)="saveEmployee()"
+            >
+              {{ editingEmployee ? 'Save Changes' : 'Create User' }}
+            </app-button>
+            <app-button
+              size="sm"
+              variant="outline"
+              (btnClick)="cancelForm()"
+            >
+              Cancel
+            </app-button>
+          </div>
+        </div>
+      </div>
+    }
 
     <!-- User Profiles Table -->
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
@@ -107,13 +288,22 @@ import { ShiftService, Shift } from '../../../shared/services/shift.service';
                     }
                   </td>
                   <td class="px-4 py-3 text-start text-theme-sm">
-                    <app-button
-                      size="sm"
-                      variant="outline"
-                      (btnClick)="openEditForm(employee)"
-                    >
-                      Edit
-                    </app-button>
+                    <div class="flex items-center gap-2">
+                      <app-button
+                        size="sm"
+                        variant="outline"
+                        (btnClick)="openEditForm(employee)"
+                      >
+                        Edit
+                      </app-button>
+                      <app-button
+                        size="sm"
+                        variant="danger"
+                        (btnClick)="deleteEmployee(employee)"
+                      >
+                        Delete
+                      </app-button>
+                    </div>
                   </td>
                 </tr>
               }
@@ -160,123 +350,22 @@ import { ShiftService, Shift } from '../../../shared/services/shift.service';
         </div>
       }
     </div>
-
-    <!-- Add / Edit Form Mask -->
-    @if (showForm) {
-      <div class="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-        <div class="px-5 py-4 sm:px-6">
-          <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
-            {{ editingEmployee ? 'Edit User' : 'New User' }}
-          </h3>
-          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {{ editingEmployee ? 'Modify user details, capabilities and shifts.' : 'Enter name and email for the new user.' }}
-          </p>
-        </div>
-
-        <div class="px-5 pb-5 sm:px-6">
-          <!-- Name -->
-          <div class="mb-5">
-            <app-label for="userName" className="mb-1.5">Name</app-label>
-            <app-input-field
-              id="userName"
-              name="userName"
-              type="text"
-              placeholder="e.g. Max Mustermann"
-              [value]="formName"
-              (valueChange)="onNameChange($event)"
-            />
-          </div>
-
-          <!-- Email -->
-          <div class="mb-5">
-            <app-label for="userEmail" className="mb-1.5">Email</app-label>
-            <app-input-field
-              id="userEmail"
-              name="userEmail"
-              type="email"
-              placeholder="e.g. max@example.com"
-              [value]="formEmail"
-              (valueChange)="onEmailChange($event)"
-            />
-          </div>
-
-          <!-- Capabilities (only in edit mode) -->
-          @if (editingEmployee) {
-            <div class="mb-5">
-              <app-label className="mb-2">Capabilities</app-label>
-              @if (allCapabilities.length === 0) {
-                <p class="text-sm text-gray-400 dark:text-gray-500">No capabilities available. Create some in Configuration → Capabilities first.</p>
-              } @else {
-                <div class="flex flex-wrap gap-3">
-                  @for (cap of allCapabilities; track cap.id) {
-                    <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        [checked]="formCapabilities[cap.id]"
-                        (change)="toggleCapability(cap.id, $event)"
-                        class="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-700"
-                      />
-                      {{ cap.name }}
-                    </label>
-                  }
-                </div>
-              }
-            </div>
-
-            <!-- Shifts (only in edit mode) -->
-            <div class="mb-5">
-              <app-label className="mb-2">Available Shifts</app-label>
-              @if (allShifts.length === 0) {
-                <p class="text-sm text-gray-400 dark:text-gray-500">No shifts available. Create some in Configuration → Shifts first.</p>
-              } @else {
-                <div class="flex flex-wrap gap-3">
-                  @for (shift of allShifts; track shift.id) {
-                    <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        [checked]="formShifts[shift.id]"
-                        (change)="toggleShift(shift.id, $event)"
-                        class="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-700"
-                      />
-                      {{ shift.name }}
-                    </label>
-                  }
-                </div>
-              }
-            </div>
-          }
-
-          <!-- Actions -->
-          <div class="flex items-center gap-3">
-            <app-button
-              size="sm"
-              variant="primary"
-              (btnClick)="saveEmployee()"
-            >
-              {{ editingEmployee ? 'Save Changes' : 'Create User' }}
-            </app-button>
-            <app-button
-              size="sm"
-              variant="outline"
-              (btnClick)="cancelForm()"
-            >
-              Cancel
-            </app-button>
-          </div>
-        </div>
-      </div>
-    }
   `,
   styles: ``,
 })
-export class UserProfilesComponent implements OnInit {
+export class UserProfilesComponent implements OnInit, OnDestroy {
   employees: EmployeeProfile[] = [];
+  allEmployees: EmployeeProfile[] = []; // Store all employees for client-side filtering
   totalEmployees = 0;
   loading = true;
   showForm = false;
   editingEmployee: EmployeeProfile | null = null;
   formName = '';
   formEmail = '';
+
+  // Search
+  private searchQuery = '';
+  private searchSub!: Subscription;
 
   // Pagination
   currentPage = 1;
@@ -297,14 +386,14 @@ export class UserProfilesComponent implements OnInit {
   previousPage(): void {
     if (this.currentPage > 1) {
       this.currentPage--;
-      this.loadEmployees();
+      this.applySearchAndPagination();
     }
   }
 
   nextPage(): void {
     if (this.currentPage < this.totalPages) {
       this.currentPage++;
-      this.loadEmployees();
+      this.applySearchAndPagination();
     }
   }
 
@@ -312,7 +401,7 @@ export class UserProfilesComponent implements OnInit {
     const select = event.target as HTMLSelectElement;
     this.pageSize = Number(select.value);
     this.currentPage = 1;
-    this.loadEmployees();
+    this.applySearchAndPagination();
   }
 
   allCapabilities: Capability[] = [];
@@ -320,31 +409,47 @@ export class UserProfilesComponent implements OnInit {
   formCapabilities: { [id: string]: boolean } = {};
   formShifts: { [id: string]: boolean } = {};
 
+  // Unavailability
+  employeeUnavailabilities: Unavailability[] = [];
+  newUnavailabilityDate = '';
+  newUnavailabilityShiftId = '';
+
   plusIcon = `<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.25C12.4142 3.25 12.75 3.58579 12.75 4V11.25H20C20.4142 11.25 20.75 11.5858 20.75 12C20.75 12.4142 20.4142 12.75 20 12.75H12.75V20C12.75 20.4142 12.4142 20.75 12 20.75C11.5858 20.75 11.25 20.4142 11.25 20V12.75H4C3.58579 12.75 3.25 12.4142 3.25 12C3.25 11.5858 3.58579 11.25 4 11.25H11.25V4C11.25 3.58579 11.5858 3.25 12 3.25Z" fill="currentColor"></path></svg>`;
 
   constructor(
     private employeeService: EmployeeService,
     private capabilityService: CapabilityService,
-    private shiftService: ShiftService
+    private shiftService: ShiftService,
+    private unavailabilityService: UnavailabilityService,
+    private globalSearchService: GlobalSearchService
   ) {}
 
   ngOnInit(): void {
     this.loadEmployees();
+    this.searchSub = this.globalSearchService.searchTerm.subscribe((term) => {
+      this.searchQuery = term;
+      this.currentPage = 1;
+      this.applySearchAndPagination();
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.searchSub?.unsubscribe();
   }
 
   loadEmployees(): void {
     this.loading = true;
-    const offset = (this.currentPage - 1) * this.pageSize;
-    this.employeeService.getEmployeeProfiles(this.pageSize, offset).subscribe({
+    // Load all employees for client-side filtering
+    this.employeeService.getEmployeeProfiles(1000, 0).subscribe({
       next: (response: PaginatedEmployeeResponse) => {
-        this.employees = response.data.map((emp) => ({
+        this.allEmployees = response.data.map((emp) => ({
           id: emp.id,
           name: emp.name,
           email: emp.email,
           shifts: emp.available_shifts.map((s) => s.name),
           capabilities: emp.capabilities.map((c) => c.name),
         }));
-        this.totalEmployees = response.total;
+        this.applySearchAndPagination();
         this.loading = false;
       },
       error: (err) => {
@@ -354,6 +459,24 @@ export class UserProfilesComponent implements OnInit {
     });
   }
 
+  applySearchAndPagination(): void {
+    // Filter by search query
+    let filtered = this.allEmployees;
+    if (this.searchQuery.trim()) {
+      const query = this.searchQuery.toLowerCase().trim();
+      filtered = this.allEmployees.filter((emp) =>
+        emp.name.toLowerCase().includes(query) ||
+        emp.email.toLowerCase().includes(query)
+      );
+    }
+
+    this.totalEmployees = filtered.length;
+
+    // Apply pagination
+    const start = (this.currentPage - 1) * this.pageSize;
+    const end = start + this.pageSize;
+    this.employees = filtered.slice(start, end);
+  }
 
   openAddForm(): void {
     this.editingEmployee = null;
@@ -370,15 +493,20 @@ export class UserProfilesComponent implements OnInit {
     this.formEmail = employee.email;
     this.formCapabilities = {};
     this.formShifts = {};
+    this.employeeUnavailabilities = [];
+    this.newUnavailabilityDate = '';
+    this.newUnavailabilityShiftId = '';
 
-    // Load all capabilities and shifts for the checkboxes
+    // Load all capabilities, shifts, and unavailabilities for the employee
     forkJoin({
       capabilities: this.capabilityService.getCapabilities(),
       shifts: this.shiftService.getShifts(),
+      unavailabilities: this.unavailabilityService.getUnavailabilities(employee.id),
     }).subscribe({
-      next: ({ capabilities, shifts }) => {
+      next: ({ capabilities, shifts, unavailabilities }) => {
         this.allCapabilities = capabilities;
         this.allShifts = shifts;
+        this.employeeUnavailabilities = unavailabilities;
 
         // Pre-check capabilities the employee already has
         for (const cap of capabilities) {
@@ -391,7 +519,7 @@ export class UserProfilesComponent implements OnInit {
 
         this.showForm = true;
       },
-      error: (err) => console.error('Failed to load capabilities/shifts', err),
+      error: (err) => console.error('Failed to load capabilities/shifts/unavailabilities', err),
     });
   }
 
@@ -402,6 +530,9 @@ export class UserProfilesComponent implements OnInit {
     this.formEmail = '';
     this.formCapabilities = {};
     this.formShifts = {};
+    this.employeeUnavailabilities = [];
+    this.newUnavailabilityDate = '';
+    this.newUnavailabilityShiftId = '';
   }
 
   onNameChange(value: string | number): void {
@@ -496,5 +627,62 @@ export class UserProfilesComponent implements OnInit {
         error: (err) => console.error('Failed to create employee', err),
       });
     }
+  }
+
+  deleteEmployee(employee: EmployeeProfile): void {
+    if (confirm(`Are you sure you want to delete "${employee.name}"?`)) {
+      this.employeeService.deleteEmployee(employee.id).subscribe({
+        next: () => {
+          this.loadEmployees();
+        },
+        error: (err) => console.error('Failed to delete employee', err),
+      });
+    }
+  }
+
+  // Unavailability methods
+  addUnavailability(): void {
+    if (!this.editingEmployee || !this.newUnavailabilityDate) {
+      return;
+    }
+
+    const request = {
+      employee_id: this.editingEmployee.id,
+      unavailable_date: this.newUnavailabilityDate,
+      shift_id: this.newUnavailabilityShiftId || undefined,
+    };
+
+    this.unavailabilityService.createUnavailability(request).subscribe({
+      next: (newUnavailability) => {
+        this.employeeUnavailabilities.push(newUnavailability);
+        this.newUnavailabilityDate = '';
+        this.newUnavailabilityShiftId = '';
+      },
+      error: (err) => console.error('Failed to add unavailability', err),
+    });
+  }
+
+  deleteUnavailability(unavailabilityId: string): void {
+    this.unavailabilityService.deleteUnavailability(unavailabilityId).subscribe({
+      next: () => {
+        this.employeeUnavailabilities = this.employeeUnavailabilities.filter(
+          (u) => u.id !== unavailabilityId
+        );
+      },
+      error: (err) => console.error('Failed to delete unavailability', err),
+    });
+  }
+
+  getShiftName(shiftId: string): string {
+    const shift = this.allShifts.find((s) => s.id === shiftId);
+    return shift ? shift.name : 'Unknown';
+  }
+
+  onUnavailabilityDateChange(event: Event): void {
+    this.newUnavailabilityDate = (event.target as HTMLInputElement).value;
+  }
+
+  onUnavailabilityShiftChange(event: Event): void {
+    this.newUnavailabilityShiftId = (event.target as HTMLSelectElement).value;
   }
 }

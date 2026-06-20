@@ -92,7 +92,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
 
                     let available_shifts = available_shifts
                         .into_iter()
-                        .map(|s| Shift { id: s.id, name: s.name, short_name: s.short_name, color: s.color, weekday_times: vec![] })
+                        .map(|s| Shift { id: s.id, name: s.name, short_name: s.short_name, color: s.color, order: s.order, weekday_times: vec![] })
                         .collect();
 
                     // Load capabilities
@@ -146,7 +146,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
 
                     let available_shifts = available_shifts
                         .into_iter()
-                        .map(|s| Shift { id: s.id, name: s.name, short_name: s.short_name, color: s.color, weekday_times: vec![] })
+                        .map(|s| Shift { id: s.id, name: s.name, short_name: s.short_name, color: s.color, order: s.order, weekday_times: vec![] })
                         .collect();
 
                     // Load capabilities
@@ -185,8 +185,6 @@ impl EmployeeRepository for DieselEmployeeRepository {
 
             if let Some(l) = limit {
                 query = query.limit(l);
-            } else {
-                query = query.limit(50);
             }
             if let Some(o) = offset {
                 query = query.offset(o);
@@ -208,7 +206,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
 
                 let available_shifts = available_shifts
                     .into_iter()
-                    .map(|s| Shift { id: s.id, name: s.name, short_name: s.short_name, color: s.color, weekday_times: vec![] })
+                    .map(|s| Shift { id: s.id, name: s.name, short_name: s.short_name, color: s.color, order: s.order, weekday_times: vec![] })
                     .collect();
 
                 let capabilities = employee_capabilities::table
@@ -333,7 +331,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
 
             let available_shifts = available_shifts
                 .into_iter()
-                .map(|s| Shift { id: s.id, name: s.name, short_name: s.short_name, color: s.color, weekday_times: vec![] })
+                .map(|s| Shift { id: s.id, name: s.name, short_name: s.short_name, color: s.color, order: s.order, weekday_times: vec![] })
                 .collect();
 
             Ok(available_shifts)
@@ -403,6 +401,27 @@ impl CapabilityRepository for DieselCapabilityRepository {
                 .load::<models::Capability>(&mut conn)
                 .map(|caps: Vec<models::Capability>| caps.into_iter().map(|c| Capability { id: c.id, name: c.name }).collect())
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+        })
+        .await?
+    }
+
+    async fn delete_capability(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let pool: Arc<DbPool> = Arc::clone(&self.pool);
+        task::spawn_blocking(move || {
+            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            // First delete all references in employee_capabilities
+            diesel::delete(employee_capabilities::table.filter(employee_capabilities::capability_id.eq(id)))
+                .execute(&mut conn)
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            // Delete all references in workstation_required_capabilities
+            diesel::delete(workstation_required_capabilities::table.filter(workstation_required_capabilities::capability_id.eq(id)))
+                .execute(&mut conn)
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            // Then delete the capability itself
+            diesel::delete(capabilities::table.find(id))
+                .execute(&mut conn)
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            Ok(())
         })
         .await?
     }
@@ -658,6 +677,39 @@ impl crate::repository::domain::WorkstationRepository for DieselWorkstationRepos
                 .load::<models::Capability>(&mut conn)
                 .map(|caps: Vec<models::Capability>| caps.into_iter().map(|c| Capability { id: c.id, name: c.name }).collect())
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+        })
+        .await?
+    }
+
+    async fn delete_workstation(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let pool: Arc<DbPool> = Arc::clone(&self.pool);
+        task::spawn_blocking(move || {
+            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            // First delete all required capabilities for this workstation
+            diesel::delete(workstation_required_capabilities::table.filter(workstation_required_capabilities::workstation_id.eq(id)))
+                .execute(&mut conn)
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            // Then delete the workstation itself
+            diesel::delete(workstations::table.find(id))
+                .execute(&mut conn)
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            Ok(())
+        })
+        .await?
+    }
+
+    async fn remove_required_capability(&self, workstation_id: Uuid, capability_id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let pool: Arc<DbPool> = Arc::clone(&self.pool);
+        task::spawn_blocking(move || {
+            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            diesel::delete(
+                workstation_required_capabilities::table
+                    .filter(workstation_required_capabilities::workstation_id.eq(workstation_id))
+                    .filter(workstation_required_capabilities::capability_id.eq(capability_id))
+            )
+            .execute(&mut conn)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            Ok(())
         })
         .await?
     }

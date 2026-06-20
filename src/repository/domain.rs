@@ -19,6 +19,8 @@ pub struct WeekdayTime {
     pub weekday: i16,
     pub start_time: NaiveTime,
     pub end_time: NaiveTime,
+    pub min_employees: i16,
+    pub max_employees: Option<i16>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -27,6 +29,7 @@ pub struct Shift {
     pub name: String,
     pub short_name: String,
     pub color: String,
+    pub order: i32,
     pub weekday_times: Vec<WeekdayTime>,
 }
 
@@ -102,9 +105,11 @@ use async_trait::async_trait;
 
 #[async_trait]
     pub trait ShiftRepository {
-        async fn create_shift(&self, name: &str, short_name: &str, color: &str) -> Result<Shift, AppError>;
+        async fn create_shift(&self, name: &str, short_name: &str, color: &str, order: i32) -> Result<Shift, AppError>;
     async fn get_shift(&self, id: Uuid) -> Result<Option<Shift>, Box<dyn std::error::Error + Send + Sync>>;
     async fn list_shifts(&self) -> Result<Vec<Shift>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn update_shift(&self, id: Uuid, name: Option<String>, short_name: Option<String>, color: Option<String>, order: Option<i32>) -> Result<Shift, AppError>;
+    async fn delete_shift(&self, id: Uuid) -> Result<(), AppError>;
 }
 
 #[async_trait]
@@ -112,6 +117,7 @@ pub trait CapabilityRepository {
     async fn create_capability(&self, name: &str) -> Result<Capability, Box<dyn std::error::Error + Send + Sync>>;
     async fn get_capability(&self, id: Uuid) -> Result<Option<Capability>, Box<dyn std::error::Error + Send + Sync>>;
     async fn list_capabilities(&self) -> Result<Vec<Capability>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn delete_capability(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 }
 
 #[async_trait]
@@ -132,6 +138,8 @@ pub trait WorkstationRepository {
     async fn set_workstation_active_shifts(&self, id: Uuid, active_shift_ids: Vec<Uuid>) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn add_required_capability(&self, workstation_id: Uuid, capability_id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn list_required_capabilities(&self, workstation_id: Uuid) -> Result<Vec<Capability>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn delete_workstation(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    async fn remove_required_capability(&self, workstation_id: Uuid, capability_id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 }
 
 #[async_trait]

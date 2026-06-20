@@ -1,0 +1,20 @@
+[project]
+name = "shift-planner"
+version = "1.0.0"
+description = "Constraint-based employee shift scheduling with OR-Tools CP-SAT solver"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "ortools>=9.8",
+    "click>=8.0",
+    "nats-py>=2.2.0",
+    "pydantic>=2.0",
+    "flask>=3.0",
+]
+
+[project.scripts]
+shift-planner = "shift_planner.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

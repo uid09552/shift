@@ -1,7 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Observable, forkJoin } from 'rxjs';
+import { Observable, forkJoin, Subscription } from 'rxjs';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
 import { InputFieldComponent } from '../../../shared/components/form/input/input-field.component';
 import { LabelComponent } from '../../../shared/components/form/label/label.component';
@@ -13,6 +13,7 @@ import {
   Capability,
 } from '../../../shared/services/workstation.service';
 import { ShiftService, Shift } from '../../../shared/services/shift.service';
+import { GlobalSearchService } from '../../../shared/services/global-search.service';
 
 @Component({
   selector: 'app-workstations',
@@ -28,114 +29,9 @@ import { ShiftService, Shift } from '../../../shared/services/shift.service';
   template: `
     <app-page-breadcrumb pageTitle="Workstations" />
 
-    <!-- Workstations Table -->
-    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-      <div class="flex items-center justify-between px-5 py-4 sm:px-6">
-        <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
-          Workstation Overview
-        </h3>
-        <app-button
-          size="sm"
-          variant="primary"
-          [startIcon]="plusIcon"
-          (btnClick)="openAddForm()"
-        >
-          Add Workstation
-        </app-button>
-      </div>
-
-      <div class="max-w-full overflow-x-auto">
-        <table class="min-w-full">
-          <thead class="border-b border-gray-100 dark:border-white/[0.05]">
-            <tr>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Name</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Available</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Active Shifts</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Required Capabilities</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
-            @if (loading) {
-              <tr>
-                <td colspan="5" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
-                  Loading workstations...
-                </td>
-              </tr>
-            } @else if (workstations.length === 0) {
-              <tr>
-                <td colspan="5" class="px-5 py-8 text-center text-gray-400 dark:text-gray-500">
-                  No workstations found. Click "Add Workstation" to create one.
-                </td>
-              </tr>
-            } @else {
-              @for (ws of workstations; track ws.id) {
-                <tr>
-                  <td class="px-5 py-4 sm:px-6 text-start">
-                    <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
-                      {{ ws.name }}
-                    </span>
-                  </td>
-                  <td class="px-4 py-3 text-start text-theme-sm">
-                    <span
-                      class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-                      [ngClass]="ws.available
-                        ? 'bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400'
-                        : 'bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400'"
-                    >
-                      {{ ws.available ? 'Available' : 'Unavailable' }}
-                    </span>
-                  </td>
-                  <td class="px-4 py-3 text-start text-theme-sm">
-                    @if (ws.active_shift_ids.length === 0) {
-                      <span class="text-gray-300 dark:text-gray-600">—</span>
-                    } @else {
-                      <div class="flex flex-wrap gap-1.5">
-                        @for (shiftId of ws.active_shift_ids; track shiftId) {
-                          <span
-                            class="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-400"
-                          >
-                            {{ getShiftName(shiftId) }}
-                          </span>
-                        }
-                      </div>
-                    }
-                  </td>
-                  <td class="px-4 py-3 text-start text-theme-sm">
-                    @if (getRequiredCapabilities(ws.id).length === 0) {
-                      <span class="text-gray-300 dark:text-gray-600">—</span>
-                    } @else {
-                      <div class="flex flex-wrap gap-1.5">
-                        @for (cap of getRequiredCapabilities(ws.id); track cap.id) {
-                          <span
-                            class="inline-flex items-center rounded-full bg-success-50 px-2.5 py-0.5 text-xs font-medium text-success-700 dark:bg-success-500/15 dark:text-success-400"
-                          >
-                            {{ cap.name }}
-                          </span>
-                        }
-                      </div>
-                    }
-                  </td>
-                  <td class="px-4 py-3 text-start text-theme-sm">
-                    <app-button
-                      size="sm"
-                      variant="outline"
-                      (btnClick)="openEditForm(ws)"
-                    >
-                      Edit
-                    </app-button>
-                  </td>
-                </tr>
-              }
-            }
-          </tbody>
-        </table>
-      </div>
-    </div>
-
     <!-- Add / Edit Form Mask -->
     @if (showForm) {
-      <div class="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+      <div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div class="px-5 py-4 sm:px-6">
           <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
             {{ editingWorkstation ? 'Edit Workstation' : 'New Workstation' }}
@@ -230,17 +126,136 @@ import { ShiftService, Shift } from '../../../shared/services/shift.service';
         </div>
       </div>
     }
+
+    <!-- Workstations Table -->
+    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+      <div class="flex items-center justify-between px-5 py-4 sm:px-6">
+        <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
+          Workstation Overview
+        </h3>
+        <app-button
+          size="sm"
+          variant="primary"
+          [startIcon]="plusIcon"
+          (btnClick)="openAddForm()"
+        >
+          Add Workstation
+        </app-button>
+      </div>
+
+      <div class="max-w-full overflow-x-auto">
+        <table class="min-w-full">
+          <thead class="border-b border-gray-100 dark:border-white/[0.05]">
+            <tr>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Name</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Available</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Active Shifts</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Required Capabilities</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+            @if (loading) {
+              <tr>
+                <td colspan="5" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
+                  Loading workstations...
+                </td>
+              </tr>
+            } @else if (workstations.length === 0) {
+              <tr>
+                <td colspan="5" class="px-5 py-8 text-center text-gray-400 dark:text-gray-500">
+                  No workstations found. Click "Add Workstation" to create one.
+                </td>
+              </tr>
+            } @else {
+              @for (ws of workstations; track ws.id) {
+                <tr>
+                  <td class="px-5 py-4 sm:px-6 text-start">
+                    <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
+                      {{ ws.name }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 text-start text-theme-sm">
+                    <span
+                      class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                      [ngClass]="ws.available
+                        ? 'bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400'
+                        : 'bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400'"
+                    >
+                      {{ ws.available ? 'Available' : 'Unavailable' }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 text-start text-theme-sm">
+                    @if (ws.active_shift_ids.length === 0) {
+                      <span class="text-gray-300 dark:text-gray-600">—</span>
+                    } @else {
+                      <div class="flex flex-wrap gap-1.5">
+                        @for (shiftId of ws.active_shift_ids; track shiftId) {
+                          <span
+                            class="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-400"
+                          >
+                            {{ getShiftName(shiftId) }}
+                          </span>
+                        }
+                      </div>
+                    }
+                  </td>
+                  <td class="px-4 py-3 text-start text-theme-sm">
+                    @if (getRequiredCapabilities(ws.id).length === 0) {
+                      <span class="text-gray-300 dark:text-gray-600">—</span>
+                    } @else {
+                      <div class="flex flex-wrap gap-1.5">
+                        @for (cap of getRequiredCapabilities(ws.id); track cap.id) {
+                          <span
+                            class="inline-flex items-center rounded-full bg-success-50 px-2.5 py-0.5 text-xs font-medium text-success-700 dark:bg-success-500/15 dark:text-success-400"
+                          >
+                            {{ cap.name }}
+                          </span>
+                        }
+                      </div>
+                    }
+                  </td>
+                  <td class="px-4 py-3 text-start text-theme-sm">
+                    <div class="flex items-center gap-2">
+                      <app-button
+                        size="sm"
+                        variant="outline"
+                        (btnClick)="openEditForm(ws)"
+                      >
+                        Edit
+                      </app-button>
+                      <app-button
+                        size="sm"
+                        variant="danger"
+                        (btnClick)="deleteWorkstation(ws)"
+                      >
+                        Delete
+                      </app-button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
   `,
   styles: ``,
 })
-export class WorkstationsComponent implements OnInit {
+export class WorkstationsComponent implements OnInit, OnDestroy {
   workstations: Workstation[] = [];
+  allWorkstations: Workstation[] = []; // Store all workstations for client-side filtering
   allShifts: Shift[] = [];
   allCapabilities: Capability[] = [];
   workstationCapabilities: Map<string, Capability[]> = new Map();
   loading = true;
   showForm = false;
   editingWorkstation: Workstation | null = null;
+
+  // Search
+  private searchQuery = '';
+  private searchSub!: Subscription;
 
   formName = '';
   formAvailable = true;
@@ -252,10 +267,19 @@ export class WorkstationsComponent implements OnInit {
   constructor(
     private workstationService: WorkstationService,
     private shiftService: ShiftService,
+    private globalSearchService: GlobalSearchService,
   ) {}
 
   ngOnInit(): void {
     this.loadData();
+    this.searchSub = this.globalSearchService.searchTerm.subscribe((term) => {
+      this.searchQuery = term;
+      this.applySearch();
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.searchSub?.unsubscribe();
   }
 
   loadData(): void {
@@ -267,8 +291,9 @@ export class WorkstationsComponent implements OnInit {
       shifts: this.shiftService.getShifts(),
     }).subscribe({
       next: ({ workstations, shifts }) => {
-        this.workstations = workstations;
+        this.allWorkstations = workstations;
         this.allShifts = shifts;
+        this.applySearch();
         this.loading = false;
 
         // Load capabilities and workstation details
@@ -280,6 +305,17 @@ export class WorkstationsComponent implements OnInit {
         this.loading = false;
       },
     });
+  }
+
+  applySearch(): void {
+    if (this.searchQuery.trim()) {
+      const query = this.searchQuery.toLowerCase().trim();
+      this.workstations = this.allWorkstations.filter((ws) =>
+        ws.name.toLowerCase().includes(query)
+      );
+    } else {
+      this.workstations = [...this.allWorkstations];
+    }
   }
 
   loadCapabilities(): void {
@@ -424,6 +460,17 @@ export class WorkstationsComponent implements OnInit {
           },
           error: (err: any) => console.error('Failed to create workstation', err),
         });
+    }
+  }
+
+  deleteWorkstation(ws: Workstation): void {
+    if (confirm(`Are you sure you want to delete "${ws.name}"?`)) {
+      this.workstationService.deleteWorkstation(ws.id).subscribe({
+        next: () => {
+          this.loadData();
+        },
+        error: (err: any) => console.error('Failed to delete workstation', err),
+      });
     }
   }
 }

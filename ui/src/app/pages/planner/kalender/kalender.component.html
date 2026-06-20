@@ -221,8 +221,9 @@
                       </span>
                       @if (cell.workstation) {
                         <span
-                          class="truncate text-[10px] leading-tight text-gray-500 dark:text-gray-400"
-                          [title]="getWorkstationName(cell.workstation)"
+                          class="truncate text-[10px] leading-tight text-gray-500 cursor-pointer hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
+                          [title]="getWorkstationName(cell.workstation) + ' (click to change)'"
+                          (click)="startEdit(employee.id, day, $event)"
                         >
                           {{ getWorkstationName(cell.workstation) }}
                         </span>
@@ -257,7 +258,7 @@
                     <!-- Shift type dropdown (edit mode) -->
                     @if (isEditing(employee.id, dateStr)) {
                       <div
-                        class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[140px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                        class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
                         (click)="$event.stopPropagation()"
                       >
                         <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
@@ -285,6 +286,34 @@
                             <span class="text-gray-500 dark:text-gray-400">{{ shift.name }}</span>
                           </button>
                         }
+                        <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
+                        <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+                          Workstation
+                        </div>
+                        @for (ws of workstations; track ws.id) {
+                          <button
+                            (click)="onWorkstationSelect(employee.id, day, ws.id)"
+                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                            [class.bg-brand-50]="cell.plan!.workstation_id === ws.id"
+                            [class.dark:bg-brand-500/10]="cell.plan!.workstation_id === ws.id"
+                          >
+                            <span
+                              class="font-medium"
+                              [class.text-brand-600]="cell.plan!.workstation_id === ws.id"
+                              [class.dark:text-brand-400]="cell.plan!.workstation_id === ws.id"
+                            >
+                              {{ ws.name }}
+                            </span>
+                          </button>
+                        }
+                        <button
+                          (click)="onWorkstationSelect(employee.id, day, null)"
+                          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-500 transition hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/50"
+                          [class.bg-brand-50]="!cell.plan!.workstation_id"
+                          [class.dark:bg-brand-500/10]="!cell.plan!.workstation_id"
+                        >
+                          <span class="italic">None</span>
+                        </button>
                         <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
                         <button
                           (click)="cancelEdit()"
@@ -355,7 +384,7 @@
                     <!-- Shift type dropdown for empty cell (add mode) -->
                     @if (isEditing(employee.id, dateStr)) {
                       <div
-                        class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[140px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                        class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
                         (click)="$event.stopPropagation()"
                       >
                         <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
@@ -377,6 +406,34 @@
                             <span class="text-gray-500 dark:text-gray-400">{{ shift.name }}</span>
                           </button>
                         }
+                        <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
+                        <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+                          Workstation
+                        </div>
+                        @for (ws of workstations; track ws.id) {
+                          <button
+                            (click)="onWorkstationSelect(employee.id, day, ws.id)"
+                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                            [class.bg-brand-50]="pendingWorkstationId === ws.id"
+                            [class.dark:bg-brand-500/10]="pendingWorkstationId === ws.id"
+                          >
+                            <span
+                              class="font-medium"
+                              [class.text-brand-600]="pendingWorkstationId === ws.id"
+                              [class.dark:text-brand-400]="pendingWorkstationId === ws.id"
+                            >
+                              {{ ws.name }}
+                            </span>
+                          </button>
+                        }
+                        <button
+                          (click)="onWorkstationSelect(employee.id, day, null)"
+                          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-500 transition hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/50"
+                          [class.bg-brand-50]="!pendingWorkstationId"
+                          [class.dark:bg-brand-500/10]="!pendingWorkstationId"
+                        >
+                          <span class="italic">None</span>
+                        </button>
                         <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
                         <button
                           (click)="cancelEdit()"

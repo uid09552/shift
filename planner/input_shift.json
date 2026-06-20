@@ -1,0 +1,299 @@
+{
+  "planning_period": {
+    "start_date": "2026-06-08",
+    "end_date": "2026-07-08"
+  },
+  "shifts": [
+    {
+      "id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+      "name": "Frühschicht",
+      "start_time": "06:00:00",
+      "end_time": "14:00:00",
+      "weekdays": ["0", "1", "2", "3", "4"],
+      "is_night_shift": false
+    },
+    {
+      "id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+      "name": "Spätschicht",
+      "start_time": "14:00:00",
+      "end_time": "22:00:00",
+      "weekdays": ["0", "1", "2", "3", "4"],
+      "is_night_shift": false
+    },
+    {
+      "id": "c9fb210c-b381-4ebb-bf27-98d61e10953b",
+      "name": "Nachtschicht",
+      "start_time": "22:00:00",
+      "end_time": "06:00:00",
+      "weekdays": ["0", "1", "2", "3", "4"],
+      "is_night_shift": true
+    }
+  ],
+  "workstations": [
+    {
+      "id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+      "name": "MRT-1",
+      "required_skills": ["MRT"],
+      "priority": "high",
+      "operating_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c",
+        "c9fb210c-b381-4ebb-bf27-98d61e10953b"
+      ]
+    },
+    {
+      "id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+      "name": "MRT-2",
+      "required_skills": ["MRT"],
+      "priority": "high",
+      "operating_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c",
+        "c9fb210c-b381-4ebb-bf27-98d61e10953b"
+      ]
+    },
+    {
+      "id": "e16bf5e2-2e28-4dc3-9305-b7e4bbce513a",
+      "name": "MRT-3",
+      "required_skills": ["MRT"],
+      "priority": "medium",
+      "operating_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c",
+        "c9fb210c-b381-4ebb-bf27-98d61e10953b"
+      ]
+    },
+    {
+      "id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+      "name": "CT-1",
+      "required_skills": ["CT"],
+      "priority": "high",
+      "operating_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c",
+        "c9fb210c-b381-4ebb-bf27-98d61e10953b"
+      ]
+    },
+    {
+      "id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+      "name": "CT-2",
+      "required_skills": ["CT"],
+      "priority": "high",
+      "operating_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c",
+        "c9fb210c-b381-4ebb-bf27-98d61e10953b"
+      ]
+    },
+    {
+      "id": "e2d395d7-a118-48b6-b1fc-9ad9dc3c5843",
+      "name": "CT-3",
+      "required_skills": ["CT"],
+      "priority": "medium",
+      "operating_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c",
+        "c9fb210c-b381-4ebb-bf27-98d61e10953b"
+      ]
+    },
+    {
+      "id": "1464c2b1-baaf-4fb0-abca-078032994dcf",
+      "name": "CT-4",
+      "required_skills": ["CT"],
+      "priority": "low",
+      "operating_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c",
+        "c9fb210c-b381-4ebb-bf27-98d61e10953b"
+      ]
+    },
+    {
+      "id": "3f349ccb-efca-411a-8b8d-115376da0786",
+      "name": "Röntgen-1",
+      "required_skills": ["Röntgen"],
+      "priority": "medium",
+      "operating_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c"
+      ]
+    },
+    {
+      "id": "934aec02-8e71-4c3e-aed1-0f5d09a598a2",
+      "name": "Röntgen-2",
+      "required_skills": ["Röntgen"],
+      "priority": "low",
+      "operating_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c"
+      ]
+    },
+    {
+      "id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+      "name": "Ultraschall-1",
+      "required_skills": ["Ultraschall"],
+      "priority": "medium",
+      "operating_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c"
+      ]
+    },
+    {
+      "id": "09c08bd7-8501-45b4-bd22-72d4f89806d8",
+      "name": "Ultraschall-2",
+      "required_skills": ["Ultraschall"],
+      "priority": "low",
+      "operating_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c"
+      ]
+    },
+    {
+      "id": "73c4949c-1424-401a-b698-37f5d6a96881",
+      "name": "Mammographie-1",
+      "required_skills": ["Mammographie"],
+      "priority": "medium",
+      "operating_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c"
+      ]
+    },
+    {
+      "id": "e293e424-d3db-4f2a-a3aa-6578ee2306b2",
+      "name": "Angiographie-1",
+      "required_skills": ["Angiographie"],
+      "priority": "medium",
+      "operating_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c"
+      ]
+    },
+    {
+      "id": "76844eab-fb2b-46e7-8339-aaf50ddcbcb6",
+      "name": "Fluoroskopie-1",
+      "required_skills": ["Fluoroskopie"],
+      "priority": "low",
+      "operating_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c"
+      ]
+    },
+    {
+      "id": "12fc08c4-8d71-42f2-a037-6a25eb97abfa",
+      "name": "PET-CT-1",
+      "required_skills": [],
+      "priority": "low",
+      "operating_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c"
+      ]
+    }
+  ],
+  "employees": [
+    {
+      "id": "emp-001",
+      "name": "Anna M.",
+      "skills": ["MRT", "CT"],
+      "available_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c",
+        "c9fb210c-b381-4ebb-bf27-98d61e10953b"
+      ],
+      "unavailability": []
+    },
+    {
+      "id": "emp-002",
+      "name": "Ben K.",
+      "skills": ["MRT", "CT"],
+      "available_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c",
+        "c9fb210c-b381-4ebb-bf27-98d61e10953b"
+      ],
+      "unavailability": []
+    },
+    {
+      "id": "emp-003",
+      "name": "Clara S.",
+      "skills": ["MRT"],
+      "available_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c",
+        "c9fb210c-b381-4ebb-bf27-98d61e10953b"
+      ],
+      "unavailability": []
+    },
+    {
+      "id": "emp-004",
+      "name": "David L.",
+      "skills": ["CT"],
+      "available_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c",
+        "c9fb210c-b381-4ebb-bf27-98d61e10953b"
+      ],
+      "unavailability": []
+    },
+    {
+      "id": "emp-005",
+      "name": "Eva R.",
+      "skills": ["Röntgen", "Mammographie"],
+      "available_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c"
+      ],
+      "unavailability": []
+    },
+    {
+      "id": "emp-006",
+      "name": "Felix W.",
+      "skills": ["Röntgen", "Fluoroskopie"],
+      "available_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c"
+      ],
+      "unavailability": []
+    },
+    {
+      "id": "emp-007",
+      "name": "Greta H.",
+      "skills": ["Ultraschall"],
+      "available_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c"
+      ],
+      "unavailability": []
+    },
+    {
+      "id": "emp-008",
+      "name": "Hans P.",
+      "skills": ["Ultraschall", "Angiographie"],
+      "available_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c"
+      ],
+      "unavailability": []
+    },
+    {
+      "id": "emp-009",
+      "name": "Iris B.",
+      "skills": ["MRT", "Angiographie"],
+      "available_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c",
+        "c9fb210c-b381-4ebb-bf27-98d61e10953b"
+      ],
+      "unavailability": []
+    },
+    {
+      "id": "emp-010",
+      "name": "Jan F.",
+      "skills": ["CT", "Fluoroskopie"],
+      "available_shifts": [
+        "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+        "2551ac76-dae3-4918-8e8f-19c679b3697c",
+        "c9fb210c-b381-4ebb-bf27-98d61e10953b"
+      ],
+      "unavailability": []
+    }
+  ]
+}

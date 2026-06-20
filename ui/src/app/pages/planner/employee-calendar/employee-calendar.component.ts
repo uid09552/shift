@@ -71,6 +71,9 @@ export class EmployeeCalendarComponent implements OnInit {
   // Processing state for a specific cell
   processingCell: { dateStr: string } | null = null;
 
+  // Pending workstation selection for empty cells (used when creating new plans)
+  pendingWorkstationId: string | null = null;
+
   readonly MONTH_NAMES = [
     'January',
     'February',
@@ -331,11 +334,13 @@ export class EmployeeCalendarComponent implements OnInit {
   startEdit(dateStr: string, event: Event): void {
     event.stopPropagation();
     this.deletingCell = null;
+    this.pendingWorkstationId = null;
     this.editingCell = { dateStr };
   }
 
   cancelEdit(): void {
     this.editingCell = null;
+    this.pendingWorkstationId = null;
   }
 
   startDelete(dateStr: string, planId: string, event: Event): void {
@@ -359,6 +364,7 @@ export class EmployeeCalendarComponent implements OnInit {
       this.confirmedShiftPlanService
         .createConfirmedShiftPlan(this.selectedEmployeeId, {
           shift_id: newShiftId,
+          workstation_id: this.pendingWorkstationId,
           date: dateStr,
           is_present: true,
           creation_type: 'manual',
@@ -368,10 +374,12 @@ export class EmployeeCalendarComponent implements OnInit {
             this.planMap.set(dateStr, created);
             this.applyPlansToCalendar();
             this.processingCell = null;
+            this.pendingWorkstationId = null;
           },
           error: (err) => {
             console.error('Failed to create shift plan', err);
             this.processingCell = null;
+            this.pendingWorkstationId = null;
           },
         });
       return;
@@ -396,6 +404,40 @@ export class EmployeeCalendarComponent implements OnInit {
         },
         error: (err) => {
           console.error('Failed to update shift plan', err);
+          this.processingCell = null;
+        },
+      });
+  }
+
+  onWorkstationSelect(dateStr: string, workstationId: string | null): void {
+    const plan = this.planMap.get(dateStr);
+
+    // If no existing plan, store as pending and keep dropdown open for shift selection
+    if (!plan) {
+      this.pendingWorkstationId = workstationId;
+      return;
+    }
+
+    // Don't update if same workstation selected
+    if (plan.workstation_id === workstationId) {
+      this.editingCell = null;
+      this.pendingWorkstationId = null;
+      return;
+    }
+
+    this.processingCell = { dateStr };
+    this.editingCell = null;
+
+    this.confirmedShiftPlanService
+      .updateConfirmedShiftPlan(plan.id, { workstation_id: workstationId })
+      .subscribe({
+        next: (updated) => {
+          this.planMap.set(dateStr, updated);
+          this.applyPlansToCalendar();
+          this.processingCell = null;
+        },
+        error: (err) => {
+          console.error('Failed to update workstation', err);
           this.processingCell = null;
         },
       });

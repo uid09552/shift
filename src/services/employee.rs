@@ -35,7 +35,7 @@ impl EmployeeService {
         Query(q): Query<PaginationQuery>,
         State(state): State<AppState>,
     ) -> Json<Value> {
-        let limit = q.limit.map(|l| l as i64);
+        let limit = q.limit.map(|l| l as i64).or(Some(50));
         let offset = q.offset.map(|o| o as i64);
 
         // Retrieve paginated list of employees from repository
@@ -43,7 +43,7 @@ impl EmployeeService {
             .employee_repo
             .list_employees(limit, offset)
             .await
-            .expect("Error loading employees");
+            .expect("Error loading employees: check if database migration for shifts.order column has been applied");
 
         // Get total count for pagination metadata
         let total = state
@@ -210,5 +210,16 @@ impl EmployeeService {
             .await?;
 
         Ok(Json(serde_json::json!({ "message": "Available shift added successfully" })))
+    }
+
+    pub async fn delete_employee(
+        Path(employee_id): Path<Uuid>,
+        State(state): State<AppState>,
+    ) -> Result<Json<Value>, AppError> {
+        state
+            .employee_repo
+            .delete_employee(employee_id)
+            .await?;
+        Ok(Json(serde_json::json!({ "message": "Employee deleted successfully" })))
     }
 }

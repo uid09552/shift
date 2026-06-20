@@ -13,6 +13,7 @@ pub struct Shift {
     pub name: String,
     pub short_name: String,
     pub color: String,
+    pub order: i32,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
@@ -21,6 +22,7 @@ pub struct NewShift<'a> {
     pub name: &'a str,
     pub short_name: &'a str,
     pub color: &'a str,
+    pub order: i32,
 }
 
 #[derive(Queryable, Identifiable, Serialize, Deserialize, Debug)]
@@ -31,6 +33,8 @@ pub struct ShiftWeekdayTime {
     pub weekday: i16,
     pub start_time: NaiveTime,
     pub end_time: NaiveTime,
+    pub min_employees: i16,
+    pub max_employees: Option<i16>,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
@@ -40,4 +44,6 @@ pub struct NewShiftWeekdayTime {
     pub weekday: i16,
     pub start_time: NaiveTime,
     pub end_time: NaiveTime,
+    pub min_employees: i16,
+    pub max_employees: Option<i16>,
 }

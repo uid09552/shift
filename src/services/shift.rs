@@ -17,6 +17,8 @@ pub struct SetWeekdayTimeRequest {
     pub weekday: i16,
     pub start_time: String,
     pub end_time: String,
+    pub min_employees: Option<i16>,
+    pub max_employees: Option<i16>,
 }
 
 pub struct ShiftService;
@@ -58,9 +60,14 @@ impl ShiftService {
             return Err(AppError::Validation("Invalid 'color' format, must be hex color e.g. #3B82F6".into()));
         }
 
+        let order = body
+            .get("order")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0) as i32;
+
         let shift = state
             .shift_repo
-            .create_shift(name, short_name, color)
+            .create_shift(name, short_name, color, order)
             .await?;
 
         Ok(Json(serde_json::to_value(shift).unwrap()))
@@ -76,6 +83,31 @@ impl ShiftService {
             .await
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
+        Ok(Json(serde_json::to_value(shift).unwrap()))
+    }
+
+    pub async fn update_shift(
+        Path(shift_id): Path<Uuid>,
+        State(state): State<AppState>,
+        Json(body): Json<Value>,
+    ) -> Result<Json<Value>, AppError> {
+        let name = body.get("name").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let short_name = body.get("short_name").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let color = body.get("color").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let order = body.get("order").and_then(|v| v.as_i64()).map(|o| o as i32);
+
+        // Validate hex color format if color is provided
+        if let Some(ref c) = color {
+            if !c.starts_with('#') || c.len() != 7 || !c[1..].chars().all(|c| c.is_ascii_hexdigit()) {
+                return Err(AppError::Validation("Invalid 'color' format, must be hex color e.g. #3B82F6".into()));
+            }
+        }
+
+        let shift = state
+            .shift_repo
+            .update_shift(shift_id, name, short_name, color, order)
+            .await?;
+
         Ok(Json(serde_json::to_value(shift).unwrap()))
     }
 
@@ -98,9 +130,23 @@ impl ShiftService {
             .or_else(|_| NaiveTime::parse_from_str(&body.end_time, "%H:%M:%S"))
             .map_err(|_| AppError::Validation("Invalid end_time format, use HH:MM".into()))?;
 
+        let min_employees = body.min_employees.unwrap_or(1);
+        if min_employees < 0 {
+            return Err(AppError::Validation("min_employees must be >= 0".into()));
+        }
+
+        let max_employees = body.max_employees;
+        if let Some(max) = max_employees {
+            if max < min_employees {
+                return Err(AppError::Validation(
+                    "max_employees must be >= min_employees".into(),
+                ));
+            }
+        }
+
         let wt = state
             .shift_repo
-            .set_weekday_time(shift_id, body.weekday, start_time, end_time)
+            .set_weekday_time(shift_id, body.weekday, start_time, end_time, min_employees, max_employees)
             .await?;
 
         Ok(Json(serde_json::to_value(wt).unwrap()))
@@ -122,5 +168,16 @@ impl ShiftService {
             .await?;
 
         Ok(Json(serde_json::json!({ "message": "Weekday time deleted" })))
+    }
+
+    pub async fn delete_shift(
+        Path(shift_id): Path<Uuid>,
+        State(state): State<AppState>,
+    ) -> Result<Json<Value>, AppError> {
+        state
+            .shift_repo
+            .delete_shift(shift_id)
+            .await?;
+        Ok(Json(serde_json::json!({ "message": "Shift deleted successfully" })))
     }
 }

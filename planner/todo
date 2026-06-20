@@ -1,0 +1,4 @@
+1) make rules configurable
+2) respond to backend service with result via rest api
+3) ack the nats stream tasks once task is done, or respond with error to the task  
+4) monthly working hours constrain

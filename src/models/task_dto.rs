@@ -22,6 +22,8 @@ pub struct ShiftTask {
     pub end_time: String,
     pub weekdays: Vec<String>,
     pub is_night_shift: bool,
+    pub min_employees: i16,
+    pub max_employees: Option<i16>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -32,6 +32,8 @@ fn load_weekday_times_for_shifts(
                 weekday: t.weekday,
                 start_time: t.start_time,
                 end_time: t.end_time,
+                min_employees: t.min_employees,
+                max_employees: t.max_employees,
             });
     }
     Ok(map)
@@ -39,14 +41,14 @@ fn load_weekday_times_for_shifts(
 
 #[async_trait]
 impl ShiftRepository for DieselShiftRepository {
-    async fn create_shift(&self, name: &str, short_name: &str, color: &str) -> Result<Shift, AppError> {
+    async fn create_shift(&self, name: &str, short_name: &str, color: &str, order: i32) -> Result<Shift, AppError> {
         let name = name.to_string();
         let short_name = short_name.to_string();
         let color = color.to_string();
         let pool = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
-            let new_shift = NewShift { name: &name, short_name: &short_name, color: &color };
+            let new_shift = NewShift { name: &name, short_name: &short_name, color: &color, order };
             let shift = diesel::insert_into(shifts::table)
                 .values(&new_shift)
                 .get_result::<models::Shift>(&mut conn)
@@ -62,6 +64,7 @@ impl ShiftRepository for DieselShiftRepository {
                 name: shift.name,
                 short_name: shift.short_name,
                 color: shift.color,
+                order: shift.order,
                 weekday_times: vec![],
             })
         })
@@ -87,6 +90,7 @@ impl ShiftRepository for DieselShiftRepository {
                         name: shift.name,
                         short_name: shift.short_name,
                         color: shift.color,
+                        order: shift.order,
                         weekday_times: wt_map.get(&shift.id).cloned().unwrap_or_default(),
                     }))
                 }
@@ -96,11 +100,64 @@ impl ShiftRepository for DieselShiftRepository {
         .await?
     }
 
+    async fn update_shift(&self, id: Uuid, name_opt: Option<String>, short_name_opt: Option<String>, color_opt: Option<String>, order_opt: Option<i32>) -> Result<Shift, AppError> {
+        let pool = Arc::clone(&self.pool);
+        task::spawn_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+
+            // Verify shift exists and get current values
+            let shift = shifts::table
+                .find(id)
+                .first::<models::Shift>(&mut conn)
+                .map_err(|_| AppError::NotFound)?;
+
+            // Validate hex color format if color is being updated
+            if let Some(ref c) = color_opt {
+                if !c.starts_with('#') || c.len() != 7 || !c[1..].chars().all(|c: char| c.is_ascii_hexdigit()) {
+                    return Err(AppError::Validation("Invalid 'color' format, must be hex color e.g. #3B82F6".into()));
+                }
+            }
+
+            // Determine final values
+            let final_name = name_opt.unwrap_or(shift.name);
+            let final_short_name = short_name_opt.unwrap_or(shift.short_name);
+            let final_color = color_opt.unwrap_or(shift.color);
+            let final_order = order_opt.unwrap_or(shift.order);
+
+            let updated_shift = diesel::update(shifts::table.find(id))
+                .set((
+                    shifts::name.eq(&final_name),
+                    shifts::short_name.eq(&final_short_name),
+                    shifts::color.eq(&final_color),
+                    shifts::order.eq(&final_order),
+                ))
+                .get_result::<models::Shift>(&mut conn)
+                .map_err(|e| match e {
+                    diesel::result::Error::DatabaseError(diesel::result::DatabaseErrorKind::UniqueViolation, _) => {
+                        AppError::Duplicate
+                    }
+                    diesel::result::Error::NotFound => AppError::NotFound,
+                    _ => AppError::DbError,
+                })?;
+
+            Ok(Shift {
+                id: updated_shift.id,
+                name: updated_shift.name,
+                short_name: updated_shift.short_name,
+                color: updated_shift.color,
+                order: updated_shift.order,
+                weekday_times: vec![],
+            })
+        })
+        .await.map_err(|_| AppError::Internal)?
+    }
+
     async fn list_shifts(&self) -> Result<Vec<Shift>, Box<dyn std::error::Error + Send + Sync>> {
         let pool = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
             let shifts_list = shifts::table
+                .order(shifts::order.asc())
                 .load::<models::Shift>(&mut conn)
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
@@ -113,12 +170,30 @@ impl ShiftRepository for DieselShiftRepository {
                 name: s.name,
                 short_name: s.short_name,
                 color: s.color,
+                order: s.order,
                 weekday_times: wt_map.get(&s.id).cloned().unwrap_or_default(),
             }).collect();
 
             Ok(result)
         })
         .await?
+    }
+
+    async fn delete_shift(&self, id: Uuid) -> Result<(), AppError> {
+        let pool = Arc::clone(&self.pool);
+        task::spawn_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            // First delete all weekday times for this shift
+            diesel::delete(shift_weekday_times::table.filter(shift_weekday_times::shift_id.eq(id)))
+                .execute(&mut conn)
+                .map_err(|_| AppError::DbError)?;
+            // Then delete the shift itself
+            diesel::delete(shifts::table.find(id))
+                .execute(&mut conn)
+                .map_err(|_| AppError::DbError)?;
+            Ok(())
+        })
+        .await.map_err(|_| AppError::Internal)?
     }
 }
 
@@ -130,6 +205,8 @@ impl DieselShiftRepository {
         weekday: i16,
         start_time: chrono::NaiveTime,
         end_time: chrono::NaiveTime,
+        min_employees: i16,
+        max_employees: Option<i16>,
     ) -> Result<WeekdayTime, AppError> {
         let pool = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
@@ -146,6 +223,8 @@ impl DieselShiftRepository {
                 weekday,
                 start_time,
                 end_time,
+                min_employees,
+                max_employees,
             };
 
             // Upsert: insert or update if the (shift_id, weekday) pair already exists
@@ -156,6 +235,8 @@ impl DieselShiftRepository {
                 .set((
                     shift_weekday_times::start_time.eq(start_time),
                     shift_weekday_times::end_time.eq(end_time),
+                    shift_weekday_times::min_employees.eq(min_employees),
+                    shift_weekday_times::max_employees.eq(max_employees),
                 ))
                 .get_result::<models::ShiftWeekdayTime>(&mut conn)
                 .map_err(|_| AppError::DbError)?;
@@ -164,6 +245,8 @@ impl DieselShiftRepository {
                 weekday: wt.weekday,
                 start_time: wt.start_time,
                 end_time: wt.end_time,
+                min_employees: wt.min_employees,
+                max_employees: wt.max_employees,
             })
         })
         .await.map_err(|_| AppError::Internal)?

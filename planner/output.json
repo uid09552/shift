@@ -1,0 +1,2858 @@
+{
+  "status": "optimal",
+  "objective_value": 1472000.0,
+  "planning_period": {
+    "start_date": "2026-06-08",
+    "end_date": "2026-07-08"
+  },
+  "schedule": [
+    {
+      "date": "2026-06-08",
+      "weekday": "monday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-08",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-08",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-08",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-08",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-06-08",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-06-08",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            },
+            {
+              "date": "2026-06-08",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            },
+            {
+              "date": "2026-06-08",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "e293e424-d3db-4f2a-a3aa-6578ee2306b2",
+              "workstation_name": "Angiographie-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-08",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-08",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-06-09",
+      "weekday": "tuesday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-09",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-09",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-09",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-06-09",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-06-09",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            },
+            {
+              "date": "2026-06-09",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-09",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-09",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-09",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-09",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-06-10",
+      "weekday": "wednesday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-10",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-10",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-10",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-06-10",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-10",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-10",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-10",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-06-10",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-06-10",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            },
+            {
+              "date": "2026-06-10",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "e293e424-d3db-4f2a-a3aa-6578ee2306b2",
+              "workstation_name": "Angiographie-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-06-11",
+      "weekday": "thursday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-11",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-11",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-11",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-06-11",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-11",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-11",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-11",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-06-11",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-06-11",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            },
+            {
+              "date": "2026-06-11",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-06-12",
+      "weekday": "friday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-12",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-12",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-12",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-12",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-12",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-12",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-06-12",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-06-12",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            },
+            {
+              "date": "2026-06-12",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "e293e424-d3db-4f2a-a3aa-6578ee2306b2",
+              "workstation_name": "Angiographie-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "c9fb210c-b381-4ebb-bf27-98d61e10953b",
+          "shift_name": "Nachtschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-12",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-06-13",
+      "weekday": "saturday",
+      "shifts": []
+    },
+    {
+      "date": "2026-06-14",
+      "weekday": "sunday",
+      "shifts": []
+    },
+    {
+      "date": "2026-06-15",
+      "weekday": "monday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-15",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-15",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-15",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-06-15",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-06-15",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            },
+            {
+              "date": "2026-06-15",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            },
+            {
+              "date": "2026-06-15",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "e293e424-d3db-4f2a-a3aa-6578ee2306b2",
+              "workstation_name": "Angiographie-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-15",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-15",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-15",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-06-16",
+      "weekday": "tuesday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-16",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-16",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-16",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-06-16",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            },
+            {
+              "date": "2026-06-16",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            },
+            {
+              "date": "2026-06-16",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "e293e424-d3db-4f2a-a3aa-6578ee2306b2",
+              "workstation_name": "Angiographie-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-16",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-16",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-16",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-16",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-06-17",
+      "weekday": "wednesday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-17",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-17",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-17",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-17",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-17",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-17",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-17",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-06-17",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-06-17",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            },
+            {
+              "date": "2026-06-17",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-06-18",
+      "weekday": "thursday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-18",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-18",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-06-18",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-18",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-18",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-18",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-18",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-06-18",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-06-18",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            },
+            {
+              "date": "2026-06-18",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-06-19",
+      "weekday": "friday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-19",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-19",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-19",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-19",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-19",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-06-19",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            },
+            {
+              "date": "2026-06-19",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "c9fb210c-b381-4ebb-bf27-98d61e10953b",
+          "shift_name": "Nachtschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-19",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-19",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-19",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-06-20",
+      "weekday": "saturday",
+      "shifts": []
+    },
+    {
+      "date": "2026-06-21",
+      "weekday": "sunday",
+      "shifts": []
+    },
+    {
+      "date": "2026-06-22",
+      "weekday": "monday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-22",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-22",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-22",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-06-22",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-06-22",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            },
+            {
+              "date": "2026-06-22",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-22",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-22",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-22",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-06-22",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-06-23",
+      "weekday": "tuesday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-23",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-23",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-23",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-06-23",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-06-23",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            },
+            {
+              "date": "2026-06-23",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-23",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-23",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-23",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-06-23",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-06-24",
+      "weekday": "wednesday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-24",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-24",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-24",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-24",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-24",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-24",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-24",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-24",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-06-24",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            },
+            {
+              "date": "2026-06-24",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-06-25",
+      "weekday": "thursday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-25",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-25",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-25",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-06-25",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-25",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-25",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-25",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-25",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-06-25",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            },
+            {
+              "date": "2026-06-25",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "e293e424-d3db-4f2a-a3aa-6578ee2306b2",
+              "workstation_name": "Angiographie-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-06-26",
+      "weekday": "friday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-26",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-26",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-06-26",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-26",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-26",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-06-26",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            },
+            {
+              "date": "2026-06-26",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "c9fb210c-b381-4ebb-bf27-98d61e10953b",
+          "shift_name": "Nachtschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-26",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-26",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-26",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-06-27",
+      "weekday": "saturday",
+      "shifts": []
+    },
+    {
+      "date": "2026-06-28",
+      "weekday": "sunday",
+      "shifts": []
+    },
+    {
+      "date": "2026-06-29",
+      "weekday": "monday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-29",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-29",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-29",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-29",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-06-29",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            },
+            {
+              "date": "2026-06-29",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            },
+            {
+              "date": "2026-06-29",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "e293e424-d3db-4f2a-a3aa-6578ee2306b2",
+              "workstation_name": "Angiographie-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-29",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-29",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-29",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-06-30",
+      "weekday": "tuesday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-30",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-30",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-30",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-06-30",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-06-30",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            },
+            {
+              "date": "2026-06-30",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "e293e424-d3db-4f2a-a3aa-6578ee2306b2",
+              "workstation_name": "Angiographie-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-06-30",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-06-30",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-06-30",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-06-30",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-07-01",
+      "weekday": "wednesday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-07-01",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-07-01",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-07-01",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "e293e424-d3db-4f2a-a3aa-6578ee2306b2",
+              "workstation_name": "Angiographie-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-07-01",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-07-01",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-07-01",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-07-01",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-07-01",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-07-01",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            },
+            {
+              "date": "2026-07-01",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-07-02",
+      "weekday": "thursday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-07-02",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-07-02",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-07-02",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "e293e424-d3db-4f2a-a3aa-6578ee2306b2",
+              "workstation_name": "Angiographie-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-07-02",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-07-02",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-07-02",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-07-02",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-07-02",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-07-02",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            },
+            {
+              "date": "2026-07-02",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-07-03",
+      "weekday": "friday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-07-03",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-07-03",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-07-03",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-07-03",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-07-03",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-07-03",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-07-03",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            },
+            {
+              "date": "2026-07-03",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "c9fb210c-b381-4ebb-bf27-98d61e10953b",
+          "shift_name": "Nachtschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-07-03",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-07-03",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-07-04",
+      "weekday": "saturday",
+      "shifts": []
+    },
+    {
+      "date": "2026-07-05",
+      "weekday": "sunday",
+      "shifts": []
+    },
+    {
+      "date": "2026-07-06",
+      "weekday": "monday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-07-06",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-07-06",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-07-06",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-07-06",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-07-06",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-07-06",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            },
+            {
+              "date": "2026-07-06",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-07-06",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-07-06",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-07-06",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-07-07",
+      "weekday": "tuesday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-07-07",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-07-07",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-07-07",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            },
+            {
+              "date": "2026-07-07",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-07-07",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "1f5abdd3-79f9-4b9b-bf5f-1bdc75232767",
+              "workstation_name": "MRT-1"
+            },
+            {
+              "date": "2026-07-07",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-07-07",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-07-07",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-07-07",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-07-07",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "e293e424-d3db-4f2a-a3aa-6578ee2306b2",
+              "workstation_name": "Angiographie-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-07-08",
+      "weekday": "wednesday",
+      "shifts": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-07-08",
+              "employee_id": "emp-010",
+              "employee_name": "Jan F.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-07-08",
+              "employee_id": "emp-007",
+              "employee_name": "Greta H.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-07-08",
+              "employee_id": "emp-009",
+              "employee_name": "Iris B.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-07-08",
+              "employee_id": "emp-001",
+              "employee_name": "Anna M.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            },
+            {
+              "date": "2026-07-08",
+              "employee_id": "emp-002",
+              "employee_name": "Ben K.",
+              "workstation_id": "969fd74f-32e3-4cdb-a2b9-a730b300a4cf",
+              "workstation_name": "CT-2"
+            },
+            {
+              "date": "2026-07-08",
+              "employee_id": "emp-006",
+              "employee_name": "Felix W.",
+              "workstation_id": "3f349ccb-efca-411a-8b8d-115376da0786",
+              "workstation_name": "R\u00f6ntgen-1"
+            },
+            {
+              "date": "2026-07-08",
+              "employee_id": "emp-008",
+              "employee_name": "Hans P.",
+              "workstation_id": "4f330f23-3dac-4b08-ab7b-edf27333ce4b",
+              "workstation_name": "Ultraschall-1"
+            },
+            {
+              "date": "2026-07-08",
+              "employee_id": "emp-005",
+              "employee_name": "Eva R.",
+              "workstation_id": "73c4949c-1424-401a-b698-37f5d6a96881",
+              "workstation_name": "Mammographie-1"
+            }
+          ]
+        },
+        {
+          "shift_id": "c9fb210c-b381-4ebb-bf27-98d61e10953b",
+          "shift_name": "Nachtschicht",
+          "assigned_dates": [
+            {
+              "date": "2026-07-08",
+              "employee_id": "emp-003",
+              "employee_name": "Clara S.",
+              "workstation_id": "52f9358e-2585-4e7a-b273-c957b12544ca",
+              "workstation_name": "MRT-2"
+            },
+            {
+              "date": "2026-07-08",
+              "employee_id": "emp-004",
+              "employee_name": "David L.",
+              "workstation_id": "42dbd3da-0244-4624-91fd-12a264256aa8",
+              "workstation_name": "CT-1"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "employee_summary": [
+    {
+      "employee_id": "emp-001",
+      "employee_name": "Anna M.",
+      "total_shifts": 23,
+      "night_shifts": 1,
+      "total_working_hours": 184.0,
+      "per_shift": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "total_assignments": 10,
+          "assigned_dates": [
+            "2026-06-08",
+            "2026-06-09",
+            "2026-06-10",
+            "2026-06-11",
+            "2026-06-29",
+            "2026-06-30",
+            "2026-07-01",
+            "2026-07-02",
+            "2026-07-06",
+            "2026-07-07"
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "total_assignments": 12,
+          "assigned_dates": [
+            "2026-06-12",
+            "2026-06-15",
+            "2026-06-16",
+            "2026-06-17",
+            "2026-06-18",
+            "2026-06-19",
+            "2026-06-22",
+            "2026-06-23",
+            "2026-06-24",
+            "2026-06-25",
+            "2026-07-03",
+            "2026-07-08"
+          ]
+        },
+        {
+          "shift_id": "c9fb210c-b381-4ebb-bf27-98d61e10953b",
+          "shift_name": "Nachtschicht",
+          "total_assignments": 1,
+          "assigned_dates": [
+            "2026-06-26"
+          ]
+        }
+      ],
+      "assigned_dates": [
+        "2026-06-08",
+        "2026-06-09",
+        "2026-06-10",
+        "2026-06-11",
+        "2026-06-12",
+        "2026-06-15",
+        "2026-06-16",
+        "2026-06-17",
+        "2026-06-18",
+        "2026-06-19",
+        "2026-06-22",
+        "2026-06-23",
+        "2026-06-24",
+        "2026-06-25",
+        "2026-06-26",
+        "2026-06-29",
+        "2026-06-30",
+        "2026-07-01",
+        "2026-07-02",
+        "2026-07-03",
+        "2026-07-06",
+        "2026-07-07",
+        "2026-07-08"
+      ]
+    },
+    {
+      "employee_id": "emp-002",
+      "employee_name": "Ben K.",
+      "total_shifts": 23,
+      "night_shifts": 2,
+      "total_working_hours": 184.0,
+      "per_shift": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "total_assignments": 15,
+          "assigned_dates": [
+            "2026-06-08",
+            "2026-06-15",
+            "2026-06-16",
+            "2026-06-17",
+            "2026-06-18",
+            "2026-06-22",
+            "2026-06-23",
+            "2026-06-24",
+            "2026-06-25",
+            "2026-06-26",
+            "2026-06-29",
+            "2026-06-30",
+            "2026-07-01",
+            "2026-07-02",
+            "2026-07-06"
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "total_assignments": 6,
+          "assigned_dates": [
+            "2026-06-09",
+            "2026-06-10",
+            "2026-06-11",
+            "2026-07-03",
+            "2026-07-07",
+            "2026-07-08"
+          ]
+        },
+        {
+          "shift_id": "c9fb210c-b381-4ebb-bf27-98d61e10953b",
+          "shift_name": "Nachtschicht",
+          "total_assignments": 2,
+          "assigned_dates": [
+            "2026-06-12",
+            "2026-06-19"
+          ]
+        }
+      ],
+      "assigned_dates": [
+        "2026-06-08",
+        "2026-06-09",
+        "2026-06-10",
+        "2026-06-11",
+        "2026-06-12",
+        "2026-06-15",
+        "2026-06-16",
+        "2026-06-17",
+        "2026-06-18",
+        "2026-06-19",
+        "2026-06-22",
+        "2026-06-23",
+        "2026-06-24",
+        "2026-06-25",
+        "2026-06-26",
+        "2026-06-29",
+        "2026-06-30",
+        "2026-07-01",
+        "2026-07-02",
+        "2026-07-03",
+        "2026-07-06",
+        "2026-07-07",
+        "2026-07-08"
+      ]
+    },
+    {
+      "employee_id": "emp-003",
+      "employee_name": "Clara S.",
+      "total_shifts": 23,
+      "night_shifts": 3,
+      "total_working_hours": 184.0,
+      "per_shift": [
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "total_assignments": 15,
+          "assigned_dates": [
+            "2026-06-08",
+            "2026-06-09",
+            "2026-06-10",
+            "2026-06-11",
+            "2026-06-12",
+            "2026-06-15",
+            "2026-06-16",
+            "2026-06-17",
+            "2026-06-18",
+            "2026-06-29",
+            "2026-06-30",
+            "2026-07-01",
+            "2026-07-02",
+            "2026-07-03",
+            "2026-07-07"
+          ]
+        },
+        {
+          "shift_id": "c9fb210c-b381-4ebb-bf27-98d61e10953b",
+          "shift_name": "Nachtschicht",
+          "total_assignments": 3,
+          "assigned_dates": [
+            "2026-06-19",
+            "2026-06-26",
+            "2026-07-08"
+          ]
+        },
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "total_assignments": 5,
+          "assigned_dates": [
+            "2026-06-22",
+            "2026-06-23",
+            "2026-06-24",
+            "2026-06-25",
+            "2026-07-06"
+          ]
+        }
+      ],
+      "assigned_dates": [
+        "2026-06-08",
+        "2026-06-09",
+        "2026-06-10",
+        "2026-06-11",
+        "2026-06-12",
+        "2026-06-15",
+        "2026-06-16",
+        "2026-06-17",
+        "2026-06-18",
+        "2026-06-19",
+        "2026-06-22",
+        "2026-06-23",
+        "2026-06-24",
+        "2026-06-25",
+        "2026-06-26",
+        "2026-06-29",
+        "2026-06-30",
+        "2026-07-01",
+        "2026-07-02",
+        "2026-07-03",
+        "2026-07-06",
+        "2026-07-07",
+        "2026-07-08"
+      ]
+    },
+    {
+      "employee_id": "emp-004",
+      "employee_name": "David L.",
+      "total_shifts": 23,
+      "night_shifts": 1,
+      "total_working_hours": 184.0,
+      "per_shift": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "total_assignments": 15,
+          "assigned_dates": [
+            "2026-06-08",
+            "2026-06-09",
+            "2026-06-10",
+            "2026-06-11",
+            "2026-06-12",
+            "2026-06-15",
+            "2026-06-16",
+            "2026-06-17",
+            "2026-06-18",
+            "2026-06-19",
+            "2026-06-22",
+            "2026-06-23",
+            "2026-06-24",
+            "2026-06-25",
+            "2026-06-26"
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "total_assignments": 7,
+          "assigned_dates": [
+            "2026-06-29",
+            "2026-06-30",
+            "2026-07-01",
+            "2026-07-02",
+            "2026-07-03",
+            "2026-07-06",
+            "2026-07-07"
+          ]
+        },
+        {
+          "shift_id": "c9fb210c-b381-4ebb-bf27-98d61e10953b",
+          "shift_name": "Nachtschicht",
+          "total_assignments": 1,
+          "assigned_dates": [
+            "2026-07-08"
+          ]
+        }
+      ],
+      "assigned_dates": [
+        "2026-06-08",
+        "2026-06-09",
+        "2026-06-10",
+        "2026-06-11",
+        "2026-06-12",
+        "2026-06-15",
+        "2026-06-16",
+        "2026-06-17",
+        "2026-06-18",
+        "2026-06-19",
+        "2026-06-22",
+        "2026-06-23",
+        "2026-06-24",
+        "2026-06-25",
+        "2026-06-26",
+        "2026-06-29",
+        "2026-06-30",
+        "2026-07-01",
+        "2026-07-02",
+        "2026-07-03",
+        "2026-07-06",
+        "2026-07-07",
+        "2026-07-08"
+      ]
+    },
+    {
+      "employee_id": "emp-005",
+      "employee_name": "Eva R.",
+      "total_shifts": 23,
+      "night_shifts": 0,
+      "total_working_hours": 184.0,
+      "per_shift": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "total_assignments": 10,
+          "assigned_dates": [
+            "2026-06-08",
+            "2026-06-09",
+            "2026-06-15",
+            "2026-06-16",
+            "2026-06-22",
+            "2026-06-23",
+            "2026-06-29",
+            "2026-06-30",
+            "2026-07-06",
+            "2026-07-07"
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "total_assignments": 13,
+          "assigned_dates": [
+            "2026-06-10",
+            "2026-06-11",
+            "2026-06-12",
+            "2026-06-17",
+            "2026-06-18",
+            "2026-06-19",
+            "2026-06-24",
+            "2026-06-25",
+            "2026-06-26",
+            "2026-07-01",
+            "2026-07-02",
+            "2026-07-03",
+            "2026-07-08"
+          ]
+        }
+      ],
+      "assigned_dates": [
+        "2026-06-08",
+        "2026-06-09",
+        "2026-06-10",
+        "2026-06-11",
+        "2026-06-12",
+        "2026-06-15",
+        "2026-06-16",
+        "2026-06-17",
+        "2026-06-18",
+        "2026-06-19",
+        "2026-06-22",
+        "2026-06-23",
+        "2026-06-24",
+        "2026-06-25",
+        "2026-06-26",
+        "2026-06-29",
+        "2026-06-30",
+        "2026-07-01",
+        "2026-07-02",
+        "2026-07-03",
+        "2026-07-06",
+        "2026-07-07",
+        "2026-07-08"
+      ]
+    },
+    {
+      "employee_id": "emp-006",
+      "employee_name": "Felix W.",
+      "total_shifts": 23,
+      "night_shifts": 0,
+      "total_working_hours": 184.0,
+      "per_shift": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "total_assignments": 9,
+          "assigned_dates": [
+            "2026-06-08",
+            "2026-06-09",
+            "2026-06-15",
+            "2026-06-16",
+            "2026-06-22",
+            "2026-06-23",
+            "2026-06-29",
+            "2026-06-30",
+            "2026-07-06"
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "total_assignments": 14,
+          "assigned_dates": [
+            "2026-06-10",
+            "2026-06-11",
+            "2026-06-12",
+            "2026-06-17",
+            "2026-06-18",
+            "2026-06-19",
+            "2026-06-24",
+            "2026-06-25",
+            "2026-06-26",
+            "2026-07-01",
+            "2026-07-02",
+            "2026-07-03",
+            "2026-07-07",
+            "2026-07-08"
+          ]
+        }
+      ],
+      "assigned_dates": [
+        "2026-06-08",
+        "2026-06-09",
+        "2026-06-10",
+        "2026-06-11",
+        "2026-06-12",
+        "2026-06-15",
+        "2026-06-16",
+        "2026-06-17",
+        "2026-06-18",
+        "2026-06-19",
+        "2026-06-22",
+        "2026-06-23",
+        "2026-06-24",
+        "2026-06-25",
+        "2026-06-26",
+        "2026-06-29",
+        "2026-06-30",
+        "2026-07-01",
+        "2026-07-02",
+        "2026-07-03",
+        "2026-07-06",
+        "2026-07-07",
+        "2026-07-08"
+      ]
+    },
+    {
+      "employee_id": "emp-007",
+      "employee_name": "Greta H.",
+      "total_shifts": 23,
+      "night_shifts": 0,
+      "total_working_hours": 184.0,
+      "per_shift": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "total_assignments": 19,
+          "assigned_dates": [
+            "2026-06-08",
+            "2026-06-09",
+            "2026-06-10",
+            "2026-06-11",
+            "2026-06-12",
+            "2026-06-15",
+            "2026-06-16",
+            "2026-06-17",
+            "2026-06-18",
+            "2026-06-19",
+            "2026-06-22",
+            "2026-06-23",
+            "2026-06-24",
+            "2026-06-25",
+            "2026-06-26",
+            "2026-06-29",
+            "2026-07-06",
+            "2026-07-07",
+            "2026-07-08"
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "total_assignments": 4,
+          "assigned_dates": [
+            "2026-06-30",
+            "2026-07-01",
+            "2026-07-02",
+            "2026-07-03"
+          ]
+        }
+      ],
+      "assigned_dates": [
+        "2026-06-08",
+        "2026-06-09",
+        "2026-06-10",
+        "2026-06-11",
+        "2026-06-12",
+        "2026-06-15",
+        "2026-06-16",
+        "2026-06-17",
+        "2026-06-18",
+        "2026-06-19",
+        "2026-06-22",
+        "2026-06-23",
+        "2026-06-24",
+        "2026-06-25",
+        "2026-06-26",
+        "2026-06-29",
+        "2026-06-30",
+        "2026-07-01",
+        "2026-07-02",
+        "2026-07-03",
+        "2026-07-06",
+        "2026-07-07",
+        "2026-07-08"
+      ]
+    },
+    {
+      "employee_id": "emp-008",
+      "employee_name": "Hans P.",
+      "total_shifts": 23,
+      "night_shifts": 0,
+      "total_working_hours": 184.0,
+      "per_shift": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "total_assignments": 8,
+          "assigned_dates": [
+            "2026-06-08",
+            "2026-06-15",
+            "2026-06-16",
+            "2026-06-29",
+            "2026-06-30",
+            "2026-07-01",
+            "2026-07-02",
+            "2026-07-03"
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "total_assignments": 15,
+          "assigned_dates": [
+            "2026-06-09",
+            "2026-06-10",
+            "2026-06-11",
+            "2026-06-12",
+            "2026-06-17",
+            "2026-06-18",
+            "2026-06-19",
+            "2026-06-22",
+            "2026-06-23",
+            "2026-06-24",
+            "2026-06-25",
+            "2026-06-26",
+            "2026-07-06",
+            "2026-07-07",
+            "2026-07-08"
+          ]
+        }
+      ],
+      "assigned_dates": [
+        "2026-06-08",
+        "2026-06-09",
+        "2026-06-10",
+        "2026-06-11",
+        "2026-06-12",
+        "2026-06-15",
+        "2026-06-16",
+        "2026-06-17",
+        "2026-06-18",
+        "2026-06-19",
+        "2026-06-22",
+        "2026-06-23",
+        "2026-06-24",
+        "2026-06-25",
+        "2026-06-26",
+        "2026-06-29",
+        "2026-06-30",
+        "2026-07-01",
+        "2026-07-02",
+        "2026-07-03",
+        "2026-07-06",
+        "2026-07-07",
+        "2026-07-08"
+      ]
+    },
+    {
+      "employee_id": "emp-009",
+      "employee_name": "Iris B.",
+      "total_shifts": 23,
+      "night_shifts": 1,
+      "total_working_hours": 184.0,
+      "per_shift": [
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "total_assignments": 5,
+          "assigned_dates": [
+            "2026-06-08",
+            "2026-06-09",
+            "2026-06-10",
+            "2026-06-11",
+            "2026-06-12"
+          ]
+        },
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "total_assignments": 17,
+          "assigned_dates": [
+            "2026-06-15",
+            "2026-06-16",
+            "2026-06-17",
+            "2026-06-18",
+            "2026-06-19",
+            "2026-06-22",
+            "2026-06-23",
+            "2026-06-24",
+            "2026-06-25",
+            "2026-06-26",
+            "2026-06-29",
+            "2026-06-30",
+            "2026-07-01",
+            "2026-07-02",
+            "2026-07-06",
+            "2026-07-07",
+            "2026-07-08"
+          ]
+        },
+        {
+          "shift_id": "c9fb210c-b381-4ebb-bf27-98d61e10953b",
+          "shift_name": "Nachtschicht",
+          "total_assignments": 1,
+          "assigned_dates": [
+            "2026-07-03"
+          ]
+        }
+      ],
+      "assigned_dates": [
+        "2026-06-08",
+        "2026-06-09",
+        "2026-06-10",
+        "2026-06-11",
+        "2026-06-12",
+        "2026-06-15",
+        "2026-06-16",
+        "2026-06-17",
+        "2026-06-18",
+        "2026-06-19",
+        "2026-06-22",
+        "2026-06-23",
+        "2026-06-24",
+        "2026-06-25",
+        "2026-06-26",
+        "2026-06-29",
+        "2026-06-30",
+        "2026-07-01",
+        "2026-07-02",
+        "2026-07-03",
+        "2026-07-06",
+        "2026-07-07",
+        "2026-07-08"
+      ]
+    },
+    {
+      "employee_id": "emp-010",
+      "employee_name": "Jan F.",
+      "total_shifts": 23,
+      "night_shifts": 3,
+      "total_working_hours": 184.0,
+      "per_shift": [
+        {
+          "shift_id": "2551ac76-dae3-4918-8e8f-19c679b3697c",
+          "shift_name": "Sp\u00e4tschicht",
+          "total_assignments": 14,
+          "assigned_dates": [
+            "2026-06-08",
+            "2026-06-09",
+            "2026-06-10",
+            "2026-06-11",
+            "2026-06-12",
+            "2026-06-16",
+            "2026-06-17",
+            "2026-06-18",
+            "2026-06-22",
+            "2026-06-23",
+            "2026-06-24",
+            "2026-06-25",
+            "2026-07-01",
+            "2026-07-02"
+          ]
+        },
+        {
+          "shift_id": "c52e81cc-e42a-4821-8cab-dfebe7a1913a",
+          "shift_name": "Fr\u00fchschicht",
+          "total_assignments": 6,
+          "assigned_dates": [
+            "2026-06-15",
+            "2026-06-29",
+            "2026-06-30",
+            "2026-07-06",
+            "2026-07-07",
+            "2026-07-08"
+          ]
+        },
+        {
+          "shift_id": "c9fb210c-b381-4ebb-bf27-98d61e10953b",
+          "shift_name": "Nachtschicht",
+          "total_assignments": 3,
+          "assigned_dates": [
+            "2026-06-19",
+            "2026-06-26",
+            "2026-07-03"
+          ]
+        }
+      ],
+      "assigned_dates": [
+        "2026-06-08",
+        "2026-06-09",
+        "2026-06-10",
+        "2026-06-11",
+        "2026-06-12",
+        "2026-06-15",
+        "2026-06-16",
+        "2026-06-17",
+        "2026-06-18",
+        "2026-06-19",
+        "2026-06-22",
+        "2026-06-23",
+        "2026-06-24",
+        "2026-06-25",
+        "2026-06-26",
+        "2026-06-29",
+        "2026-06-30",
+        "2026-07-01",
+        "2026-07-02",
+        "2026-07-03",
+        "2026-07-06",
+        "2026-07-07",
+        "2026-07-08"
+      ]
+    }
+  ]
+}

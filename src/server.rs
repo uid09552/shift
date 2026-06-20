@@ -1,6 +1,6 @@
 use axum::{
     response::Json,
-    routing::{delete, get, patch, post},
+    routing::{delete, get, post, put},
     Router,
     extract::{ State},
     http::StatusCode,
@@ -17,7 +17,7 @@ use crate::services::{
     capability::CapabilityService,
     confirmed_shift_plan::ConfirmedShiftPlanService,
     employee::EmployeeService,
-    planner::PlannerService,
+    optimizer,
     shift::ShiftService,
     shift_assignment::ShiftAssignmentService,
     unavailability::UnavailabilityService,
@@ -46,7 +46,7 @@ pub fn create_router(state: AppState) -> Router {
     let api_v1 = Router::new()
         // Employees
         .route("/employees", get(EmployeeService::list_employees).post(EmployeeService::create_employee))
-        .route("/employees/:employee_id", get(EmployeeService::get_employee_by_id).put(EmployeeService::update_employee))
+        .route("/employees/:employee_id", get(EmployeeService::get_employee_by_id).put(EmployeeService::update_employee).delete(EmployeeService::delete_employee))
         .route("/employees/email/:email", get(EmployeeService::get_employee_by_email))
         .route(
             "/employees/:employee_id/capabilities",
@@ -58,21 +58,21 @@ pub fn create_router(state: AppState) -> Router {
         )
         // Shifts
         .route("/shifts", get(ShiftService::list_shifts).post(ShiftService::create_shift))
-        .route("/shifts/:shift_id", get(ShiftService::get_shift_by_id))
+        .route("/shifts/:shift_id", get(ShiftService::get_shift_by_id).put(ShiftService::update_shift).delete(ShiftService::delete_shift))
         .route("/shifts/:shift_id/weekday-times", post(ShiftService::set_weekday_time))
         .route("/shifts/:shift_id/weekday-times/:weekday", delete(ShiftService::delete_weekday_time))
         // Capabilities
         .route("/capabilities", get(CapabilityService::list_capabilities).post(CapabilityService::create_capability))
-        .route("/capabilities/:capability_id", get(CapabilityService::get_capability_by_id))
+        .route("/capabilities/:capability_id", get(CapabilityService::get_capability_by_id).delete(CapabilityService::delete_capability))
         // Workstations
         .route("/workstations", get(WorkstationService::list_workstations).post(WorkstationService::create_workstation))
         .route(
             "/workstations/:workstation_id",
-            get(WorkstationService::get_workstation_by_id).put(WorkstationService::update_workstation),
+            get(WorkstationService::get_workstation_by_id).put(WorkstationService::update_workstation).delete(WorkstationService::delete_workstation),
         )
         .route(
             "/workstations/:workstation_id/availability",
-            patch(WorkstationService::set_workstation_availability),
+            put(WorkstationService::set_workstation_availability),
         )
         .route(
             "/workstations/:workstation_id/required-capabilities",
@@ -85,12 +85,12 @@ pub fn create_router(state: AppState) -> Router {
             get(UnavailabilityService::get_unavailability_by_id).delete(UnavailabilityService::delete_unavailability),
         )
         // Planner
-        .route("/planner/plan", post(PlannerService::trigger_plan))
-        .route("/planner/prepare", get(PlannerService::prepare))
-        .route("/planner/tasks", get(PlannerService::list_tasks).delete(PlannerService::delete_all_tasks))
-        .route("/planner/tasks/:task_id", get(PlannerService::get_task))
-        .route("/planner/optimized-shifts", get(PlannerService::list_optimized_shifts))
-        .route("/planner/optimized-shifts/:result_id", get(PlannerService::get_optimized_shift).delete(PlannerService::delete_optimized_shift))
+        .route("/planner/plan", post(optimizer::trigger_plan))
+        .route("/planner/prepare", get(optimizer::prepare))
+        .route("/planner/tasks", get(optimizer::list_tasks).delete(optimizer::delete_all_tasks))
+        .route("/planner/tasks/:task_id", get(optimizer::get_task))
+        .route("/planner/optimized-shifts", get(optimizer::list_optimized_shifts))
+        .route("/planner/optimized-shifts/:result_id", get(optimizer::get_optimized_shift).delete(optimizer::delete_optimized_shift))
         // Shift Assignments
         .route(
             "/employees/:employee_id/shift-assignments",

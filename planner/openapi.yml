@@ -1,0 +1,445 @@
+openapi: 3.0.3
+
+info:
+  title: Shift Planner API
+  description: >
+    Constraint-based employee shift scheduling service powered by OR-Tools
+    CP-SAT solver.  Submit a planning period, shift definitions, workstations
+    and employees and receive an optimised schedule that respects skills,
+    availability, night-shift recovery, minimum rest, weekly limits and
+    equal-treatment (working-hours balance) objectives.
+  version: 1.0.0
+  contact:
+    name: Shift Planner Team
+
+servers:
+  - url: http://localhost:5000
+    description: Local development server
+
+paths:
+  /api/v1/:
+    get:
+      summary: API information
+      operationId: getIndex
+      responses:
+        "200":
+          description: Service metadata and available endpoints
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiInfo"
+
+  /api/v1/health:
+    get:
+      summary: Health check
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/v1/optimize:
+    post:
+      summary: Run shift scheduler
+      description: >
+        Submit scheduling input and receive an optimised plan.  All
+        constraints are configurable via the optional `constraints` object —
+        omit it entirely for sensible defaults, or override individual fields.
+        Set a numeric constraint to **0** to deactivate it.
+      operationId: postOptimize
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SchedulingInput"
+      responses:
+        "200":
+          description: Optimised schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchedulingOutput"
+        "415":
+          description: Content-Type is not application/json
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Input validation error or infeasible schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal solver error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+
+    # ------------------------------------------------------------------
+    # Shared primitives
+    # ------------------------------------------------------------------
+
+    Date:
+      type: string
+      format: date
+      example: "2026-06-08"
+
+    Time:
+      type: string
+      format: time
+      example: "06:00:00"
+
+    Uuid:
+      type: string
+      format: uuid
+      example: "c52e81cc-e42a-4821-8cab-dfebe7a1913a"
+
+    # ------------------------------------------------------------------
+    # Input schemas
+    # ------------------------------------------------------------------
+
+    PlanningPeriod:
+      type: object
+      required: [start_date, end_date]
+      properties:
+        start_date:
+          $ref: "#/components/schemas/Date"
+        end_date:
+          $ref: "#/components/schemas/Date"
+
+    Shift:
+      type: object
+      required: [id, name, start_time, end_time, weekdays]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+          example: "Frühschicht"
+        start_time:
+          $ref: "#/components/schemas/Time"
+        end_time:
+          $ref: "#/components/schemas/Time"
+        weekdays:
+          type: array
+          items:
+            type: string
+            enum: ["0", "1", "2", "3", "4", "5", "6"]
+          description: >
+            Numeric weekday strings. 0 = Monday … 6 = Sunday.
+          example: ["0", "1", "2", "3", "4"]
+        is_night_shift:
+          type: boolean
+          default: false
+
+    Workstation:
+      type: object
+      required: [id, name, operating_shifts]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+          example: "MRT-1"
+        required_skills:
+          type: array
+          items:
+            type: string
+          default: []
+          example: ["MRT"]
+        priority:
+          type: string
+          enum: [low, medium, high]
+          default: medium
+        operating_shifts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Uuid"
+          description: Shift IDs this workstation operates during.
+
+    Employee:
+      type: object
+      required: [id, name, available_shifts]
+      properties:
+        id:
+          type: string
+          example: "emp-001"
+        name:
+          type: string
+          example: "Anna M."
+        skills:
+          type: array
+          items:
+            type: string
+          default: []
+          example: ["MRT", "CT"]
+        available_shifts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Uuid"
+          description: Shift IDs the employee is available for.
+        unavailability:
+          type: array
+          items:
+            $ref: "#/components/schemas/Date"
+          default: []
+
+    ConstraintConfig:
+      type: object
+      description: >
+        Configurable solver constraints.  All fields are optional — when
+        omitted the default value is used.  Set a numeric constraint to **0**
+        to deactivate it entirely.
+      properties:
+        night_shift_recovery_days:
+          type: integer
+          minimum: 0
+          maximum: 7
+          default: 2
+          description: >
+            Days off required after a night shift. 0 = disabled.
+        min_rest_hours:
+          type: number
+          minimum: 0
+          maximum: 24
+          default: 11.0
+          description: >
+            Minimum rest (hours) between shifts on consecutive days.
+            0 = disabled.
+        max_consecutive_days:
+          type: integer
+          minimum: 0
+          maximum: 14
+          default: 6
+          description: >
+            Maximum consecutive working days. 0 = disabled.
+        max_working_days_per_week:
+          type: integer
+          minimum: 0
+          maximum: 7
+          default: 5
+          description: >
+            Maximum working days per calendar week. 0 = disabled.
+        equality_weight:
+          type: integer
+          minimum: 0
+          default: 50000
+          description: >
+            Objective weight for equal working-hours balance across
+            employees.  Higher values prioritise fairness over coverage.
+            0 = disabled.
+        priority_weights:
+          type: object
+          default: {"high": 10000, "medium": 1000, "low": 100}
+          properties:
+            high:
+              type: integer
+              minimum: 0
+            medium:
+              type: integer
+              minimum: 0
+            low:
+              type: integer
+              minimum: 0
+          description: Coverage reward per workstation priority level.
+        solver_time_limit_seconds:
+          type: number
+          minimum: 1
+          default: 120.0
+          description: Maximum solver wall-clock time in seconds.
+        solver_num_workers:
+          type: integer
+          minimum: 1
+          maximum: 64
+          default: 8
+          description: Number of parallel solver workers.
+
+    SchedulingInput:
+      type: object
+      required: [planning_period, shifts, workstations, employees]
+      properties:
+        planning_period:
+          $ref: "#/components/schemas/PlanningPeriod"
+        shifts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Shift"
+          minItems: 1
+        workstations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Workstation"
+          minItems: 1
+        employees:
+          type: array
+          items:
+            $ref: "#/components/schemas/Employee"
+          minItems: 1
+        constraints:
+          $ref: "#/components/schemas/ConstraintConfig"
+
+    # ------------------------------------------------------------------
+    # Output schemas
+    # ------------------------------------------------------------------
+
+    ShiftAssignment:
+      type: object
+      required: [date, employee_id, employee_name, workstation_id, workstation_name]
+      properties:
+        date:
+          $ref: "#/components/schemas/Date"
+        employee_id:
+          type: string
+          example: "emp-001"
+        employee_name:
+          type: string
+          example: "Anna M."
+        workstation_id:
+          $ref: "#/components/schemas/Uuid"
+        workstation_name:
+          type: string
+          example: "MRT-1"
+
+    ShiftSchedule:
+      type: object
+      required: [shift_id, shift_name, assigned_dates]
+      properties:
+        shift_id:
+          $ref: "#/components/schemas/Uuid"
+        shift_name:
+          type: string
+          example: "Frühschicht"
+        assigned_dates:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShiftAssignment"
+
+    DaySchedule:
+      type: object
+      required: [date, weekday, shifts]
+      properties:
+        date:
+          $ref: "#/components/schemas/Date"
+        weekday:
+          type: string
+          enum: [monday, tuesday, wednesday, thursday, friday, saturday, sunday]
+        shifts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShiftSchedule"
+
+    EmployeeShiftSummary:
+      type: object
+      required: [shift_id, shift_name, total_assignments, assigned_dates]
+      properties:
+        shift_id:
+          $ref: "#/components/schemas/Uuid"
+        shift_name:
+          type: string
+          example: "Frühschicht"
+        total_assignments:
+          type: integer
+          example: 10
+        assigned_dates:
+          type: array
+          items:
+            $ref: "#/components/schemas/Date"
+
+    EmployeeSummary:
+      type: object
+      required:
+        [employee_id, employee_name, total_shifts, night_shifts,
+         total_working_hours, per_shift, assigned_dates]
+      properties:
+        employee_id:
+          type: string
+          example: "emp-001"
+        employee_name:
+          type: string
+          example: "Anna M."
+        total_shifts:
+          type: integer
+          example: 23
+        night_shifts:
+          type: integer
+          example: 2
+        total_working_hours:
+          type: number
+          example: 184.0
+        per_shift:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmployeeShiftSummary"
+        assigned_dates:
+          type: array
+          items:
+            $ref: "#/components/schemas/Date"
+
+    SchedulingOutput:
+      type: object
+      required: [status, objective_value, planning_period, schedule, employee_summary]
+      properties:
+        status:
+          type: string
+          enum: [optimal, feasible, infeasible]
+          description: Solver status.
+        objective_value:
+          type: number
+          example: 1472000
+        planning_period:
+          $ref: "#/components/schemas/PlanningPeriod"
+        schedule:
+          type: array
+          items:
+            $ref: "#/components/schemas/DaySchedule"
+        employee_summary:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmployeeSummary"
+        message:
+          type: string
+          description: Present only when status is infeasible.
+
+    # ------------------------------------------------------------------
+    # Utility schemas
+    # ------------------------------------------------------------------
+
+    ApiInfo:
+      type: object
+      properties:
+        service:
+          type: string
+          example: "shift-planner"
+        version:
+          type: string
+          example: "1.0.0"
+        endpoints:
+          type: object
+          additionalProperties:
+            type: string
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "error"
+        message:
+          type: string

@@ -200,4 +200,16 @@ impl WorkstationService {
 
         Ok(Json(serde_json::json!({ "message": "Capability added successfully" })))
     }
+
+    pub async fn delete_workstation(
+        Path(workstation_id): Path<Uuid>,
+        State(state): State<AppState>,
+    ) -> Result<Json<Value>, AppError> {
+        state
+            .workstation_repo
+            .delete_workstation(workstation_id)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        Ok(Json(serde_json::json!({ "message": "Workstation deleted successfully" })))
+    }
 }

@@ -34,6 +34,7 @@ diesel::table! {
         name -> Varchar,
         short_name -> Varchar,
         color -> Varchar,
+        order -> Int4,
     }
 }
 
@@ -44,6 +45,8 @@ diesel::table! {
         weekday -> Int2,
         start_time -> Time,
         end_time -> Time,
+        min_employees -> Int2,
+        max_employees -> Nullable<Int2>,
     }
 }
 

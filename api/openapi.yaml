@@ -1596,6 +1596,11 @@ components:
           description: Color coding as hex value
           pattern: '^#[0-9A-Fa-f]{6}$'
           example: "#3B82F6"
+        order:
+          type: integer
+          description: Display order for the shift (lower values appear first)
+          default: 0
+          example: 1
         weekday_times:
           type: array
           description: Start/end times per weekday for this shift
@@ -1608,6 +1613,7 @@ components:
         - weekday
         - start_time
         - end_time
+        - min_employees
       properties:
         weekday:
           type: integer
@@ -1625,6 +1631,19 @@ components:
           pattern: '^\d{2}:\d{2}(:\d{2})?$'
           description: Shift end time in HH:MM or HH:MM:SS format
           example: "14:00"
+        min_employees:
+          type: integer
+          minimum: 0
+          default: 1
+          description: Minimum number of employees required for this shift on this weekday
+          example: 1
+        max_employees:
+          type: integer
+          nullable: true
+          minimum: 0
+          default: null
+          description: Maximum number of employees allowed for this shift on this weekday (null = no limit)
+          example: 5
 
     SetWeekdayTimeRequest:
       type: object
@@ -1649,6 +1668,19 @@ components:
           pattern: '^\d{2}:\d{2}(:\d{2})?$'
           description: Shift end time in HH:MM or HH:MM:SS format
           example: "14:00"
+        min_employees:
+          type: integer
+          minimum: 0
+          default: 1
+          description: Minimum number of employees required (default 1)
+          example: 1
+        max_employees:
+          type: integer
+          nullable: true
+          minimum: 0
+          default: null
+          description: Maximum number of employees allowed (null = no limit)
+          example: 5
 
     CreateShiftRequest:
       type: object
@@ -1671,6 +1703,11 @@ components:
           type: string
           pattern: '^#[0-9A-Fa-f]{6}$'
           example: "#3B82F6"
+        order:
+          type: integer
+          description: Display order for the shift (lower values appear first)
+          default: 0
+          example: 1
 
     Capability:
       type: object

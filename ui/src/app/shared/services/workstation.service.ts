@@ -55,7 +55,7 @@ export class WorkstationService {
   }
 
   setAvailability(workstationId: string, available: boolean, active_shift_ids?: string[]): Observable<Workstation> {
-    return this.http.patch<Workstation>(`${this.apiUrl}/workstations/${workstationId}/availability`, {
+    return this.http.put<Workstation>(`${this.apiUrl}/workstations/${workstationId}/availability`, {
       available,
       active_shift_ids: active_shift_ids ?? [],
     });
@@ -73,5 +73,9 @@ export class WorkstationService {
 
   removeRequiredCapability(workstationId: string, capabilityId: string): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/workstations/${workstationId}/required-capabilities/${capabilityId}`);
+  }
+
+  deleteWorkstation(workstationId: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/workstations/${workstationId}`);
   }
 }

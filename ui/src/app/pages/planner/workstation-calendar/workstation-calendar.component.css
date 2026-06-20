@@ -1,0 +1,110 @@
+/* Workstation Calendar Component Styles - similar to Kalender */
+
+.kalender-table {
+  border-collapse: collapse;
+}
+
+/* Workstation column */
+.workstation-col {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background: white;
+  border-right: 1px solid rgb(243 244 246);
+}
+
+.dark .workstation-col {
+  background: rgba(255, 255, 255, 0.03);
+  border-right-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Day columns */
+.day-col {
+  min-width: 120px;
+  text-align: center;
+}
+
+/* Day cells */
+.day-cell {
+  min-height: 60px;
+  vertical-align: top;
+}
+
+/* Resize handle */
+.col-resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background-color 0.15s;
+}
+
+.col-resize-handle:hover {
+  background: rgba(59, 130, 246, 0.3);
+}
+
+/* Weekend styling */
+.day-col.weekend,
+.day-cell.weekend {
+  background-color: rgb(249 250 251);
+}
+
+.dark .day-col.weekend,
+.dark .day-cell.weekend {
+  background-color: rgba(31, 41, 55, 1);
+}
+
+/* Today styling */
+.day-col.today {
+  background-color: rgb(239 246 255);
+}
+
+.dark .day-col.today {
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+/* Shift badge */
+.shift-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Employee name */
+.employee-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Row hover effect */
+tbody tr:hover {
+  background-color: rgb(249 250 251);
+}
+
+.dark tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+/* Scrollbar styling */
+.overflow-x-auto::-webkit-scrollbar {
+  height: 8px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background-color: rgb(209 213 219);
+  border-radius: 4px;
+}
+
+.dark .overflow-x-auto::-webkit-scrollbar-thumb {
+  background-color: rgb(75 85 99);
+}

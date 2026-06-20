@@ -1,0 +1,106 @@
+/* Scheduler table styles */
+.scheduler-table {
+  table-layout: fixed;
+}
+
+.scheduler-table th,
+.scheduler-table td {
+  vertical-align: top;
+}
+
+.scheduler-table .sticky {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+}
+
+/* Workstation header styling */
+.workstation-header {
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+}
+
+.workstation-cell {
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.03);
+}
+
+/* Shift badge styles */
+.shift-badge {
+  min-height: 28px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.15s ease;
+}
+
+.shift-badge:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+/* Cell button styles */
+.cell-button {
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.cell-button:hover {
+  border-color: rgba(59, 130, 246, 0.3);
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+/* Day column width */
+.scheduler-table .day-col {
+  width: 120px;
+  min-width: 120px;
+}
+
+/* Today highlight animation */
+@keyframes todayPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.scheduler-table .bg-brand-50 {
+  animation: todayPulse 2s ease-in-out infinite;
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .workstation-header {
+    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.2);
+  }
+
+  .workstation-cell {
+    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.15);
+  }
+
+  .cell-button:hover {
+    border-color: rgba(59, 130, 246, 0.5);
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+}
+
+/* Modal backdrop animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Modal content animation */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

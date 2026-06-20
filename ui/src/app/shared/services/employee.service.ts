@@ -92,4 +92,16 @@ export class EmployeeService {
   addEmployeeAvailableShift(employeeId: string, request: AddAvailableShiftRequest): Observable<any> {
     return this.http.post(`${this.apiUrl}/employees/${employeeId}/available-shifts`, request);
   }
+
+  deleteEmployee(employeeId: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/employees/${employeeId}`);
+  }
+
+  removeEmployeeCapability(employeeId: string, capabilityId: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/employees/${employeeId}/capabilities/${capabilityId}`);
+  }
+
+  removeEmployeeAvailableShift(employeeId: string, shiftId: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/employees/${employeeId}/available-shifts/${shiftId}`);
+  }
 }

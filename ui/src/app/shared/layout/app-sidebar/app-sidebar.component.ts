@@ -51,7 +51,8 @@ export class AppSidebarComponent {
       subItems: [
         { name: "Weekly Schedule", path: "/kalender", pro: false },
         { name: "Employee Calendar", path: "/employee-calendar", pro: false },
-        { name: "Scheduler", path: "/scheduler", pro: false }
+        { name: "Workstation Calendar", path: "/workstation-calendar", pro: false },
+        { name: "Schedule Optimizer", path: "/scheduler", pro: false }
       ],
     },
   ];

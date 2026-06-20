@@ -58,4 +58,16 @@ impl CapabilityService {
             .ok_or(AppError::NotFound)?;
         Ok(Json(serde_json::to_value(capability).unwrap()))
     }
+
+    pub async fn delete_capability(
+        Path(capability_id): Path<Uuid>,
+        State(state): State<AppState>,
+    ) -> Result<Json<Value>, AppError> {
+        state
+            .capability_repo
+            .delete_capability(capability_id)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        Ok(Json(serde_json::json!({ "message": "Capability deleted successfully" })))
+    }
 }

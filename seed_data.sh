@@ -18,26 +18,38 @@ SHIFT_IDS=()
 declare -A SHIFT_TIMES
 declare -A SHIFT_SHORT_NAMES
 declare -A SHIFT_COLORS
+declare -A SHIFT_MIN_EMP
+declare -A SHIFT_MAX_EMP
 # Frühschicht: Mon-Fri 06:00-14:00
 SHIFT_TIMES["Frühschicht"]="0:06:00-14:00 1:06:00-14:00 2:06:00-14:00 3:06:00-14:00 4:06:00-14:00"
 SHIFT_SHORT_NAMES["Frühschicht"]="F"
 SHIFT_COLORS["Frühschicht"]="#22C55E"
+SHIFT_MIN_EMP["Frühschicht"]=2
+SHIFT_MAX_EMP["Frühschicht"]=6
 # Spätschicht: Mon-Fri 14:00-22:00
 SHIFT_TIMES["Spätschicht"]="0:14:00-22:00 1:14:00-22:00 2:14:00-22:00 3:14:00-22:00 4:14:00-22:00"
 SHIFT_SHORT_NAMES["Spätschicht"]="S"
 SHIFT_COLORS["Spätschicht"]="#F97316"
+SHIFT_MIN_EMP["Spätschicht"]=2
+SHIFT_MAX_EMP["Spätschicht"]=6
 # Nachtschicht: Mon-Fri 22:00-06:00
 SHIFT_TIMES["Nachtschicht"]="0:22:00-06:00 1:22:00-06:00 2:22:00-06:00 3:22:00-06:00 4:22:00-06:00"
 SHIFT_SHORT_NAMES["Nachtschicht"]="N"
 SHIFT_COLORS["Nachtschicht"]="#6366F1"
+SHIFT_MIN_EMP["Nachtschicht"]=1
+SHIFT_MAX_EMP["Nachtschicht"]=3
 # Zwischenschicht: Mon-Fri 10:00-18:00
 SHIFT_TIMES["Zwischenschicht"]="0:10:00-18:00 1:10:00-18:00 2:10:00-18:00 3:10:00-18:00 4:10:00-18:00"
 SHIFT_SHORT_NAMES["Zwischenschicht"]="Z"
 SHIFT_COLORS["Zwischenschicht"]="#EAB308"
+SHIFT_MIN_EMP["Zwischenschicht"]=1
+SHIFT_MAX_EMP["Zwischenschicht"]=4
 # Langdienst: Mon-Fri 08:00-20:00
 SHIFT_TIMES["Langdienst"]="0:08:00-20:00 1:08:00-20:00 2:08:00-20:00 3:08:00-20:00 4:08:00-20:00"
 SHIFT_SHORT_NAMES["Langdienst"]="L"
 SHIFT_COLORS["Langdienst"]="#3B82F6"
+SHIFT_MIN_EMP["Langdienst"]=1
+SHIFT_MAX_EMP["Langdienst"]=4
 
 for SHIFT_NAME in "Frühschicht" "Spätschicht" "Nachtschicht" "Zwischenschicht" "Langdienst"; do
   SHORT="${SHIFT_SHORT_NAMES[$SHIFT_NAME]}"
@@ -50,8 +62,10 @@ for SHIFT_NAME in "Frühschicht" "Spätschicht" "Nachtschicht" "Zwischenschicht"
     SHIFT_IDS+=("$ID")
     echo "  ✓ Shift '${SHIFT_NAME}' → ${ID}"
 
-    # Set weekday times for this shift
+    # Set weekday times for this shift (with min/max employee counts)
     TIMES="${SHIFT_TIMES[$SHIFT_NAME]}"
+    MIN_EMP="${SHIFT_MIN_EMP[$SHIFT_NAME]}"
+    MAX_EMP="${SHIFT_MAX_EMP[$SHIFT_NAME]}"
     for ENTRY in $TIMES; do
       WEEKDAY="${ENTRY%%:*}"
       REST="${ENTRY#*:}"
@@ -59,9 +73,9 @@ for SHIFT_NAME in "Frühschicht" "Spätschicht" "Nachtschicht" "Zwischenschicht"
       END="${REST#*-}"
       curl -s -X POST "${BASE_URL}/shifts/${ID}/weekday-times" \
         -H "Content-Type: application/json" \
-        -d "{\"weekday\": ${WEEKDAY}, \"start_time\": \"${START}\", \"end_time\": \"${END}\"}" > /dev/null
+        -d "{\"weekday\": ${WEEKDAY}, \"start_time\": \"${START}\", \"end_time\": \"${END}\", \"min_employees\": ${MIN_EMP}, \"max_employees\": ${MAX_EMP}}" > /dev/null
     done
-    echo "    → Set weekday times"
+    echo "    → Set weekday times (min=${MIN_EMP}, max=${MAX_EMP})"
   else
     echo "  ✗ Failed to create shift '${SHIFT_NAME}': ${RESP}"
   fi
@@ -218,15 +232,15 @@ for WS_NAME in "${WS_NAMES[@]}"; do
   done
 
   if [ "$IS_24H" = true ]; then
-    # 24/7 workstations: Frühschicht, Spätschicht, Nachtschicht
-    for SI in 0 1 2; do
+    # 24/7 workstations: all shifts (Frühschicht, Spätschicht, Nachtschicht, Zwischenschicht, Langdienst)
+    for SI in 0 1 2 3 4; do
       if [ -n "${SHIFT_IDS[$SI]:-}" ]; then
         ACTIVE_SHIFT_IDS+=("\"${SHIFT_IDS[$SI]}\"")
       fi
     done
   else
-    # Daytime workstations: Frühschicht, Spätschicht
-    for SI in 0 1; do
+    # Daytime workstations: daytime shifts only (Frühschicht, Spätschicht, Zwischenschicht, Langdienst)
+    for SI in 0 1 3 4; do
       if [ -n "${SHIFT_IDS[$SI]:-}" ]; then
         ACTIVE_SHIFT_IDS+=("\"${SHIFT_IDS[$SI]}\"")
       fi

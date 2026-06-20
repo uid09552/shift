@@ -6,6 +6,7 @@ import { SignInComponent } from './pages/auth-pages/sign-in/sign-in.component';
 import { SignUpComponent } from './pages/auth-pages/sign-up/sign-up.component';
 import { KalenderComponent } from './pages/planner/kalender/kalender.component';
 import { EmployeeCalendarComponent } from './pages/planner/employee-calendar/employee-calendar.component';
+import { WorkstationCalendarComponent } from './pages/planner/workstation-calendar/workstation-calendar.component';
 import { SchedulerComponent } from './pages/planner/scheduler/scheduler.component';
 import { UserProfilesComponent } from './pages/planner/user-profiles/user-profiles.component';
 import { ShiftsComponent } from './pages/configuration/shifts/shifts.component';
@@ -36,7 +37,7 @@ export const routes: Routes = [
       {
         path:'scheduler',
         component:SchedulerComponent,
-        title:'ShiftPlanner - Scheduler'
+        title:'ShiftPlanner - Schedule Optimizer'
       },
       {
         path:'user-profiles',
@@ -57,6 +58,11 @@ export const routes: Routes = [
         path:'capabilities',
         component:CapabilitiesComponent,
         title:'ShiftPlanner - Capabilities'
+      },
+      {
+        path:'workstation-calendar',
+        component:WorkstationCalendarComponent,
+        title:'ShiftPlanner - Workstation Calendar'
       },
     ]
   },
