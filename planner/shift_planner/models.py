@@ -87,6 +87,7 @@ class Employee(BaseModel):
     skills: List[str] = Field(default_factory=list)
     available_shifts: List[str] = Field(..., min_length=1)
     unavailability: List[date] = Field(default_factory=list)
+    monthly_working_hours: float = Field(default=0.0, ge=0)
 
 
 class ConstraintConfig(BaseModel):
@@ -124,6 +125,11 @@ class ConstraintConfig(BaseModel):
     # Bonus added on top of continuity reward when the same shift runs for 7+
     # consecutive days.  Encourages week-long shift stability.
     shift_continuity_week_bonus: int = Field(default=2000, ge=0)
+
+    # Weight for penalizing deviation from each employee's monthly working hours target.
+    # Higher values make the solver try harder to hit each employee's target hours.
+    # Set to 0 (default) to disable.
+    monthly_hours_target_weight: int = Field(default=0, ge=0)
 
     # Solver time limit in seconds
     solver_time_limit_seconds: float = Field(default=120.0, gt=0)

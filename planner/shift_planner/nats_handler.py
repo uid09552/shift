@@ -1,6 +1,6 @@
 """
 Shift Planner NATS JetStream handler — processes scheduling requests
-from a NATS queue.
+from a NATS queue and publishes results back on 'scheduling.results'.
 """
 
 import json
@@ -15,12 +15,21 @@ from shift_planner.optimizer import solve
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+RESULTS_SUBJECT = "scheduling.results"
 
-async def handle_request(msg):
+
+async def handle_request(msg, nc):
     """Handle incoming scheduling requests from NATS JetStream queue."""
+    job_id = None
     try:
         data = json.loads(msg.data.decode())
-        logger.info("Received scheduling request via NATS")
+        job_id = data.get("job_id")
+        logger.info(f"Received scheduling request via NATS (job_id={job_id})")
+
+        if job_id is None:
+            logger.warning("Message has no job_id — skipping (legacy message)")
+            await msg.ack()
+            return
 
         # Validate input data
         try:
@@ -28,33 +37,32 @@ async def handle_request(msg):
             data = validated_input.model_dump()
         except ValidationError as e:
             logger.warning(f"Input validation failed: {e}")
-            if msg.reply:
-                error_response = {
-                    "status": "validation_error",
-                    "message": f"Invalid input: {e.json()}",
-                }
-                await msg.respond(json.dumps(error_response).encode())
-            # Acknowledge the message so it's not redelivered
+            error_response = {
+                "job_id": job_id,
+                "status": "validation_error",
+                "message": f"Invalid input: {e.json()}",
+            }
+            await nc.publish(RESULTS_SUBJECT, json.dumps(error_response).encode())
             await msg.ack()
             return
 
         result = solve(data)
-        logger.info(f"Solved scheduling request - status: {result.status}")
+        logger.info(f"Solved scheduling request (job_id={job_id}) - status: {result.status}")
 
-        if msg.reply:
-            await msg.respond(result.model_dump_json().encode())
+        result_payload = result.model_dump()
+        result_payload["job_id"] = job_id
+        await nc.publish(RESULTS_SUBJECT, json.dumps(result_payload, default=str).encode())
+        logger.info(f"Published result for job_id={job_id} to '{RESULTS_SUBJECT}'")
 
-        # Acknowledge successful processing
         await msg.ack()
     except Exception as e:
-        logger.error(f"Error processing scheduling request: {e}", exc_info=True)
-        if msg.reply:
-            error_response = {
-                "status": "error",
-                "message": str(e),
-            }
-            await msg.respond(json.dumps(error_response).encode())
-        # Negative-acknowledge so the message can be redelivered
+        logger.error(f"Error processing scheduling request (job_id={job_id}): {e}", exc_info=True)
+        error_response = {
+            "job_id": job_id,
+            "status": "error",
+            "message": str(e),
+        }
+        await nc.publish(RESULTS_SUBJECT, json.dumps(error_response).encode())
         await msg.nak()
 
 
@@ -68,8 +76,6 @@ async def start_server(queue_name: str, broker_url: str, stream_name: str):
         js = nc.jetstream()
         logger.info("JetStream context acquired")
 
-        # Subscribe via JetStream push consumer bound to the named stream.
-        # manual_ack=True gives us explicit control over message acknowledgment.
         sub = await js.subscribe(
             subject=queue_name,
             stream=stream_name,
@@ -82,7 +88,7 @@ async def start_server(queue_name: str, broker_url: str, stream_name: str):
         logger.info("Scheduler server running. Waiting for requests...")
 
         async for msg in sub.messages:
-            await handle_request(msg)
+            await handle_request(msg, nc)
 
     except Exception as e:
         logger.error(f"Server error: {e}", exc_info=True)

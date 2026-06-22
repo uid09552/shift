@@ -170,7 +170,7 @@ impl ConfirmedShiftPlanRepository for DieselConfirmedShiftPlanRepository {
     async fn update_confirmed_shift_plan(
         &self,
         id: Uuid,
-        shift_id: Option<Uuid>,
+        shift_id: Option<Option<Uuid>>,
         workstation_id: Option<Option<Uuid>>,
         is_present: Option<bool>,
         absence_type: Option<String>,

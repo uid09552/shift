@@ -96,6 +96,7 @@ _DEFAULT_CONSTRAINTS = {
     "priority_weights": {"high": 10000, "medium": 1000, "low": 100},
     "shift_continuity_weight": 500,  # Reward for same shift on consecutive days
     "shift_continuity_week_bonus": 2000,  # Bonus for 7+ day streaks on same shift
+    "monthly_hours_target_weight": 0,  # Penalty weight for deviation from monthly hours target (0 = disabled)
     "solver_time_limit_seconds": 120.0,
     "solver_num_workers": 8,
 }
@@ -145,6 +146,7 @@ def solve(data: dict) -> dict:
     prio_weights = cfg["priority_weights"]
     shift_continuity_w = cfg["shift_continuity_weight"]
     shift_week_bonus = cfg["shift_continuity_week_bonus"]
+    monthly_weight = cfg["monthly_hours_target_weight"]
     time_limit = cfg["solver_time_limit_seconds"]
     num_workers = cfg["solver_num_workers"]
 
@@ -438,7 +440,24 @@ def solve(data: dict) -> dict:
             obj_terms.append(-100 * max_load)
             obj_terms.append(100 * min_load)
 
-    # 3) Shift continuity: reward employees for keeping the same shift across consecutive days
+    # 3) Monthly hours target: penalise deviation from each employee's monthly working hours target
+    if monthly_weight > 0:
+        max_possible = num_days * 24 * 10  # tenths of hours
+        for e_idx, emp in enumerate(employees):
+            if emp.get("monthly_working_hours", 0.0) <= 0:
+                continue
+            # Scale monthly target to the planning period length
+            target_tenths = int(emp["monthly_working_hours"] * 10 * num_days / 30)
+            if e_idx < len(emp_hour_totals):
+                over_dev = model.NewIntVar(0, max_possible, f"over_dev_{e_idx}")
+                under_dev = model.NewIntVar(0, max_possible, f"under_dev_{e_idx}")
+                # emp_hour_totals[e_idx] - target_tenths == over_dev - under_dev
+                model.Add(emp_hour_totals[e_idx] - target_tenths == over_dev - under_dev)
+                # Penalise deviation from target (symmetric penalty)
+                obj_terms.append(-monthly_weight * over_dev)
+                obj_terms.append(-monthly_weight * under_dev)
+
+    # 4) Shift continuity: reward employees for keeping the same shift across consecutive days
     # This encourages the optimizer to assign the same shift to an employee for at least a week
     if shift_continuity_w > 0:
         # For each employee, create variables tracking if they work the same shift on consecutive days

@@ -1,5 +1,5 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, TitleCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Observable, forkJoin, Subscription } from 'rxjs';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
@@ -21,6 +21,7 @@ import { GlobalSearchService } from '../../../shared/services/global-search.serv
   imports: [
     CommonModule,
     FormsModule,
+    TitleCasePipe,
     PageBreadcrumbComponent,
     InputFieldComponent,
     LabelComponent,
@@ -66,6 +67,20 @@ import { GlobalSearchService } from '../../../shared/services/global-search.serv
               />
               Available
             </label>
+          </div>
+
+          <!-- Priority -->
+          <div class="mb-5">
+            <app-label for="wsPriority" className="mb-1.5">Priority</app-label>
+            <select
+              id="wsPriority"
+              [(ngModel)]="formPriority"
+              class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+            >
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
           </div>
 
           <!-- Active Shifts (edit mode) -->
@@ -149,6 +164,7 @@ import { GlobalSearchService } from '../../../shared/services/global-search.serv
             <tr>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Name</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Available</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Priority</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Active Shifts</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Required Capabilities</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Actions</th>
@@ -157,13 +173,13 @@ import { GlobalSearchService } from '../../../shared/services/global-search.serv
           <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
             @if (loading) {
               <tr>
-                <td colspan="5" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
+                <td colspan="6" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
                   Loading workstations...
                 </td>
               </tr>
             } @else if (workstations.length === 0) {
               <tr>
-                <td colspan="5" class="px-5 py-8 text-center text-gray-400 dark:text-gray-500">
+                <td colspan="6" class="px-5 py-8 text-center text-gray-400 dark:text-gray-500">
                   No workstations found. Click "Add Workstation" to create one.
                 </td>
               </tr>
@@ -183,6 +199,18 @@ import { GlobalSearchService } from '../../../shared/services/global-search.serv
                         : 'bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400'"
                     >
                       {{ ws.available ? 'Available' : 'Unavailable' }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 text-start text-theme-sm">
+                    <span
+                      class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                      [ngClass]="{
+                        'bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400': ws.priority === 'high',
+                        'bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400': ws.priority === 'medium',
+                        'bg-gray-50 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400': ws.priority === 'low'
+                      }"
+                    >
+                      {{ ws.priority | titlecase }}
                     </span>
                   </td>
                   <td class="px-4 py-3 text-start text-theme-sm">
@@ -259,6 +287,7 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
 
   formName = '';
   formAvailable = true;
+  formPriority = 'medium';
   formActiveShiftIds: string[] = [];
   formRequiredCapabilityIds: string[] = [];
 
@@ -363,6 +392,7 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
     this.editingWorkstation = null;
     this.formName = '';
     this.formAvailable = true;
+    this.formPriority = 'medium';
     this.formActiveShiftIds = [];
     this.formRequiredCapabilityIds = [];
     this.showForm = true;
@@ -372,6 +402,7 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
     this.editingWorkstation = ws;
     this.formName = ws.name;
     this.formAvailable = ws.available;
+    this.formPriority = ws.priority || 'medium';
     this.formActiveShiftIds = [...ws.active_shift_ids];
     this.formRequiredCapabilityIds = (this.workstationCapabilities.get(ws.id) || []).map((c) => c.id);
     this.showForm = true;
@@ -419,6 +450,7 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
           name: this.formName.trim(),
           available: this.formAvailable,
           active_shift_ids: this.formActiveShiftIds,
+          priority: this.formPriority,
         }),
       );
 
@@ -452,6 +484,7 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
           name: this.formName.trim(),
           available: this.formAvailable,
           active_shift_ids: this.formActiveShiftIds,
+          priority: this.formPriority,
         })
         .subscribe({
           next: (newWs) => {

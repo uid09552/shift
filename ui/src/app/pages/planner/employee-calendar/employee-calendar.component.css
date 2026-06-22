@@ -150,6 +150,30 @@
   border-color: rgba(220, 38, 38, 0.3);
 }
 
+.vacation-chip {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.dark .vacation-chip {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #93c5fd;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.sick-chip {
+  background-color: #fff7ed;
+  color: #c2410c;
+  border-color: #fed7aa;
+}
+
+.dark .sick-chip {
+  background-color: rgba(249, 115, 22, 0.1);
+  color: #fb923c;
+  border-color: rgba(249, 115, 22, 0.3);
+}
+
 .no-shift {
   font-size: 0.65rem;
   color: #cbd5e1;
@@ -190,6 +214,19 @@
 /* Empty cell click target */
 .empty-cell {
   min-height: 32px;
+}
+
+/* Compact Material date range field */
+.unavail-range-field {
+  font-size: 0.875rem;
+}
+
+.unavail-range-field .mat-mdc-form-field-subscript-wrapper {
+  display: none;
+}
+
+.unavail-range-field .mat-mdc-text-field-wrapper {
+  padding: 0 0.75rem;
 }
 
 /* Responsive adjustments */

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { forkJoin, Subscription } from 'rxjs';
 import { Router } from '@angular/router';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
+import { CalendarNavComponent } from '../../../shared/components/ui/calendar-nav/calendar-nav.component';
 import {
   EmployeeService,
   Employee,
@@ -36,7 +37,7 @@ interface CellData {
 @Component({
   selector: 'app-kalender',
   standalone: true,
-  imports: [CommonModule, PageBreadcrumbComponent],
+  imports: [CommonModule, PageBreadcrumbComponent, CalendarNavComponent],
   templateUrl: './kalender.component.html',
   styleUrl: './kalender.component.css',
 })

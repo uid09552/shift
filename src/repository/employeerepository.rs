@@ -585,12 +585,13 @@ pub struct DieselWorkstationRepository {
 
 #[async_trait]
 impl crate::repository::domain::WorkstationRepository for DieselWorkstationRepository {
-    async fn create_workstation(&self, name: &str, available: bool, active_shift_ids: Vec<Uuid>) -> Result<crate::repository::domain::Workstation, Box<dyn std::error::Error + Send + Sync>> {
+    async fn create_workstation(&self, name: &str, available: bool, active_shift_ids: Vec<Uuid>, priority: &str) -> Result<crate::repository::domain::Workstation, Box<dyn std::error::Error + Send + Sync>> {
         let name = name.to_string();
+        let priority = priority.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
-            let new_workstation = NewWorkstation { name: &name, available, active_shift_ids };
+            let new_workstation = NewWorkstation { name: &name, available, active_shift_ids, priority: &priority };
             diesel::insert_into(workstations::table)
                 .values(&new_workstation)
                 .get_result::<models::Workstation>(&mut conn)
@@ -600,6 +601,7 @@ impl crate::repository::domain::WorkstationRepository for DieselWorkstationRepos
                     available: ws.available,
                     active_shift_ids: ws.active_shift_ids,
                     required_capabilities: vec![],
+                    priority: ws.priority,
                 })
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
         })
@@ -636,6 +638,7 @@ impl crate::repository::domain::WorkstationRepository for DieselWorkstationRepos
                         available: ws.available,
                         active_shift_ids: ws.active_shift_ids,
                         required_capabilities,
+                        priority: ws.priority,
                     }))
                 }
                 None => Ok(None),
@@ -672,6 +675,7 @@ impl crate::repository::domain::WorkstationRepository for DieselWorkstationRepos
                     available: ws.available,
                     active_shift_ids: ws.active_shift_ids,
                     required_capabilities,
+                    priority: ws.priority,
                 });
             }
             Ok(result)
@@ -698,6 +702,20 @@ impl crate::repository::domain::WorkstationRepository for DieselWorkstationRepos
             let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
             diesel::update(workstations::table.find(id))
                 .set(workstations::active_shift_ids.eq(active_shift_ids))
+                .execute(&mut conn)
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            Ok(())
+        })
+        .await?
+    }
+
+    async fn set_workstation_priority(&self, id: Uuid, priority: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let priority = priority.to_string();
+        let pool: Arc<DbPool> = Arc::clone(&self.pool);
+        task::spawn_blocking(move || {
+            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            diesel::update(workstations::table.find(id))
+                .set(workstations::priority.eq(priority))
                 .execute(&mut conn)
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
             Ok(())

@@ -118,9 +118,8 @@ impl ConfirmedShiftPlanService {
         let shift_id = body
             .get("shift_id")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| AppError::Validation("Missing 'shift_id'".into()))?
-            .parse::<Uuid>()
-            .map_err(|_| AppError::Validation("Invalid 'shift_id' UUID".into()))?;
+            .map(|s| s.parse::<Uuid>().map_err(|_| AppError::Validation("Invalid 'shift_id' UUID".into())))
+            .transpose()?;
 
         let workstation_id = body
             .get("workstation_id")
@@ -232,12 +231,20 @@ impl ConfirmedShiftPlanService {
         State(state): State<AppState>,
         Json(body): Json<Value>,
     ) -> Result<Json<Value>, AppError> {
-        let shift_id = body
-            .get("shift_id")
-            .and_then(|v| v.as_str())
-            .map(|s| s.parse::<Uuid>())
-            .transpose()
-            .map_err(|_| AppError::Validation("Invalid 'shift_id' UUID".into()))?;
+        let shift_id = if let Some(sid_val) = body.get("shift_id") {
+            if sid_val.is_null() {
+                Some(None)
+            } else {
+                let uuid = sid_val
+                    .as_str()
+                    .ok_or_else(|| AppError::Validation("Invalid 'shift_id', expected UUID string or null".into()))?
+                    .parse::<Uuid>()
+                    .map_err(|_| AppError::Validation("Invalid 'shift_id' UUID".into()))?;
+                Some(Some(uuid))
+            }
+        } else {
+            None
+        };
 
         let workstation_id = if let Some(ws_val) = body.get("workstation_id") {
             // If the key is present, parse it (null means "clear the workstation")

@@ -56,9 +56,14 @@ impl WorkstationService {
             })
             .unwrap_or_default();
 
+        let priority = body
+            .get("priority")
+            .and_then(|v| v.as_str())
+            .unwrap_or("medium");
+
         let workstation = state
             .workstation_repo
-            .create_workstation(name, available, active_shift_ids)
+            .create_workstation(name, available, active_shift_ids, priority)
             .await
             .map_err(|_| AppError::Internal)?;
 
@@ -107,6 +112,15 @@ impl WorkstationService {
             state
                 .workstation_repo
                 .set_workstation_active_shifts(workstation_id, active_shift_ids)
+                .await
+                .map_err(|_| AppError::Internal)?;
+        }
+
+        // Update priority if provided
+        if let Some(priority) = body.get("priority").and_then(|v| v.as_str()) {
+            state
+                .workstation_repo
+                .set_workstation_priority(workstation_id, priority)
                 .await
                 .map_err(|_| AppError::Internal)?;
         }

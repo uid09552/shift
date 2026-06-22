@@ -11,7 +11,7 @@ use serde_json::json;
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 
-use crate::repository::AppState;
+use crate::repository::{AppState, domain::PlanningTaskRepository};
 use crate::services::{
     analysis::AnalysisService,
     capability::CapabilityService,
@@ -86,8 +86,9 @@ pub fn create_router(state: AppState) -> Router {
         )
         // Planner
         .route("/planner/plan", post(optimizer::trigger_plan))
+        .route("/planner/plan/:task_id/status", get(optimizer::get_plan_status))
         .route("/planner/prepare", post(optimizer::prepare))
-        .route("/planner/tasks", get(optimizer::list_tasks).delete(optimizer::delete_all_tasks))
+        .route("/planner/tasks", get(optimizer::list_tasks))
         .route("/planner/tasks/:task_id", get(optimizer::get_task))
         .route("/planner/optimized-shifts", get(optimizer::list_optimized_shifts))
         .route("/planner/optimized-shifts/:result_id", get(optimizer::get_optimized_shift).delete(optimizer::delete_optimized_shift))
@@ -131,6 +132,14 @@ pub fn create_router(state: AppState) -> Router {
 }
 
 pub async fn start_server(state: AppState, addr: SocketAddr) -> std::io::Result<()> {
+    // Mark tasks stuck in 'scheduled' for more than 3 hours as failed
+    let cutoff = chrono::Utc::now().naive_utc() - chrono::Duration::hours(3);
+    match state.planning_task_repo.mark_stale_tasks_failed(cutoff).await {
+        Ok(n) if n > 0 => println!("Marked {} stale task(s) as failed on startup", n),
+        Ok(_) => {}
+        Err(e) => eprintln!("Failed to cleanup stale tasks on startup: {}", e),
+    }
+    optimizer::start_result_subscriber(state.clone());
     let app = create_router(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;

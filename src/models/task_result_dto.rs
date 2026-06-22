@@ -1,13 +1,17 @@
 use serde::{Deserialize, Serialize};
 
-/// Root model for the scheduling optimizer output.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TaskResultDto {
     pub status: String,
+    #[serde(default)]
     pub objective_value: f64,
     pub planning_period: PlanningPeriodResult,
+    #[serde(default)]
     pub schedule: Vec<DaySchedule>,
+    #[serde(default)]
     pub employee_summary: Vec<EmployeeSummary>,
+    #[serde(default)]
+    pub employee_plans: Vec<serde_json::Value>,
     pub message: Option<String>,
 }
 
@@ -40,8 +44,7 @@ pub struct ShiftAssignment {
     pub workstation_name: String,
 }
 
-/// Per-employee summary across the planning period.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct EmployeeSummary {
     pub employee_id: String,
     pub employee_name: String,
@@ -52,7 +55,6 @@ pub struct EmployeeSummary {
     pub assigned_dates: Vec<String>,
 }
 
-/// Per-shift breakdown within an employee summary.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EmployeeShiftSummary {
     pub shift_id: String,

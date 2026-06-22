@@ -1,3 +1,3 @@
-1) vacation and sick as mass operation for user edit in ui
-2) plan optimization takes now long time, change api spec to provide a task id and be asynchronous response. ui should reflect the taskid, that something is still running. errors should be shown as "failed, contact support"
-3) create priotization of workstations, ui, api, planner (input), api spec
+1) improve ui for mass operations, introduce e.g. right click, make buttons smoother like the delete button
+
+2) Gatewway to local for ui and backend. host dns is already in.

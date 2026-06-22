@@ -1,0 +1,123 @@
+<div class="overflow-x-auto">
+  @if (rows.length === 0) {
+    <div class="flex items-center justify-center py-20 text-sm text-gray-400 dark:text-gray-500">
+      No data to display.
+    </div>
+  } @else {
+    <table class="w-full min-w-[900px] border-collapse">
+      <thead>
+        <tr class="border-b border-gray-100 dark:border-white/[0.05]">
+          <th
+            class="sticky left-0 z-20 border-r border-gray-200 bg-gradient-to-b from-gray-50 to-gray-100 px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:border-gray-700 dark:from-gray-800 dark:to-gray-900 dark:text-gray-200"
+            [style.width.px]="rowColWidth" [style.minWidth.px]="rowColWidth" [style.maxWidth.px]="rowColWidth"
+          >
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <svg class="h-4 w-4 text-gray-500 dark:text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                  <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                </svg>
+                {{ rowLabel }}
+              </div>
+              <div
+                class="h-5 w-1 cursor-col-resize rounded bg-gray-300 opacity-40 hover:opacity-100 dark:bg-gray-600"
+                (mousedown)="onResizeStart($event)"
+                (click)="$event.stopPropagation()"
+              ></div>
+            </div>
+          </th>
+          @for (day of days; track day.date.getTime()) {
+            <th
+              class="border-r border-gray-100 px-2 py-3 text-center text-xs font-semibold uppercase last:border-r-0 dark:border-white/[0.05]"
+              [class.bg-gray-50]="day.isWeekend && !day.isToday"
+              [class.dark:bg-gray-800]="day.isWeekend && !day.isToday"
+              [class.bg-brand-50]="day.isToday"
+              [class.dark:bg-brand-500/10]="day.isToday"
+            >
+              <div [class.text-brand-600]="day.isToday" [class.dark:text-brand-400]="day.isToday">
+                {{ day.label }}
+              </div>
+              <div
+                class="mt-0.5 text-lg font-bold"
+                [class.text-brand-600]="day.isToday"
+                [class.dark:text-brand-400]="day.isToday"
+                [class.text-gray-800]="!day.isToday"
+                [class.dark:text-white/90]="!day.isToday"
+              >
+                {{ day.dayNum }}
+              </div>
+            </th>
+          }
+        </tr>
+      </thead>
+
+      <tbody>
+        @for (row of rows; track row.id; let last = $last) {
+          <tr
+            class="group border-b border-gray-100 transition-colors hover:bg-gray-50/50 dark:border-white/[0.05] dark:hover:bg-white/[0.02]"
+            [class.border-b-0]="last"
+          >
+            <!-- Row label cell (sticky) -->
+            <td
+              class="sticky left-0 z-10 border-r border-gray-200 bg-gradient-to-r from-gray-50 to-white px-4 py-3 dark:border-gray-700 dark:from-gray-800/80 dark:to-gray-800/50"
+              [style.width.px]="rowColWidth" [style.minWidth.px]="rowColWidth" [style.maxWidth.px]="rowColWidth"
+            >
+              <div class="flex items-center gap-2.5">
+                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-100 dark:bg-brand-900/30">
+                  <svg class="h-5 w-5 text-brand-600 dark:text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                  </svg>
+                </div>
+                <div class="min-w-0">
+                  <span class="block truncate text-sm font-semibold text-gray-800 dark:text-white/90" [title]="row.name">
+                    {{ row.name }}
+                  </span>
+                  @if (row.available === false) {
+                    <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                      inactive
+                    </span>
+                  }
+                </div>
+              </div>
+            </td>
+
+            <!-- Day cells -->
+            @for (day of days; track day.date.getTime()) {
+              @let cell = getCell(row.id, day.date);
+              <td
+                class="relative border-r border-gray-100 px-2 py-2 align-top last:border-r-0 dark:border-white/[0.05]"
+                [class.bg-gray-50/50]="day.isWeekend && !day.isToday"
+                [class.dark:bg-gray-800/20]="day.isWeekend && !day.isToday"
+                [class.bg-brand-50/40]="day.isToday"
+                [class.dark:bg-brand-500/5]="day.isToday"
+              >
+                @if (cell.groups.length > 0) {
+                  <button
+                    (click)="onCellClick(row, day)"
+                    class="flex w-full flex-col items-stretch gap-1 rounded-lg px-1 py-1 transition hover:bg-gray-100 dark:hover:bg-white/[0.05]"
+                  >
+                    @for (group of cell.groups; track group.shiftId) {
+                      <div
+                        class="flex items-center justify-between gap-1 rounded px-2 py-1"
+                        [style.backgroundColor]="group.shiftColor + '20'"
+                        [style.borderLeft]="'3px solid ' + group.shiftColor"
+                      >
+                        <span class="text-xs font-bold" [style.color]="group.shiftColor">
+                          {{ group.shiftShortName || group.shiftName }}
+                        </span>
+                        <span class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                          {{ group.employeeNames.length }}
+                        </span>
+                      </div>
+                    }
+                  </button>
+                }
+              </td>
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>

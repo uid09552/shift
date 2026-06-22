@@ -1,0 +1,82 @@
+# Hydra configuration for development
+# https://www.ory.sh/docs/hydra/configuring
+
+dsn: postgres://hydra:hydra@postgres:5432/hydra?sslmode=disable
+
+serve:
+  public:
+    cors:
+      enabled: true
+      allowed_origins:
+        - "*"
+      allowed_methods:
+        - POST
+        - GET
+        - PUT
+        - PATCH
+        - DELETE
+      allowed_headers:
+        - Authorization
+        - Content-Type
+        - Accept
+      exposed_headers:
+        - Content-Type
+  admin:
+    cors:
+      enabled: true
+  cookies:
+    same_site_mode: Lax
+
+urls:
+  self:
+    issuer: http://localhost:4444/
+  login: http://localhost:4455/login
+  consent: http://localhost:4455/consent
+  logout: http://localhost:4455/logout
+  error: http://localhost:4455/error
+  post_logout_redirect: http://localhost:4455/
+
+webfinger:
+  oidc_discovery:
+    supported_claims:
+      - email
+      - email_verified
+      - name
+      - given_name
+      - family_name
+      - preferred_username
+    supported_scope:
+      - openid
+      - offline
+      - profile
+      - email
+
+oidc:
+  subject_identifiers:
+    supported_types:
+      - public
+      - pairwise
+    pairwise:
+      salt: dev-pairwise-salt-change-me
+
+secrets:
+  system:
+    - dev-system-secret-32-chars-minimum
+  cookie:
+    - dev-cookie-secret-32-chars-minimum
+
+ttl:
+  login_consent_request: 1h
+  access_token: 1h
+  refresh_token: 720h
+  id_token: 1h
+  auth_code: 10m
+
+oauth2:
+  expose_internal_errors: true
+  session:
+    encrypt_at_rest: true
+
+log:
+  level: info
+  format: text

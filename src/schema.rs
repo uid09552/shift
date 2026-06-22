@@ -56,6 +56,7 @@ diesel::table! {
         name -> Varchar,
         available -> Bool,
         active_shift_ids -> Array<Uuid>,
+        priority -> Varchar,
     }
 }
 
@@ -88,7 +89,7 @@ diesel::table! {
     confirmed_shift_plans (id) {
         id -> Uuid,
         employee_id -> Uuid,
-        shift_id -> Uuid,
+        shift_id -> Nullable<Uuid>,
         workstation_id -> Nullable<Uuid>,
         date -> Date,
         is_present -> Bool,
@@ -107,6 +108,19 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    planning_tasks (id) {
+        id -> Uuid,
+        status -> Varchar,
+        payload -> Jsonb,
+        result_id -> Nullable<Uuid>,
+        error_message -> Nullable<Text>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::joinable!(planning_tasks -> optimized_shift_results (result_id));
 diesel::joinable!(employee_available_shifts -> employees (employee_id));
 diesel::joinable!(employee_available_shifts -> shifts (shift_id));
 diesel::joinable!(employee_capabilities -> capabilities (capability_id));
@@ -135,4 +149,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     employee_shift_assignments,
     confirmed_shift_plans,
     optimized_shift_results,
+    planning_tasks,
 );

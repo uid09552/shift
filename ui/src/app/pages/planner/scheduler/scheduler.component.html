@@ -1,77 +1,127 @@
 <app-page-breadcrumb pageTitle="Schedule Optimizer" />
 
 <div class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-  <!-- Header with action buttons -->
-  <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
-    <div class="flex items-center gap-3">
-      <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">Optimized Shift Planning</h3>
-      @if (latestResult) {
-        <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">Plan available</span>
-      }
-    </div>
-    <div class="flex items-center gap-2">
-      <button (click)="triggerPlan()" [disabled]="isPlanning" class="flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50">
-        @if (isPlanning) {
-          <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
-            <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
-          </svg>
-          <span>Calculating...</span>
-        } @else {
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="5 3 19 12 5 21 5 3"></polygon>
-          </svg>
-          <span>Calculate Plan</span>
+  <!-- Header -->
+  <div class="border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">Optimized Shift Planning</h3>
+        @if (latestResult) {
+          <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">Plan available</span>
         }
-      </button>
-      @if (latestResult) {
-        <button (click)="showHistory = !showHistory" class="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]" [class.bg-gray-50]="showHistory" [class.dark:bg-white/[0.05]]="showHistory">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <polyline points="12 6 12 12 16 14"></polyline>
-          </svg>
-          <span>History</span>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Planning weeks -->
+        <div class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 dark:border-gray-700">
+          <span class="text-xs text-gray-500 dark:text-gray-400">Plan</span>
+          <select [(ngModel)]="planningWeeks" class="border-0 bg-transparent py-0 text-sm font-medium text-gray-700 focus:ring-0 dark:text-gray-300">
+            @for (w of WEEK_OPTIONS; track w) {
+              <option [value]="w">{{ w }}w</option>
+            }
+          </select>
+        </div>
+
+        <!-- Monthly hours toggle -->
+        <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 dark:border-gray-700" title="Try to match each employee's monthly working hours target">
+          <input type="checkbox" [(ngModel)]="enableMonthlyHoursTarget" class="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500">
+          <span class="text-xs font-medium text-gray-600 dark:text-gray-400">Match monthly hours</span>
+        </label>
+
+        <!-- Employee selector -->
+        <div class="relative">
+          <button (click)="showEmployeeDropdown = !showEmployeeDropdown" class="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            <span>{{ selectedEmployeesLabel }}</span>
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          @if (showEmployeeDropdown) {
+            <div class="absolute right-0 z-10 mt-2 w-64 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+              <div class="border-b border-gray-100 p-2 dark:border-gray-700">
+                <div class="flex gap-2">
+                  <button (click)="selectAllEmployees()" class="flex-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">Select All</button>
+                  <button (click)="clearEmployeeSelection()" class="flex-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">Clear</button>
+                </div>
+              </div>
+              <div class="max-h-60 overflow-y-auto p-2">
+                @for (emp of employees; track emp.id) {
+                  <label class="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <input type="checkbox" [checked]="selectedEmployeeIds.includes(emp.id)" (change)="toggleEmployeeSelection(emp.id)" class="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500">
+                    <span class="text-sm text-gray-700 dark:text-gray-300">{{ emp.name }}</span>
+                  </label>
+                }
+              </div>
+            </div>
+          }
+        </div>
+
+        <button (click)="triggerPlan()" [disabled]="isPlanning" class="flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50">
+          @if (isPlanning) {
+            <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+              <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
+            </svg>
+            <span>Calculating…</span>
+          } @else {
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <span>Calculate Plan</span>
+          }
         </button>
-      }
+
+        @if (latestResult) {
+          <button (click)="showHistory = !showHistory" class="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]" [class.bg-gray-50]="showHistory">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <span>History</span>
+          </button>
+        }
+
+        <button (click)="showTaskList = !showTaskList" class="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]" [class.bg-gray-50]="showTaskList">
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line>
+            <line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>
+          </svg>
+          <span>Jobs</span>
+          @if (planningTasks.length > 0) {
+            <span class="rounded-full bg-gray-200 px-1.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-400">{{ planningTasks.length }}</span>
+          }
+        </button>
+      </div>
     </div>
   </div>
 
-  <!-- Error message -->
+  <!-- Error -->
   @if (error) {
     <div class="flex items-center justify-center border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
       <div class="flex items-center gap-2 rounded-lg bg-red-50 px-4 py-3 dark:bg-red-500/10">
         <svg class="h-5 w-5 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <line x1="12" y1="8" x2="12" y2="12"></line>
-          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
         </svg>
         <span class="text-sm text-red-600 dark:text-red-400">{{ error }}</span>
       </div>
     </div>
   }
 
-  <!-- History panel -->
+  <!-- Job history panel -->
   @if (showHistory && allResults.length > 0) {
     <div class="border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
       <div class="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Previous Plans</div>
       <div class="flex flex-wrap gap-2">
         @for (result of allResults; track result.id) {
           <button (click)="selectResult(result)" class="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition"
-            [class.border-brand-500]="selectedResult?.id === result.id"
-            [class.bg-brand-50]="selectedResult?.id === result.id"
-            [class.text-brand-600]="selectedResult?.id === result.id"
-            [class.dark:border-brand-400]="selectedResult?.id === result.id"
-            [class.dark:bg-brand-500/10]="selectedResult?.id === result.id"
-            [class.dark:text-brand-400]="selectedResult?.id === result.id"
-            [class.border-gray-200]="selectedResult?.id !== result.id"
-            [class.text-gray-600]="selectedResult?.id !== result.id"
-            [class.hover:bg-gray-50]="selectedResult?.id !== result.id"
-            [class.dark:border-gray-700]="selectedResult?.id !== result.id"
-            [class.dark:text-gray-400]="selectedResult?.id !== result.id"
-            [class.dark:hover:bg-white/[0.05]]="selectedResult?.id !== result.id">
+            [class.border-brand-500]="selectedResult?.id === result.id" [class.bg-brand-50]="selectedResult?.id === result.id"
+            [class.text-brand-600]="selectedResult?.id === result.id" [class.border-gray-200]="selectedResult?.id !== result.id"
+            [class.text-gray-600]="selectedResult?.id !== result.id" [class.hover:bg-gray-50]="selectedResult?.id !== result.id">
             <span>{{ result.creation_date | date:'short' }}</span>
-            <span class="text-gray-400 dark:text-gray-500">•</span>
-            <span class="text-gray-500 dark:text-gray-400">Score: {{ result.result.objective_value.toFixed(2) }}</span>
+            <span class="text-gray-400">•</span>
+            <span class="text-gray-500">Score: {{ result.result.objective_value.toFixed(2) }}</span>
           </button>
         }
       </div>
@@ -80,169 +130,103 @@
 
   <!-- Plan info bar -->
   @if (selectedResult) {
-    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-3 dark:border-white/[0.05] sm:px-6">
-      <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-        <span class="flex items-center gap-1">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-            <line x1="16" y1="2" x2="16" y2="6"></line>
-            <line x1="8" y1="2" x2="8" y2="6"></line>
-            <line x1="3" y1="10" x2="21" y2="10"></line>
-          </svg>
-          <span>Period: {{ selectedResult.result.planning_period.start_date | date:'mediumDate' }} - {{ selectedResult.result.planning_period.end_date | date:'mediumDate' }}</span>
-        </span>
-        <span class="flex items-center gap-1">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-            <polyline points="22 4 12 14.01 9 11.01"></polyline>
-          </svg>
-          <span>Score: {{ objectiveValue }}</span>
-        </span>
-        <span class="flex items-center gap-1">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <polyline points="12 6 12 12 16 14"></polyline>
-          </svg>
-          <span>Status: {{ status }}</span>
-        </span>
+    <div class="flex items-center border-b border-gray-100 px-5 py-3 dark:border-white/[0.05] sm:px-6">
+      <div class="flex flex-wrap items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+        <span>Period: {{ selectedResult.result.planning_period.start_date | date:'mediumDate' }} – {{ selectedResult.result.planning_period.end_date | date:'mediumDate' }}</span>
+        <span>Score: {{ objectiveValue }}</span>
+        <span>Status: {{ status }}</span>
       </div>
     </div>
   }
 
   <!-- Week navigation -->
   <div class="flex items-center justify-center border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
-    <div class="flex items-center gap-2">
-      <button (click)="goToday()" class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]">
-        Today
-      </button>
-      <button (click)="prevWeek()" class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]" aria-label="Previous week">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M15 19L8 12L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </button>
-      <span class="min-w-[180px] text-center text-sm font-semibold text-gray-700 dark:text-gray-300">
-        {{ weekLabel }}
-      </span>
-      <button (click)="nextWeek()" class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]" aria-label="Next week">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M9 5L16 12L9 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </button>
+    <app-calendar-nav [label]="weekLabel" periodType="week" (prev)="prevWeek()" (next)="nextWeek()" (today)="goToday()" />
+  </div>
+
+  <!-- Calendar table -->
+  @if (loading) {
+    <div class="flex items-center justify-center py-20 text-gray-400 dark:text-gray-500">
+      <svg class="mr-2 h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+        <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
+      </svg>
+      Loading optimized schedule…
     </div>
-  </div>
-
-  <!-- Calendar grid - Workstation View -->
-  <div class="overflow-x-auto">
-    @if (loading) {
-      <div class="flex items-center justify-center py-20 text-gray-400 dark:text-gray-500">
-        <svg class="mr-2 h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
-          <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
-        </svg>
-        Loading optimized schedule...
-      </div>
-    } @else if (!selectedResult) {
-      <div class="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
-        <svg class="mb-4 h-12 w-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-          <line x1="16" y1="2" x2="16" y2="6"></line>
-          <line x1="8" y1="2" x2="8" y2="6"></line>
-          <line x1="3" y1="10" x2="21" y2="10"></line>
-        </svg>
-        <p class="mb-4 text-sm">No optimized plan available.</p>
-        <button (click)="triggerPlan()" class="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600">
-          Calculate New Plan
-        </button>
-      </div>
-    } @else if (allWorkstations.length === 0) {
-      <div class="flex items-center justify-center py-20 text-sm text-gray-400 dark:text-gray-500">
-        No workstation assignments in the current plan.
-      </div>
-    } @else {
-      <table class="scheduler-table w-full min-w-[900px] border-collapse">
-        <!-- Header row: Workstation column + day columns -->
-        <thead>
-          <tr class="border-b border-gray-100 dark:border-white/[0.05]">
-            <th class="workstation-header sticky left-0 z-20 border-r border-gray-200 bg-gradient-to-b from-gray-50 to-gray-100 px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:border-gray-700 dark:from-gray-800 dark:to-gray-900 dark:text-gray-200" style="width: 220px; min-width: 220px; max-width: 220px;">
-              <div class="flex items-center gap-2">
-                <svg class="h-4 w-4 text-gray-500 dark:text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
-                  <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
-                </svg>
-                Workstation
-              </div>
-            </th>
-            @for (day of days; track day.date.getTime()) {
-              <th class="border-r border-gray-100 px-2 py-3 text-center text-xs font-semibold uppercase last:border-r-0 dark:border-white/[0.05]" [class.bg-brand-50]="day.isToday" [class.dark:bg-brand-500/10]="day.isToday">
-                <div [class.text-brand-600]="day.isToday" [class.dark:text-brand-400]="day.isToday">
-                  {{ day.label }}
-                </div>
-                <div class="mt-0.5 text-lg font-bold" [class.text-brand-600]="day.isToday" [class.dark:text-brand-400]="day.isToday" [class.text-gray-800]="!day.isToday" [class.dark:text-white/90]="!day.isToday">
-                  {{ day.dayNum }}
-                </div>
-              </th>
-            }
-          </tr>
-        </thead>
-
-        <!-- Body: one row per workstation -->
-        <tbody>
-          @for (workstation of allWorkstations; track workstation.id; let last = $last) {
-            <tr class="group border-b border-gray-100 transition-colors hover:bg-gray-50/50 dark:border-white/[0.05] dark:hover:bg-white/[0.02]" [class.border-b-0]="last">
-              <!-- Workstation name (sticky left) -->
-              <td class="workstation-cell sticky left-0 z-10 border-r border-gray-200 bg-gradient-to-r from-gray-50 to-white px-4 py-3 dark:border-gray-700 dark:from-gray-800/80 dark:to-gray-800/50" style="width: 220px; min-width: 220px; max-width: 220px;">
-                <div class="flex items-center gap-2.5">
-                  <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-100 dark:bg-brand-900/30">
-                    <svg class="h-5 w-5 text-brand-600 dark:text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
-                      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
-                    </svg>
-                  </div>
-                  <span class="whitespace-nowrap text-sm font-semibold text-gray-800 dark:text-white/90">
-                    {{ workstation.name }}
-                  </span>
-                </div>
-              </td>
-
-              <!-- Day cells -->
-              @for (day of days; track day.date.getTime()) {
-                @let cellData = getWorkstationCell(workstation.id, day.date);
-                <td class="relative border-r border-gray-100 px-2 py-2 last:border-r-0 dark:border-white/[0.05]" [class.bg-brand-50/40]="day.isToday" [class.dark:bg-brand-500/5]="day.isToday">
-                  @if (cellData.shifts.length > 0) {
-                    <button (click)="openCellDetail(workstation.id, day.date)" class="cell-button flex w-full flex-col items-center gap-1 rounded-lg px-2 py-2 text-center transition hover:bg-gray-100 dark:hover:bg-white/[0.05]">
-                      @for (shiftInfo of cellData.shifts; track shiftInfo.shift.shift_id) {
-                        <div class="shift-badge flex w-full items-center justify-center gap-1 rounded px-2 py-1"
-                          [style.backgroundColor]="getShiftBgColor(shiftInfo.colorIndex)"
-                          [style.borderLeft]="'3px solid ' + getShiftColor(shiftInfo.colorIndex)">
-                          <span class="text-xs font-bold" [style.color]="getShiftColor(shiftInfo.colorIndex)">
-                            {{ shiftInfo.shift.shift_name }}
-                          </span>
-                          <span class="text-xs font-medium text-gray-600 dark:text-gray-400">
-                            {{ shiftInfo.assignments.length }}
-                          </span>
-                        </div>
-                      }
-                    </button>
-                  }
-                </td>
-              }
-            </tr>
-          }
-        </tbody>
-      </table>
-    }
-  </div>
+  } @else if (!selectedResult) {
+    <div class="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
+      <svg class="mb-4 h-12 w-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+        <line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
+      </svg>
+      <p class="mb-4 text-sm">No optimized plan available.</p>
+      <button (click)="triggerPlan()" class="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600">Calculate New Plan</button>
+    </div>
+  } @else {
+    <app-calendar-table
+      [rows]="calendarTableRows"
+      [days]="days"
+      [cellMap]="calendarTableCellMap"
+      rowLabel="Workstation"
+      (cellClick)="onTableCellClick($event)"
+    />
+  }
 </div>
 
 <!-- Shift legend -->
 @if (selectedResult && uniqueShifts.length > 0) {
   <div class="mt-4 rounded-xl border border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-white/[0.03]">
-    <div class="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-2">Shift Legend</div>
+    <div class="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Shift Legend</div>
     <div class="flex flex-wrap gap-3">
       @for (shift of uniqueShifts; track shift.id) {
         <div class="flex items-center gap-1.5">
           <div class="h-3 w-3 rounded" [style.backgroundColor]="getShiftColor(shift.colorIndex)"></div>
           <span class="text-xs text-gray-600 dark:text-gray-400">{{ shift.name }}</span>
+        </div>
+      }
+    </div>
+  </div>
+}
+
+<!-- Task list panel -->
+@if (showTaskList) {
+  <div class="mt-4 rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-3 dark:border-white/[0.05]">
+      <div>
+        <span class="text-sm font-semibold text-gray-800 dark:text-white/90">Optimization Jobs</span>
+        <span class="ml-2 text-xs text-gray-400">auto-refreshes every 30s</span>
+      </div>
+    </div>
+    <div class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+      @if (planningTasks.length === 0) {
+        <div class="px-5 py-6 text-center text-sm text-gray-400">No jobs found.</div>
+      }
+      @for (task of planningTasks; track task.id) {
+        <div class="flex items-center justify-between px-5 py-3">
+          <div class="flex items-center gap-3">
+            <span class="font-mono text-xs text-gray-400 dark:text-gray-500">{{ task.id.substring(0, 8) }}…</span>
+            <span class="rounded-full px-2.5 py-0.5 text-xs font-medium"
+              [class.bg-yellow-100]="task.status === 'scheduled'"
+              [class.text-yellow-800]="task.status === 'scheduled'"
+              [class.bg-green-100]="task.status === 'done'"
+              [class.text-green-800]="task.status === 'done'"
+              [class.bg-red-100]="task.status === 'error'"
+              [class.text-red-800]="task.status === 'error'"
+            >
+              {{ taskStatusLabel(task.status) }}
+            </span>
+            @if (task.error_message) {
+              <span class="text-xs text-red-500" [title]="task.error_message">error</span>
+            }
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-gray-400">{{ task.created_at | date:'short' }}</span>
+            @if (task.result_id) {
+              <button (click)="loadResultById(task.result_id!)" class="rounded-lg border border-brand-200 px-3 py-1 text-xs font-medium text-brand-600 transition hover:bg-brand-50 dark:border-brand-800 dark:text-brand-400 dark:hover:bg-brand-500/10">
+                View
+              </button>
+            }
+          </div>
         </div>
       }
     </div>
@@ -255,31 +239,29 @@
     <div class="mx-4 w-full max-w-lg rounded-xl bg-white p-6 shadow-xl dark:bg-gray-900" (click)="$event.stopPropagation()">
       <div class="mb-4 flex items-center justify-between">
         <div>
-          <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ selectedCellDetail.workstationName }}</h3>
+          <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ selectedCellDetail.rowName }}</h3>
           <p class="text-sm text-gray-500 dark:text-gray-400">{{ formatModalDate(selectedCellDetail.date) }}</p>
         </div>
-        <button (click)="closeCellDetail()" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300">
+        <button (click)="closeCellDetail()" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800">
           <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
+            <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
         </button>
       </div>
-
       <div class="space-y-4">
-        @for (shiftInfo of selectedCellDetail.shifts; track shiftInfo.shift.shift_id) {
+        @for (group of selectedCellDetail.cell.groups; track group.shiftId) {
           <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
             <div class="mb-2 flex items-center gap-2">
-              <div class="h-3 w-3 rounded" [style.backgroundColor]="getShiftColor(shiftInfo.colorIndex)"></div>
-              <span class="font-semibold text-gray-800 dark:text-white/90">{{ shiftInfo.shift.shift_name }}</span>
+              <div class="h-3 w-3 rounded" [style.backgroundColor]="group.shiftColor"></div>
+              <span class="font-semibold text-gray-800 dark:text-white/90">{{ group.shiftName }}</span>
             </div>
             <div class="space-y-1">
-              @for (assignment of shiftInfo.assignments; track assignment.employee_id) {
+              @for (name of group.employeeNames; track name) {
                 <div class="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-800">
                   <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-600 dark:bg-brand-900/30 dark:text-brand-400">
-                    {{ assignment.employee_name.charAt(0).toUpperCase() }}
+                    {{ name.charAt(0).toUpperCase() }}
                   </div>
-                  <span class="text-sm text-gray-700 dark:text-gray-300">{{ assignment.employee_name }}</span>
+                  <span class="text-sm text-gray-700 dark:text-gray-300">{{ name }}</span>
                 </div>
               }
             </div>

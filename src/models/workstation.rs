@@ -11,6 +11,7 @@ pub struct Workstation {
     pub name: String,
     pub available: bool,
     pub active_shift_ids: Vec<Uuid>,
+    pub priority: String,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
@@ -19,4 +20,5 @@ pub struct NewWorkstation<'a> {
     pub name: &'a str,
     pub available: bool,
     pub active_shift_ids: Vec<Uuid>,
+    pub priority: &'a str,
 }

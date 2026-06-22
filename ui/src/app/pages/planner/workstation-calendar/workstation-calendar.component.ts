@@ -1,8 +1,15 @@
 import { Component, HostListener, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { forkJoin, Subscription } from 'rxjs';
-import { Router } from '@angular/router';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
+import { CalendarNavComponent } from '../../../shared/components/ui/calendar-nav/calendar-nav.component';
+import {
+  CalendarTableComponent,
+  CalendarTableRow,
+  CalendarTableCellData,
+  CalendarTableDay,
+  CalendarTableCellClickEvent,
+} from '../../../shared/components/ui/calendar-table/calendar-table.component';
 import {
   EmployeeService,
   Employee,
@@ -26,16 +33,26 @@ interface DayInfo {
   isWeekend: boolean;
 }
 
-interface CellData {
-  shift: Shift | null;
+interface ShiftGroup {
+  shift: Shift;
   employees: Employee[];
+}
+
+interface CellData {
+  shiftGroups: ShiftGroup[];
   plans: ConfirmedShiftPlan[];
+}
+
+interface CellDetail {
+  rowName: string;
+  date: Date;
+  cell: CalendarTableCellData;
 }
 
 @Component({
   selector: 'app-workstation-calendar',
   standalone: true,
-  imports: [CommonModule, PageBreadcrumbComponent],
+  imports: [CommonModule, PageBreadcrumbComponent, CalendarNavComponent, CalendarTableComponent],
   templateUrl: './workstation-calendar.component.html',
   styleUrl: './workstation-calendar.component.css',
 })
@@ -48,30 +65,22 @@ export class WorkstationCalendarComponent implements OnInit, OnDestroy {
   weekStart: Date = this.getMonday(new Date());
   days: DayInfo[] = [];
 
-  // Map: workstationId -> dateString (YYYY-MM-DD) -> CellData
-  planMap = new Map<string, Map<string, CellData>>();
+  // Map: workstationId -> dateString -> CellData
+  private planMap = new Map<string, Map<string, CellData>>();
+
+  // Computed for shared table component
+  calendarTableRows: CalendarTableRow[] = [];
+  calendarTableCellMap: Map<string, Map<string, CalendarTableCellData>> = new Map();
 
   loading = true;
   error: string | null = null;
 
-  // Resizable workstation column
-  workstationColWidth = 200;
-  private resizing = false;
-  private resizeStartX = 0;
-  private resizeStartWidth = 0;
+  // Modal
+  showCellDetail = false;
+  selectedCellDetail: CellDetail | null = null;
 
-  readonly DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  readonly DAY_NAMES_FULL = [
-    'Monday',
-    'Tuesday',
-    'Wednesday',
-    'Thursday',
-    'Friday',
-    'Saturday',
-    'Sunday',
-  ];
+  readonly DAY_NAMES_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-  // Search subscription
   private searchSub!: Subscription;
 
   constructor(
@@ -80,16 +89,12 @@ export class WorkstationCalendarComponent implements OnInit, OnDestroy {
     private workstationService: WorkstationService,
     private confirmedShiftPlanService: ConfirmedShiftPlanService,
     private globalSearchService: GlobalSearchService,
-    private router: Router,
   ) {}
 
   ngOnInit(): void {
     this.computeDays();
     this.loadAll();
-
-    this.searchSub = this.globalSearchService.searchTerm.subscribe((term) => {
-      this.filterWorkstations(term);
-    });
+    this.searchSub = this.globalSearchService.searchTerm.subscribe(term => this.filterWorkstations(term));
   }
 
   ngOnDestroy(): void {
@@ -98,13 +103,10 @@ export class WorkstationCalendarComponent implements OnInit, OnDestroy {
 
   filterWorkstations(term: string): void {
     const q = term.trim().toLowerCase();
-    if (!q) {
-      this.workstations = [...this.allWorkstations];
-    } else {
-      this.workstations = this.allWorkstations.filter((ws) =>
-        ws.name.toLowerCase().includes(q),
-      );
-    }
+    this.workstations = q
+      ? this.allWorkstations.filter(ws => ws.name.toLowerCase().includes(q))
+      : [...this.allWorkstations];
+    this.buildTableData();
   }
 
   // ── Week navigation ──────────────────────────────────────────────
@@ -112,54 +114,51 @@ export class WorkstationCalendarComponent implements OnInit, OnDestroy {
   getMonday(d: Date): Date {
     const date = new Date(d);
     const day = date.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    date.setDate(date.getDate() + diff);
+    date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
     date.setHours(0, 0, 0, 0);
     return date;
   }
 
   computeDays(): void {
-    this.days = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    for (let i = 0; i < 7; i++) {
+    this.days = Array.from({ length: 7 }, (_, i) => {
       const d = new Date(this.weekStart);
       d.setDate(d.getDate() + i);
-      const dayOfWeek = d.getDay();
-      this.days.push({
+      const dow = d.getDay();
+      return {
         date: d,
-        label: this.DAY_NAMES_FULL[dayOfWeek === 0 ? 6 : dayOfWeek - 1].substring(0, 3),
+        label: this.DAY_NAMES_FULL[dow === 0 ? 6 : dow - 1].substring(0, 3),
         dayNum: d.getDate(),
         isToday: d.getTime() === today.getTime(),
-        isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
-      });
-    }
+        isWeekend: dow === 0 || dow === 6,
+      };
+    });
   }
 
   get weekLabel(): string {
-    const endOfWeek = new Date(this.weekStart);
-    endOfWeek.setDate(endOfWeek.getDate() + 6);
-    const startMonth = this.weekStart.toLocaleString('default', { month: 'short' });
-    const endMonth = endOfWeek.toLocaleString('default', { month: 'short' });
-    const startYear = this.weekStart.getFullYear();
-    const endYear = endOfWeek.getFullYear();
-    
-    if (startYear === endYear) {
-      if (startMonth === endMonth) {
-        return `${startMonth} ${this.weekStart.getDate()} – ${endOfWeek.getDate()}, ${startYear}`;
-      }
-      return `${startMonth} ${this.weekStart.getDate()} – ${endMonth} ${endOfWeek.getDate()}, ${startYear}`;
+    const s = this.weekStart;
+    const e = new Date(s);
+    e.setDate(e.getDate() + 6);
+    const sm = s.toLocaleString('default', { month: 'short' });
+    const em = e.toLocaleString('default', { month: 'short' });
+    if (s.getFullYear() !== e.getFullYear()) {
+      return `${sm} ${s.getDate()}, ${s.getFullYear()} – ${em} ${e.getDate()}, ${e.getFullYear()}`;
     }
-    return `${startMonth} ${this.weekStart.getDate()}, ${startYear} – ${endMonth} ${endOfWeek.getDate()}, ${endYear}`;
+    return sm === em
+      ? `${sm} ${s.getDate()} – ${e.getDate()}, ${s.getFullYear()}`
+      : `${sm} ${s.getDate()} – ${em} ${e.getDate()}, ${s.getFullYear()}`;
   }
 
   prevWeek(): void {
+    this.weekStart = new Date(this.weekStart);
     this.weekStart.setDate(this.weekStart.getDate() - 7);
     this.computeDays();
     this.loadPlans();
   }
 
   nextWeek(): void {
+    this.weekStart = new Date(this.weekStart);
     this.weekStart.setDate(this.weekStart.getDate() + 7);
     this.computeDays();
     this.loadPlans();
@@ -176,7 +175,6 @@ export class WorkstationCalendarComponent implements OnInit, OnDestroy {
   loadAll(): void {
     this.loading = true;
     this.error = null;
-
     forkJoin({
       employees: this.employeeService.getEmployeeProfiles(1000, 0),
       shifts: this.shiftService.getShifts(),
@@ -200,112 +198,105 @@ export class WorkstationCalendarComponent implements OnInit, OnDestroy {
 
   loadPlans(): void {
     const fromDate = this.formatDate(this.weekStart);
-    const endDate = new Date(this.weekStart);
-    endDate.setDate(endDate.getDate() + 6);
-    const toDate = this.formatDate(endDate);
+    const endOfWeek = new Date(this.weekStart);
+    endOfWeek.setDate(endOfWeek.getDate() + 6);
+    const toDate = this.formatDate(endOfWeek);
 
     this.confirmedShiftPlanService.getConfirmedShiftPlans(fromDate, toDate).subscribe({
       next: (response) => {
         this.planMap.clear();
-
-        // Group plans by workstation and date
         for (const plan of response.data) {
-          if (!plan.workstation_id) continue;
+          if (!plan.workstation_id || !plan.shift_id) continue;
 
           const wsId = plan.workstation_id;
           const dateStr = plan.date;
 
-          if (!this.planMap.has(wsId)) {
-            this.planMap.set(wsId, new Map());
-          }
+          if (!this.planMap.has(wsId)) this.planMap.set(wsId, new Map());
           const dateMap = this.planMap.get(wsId)!;
-
-          if (!dateMap.has(dateStr)) {
-            dateMap.set(dateStr, {
-              shift: null,
-              employees: [],
-              plans: [],
-            });
-          }
+          if (!dateMap.has(dateStr)) dateMap.set(dateStr, { shiftGroups: [], plans: [] });
 
           const cellData = dateMap.get(dateStr)!;
           cellData.plans.push(plan);
 
-          // Set shift (all plans for same workstation/day should have same shift)
-          if (!cellData.shift && plan.shift_id) {
-            cellData.shift = this.shifts.find((s) => s.id === plan.shift_id) || null;
-          }
+          const shift = this.shifts.find(s => s.id === plan.shift_id);
+          if (!shift) continue;
 
-          // Add employee
-          if (plan.employee_id) {
-            const emp = this.employees.find((e) => e.id === plan.employee_id);
-            if (emp && !cellData.employees.find((e) => e.id === emp.id)) {
-              cellData.employees.push(emp);
-            }
+          let group = cellData.shiftGroups.find(g => g.shift.id === shift.id);
+          if (!group) {
+            group = { shift, employees: [] };
+            cellData.shiftGroups.push(group);
+          }
+          const emp = this.employees.find(e => e.id === plan.employee_id);
+          if (emp && !group.employees.find(e => e.id === emp.id)) {
+            group.employees.push(emp);
           }
         }
 
-        // Update shift for all cells (use first plan's shift)
-        for (const [wsId, dateMap] of this.planMap) {
-          for (const [dateStr, cellData] of dateMap) {
-            if (!cellData.shift && cellData.plans.length > 0) {
-              const firstPlan = cellData.plans[0];
-              cellData.shift = this.shifts.find((s) => s.id === firstPlan.shift_id) || null;
-            }
+        // Sort shift groups by shift.order
+        for (const [, dateMap] of this.planMap) {
+          for (const [, cellData] of dateMap) {
+            cellData.shiftGroups.sort((a, b) => a.shift.order - b.shift.order);
           }
         }
+
+        this.buildTableData();
       },
-      error: (err) => {
-        console.error('Failed to load plans', err);
-      },
+      error: (err) => console.error('Failed to load plans', err),
     });
+  }
+
+  // ── Table data ──────────────────────────────────────────────
+
+  private buildTableData(): void {
+    this.calendarTableRows = this.workstations.map(ws => ({
+      id: ws.id,
+      name: ws.name,
+      available: ws.available,
+    }));
+
+    const cellMap = new Map<string, Map<string, CalendarTableCellData>>();
+    for (const [wsId, dateMap] of this.planMap) {
+      const tableDateMap = new Map<string, CalendarTableCellData>();
+      for (const [dateStr, cellData] of dateMap) {
+        tableDateMap.set(dateStr, {
+          groups: cellData.shiftGroups.map(g => ({
+            shiftId: g.shift.id,
+            shiftName: g.shift.name,
+            shiftShortName: g.shift.short_name,
+            shiftColor: g.shift.color,
+            employeeNames: g.employees.map(e => e.name),
+          })),
+        });
+      }
+      cellMap.set(wsId, tableDateMap);
+    }
+    this.calendarTableCellMap = cellMap;
   }
 
   // ── Helpers ──────────────────────────────────────────────
 
   formatDate(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
-getCellData(wsId: string, date: Date): CellData {
-  const dateStr = this.formatDate(date);
-  const dateMap = this.planMap.get(wsId);
-  if (!dateMap) return { shift: null, employees: [], plans: [] };
-  return dateMap.get(dateStr) || { shift: null, employees: [], plans: [] };
-}
 
-// ── Column resizing ──────────────────────────────────────────────
+  formatModalDate(date: Date): string {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
+  }
 
-onResizeStart(event: MouseEvent): void {
-  event.preventDefault();
-  this.resizing = true;
-  this.resizeStartX = event.clientX;
-  this.resizeStartWidth = this.workstationColWidth;
+  // ── Modal ──────────────────────────────────────────────────
 
-  document.addEventListener('mousemove', this.onResizeMove);
-  document.addEventListener('mouseup', this.onResizeEnd);
-}
+  onTableCellClick(event: CalendarTableCellClickEvent): void {
+    this.selectedCellDetail = { rowName: event.row.name, date: event.day.date, cell: event.cell };
+    this.showCellDetail = true;
+  }
 
-private onResizeMove = (event: MouseEvent): void => {
-  if (!this.resizing) return;
-  const diff = event.clientX - this.resizeStartX;
-  const newWidth = Math.max(100, Math.min(400, this.resizeStartWidth + diff));
-  this.workstationColWidth = newWidth;
-};
-
-private onResizeEnd = (): void => {
-  this.resizing = false;
-  document.removeEventListener('mousemove', this.onResizeMove);
-  document.removeEventListener('mouseup', this.onResizeEnd);
-};
-
-@HostListener('document:mouseup')
-onDocumentMouseUp(): void {
-  if (this.resizing) {
-    this.onResizeEnd();
+  closeCellDetail(): void {
+    this.showCellDetail = false;
+    this.selectedCellDetail = null;
   }
 }
-}
-

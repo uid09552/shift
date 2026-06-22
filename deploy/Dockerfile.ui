@@ -3,16 +3,16 @@ FROM node:24-slim AS build
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY ui/package.json ui/package-lock.json ./
 RUN npm ci
 
-COPY . .
+COPY ui/ .
 RUN npm run build
 
 # Stage 2: Serve with nginx
 FROM nginx:alpine
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist/ng-tailadmin/browser /usr/share/nginx/html
 
 EXPOSE 80

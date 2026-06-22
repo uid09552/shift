@@ -46,7 +46,7 @@ impl AnalysisRepository for DieselAnalysisRepository {
             }
 
             // Collect unique shift IDs and workstation IDs
-            let shift_ids: Vec<Uuid> = plans.iter().map(|p| p.shift_id).collect::<std::collections::HashSet<_>>().into_iter().collect();
+            let shift_ids: Vec<Uuid> = plans.iter().filter_map(|p| p.shift_id).collect::<std::collections::HashSet<_>>().into_iter().collect();
             let workstation_ids: Vec<Uuid> = plans.iter().filter_map(|p| p.workstation_id).collect::<std::collections::HashSet<_>>().into_iter().collect();
 
             // Fetch shift weekday times for the relevant shifts
@@ -85,7 +85,9 @@ impl AnalysisRepository for DieselAnalysisRepository {
                 if let Some(ws_id) = plan.workstation_id {
                     // ISODOW: Monday=1..Sunday=7
                     let weekday_isodow = (plan.date.weekday().num_days_from_monday() + 1) as i16;
-                    let hours = shift_weekday_hours.get(&(plan.shift_id, weekday_isodow)).copied().unwrap_or(0.0);
+                    let hours = plan.shift_id
+                        .and_then(|sid| shift_weekday_hours.get(&(sid, weekday_isodow)).copied())
+                        .unwrap_or(0.0);
                     *result_map.entry((plan.date, ws_id)).or_insert(0.0) += hours;
                 }
             }

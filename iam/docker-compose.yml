@@ -1,0 +1,153 @@
+# Ory Kratos and Hydra stack for identity management and OAuth2/OIDC
+# Kratos: Identity management (registration, login, profile)
+# Hydra: OAuth2/OIDC provider
+# Kratos-selfservice-ui-node: Login/registration UI
+
+services:
+  # -----------------------------
+  # Kratos - Identity Management
+  # -----------------------------
+  kratos-migrate:
+    image: oryd/kratos:v1.3.1
+    environment:
+      - DSN=postgres://kratos:kratos@postgres:5432/kratos?sslmode=disable
+    volumes:
+      - type: bind
+        source: ./kratos/config
+        target: /etc/config/kratos
+    command: -c /etc/config/kratos/kratos.yml migrate sql -e --yes
+    networks:
+      - iam
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  kratos:
+    image: oryd/kratos:v1.3.1
+    restart: unless-stopped
+    environment:
+      - DSN=postgres://kratos:kratos@postgres:5432/kratos?sslmode=disable
+      - LOG_LEVEL=info
+    volumes:
+      - type: bind
+        source: ./kratos/config
+        target: /etc/config/kratos
+    command: serve -c /etc/config/kratos/kratos.yml --dev --watch-courier
+    networks:
+      - iam
+    ports:
+      - "4433:4433"  # Public API
+      - "4434:4434"  # Admin API
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4434/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      kratos-migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+  # -----------------------------
+  # Hydra - OAuth2/OIDC Provider
+  # -----------------------------
+  hydra-migrate:
+    image: oryd/hydra:v2.2.0
+    environment:
+      - DSN=postgres://hydra:hydra@postgres:5432/hydra?sslmode=disable
+    volumes:
+      - type: bind
+        source: ./hydra/config
+        target: /etc/config/hydra
+    command: migrate sql -e --yes --config /etc/config/hydra/hydra.yml
+    networks:
+      - iam
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  hydra:
+    image: oryd/hydra:v2.2.0
+    restart: unless-stopped
+    environment:
+      - DSN=postgres://hydra:hydra@postgres:5432/hydra?sslmode=disable
+    volumes:
+      - type: bind
+        source: ./hydra/config
+        target: /etc/config/hydra
+    command: serve all --config /etc/config/hydra/hydra.yml --dev
+    networks:
+      - iam
+    ports:
+      - "4444:4444"  # Public API
+      - "4445:4445"  # Admin API
+      - "5555:5555"  # Consent/Login API
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4444/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      hydra-migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+  # -----------------------------
+  # Kratos Self-Service UI
+  # -----------------------------
+  kratos-ui:
+    image: oryd/kratos-selfservice-ui-node:v1.3.1
+    restart: unless-stopped
+    environment:
+      - KRATOS_PUBLIC_URL=http://kratos:4433
+      - KRATOS_BROWSER_URL=http://localhost:4433
+      - PORT=4455
+      - COOKIE_SECRET=kratos-ui-cookie-secret-32
+      - CSRF_COOKIE_NAME=__HOST-csrf
+      - CSRF_COOKIE_SECRET=csrf-cookie-secret-32-chars
+    networks:
+      - iam
+    ports:
+      - "4455:4455"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4455/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      kratos:
+        condition: service_healthy
+
+  # -----------------------------
+  # PostgreSQL Database
+  # -----------------------------
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - iam
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  iam:
+    name: dev_backend
+    external: true
+
+volumes:
+  postgres_data:

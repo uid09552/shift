@@ -1,8 +1,6 @@
 target/
 .git/
 .vscode/
-ui/
 api/
-deploy/
 dev/
 *.md

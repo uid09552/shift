@@ -1,11 +1,19 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct ConstraintTask {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub monthly_hours_target_weight: Option<u64>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TaskDTO {
     pub planning_period: PlanningPeriod,
     pub shifts: Vec<ShiftTask>,
     pub workstations: Vec<WorkstationTask>,
     pub employees: Vec<EmployeeTask>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub constraints: Option<ConstraintTask>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

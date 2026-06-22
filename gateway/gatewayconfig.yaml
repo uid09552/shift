@@ -1,0 +1,584 @@
+openapi: 3.0.0
+info:
+  title: gatewayconfig
+  version: 1.0.0
+paths:
+  /apisix/admin/routes/1:
+    put:
+      summary: create route - iam-ui
+      operationId: c_users_maxrg_documents_bruno_apisix_create_route_-_iam-ui_yml
+      description: ''
+      tags:
+        - ''
+      responses:
+        '200':
+          description: ''
+      parameters:
+        - name: X-API-KEY
+          in: header
+          description: ''
+          required: true
+          schema:
+            type: string
+          example: '{{Token}}'
+      requestBody:
+        $ref: '#/components/requestBodies/create_route_-_iam-ui'
+  /apisix/admin/routes/5:
+    put:
+      summary: create route - ui-admin (1)
+      operationId: c_users_maxrg_documents_bruno_apisix_create_route_-_ui-admin_1_yml
+      description: ''
+      tags:
+        - ''
+      responses:
+        '200':
+          description: ''
+      parameters:
+        - name: X-API-KEY
+          in: header
+          description: ''
+          required: true
+          schema:
+            type: string
+          example: '{{Token}}'
+      requestBody:
+        $ref: '#/components/requestBodies/create_route_-_ui-admin_1'
+  /apisix/admin/routes/6:
+    put:
+      summary: create route - ui-admin (2)
+      operationId: c_users_maxrg_documents_bruno_apisix_create_route_-_ui-admin_2_yml
+      description: ''
+      tags:
+        - ''
+      responses:
+        '200':
+          description: ''
+      parameters:
+        - name: X-API-KEY
+          in: header
+          description: ''
+          required: true
+          schema:
+            type: string
+          example: '{{Token}}'
+      requestBody:
+        $ref: '#/components/requestBodies/create_route_-_ui-admin_2'
+  /apisix/admin/routes/7:
+    put:
+      summary: create route - ui-admin (3)
+      operationId: c_users_maxrg_documents_bruno_apisix_create_route_-_ui-admin_3_yml
+      description: ''
+      tags:
+        - ''
+      responses:
+        '200':
+          description: ''
+      parameters:
+        - name: X-API-KEY
+          in: header
+          description: ''
+          required: true
+          schema:
+            type: string
+          example: '{{Token}}'
+      requestBody:
+        $ref: '#/components/requestBodies/create_route_-_ui-admin_3'
+  /apisix/admin/routes/4:
+    put:
+      summary: create route - ui-admin
+      operationId: c_users_maxrg_documents_bruno_apisix_create_route_-_ui-admin_yml
+      description: ''
+      tags:
+        - ''
+      responses:
+        '200':
+          description: ''
+      parameters:
+        - name: X-API-KEY
+          in: header
+          description: ''
+          required: true
+          schema:
+            type: string
+          example: '{{Token}}'
+      requestBody:
+        $ref: '#/components/requestBodies/create_route_-_ui-admin'
+  /apisix/admin/routes/8:
+    put:
+      summary: create route - zitadel-grp
+      operationId: c_users_maxrg_documents_bruno_apisix_create_route_-_zitadel-grp_yml
+      description: ''
+      tags:
+        - ''
+      responses:
+        '200':
+          description: ''
+      parameters:
+        - name: X-API-KEY
+          in: header
+          description: ''
+          required: true
+          schema:
+            type: string
+          example: '{{Token}}'
+      requestBody:
+        $ref: '#/components/requestBodies/create_route_-_zitadel-grp'
+  /apisix/admin/routes/9:
+    put:
+      summary: create route - zitadel-rest
+      operationId: c_users_maxrg_documents_bruno_apisix_create_route_-_zitadel-rest_yml
+      description: ''
+      tags:
+        - ''
+      responses:
+        '200':
+          description: ''
+      parameters:
+        - name: X-API-KEY
+          in: header
+          description: ''
+          required: true
+          schema:
+            type: string
+          example: '{{Token}}'
+      requestBody:
+        $ref: '#/components/requestBodies/create_route_-_zitadel-rest'
+  /apisix/admin/routes/3:
+    put:
+      summary: create route - zitadel-ui
+      operationId: c_users_maxrg_documents_bruno_apisix_create_route_-_zitadel-ui_yml
+      description: ''
+      tags:
+        - ''
+      responses:
+        '200':
+          description: ''
+      parameters:
+        - name: X-API-KEY
+          in: header
+          description: ''
+          required: true
+          schema:
+            type: string
+          example: '{{Token}}'
+      requestBody:
+        $ref: '#/components/requestBodies/create_route_-_zitadel-ui'
+  /apisix/admin/routes/0:
+    put:
+      summary: create route
+      operationId: c_users_maxrg_documents_bruno_apisix_create_route_yml
+      description: ''
+      tags:
+        - ''
+      responses:
+        '200':
+          description: ''
+      parameters:
+        - name: X-API-KEY
+          in: header
+          description: ''
+          required: true
+          schema:
+            type: string
+          example: '{{Token}}'
+      requestBody:
+        $ref: '#/components/requestBodies/create_route'
+  /apisix/admin/services:
+    put:
+      summary: Create UI Service
+      operationId: c_users_maxrg_documents_bruno_apisix_create_ui_service_yml
+      description: ''
+      tags:
+        - ''
+      responses:
+        '200':
+          description: ''
+      parameters:
+        - name: X-API-KEY
+          in: header
+          description: ''
+          required: true
+          schema:
+            type: string
+          example: '{{Token}}'
+    get:
+      summary: services
+      operationId: c_users_maxrg_documents_bruno_apisix_services_yml
+      description: ''
+      tags:
+        - ''
+      responses:
+        '200':
+          description: ''
+      parameters:
+        - name: X-API-KEY
+          in: header
+          description: ''
+          required: true
+          schema:
+            type: string
+          example: '{{Token}}'
+  /apisix/admin/routes/2:
+    delete:
+      summary: delete
+      operationId: c_users_maxrg_documents_bruno_apisix_delete_yml
+      description: ''
+      tags:
+        - ''
+      responses:
+        '200':
+          description: ''
+      parameters:
+        - name: X-API-KEY
+          in: header
+          description: ''
+          required: true
+          schema:
+            type: string
+          example: '{{Token}}'
+  /apisix/admin/routes:
+    get:
+      summary: routes
+      operationId: c_users_maxrg_documents_bruno_apisix_routes_yml
+      description: ''
+      tags:
+        - ''
+      responses:
+        '200':
+          description: ''
+      parameters:
+        - name: X-API-KEY
+          in: header
+          description: ''
+          required: true
+          schema:
+            type: string
+          example: '{{Token}}'
+servers:
+  - url: http://127.0.0.1:9180
+    description: Base Server
+components:
+  schemas:
+    create_route_-_iam-ui:
+      type: object
+      properties:
+        uri:
+          type: string
+        name:
+          type: string
+        priority:
+          type: integer
+        plugins:
+          type: object
+          properties:
+            proxy-rewrite:
+              type: object
+              properties:
+                regex_uri:
+                  type: array
+                  items:
+                    type: string
+        upstream:
+          type: object
+          properties:
+            scheme:
+              type: string
+            type:
+              type: string
+            nodes:
+              type: object
+              properties:
+                zitadel-api:8080:
+                  type: integer
+      example:
+        uri: /iam/*
+        name: zitadel-grpc
+        priority: 10
+        plugins:
+          proxy-rewrite:
+            regex_uri:
+              - ^/iam/(.*)
+              - /$1
+        upstream:
+          scheme: grpc
+          type: roundrobin
+          nodes:
+            zitadel-api:8080: 1
+    create_route_-_ui-admin_1:
+      type: object
+      properties:
+        uri:
+          type: string
+        upstream:
+          type: object
+          properties:
+            type:
+              type: string
+            nodes:
+              type: object
+              properties:
+                zitadel-api:8080:
+                  type: integer
+      example:
+        uri: /ui/console/*
+        upstream:
+          type: roundrobin
+          nodes:
+            zitadel-api:8080: 1
+    create_route_-_ui-admin_2:
+      type: object
+      properties:
+        uri:
+          type: string
+        upstream:
+          type: object
+          properties:
+            type:
+              type: string
+            nodes:
+              type: object
+              properties:
+                zitadel-api:8080:
+                  type: integer
+      example:
+        uri: /.well-known/openid-configuration
+        upstream:
+          type: roundrobin
+          nodes:
+            zitadel-api:8080: 1
+    create_route_-_ui-admin_3:
+      type: object
+      properties:
+        uri:
+          type: string
+        upstream:
+          type: object
+          properties:
+            type:
+              type: string
+            nodes:
+              type: object
+              properties:
+                zitadel-api:8080:
+                  type: integer
+      example:
+        uri: /.well-known/openid-configuration
+        upstream:
+          type: roundrobin
+          nodes:
+            zitadel-api:8080: 1
+    create_route_-_ui-admin:
+      type: object
+      properties:
+        uri:
+          type: string
+        upstream:
+          type: object
+          properties:
+            type:
+              type: string
+            nodes:
+              type: object
+              properties:
+                zitadel-api:8080:
+                  type: integer
+      example:
+        uri: /ui/console/*
+        upstream:
+          type: roundrobin
+          nodes:
+            zitadel-api:8080: 1
+    create_route_-_zitadel-grp:
+      type: object
+      properties:
+        uris:
+          type: array
+          items:
+            type: string
+        name:
+          type: string
+        upstream:
+          type: object
+          properties:
+            type:
+              type: string
+            nodes:
+              type: object
+              properties:
+                zitadel-api:8080:
+                  type: integer
+      example:
+        uris:
+          - ~^/zitadel*
+        name: zitadel-auth-regex
+        upstream:
+          type: roundrobin
+          nodes:
+            zitadel-api:8080: 1
+    create_route_-_zitadel-rest:
+      type: object
+      properties:
+        uris:
+          type: array
+          items:
+            type: string
+        name:
+          type: string
+        upstream:
+          type: object
+          properties:
+            type:
+              type: string
+            nodes:
+              type: object
+              properties:
+                zitadel-api:8080:
+                  type: integer
+      example:
+        uris:
+          - /zitadel/*
+        name: zitadel-auth-regex
+        upstream:
+          type: roundrobin
+          nodes:
+            zitadel-api:8080: 1
+    create_route_-_zitadel-ui:
+      type: object
+      properties:
+        uri:
+          type: string
+        upstream:
+          type: object
+          properties:
+            type:
+              type: string
+            nodes:
+              type: object
+              properties:
+                zitadel-login:3000:
+                  type: integer
+      example:
+        uri: /ui/v2/login/*
+        upstream:
+          type: roundrobin
+          nodes:
+            zitadel-login:3000: 1
+    create_route:
+      type: object
+      properties:
+        uri:
+          type: string
+        plugins:
+          type: object
+          properties:
+            openid-connect:
+              type: object
+              properties:
+                client_id:
+                  type: string
+                client_secret:
+                  type: string
+                discovery:
+                  type: string
+                scope:
+                  type: string
+                bearer_only:
+                  type: boolean
+                redirect_uri:
+                  type: string
+                session:
+                  type: object
+                  properties:
+                    secret:
+                      type: string
+        upstream:
+          type: object
+          properties:
+            type:
+              type: string
+            nodes:
+              type: object
+              properties:
+                httpbin.org:80:
+                  type: integer
+      example:
+        uri: /api
+        plugins:
+          openid-connect:
+            client_id: '371188689679679491'
+            client_secret: dAMeHN0c5nicPcopFosqAYPWOxQheloEBkHERg25ApcU6G5eIO4OuJbUdgNBIbnH
+            discovery: http://localhost:8080/.well-known/openid-configuration
+            scope: openid
+            bearer_only: false
+            redirect_uri: https://httpbin.org/get
+            session:
+              secret: geheimgeheimgeheimgeheim
+        upstream:
+          type: roundrobin
+          nodes:
+            httpbin.org:80: 1
+  requestBodies:
+    create_route_-_iam-ui:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/create_route_-_iam-ui'
+      description: ''
+      required: true
+    create_route_-_ui-admin_1:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/create_route_-_ui-admin_1'
+      description: ''
+      required: true
+    create_route_-_ui-admin_2:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/create_route_-_ui-admin_2'
+      description: ''
+      required: true
+    create_route_-_ui-admin_3:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/create_route_-_ui-admin_3'
+      description: ''
+      required: true
+    create_route_-_ui-admin:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/create_route_-_ui-admin'
+      description: ''
+      required: true
+    create_route_-_zitadel-grp:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/create_route_-_zitadel-grp'
+      description: ''
+      required: true
+    create_route_-_zitadel-rest:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/create_route_-_zitadel-rest'
+      description: ''
+      required: true
+    create_route_-_zitadel-ui:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/create_route_-_zitadel-ui'
+      description: ''
+      required: true
+    create_route:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/create_route'
+      description: ''
+      required: true
+  securitySchemes: {}

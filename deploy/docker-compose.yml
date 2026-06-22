@@ -1,31 +1,4 @@
 services:
-  postgres:
-    image: postgres:15
-    container_name: shift_deploy_postgres
-    environment:
-      POSTGRES_DB: shift
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - backend
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d shift"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  nats:
-    image: nats:2
-    container_name: shift_deploy_nats
-    ports:
-      - "4222:4222"
-      - "8222:8222"
-    networks:
-      - backend
-    restart: unless-stopped
 
   backend:
     build:
@@ -34,17 +7,14 @@ services:
     container_name: shift_deploy_backend
     ports:
       - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks:
       - backend
     restart: unless-stopped
 
   planner-ui:
     build:
-      context: ../ui
-      dockerfile: ../deploy/Dockerfile.ui
+      context: ..
+      dockerfile: deploy/Dockerfile.ui
     container_name: shift_planner_ui
     ports:
       - "8888:80"
@@ -58,7 +28,6 @@ services:
 
 networks:
   backend:
-    driver: bridge
+    name: dev_backend
+    external: true
 
-volumes:
-  postgres_data:

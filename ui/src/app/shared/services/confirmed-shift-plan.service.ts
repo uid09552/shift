@@ -5,7 +5,7 @@ import { Observable } from 'rxjs';
 export interface ConfirmedShiftPlan {
   id: string;
   employee_id: string;
-  shift_id: string;
+  shift_id: string | null;
   workstation_id: string | null;
   date: string;
   is_present: boolean;
@@ -31,7 +31,7 @@ export interface UpdateConfirmedShiftPlanRequest {
 }
 
 export interface CreateConfirmedShiftPlanRequest {
-  shift_id: string;
+  shift_id?: string | null;
   workstation_id?: string | null;
   date: string;
   is_present?: boolean;

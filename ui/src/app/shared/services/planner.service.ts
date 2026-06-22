@@ -29,21 +29,19 @@ export interface DaySchedule {
   shifts: ShiftSchedule[];
 }
 
-export interface EmployeeShiftSummary {
-  shift_id: string;
-  shift_name: string;
-  total_assignments: number;
-  assigned_dates: string[];
+export interface DailyPlanEntry {
+  date: string;
+  status: 'assigned' | 'not_assigned';
+  shift_id?: string;
+  shift_name?: string;
+  workstation_id?: string;
+  workstation_name?: string;
 }
 
-export interface EmployeeSummary {
+export interface EmployeeDailyPlan {
   employee_id: string;
   employee_name: string;
-  total_shifts: number;
-  night_shifts: number;
-  total_working_hours: number;
-  per_shift: EmployeeShiftSummary[];
-  assigned_dates: string[];
+  daily_plan: DailyPlanEntry[];
 }
 
 export interface TaskResultDto {
@@ -51,7 +49,7 @@ export interface TaskResultDto {
   objective_value: number;
   planning_period: PlanningPeriodResult;
   schedule: DaySchedule[];
-  employee_summary: EmployeeSummary[];
+  employee_plans: EmployeeDailyPlan[];
   message?: string;
 }
 
@@ -70,6 +68,37 @@ export interface PaginatedOptimizedShiftResultsResponse {
   offset: number;
 }
 
+export interface PlanTaskResponse {
+  task_id: string;
+}
+
+export interface PlanTaskStatusResponse {
+  task_id: string;
+  status: 'running' | 'completed' | 'failed';
+  result_id?: string;
+}
+
+export interface PlanRequest {
+  start_date?: string;
+  end_date?: string;
+  employee_ids?: string[];
+  monthly_hours_target_weight?: number;
+}
+
+export interface PlanningTaskItem {
+  id: string;
+  status: 'scheduled' | 'done' | 'error';
+  result_id?: string;
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlanningTasksResponse {
+  tasks: PlanningTaskItem[];
+  count: number;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -80,10 +109,23 @@ export class PlannerService {
 
   /**
    * POST /planner/plan
-   * Triggers the scheduling optimizer to calculate a new optimized plan.
+   * Triggers the scheduling optimizer asynchronously. Returns a task ID immediately.
    */
-  triggerPlan(): Observable<OptimizedShiftResultResponse> {
-    return this.http.post<OptimizedShiftResultResponse>(`${this.apiUrl}/plan`, {});
+  triggerPlan(employeeIds?: string[], startDate?: string, endDate?: string, monthlyHoursWeight?: number): Observable<PlanTaskResponse> {
+    const body: PlanRequest = {};
+    if (employeeIds && employeeIds.length > 0) body.employee_ids = employeeIds;
+    if (startDate) body.start_date = startDate;
+    if (endDate) body.end_date = endDate;
+    if (monthlyHoursWeight && monthlyHoursWeight > 0) body.monthly_hours_target_weight = monthlyHoursWeight;
+    return this.http.post<PlanTaskResponse>(`${this.apiUrl}/plan`, body);
+  }
+
+  /**
+   * GET /planner/plan/:taskId/status
+   * Polls the status of an async optimization task.
+   */
+  getPlanStatus(taskId: string): Observable<PlanTaskStatusResponse> {
+    return this.http.get<PlanTaskStatusResponse>(`${this.apiUrl}/plan/${taskId}/status`);
   }
 
   /**
@@ -128,5 +170,13 @@ export class PlannerService {
    */
   deleteOptimizedShift(resultId: string): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/optimized-shifts/${resultId}`);
+  }
+
+  /**
+   * GET /planner/tasks
+   * Lists all planning tasks from the database.
+   */
+  getPlanningTasks(): Observable<PlanningTasksResponse> {
+    return this.http.get<PlanningTasksResponse>(`${this.apiUrl}/tasks`);
   }
 }

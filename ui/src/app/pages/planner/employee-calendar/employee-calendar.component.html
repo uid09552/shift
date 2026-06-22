@@ -8,8 +8,8 @@
   <div
     class="flex flex-col gap-4 border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:flex-row sm:items-center sm:justify-between sm:px-6"
   >
-    <!-- Employee dropdown -->
-    <div class="flex items-center gap-3">
+    <!-- Employee dropdown + mass actions -->
+    <div class="flex flex-wrap items-center gap-3">
       <label
         for="employee-select"
         class="text-sm font-medium text-gray-600 dark:text-gray-400"
@@ -27,68 +27,82 @@
           <option [value]="emp.id">{{ emp.name }}</option>
         }
       </select>
+
+      @if (selectedEmployeeId) {
+        <div class="flex items-center gap-2">
+          <button
+            (click)="openMassAbsence('vacation')"
+            class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
+          >
+            + Vacation
+          </button>
+          <button
+            (click)="openMassAbsence('sick')"
+            class="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 transition hover:bg-orange-100 dark:border-orange-700 dark:bg-orange-500/10 dark:text-orange-400"
+          >
+            + Sick Leave
+          </button>
+        </div>
+      }
     </div>
 
     <!-- Month navigation -->
-    <div class="flex items-center gap-2">
-      <button
-        (click)="goToday()"
-        class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
-      >
-        Today
-      </button>
-
-      <button
-        (click)="prevMonth()"
-        class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
-        aria-label="Previous month"
-      >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            d="M15 19L8 12L15 5"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </button>
-
-      <span
-        class="min-w-[160px] text-center text-sm font-semibold text-gray-700 dark:text-gray-300"
-      >
-        {{ monthLabel }}
-      </span>
-
-      <button
-        (click)="nextMonth()"
-        class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
-        aria-label="Next month"
-      >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            d="M9 5L16 12L9 19"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </button>
-    </div>
+    <app-calendar-nav
+      [label]="monthLabel"
+      periodType="month"
+      (prev)="prevMonth()"
+      (next)="nextMonth()"
+      (today)="goToday()"
+    />
   </div>
+
+  <!-- Mass absence form -->
+  @if (massAbsenceMode) {
+    <div class="border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6"
+      (click)="$event.stopPropagation()">
+      <div class="flex flex-wrap items-end gap-4">
+        <div>
+          <p class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            Set <span class="font-semibold">{{ massAbsenceMode === 'vacation' ? 'Vacation' : 'Sick Leave' }}</span> for date range:
+          </p>
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-gray-500">From</label>
+              <input
+                type="date"
+                [(ngModel)]="massFromDate"
+                class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+              />
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-gray-500">To</label>
+              <input
+                type="date"
+                [(ngModel)]="massToDate"
+                class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+              />
+            </div>
+            <button
+              (click)="applyMassAbsence()"
+              [disabled]="massProcessing"
+              class="rounded-lg bg-brand-500 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-brand-600 disabled:opacity-50"
+            >
+              @if (massProcessing) { Applying… } @else { Apply }
+            </button>
+            <button
+              (click)="cancelMassAbsence()"
+              class="rounded-lg border border-gray-200 px-4 py-1.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400"
+            >
+              Cancel
+            </button>
+          </div>
+          @if (massError) {
+            <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ massError }}</p>
+          }
+        </div>
+      </div>
+    </div>
+  }
 
   <!-- Calendar grid -->
   <div class="p-4 sm:p-6">
@@ -174,7 +188,17 @@
                 [class.cell-editing]="isEditing(formatDate(day.date)) || isDeleting(formatDate(day.date))"
               >
                 <div class="day-number">{{ day.dayNum }}</div>
-                @if (day.isCurrentMonth && day.plan) {
+
+                <!-- Unavailability indicator -->
+                @if (day.isCurrentMonth && day.isUnavailable) {
+                  <div class="mb-0.5 flex items-center justify-center">
+                    <span class="inline-flex items-center rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                      unavailable
+                    </span>
+                  </div>
+                }
+
+                @if (day.isCurrentMonth && day.plan && day.plan.is_present) {
                   <div
                     class="shift-chip group/chip relative flex flex-col items-center gap-0.5 rounded-lg px-2 py-1.5 text-center transition-shadow hover:shadow-sm"
                     [style.backgroundColor]="(day.shiftColor || '#6B7280') + '18'"
@@ -329,10 +353,38 @@
                     </div>
                   }
                 } @else if (day.isCurrentMonth && day.plan && !day.plan.is_present && day.plan.absence_type) {
-                  <div
-                    class="absence-chip"
-                  >
-                    {{ day.plan.absence_type }}
+                  <!-- Absence chip with delete button -->
+                  <div class="group/chip relative">
+                    <div
+                      class="absence-chip"
+                      [class.vacation-chip]="day.plan.absence_type === 'day_off'"
+                      [class.sick-chip]="day.plan.absence_type === 'sick'"
+                    >
+                      {{ day.plan.absence_type === 'day_off' ? 'Vacation' : day.plan.absence_type === 'sick' ? 'Sick' : day.plan.absence_type }}
+                    </div>
+                    <div class="cell-actions absolute -top-1 right-0 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/chip:opacity-100">
+                      <button
+                        (click)="startDelete(formatDate(day.date), day.plan!.id, $event)"
+                        class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 shadow-sm ring-1 ring-gray-200 transition hover:text-red-600 hover:ring-red-300"
+                        title="Delete absence"
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                        </svg>
+                      </button>
+                    </div>
+                    @if (isDeleting(formatDate(day.date))) {
+                      <div
+                        class="delete-confirm absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-red-200 bg-white p-2 shadow-lg dark:border-red-800 dark:bg-gray-800"
+                        (click)="$event.stopPropagation()"
+                      >
+                        <p class="mb-2 text-xs text-gray-600 dark:text-gray-300">Delete this absence entry?</p>
+                        <div class="flex items-center gap-2">
+                          <button (click)="confirmDelete()" class="flex-1 rounded-md bg-red-500 px-2 py-1 text-xs font-medium text-white transition hover:bg-red-600">Delete</button>
+                          <button (click)="cancelDelete()" class="flex-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50">Cancel</button>
+                        </div>
+                      </div>
+                    }
                   </div>
                 } @else if (day.isCurrentMonth && !day.plan && selectedEmployeeId) {
                   <div
@@ -437,7 +489,111 @@
             </span>
           </div>
         }
+        <div class="flex items-center gap-1.5">
+          <div class="h-3 w-3 rounded-sm bg-blue-100 dark:bg-blue-900/50"></div>
+          <span class="text-xs text-gray-600 dark:text-gray-400">Vacation</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <div class="h-3 w-3 rounded-sm bg-orange-100 dark:bg-orange-900/50"></div>
+          <span class="text-xs text-gray-600 dark:text-gray-400">Sick Leave</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <div class="h-3 w-3 rounded-sm bg-gray-100 dark:bg-gray-800"></div>
+          <span class="text-xs text-gray-600 dark:text-gray-400">Unavailable (optimizer)</span>
+        </div>
       </div>
     }
   </div>
 </div>
+
+<!-- Unavailability Table -->
+@if (selectedEmployeeId) {
+  <div class="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+    <div class="flex items-center justify-between px-5 py-4 sm:px-6">
+      <div>
+        <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">Unavailability Dates</h3>
+        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Dates when this employee cannot be scheduled (used by the optimizer)</p>
+      </div>
+    </div>
+
+    <!-- Add unavailability: single date -->
+    <div class="flex flex-wrap items-center gap-3 border-t border-gray-100 px-5 py-3 dark:border-white/[0.05] sm:px-6">
+      <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Single date:</span>
+      <input
+        type="date"
+        [(ngModel)]="newUnavailabilityDate"
+        class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+      />
+      <button
+        (click)="addUnavailability()"
+        [disabled]="!newUnavailabilityDate || addingUnavailability"
+        class="rounded-lg bg-brand-500 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-brand-600 disabled:opacity-50"
+      >
+        Add
+      </button>
+    </div>
+
+    <!-- Add unavailability: date range (Material picker) -->
+    <div class="flex flex-wrap items-center gap-3 border-t border-gray-100 px-5 py-3 dark:border-white/[0.05] sm:px-6">
+      <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Date range:</span>
+      <mat-form-field appearance="outline" class="unavail-range-field">
+        <mat-label>Select range</mat-label>
+        <mat-date-range-input [formGroup]="unavailRangeForm" [rangePicker]="unavailPicker">
+          <input matStartDate formControlName="start" placeholder="Start">
+          <input matEndDate formControlName="end" placeholder="End">
+        </mat-date-range-input>
+        <mat-datepicker-toggle matIconSuffix [for]="unavailPicker"></mat-datepicker-toggle>
+        <mat-date-range-picker #unavailPicker></mat-date-range-picker>
+      </mat-form-field>
+      <button
+        (click)="addUnavailabilityRange()"
+        [disabled]="!unavailRangeForm.value.start || !unavailRangeForm.value.end || addingUnavailabilityRange"
+        class="rounded-lg bg-brand-500 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-brand-600 disabled:opacity-50"
+      >
+        @if (addingUnavailabilityRange) { Adding… } @else { Add Range }
+      </button>
+      @if (unavailRangeError) {
+        <span class="text-xs text-red-500">{{ unavailRangeError }}</span>
+      }
+    </div>
+
+    <!-- Table -->
+    <div class="max-w-full overflow-x-auto">
+      <table class="min-w-full">
+        <thead class="border-b border-gray-100 dark:border-white/[0.05]">
+          <tr>
+            <th class="px-5 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-400">Date</th>
+            <th class="px-5 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-400">Shift</th>
+            <th class="px-5 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-400">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+          @if (loadingUnavailabilities) {
+            <tr>
+              <td colspan="3" class="px-5 py-6 text-center text-sm text-gray-400">Loading…</td>
+            </tr>
+          } @else if (unavailabilities.length === 0) {
+            <tr>
+              <td colspan="3" class="px-5 py-6 text-center text-sm text-gray-400">No unavailability dates set.</td>
+            </tr>
+          } @else {
+            @for (u of unavailabilities; track u.id) {
+              <tr>
+                <td class="px-5 py-3 text-sm font-medium text-gray-800 dark:text-white/90">{{ u.unavailable_date }}</td>
+                <td class="px-5 py-3 text-sm text-gray-500 dark:text-gray-400">{{ u.shift_id ? 'Specific shift' : 'All shifts' }}</td>
+                <td class="px-5 py-3">
+                  <button
+                    (click)="deleteUnavailability(u.id)"
+                    class="rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-500/10"
+                  >
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+}

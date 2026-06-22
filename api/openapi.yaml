@@ -864,8 +864,8 @@ paths:
     post:
       tags:
         - Planner
-      summary: Trigger shift scheduling planning
-      description: Starts a shift scheduling optimization task. The result is stored in the database and returned with its persistent ID and creation date.
+      summary: Trigger shift scheduling planning (async)
+      description: Starts a shift scheduling optimization task asynchronously. Returns a task ID immediately. Poll GET /planner/plan/{task_id}/status to check progress.
       operationId: triggerPlan
       requestBody:
         required: false
@@ -875,11 +875,42 @@ paths:
               $ref: '#/components/schemas/PlanRequest'
       responses:
         '200':
-          description: Optimization result stored and returned
+          description: Optimization task started, task ID returned
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OptimizedShiftResultResponse'
+                $ref: '#/components/schemas/PlanResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /planner/plan/{task_id}/status:
+    get:
+      tags:
+        - Planner
+      summary: Get async plan task status
+      description: Polls the status of an async optimization task. When status is "completed", result_id contains the ID of the stored OptimizedShiftResult.
+      operationId: getPlanStatus
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          description: The task ID returned by POST /planner/plan
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Task status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanTaskStatusResponse'
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -911,7 +942,7 @@ paths:
       tags:
         - Planner
       summary: List all scheduling tasks
-      description: Returns a list of all scheduling tasks currently in the queue.
+      description: Returns a list of all planning tasks stored in the database, ordered by creation date descending.
       operationId: listTasks
       responses:
         '200':
@@ -922,41 +953,29 @@ paths:
                 $ref: '#/components/schemas/ListTasksResponse'
         '500':
           $ref: '#/components/responses/InternalServerError'
-    delete:
-      tags:
-        - Planner
-      summary: Delete all scheduling tasks
-      description: Removes all scheduling tasks from the queue and recreates an empty stream.
-      operationId: deleteAllTasks
-      responses:
-        '204':
-          description: All tasks successfully deleted
-        '500':
-          $ref: '#/components/responses/InternalServerError'
 
   /planner/tasks/{task_id}:
     get:
       tags:
         - Planner
       summary: Get a single scheduling task
-      description: Returns the raw message body of a specific scheduling task by ID.
+      description: Returns a planning task by its UUID.
       operationId: getTask
       parameters:
         - name: task_id
           in: path
           required: true
-          description: The ID of the scheduling task to retrieve
+          description: The UUID of the planning task to retrieve
           schema:
-            type: integer
-            format: uint64
+            type: string
+            format: uuid
       responses:
         '200':
           description: Successfully retrieved task
           content:
             application/json:
               schema:
-                type: object
-                description: Raw task payload (JSON structure)
+                $ref: '#/components/schemas/PlanningTaskResponse'
         '404':
           description: Task not found
           content:
@@ -1491,21 +1510,58 @@ components:
           description: Unique identifier for the planning task
           example: "550e8400-e29b-41d4-a716-446655440000"
 
-    PlacedTask:
+    PlanTaskStatusResponse:
+      type: object
+      required:
+        - task_id
+        - status
+      properties:
+        task_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [running, completed, failed]
+          description: Current status of the optimization task
+        result_id:
+          type: string
+          format: uuid
+          description: ID of the stored OptimizedShiftResult (only present when status is "completed")
+
+    PlanningTaskResponse:
       type: object
       required:
         - id
         - status
+        - created_at
+        - updated_at
       properties:
         id:
           type: string
+          format: uuid
           description: Unique task identifier
-          example: "1"
         status:
           type: string
           description: Current status of the task
-          enum: [queued]
-          example: "queued"
+          enum: [scheduled, done, error]
+          example: "scheduled"
+        result_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID of the stored OptimizedShiftResult (present when status is "done")
+        error_message:
+          type: string
+          nullable: true
+          description: Error details (present when status is "error")
+        created_at:
+          type: string
+          format: date-time
+          description: Task creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Last status update timestamp
 
     ListTasksResponse:
       type: object
@@ -1516,11 +1572,11 @@ components:
         tasks:
           type: array
           items:
-            $ref: '#/components/schemas/PlacedTask'
-          description: List of scheduled tasks
+            $ref: '#/components/schemas/PlanningTaskResponse'
+          description: List of planning tasks ordered by creation date descending
         count:
           type: integer
-          description: Total number of tasks in the queue
+          description: Total number of tasks
           example: 5
 
     EmployeeDetail:
@@ -1756,6 +1812,7 @@ components:
         - name
         - available
         - active_shift_ids
+        - priority
       properties:
         id:
           type: string
@@ -1773,6 +1830,11 @@ components:
             type: string
             format: uuid
           description: List of active shift IDs the workstation is working in
+        priority:
+          type: string
+          enum: [high, medium, low]
+          default: medium
+          description: Scheduling priority for the optimizer
 
     WorkstationDetail:
       allOf:
@@ -1804,6 +1866,11 @@ components:
             format: uuid
           description: List of shift IDs the workstation is active in
           default: []
+        priority:
+          type: string
+          enum: [high, medium, low]
+          default: medium
+          description: Scheduling priority for the optimizer
 
     UpdateWorkstationRequest:
       type: object
@@ -1821,6 +1888,10 @@ components:
             type: string
             format: uuid
           description: List of shift IDs the workstation is active in. Set to empty array to clear.
+        priority:
+          type: string
+          enum: [high, medium, low]
+          description: Scheduling priority for the optimizer
 
     Unavailability:
       type: object

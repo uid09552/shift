@@ -1,6 +1,15 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
+import { CalendarNavComponent } from '../../../shared/components/ui/calendar-nav/calendar-nav.component';
+import {
+  CalendarTableComponent,
+  CalendarTableRow,
+  CalendarTableCellData,
+  CalendarTableDay,
+  CalendarTableCellClickEvent,
+} from '../../../shared/components/ui/calendar-table/calendar-table.component';
 import {
   PlannerService,
   TaskResultDto,
@@ -8,7 +17,14 @@ import {
   DaySchedule,
   ShiftSchedule,
   ShiftAssignment,
+  PlanningTaskItem,
 } from '../../../shared/services/planner.service';
+import { Subscription, interval } from 'rxjs';
+import { switchMap, takeWhile, startWith } from 'rxjs/operators';
+import {
+  EmployeeService,
+  Employee,
+} from '../../../shared/services/employee.service';
 
 interface DayInfo {
   date: Date;
@@ -17,46 +33,30 @@ interface DayInfo {
   isToday: boolean;
 }
 
-interface ScheduleCell {
-  shift: ShiftSchedule | null;
-  assignments: ShiftAssignment[];
-}
-
-interface WorkstationCell {
-  workstationId: string;
-  workstationName: string;
-  shifts: {
-    shift: ShiftSchedule;
-    colorIndex: number;
-    assignments: ShiftAssignment[];
-  }[];
-}
-
 interface CellDetail {
-  workstationName: string;
+  rowName: string;
   date: Date;
-  shifts: {
-    shift: ShiftSchedule;
-    colorIndex: number;
-    assignments: ShiftAssignment[];
-  }[];
+  cell: CalendarTableCellData;
 }
 
 @Component({
   selector: 'app-scheduler',
   standalone: true,
-  imports: [CommonModule, PageBreadcrumbComponent],
+  imports: [CommonModule, FormsModule, PageBreadcrumbComponent, CalendarNavComponent, CalendarTableComponent],
   templateUrl: './scheduler.component.html',
   styleUrl: './scheduler.component.css',
 })
-export class SchedulerComponent implements OnInit {
+export class SchedulerComponent implements OnInit, OnDestroy {
   // Data
   latestResult: OptimizedShiftResultResponse | null = null;
   selectedResult: OptimizedShiftResultResponse | null = null;
   allResults: OptimizedShiftResultResponse[] = [];
-
-  // Schedule data organized for display
   scheduleData: DaySchedule[] = [];
+
+  // Computed table data (rebuilt when scheduleData changes)
+  calendarTableRows: CalendarTableRow[] = [];
+  calendarTableCellMap: Map<string, Map<string, CalendarTableCellData>> = new Map();
+  private shiftColorMap = new Map<string, number>();
 
   // Week navigation
   weekStart: Date = this.getMonday(new Date());
@@ -65,29 +65,50 @@ export class SchedulerComponent implements OnInit {
   // UI state
   loading = false;
   isPlanning = false;
+  planningTaskId: string | null = null;
   showHistory = false;
+  showTaskList = false;
   error: string | null = null;
 
-  // Modal state for cell details
+  private pollSub: Subscription | null = null;
+  private taskListSub: Subscription | null = null;
+
+  // Modal state
   showCellDetail = false;
   selectedCellDetail: CellDetail | null = null;
 
-  readonly DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  readonly DAY_NAMES_FULL = [
-    'Monday',
-    'Tuesday',
-    'Wednesday',
-    'Thursday',
-    'Friday',
-    'Saturday',
-    'Sunday',
-  ];
+  // Employee selection
+  employees: Employee[] = [];
+  selectedEmployeeIds: string[] = [];
+  showEmployeeDropdown = false;
 
-  constructor(private plannerService: PlannerService) {}
+  // Planning range
+  planningWeeks = 4;
+  readonly WEEK_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+  enableMonthlyHoursTarget = false;
+  monthlyHoursTargetWeight = 1000;
+
+  // Task list
+  planningTasks: PlanningTaskItem[] = [];
+
+  readonly DAY_NAMES_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+  constructor(
+    private plannerService: PlannerService,
+    private employeeService: EmployeeService,
+  ) {}
 
   ngOnInit(): void {
     this.computeDays();
     this.loadLatestResult();
+    this.loadEmployees();
+    this.startTaskListPolling();
+  }
+
+  ngOnDestroy(): void {
+    this.pollSub?.unsubscribe();
+    this.taskListSub?.unsubscribe();
   }
 
   // ── Week navigation ──────────────────────────────────────────────
@@ -95,78 +116,48 @@ export class SchedulerComponent implements OnInit {
   getMonday(d: Date): Date {
     const date = new Date(d);
     const day = date.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    date.setDate(date.getDate() + diff);
+    date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
     date.setHours(0, 0, 0, 0);
     return date;
   }
 
   computeDays(): void {
-    this.days = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    for (let i = 0; i < 7; i++) {
+    this.days = Array.from({ length: 7 }, (_, i) => {
       const d = new Date(this.weekStart);
       d.setDate(d.getDate() + i);
-      this.days.push({
+      return {
         date: d,
         label: this.DAY_NAMES_FULL[d.getDay() === 0 ? 6 : d.getDay() - 1].substring(0, 3),
         dayNum: d.getDate(),
         isToday: d.getTime() === today.getTime(),
-      });
-    }
+      };
+    });
   }
 
   prevWeek(): void {
-    const monday = this.getMonday(this.weekStart);
-    this.weekStart = new Date(
-      monday.getFullYear(),
-      monday.getMonth(),
-      monday.getDate() - 7
-    );
+    this.weekStart = new Date(this.weekStart);
+    this.weekStart.setDate(this.weekStart.getDate() - 7);
     this.computeDays();
   }
 
   nextWeek(): void {
-    const monday = this.getMonday(this.weekStart);
-    this.weekStart = new Date(
-      monday.getFullYear(),
-      monday.getMonth(),
-      monday.getDate() + 7
-    );
+    this.weekStart = new Date(this.weekStart);
+    this.weekStart.setDate(this.weekStart.getDate() + 7);
     this.computeDays();
   }
 
   goToday(): void {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    this.weekStart = this.getMonday(today);
+    this.weekStart = this.getMonday(new Date());
     this.computeDays();
-  }
-
-  get weekEnd(): Date {
-    const d = new Date(this.weekStart);
-    d.setDate(d.getDate() + 6);
-    return d;
   }
 
   get weekLabel(): string {
     const s = this.weekStart;
-    const e = this.weekEnd;
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
+    const e = new Date(s);
+    e.setDate(e.getDate() + 6);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     if (s.getMonth() === e.getMonth()) {
       return `${months[s.getMonth()]} ${s.getDate()} - ${e.getDate()}, ${s.getFullYear()}`;
     }
@@ -178,288 +169,243 @@ export class SchedulerComponent implements OnInit {
   loadLatestResult(): void {
     this.loading = true;
     this.error = null;
-
     this.plannerService.getOptimizedShifts(10, 0, true).subscribe({
       next: (response) => {
         this.loading = false;
-        if (response.data && response.data.length > 0) {
+        if (response.data?.length) {
           this.latestResult = response.data[0];
-          this.selectedResult = this.latestResult;
-          this.scheduleData = this.latestResult.result.schedule || [];
+          this.setResult(this.latestResult);
         }
-        // Also load all results for history
         this.loadAllResults();
       },
-      error: (err) => {
+      error: () => {
         this.loading = false;
         this.error = 'Failed to load optimized shift results.';
-        console.error('Error loading optimized shifts:', err);
       },
     });
   }
 
   loadAllResults(): void {
     this.plannerService.getOptimizedShifts(20, 0, false).subscribe({
-      next: (response) => {
-        this.allResults = response.data || [];
-      },
-      error: (err) => {
-        console.error('Error loading all results:', err);
-      },
+      next: (r) => { this.allResults = r.data || []; },
+      error: (e) => console.error('Error loading all results:', e),
     });
+  }
+
+  loadEmployees(): void {
+    this.employeeService.getEmployeeProfiles(100, 0).subscribe({
+      next: (r) => { this.employees = r.data || []; },
+      error: (e) => console.error('Error loading employees:', e),
+    });
+  }
+
+  setResult(result: OptimizedShiftResultResponse): void {
+    this.selectedResult = result;
+    this.scheduleData = result.result.schedule || [];
+    this.buildTableData();
+  }
+
+  selectResult(result: OptimizedShiftResultResponse): void {
+    this.setResult(result);
+    this.showHistory = false;
+  }
+
+  // ── Computed table data ──────────────────────────────────────────
+
+  private buildTableData(): void {
+    // Build shift color map
+    this.shiftColorMap.clear();
+    let colorIndex = 0;
+    const workstationMap = new Map<string, string>();
+
+    for (const day of this.scheduleData) {
+      for (const shift of day.shifts) {
+        if (!this.shiftColorMap.has(shift.shift_id)) {
+          this.shiftColorMap.set(shift.shift_id, colorIndex++);
+        }
+        for (const a of shift.assigned_dates) {
+          if (!workstationMap.has(a.workstation_id)) {
+            workstationMap.set(a.workstation_id, a.workstation_name);
+          }
+        }
+      }
+    }
+
+    this.calendarTableRows = Array.from(workstationMap.entries()).map(([id, name]) => ({ id, name }));
+
+    const cellMap = new Map<string, Map<string, CalendarTableCellData>>();
+    for (const [wsId] of workstationMap) {
+      const dateMap = new Map<string, CalendarTableCellData>();
+      for (const day of this.scheduleData) {
+        const groups: CalendarTableCellData['groups'] = [];
+        for (const shift of day.shifts) {
+          const assignments = shift.assigned_dates.filter(a => a.workstation_id === wsId);
+          if (assignments.length > 0) {
+            groups.push({
+              shiftId: shift.shift_id,
+              shiftName: shift.shift_name,
+              shiftColor: this.getShiftColor(this.shiftColorMap.get(shift.shift_id) ?? 0),
+              employeeNames: assignments.map(a => a.employee_name),
+            });
+          }
+        }
+        if (groups.length > 0) {
+          dateMap.set(day.date, { groups });
+        }
+      }
+      cellMap.set(wsId, dateMap);
+    }
+    this.calendarTableCellMap = cellMap;
+  }
+
+  getShiftColor(index: number): string {
+    const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+    return colors[index % colors.length];
+  }
+
+  get uniqueShifts(): { id: string; name: string; colorIndex: number }[] {
+    return Array.from(this.shiftColorMap.entries()).map(([id, idx]) => {
+      const shift = this.scheduleData.flatMap(d => d.shifts).find(s => s.shift_id === id);
+      return { id, name: shift?.shift_name ?? id, colorIndex: idx };
+    });
+  }
+
+  // ── Employee selection ────────────────────────────────────────────
+
+  toggleEmployeeSelection(id: string): void {
+    const i = this.selectedEmployeeIds.indexOf(id);
+    if (i > -1) this.selectedEmployeeIds.splice(i, 1);
+    else this.selectedEmployeeIds.push(id);
+  }
+
+  selectAllEmployees(): void { this.selectedEmployeeIds = this.employees.map(e => e.id); }
+  clearEmployeeSelection(): void { this.selectedEmployeeIds = []; }
+
+  get selectedEmployeesLabel(): string {
+    if (!this.selectedEmployeeIds.length) return 'All Employees';
+    if (this.selectedEmployeeIds.length === 1) {
+      return this.employees.find(e => e.id === this.selectedEmployeeIds[0])?.name ?? '1 employee';
+    }
+    return `${this.selectedEmployeeIds.length} employees`;
+  }
+
+  // ── Planning ──────────────────────────────────────────────────────
+
+  getPlanningDates(): { startDate: string; endDate: string } {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const end = new Date(today);
+    end.setDate(end.getDate() + this.planningWeeks * 7 - 1);
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return { startDate: fmt(today), endDate: fmt(end) };
   }
 
   triggerPlan(): void {
     this.isPlanning = true;
+    this.planningTaskId = null;
     this.error = null;
+    this.showEmployeeDropdown = false;
+    this.pollSub?.unsubscribe();
 
-    this.plannerService.triggerPlan().subscribe({
-      next: (result) => {
+    const { startDate, endDate } = this.getPlanningDates();
+    const employeeIds = this.selectedEmployeeIds.length ? this.selectedEmployeeIds : undefined;
+    const monthlyWeight = this.enableMonthlyHoursTarget ? this.monthlyHoursTargetWeight : undefined;
+
+    this.plannerService.triggerPlan(employeeIds, startDate, endDate, monthlyWeight).subscribe({
+      next: (response) => {
+        this.planningTaskId = response.task_id;
+        this.showTaskList = true;
+        this.startPolling(response.task_id);
+      },
+      error: () => {
         this.isPlanning = false;
+        this.error = 'Failed to start optimization. Please contact support.';
+      },
+    });
+  }
+
+  private startPolling(taskId: string): void {
+    this.pollSub = interval(4000).pipe(
+      switchMap(() => this.plannerService.getPlanStatus(taskId)),
+      takeWhile(s => s.status === 'running', true),
+    ).subscribe({
+      next: (status) => {
+        if (status.status === 'completed' && status.result_id) {
+          this.isPlanning = false;
+          this.planningTaskId = null;
+          this.plannerService.getOptimizedShift(status.result_id).subscribe({
+            next: (result) => {
+              this.latestResult = result;
+              this.setResult(result);
+              this.loadAllResults();
+            },
+            error: () => { this.error = 'Failed to load optimization result.'; },
+          });
+        } else if (status.status === 'failed') {
+          this.isPlanning = false;
+          this.planningTaskId = null;
+          this.error = 'Optimization failed. Please contact support.';
+        }
+      },
+      error: () => {
+        this.isPlanning = false;
+        this.error = 'Failed to check optimization status.';
+      },
+    });
+  }
+
+  // ── Task list (30s polling) ───────────────────────────────────────
+
+  startTaskListPolling(): void {
+    this.taskListSub?.unsubscribe();
+    this.taskListSub = interval(30000).pipe(
+      startWith(0),
+      switchMap(() => this.plannerService.getPlanningTasks()),
+    ).subscribe({
+      next: (r) => { this.planningTasks = r.tasks; },
+      error: (e) => console.error('Failed to load task list:', e),
+    });
+  }
+
+  loadResultById(resultId: string): void {
+    this.plannerService.getOptimizedShift(resultId).subscribe({
+      next: (result) => {
         this.latestResult = result;
-        this.selectedResult = result;
-        this.scheduleData = result.result.schedule || [];
-        // Refresh the list
+        this.setResult(result);
         this.loadAllResults();
       },
-      error: (err) => {
-        this.isPlanning = false;
-        this.error = err.error?.message || 'Failed to calculate optimized plan.';
-        console.error('Error triggering plan:', err);
-      },
+      error: () => { this.error = 'Failed to load result.'; },
     });
   }
 
-  selectResult(result: OptimizedShiftResultResponse): void {
-    this.selectedResult = result;
-    this.scheduleData = result.result.schedule || [];
-    this.showHistory = false;
+  taskStatusLabel(status: string): string {
+    return status === 'done' ? 'completed' : status;
   }
 
-  // ── Calendar helpers ─────────────────────────────────────────────
+  // ── Modal ─────────────────────────────────────────────────────────
 
-  formatDate(d: Date): string {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+  onTableCellClick(event: CalendarTableCellClickEvent): void {
+    this.selectedCellDetail = { rowName: event.row.name, date: event.day.date, cell: event.cell };
+    this.showCellDetail = true;
   }
 
-  getDaySchedule(date: Date): DaySchedule | null {
-    const dateStr = this.formatDate(date);
-    return this.scheduleData.find((d) => d.date === dateStr) || null;
-  }
-
-  getShiftsForDay(date: Date): ShiftSchedule[] {
-    const daySchedule = this.getDaySchedule(date);
-    return daySchedule?.shifts || [];
-  }
-
-  getShiftColor(index: number): string {
-    const colors = [
-      '#3B82F6', // blue
-      '#10B981', // green
-      '#F59E0B', // amber
-      '#EF4444', // red
-      '#8B5CF6', // violet
-      '#EC4899', // pink
-      '#06B6D4', // cyan
-      '#84CC16', // lime
-    ];
-    return colors[index % colors.length];
-  }
-
-  getShiftBgColor(index: number): string {
-    const color = this.getShiftColor(index);
-    return color + '20'; // 20 = ~12% opacity in hex
-  }
-
-  // Get all unique employees from the schedule
-  get allEmployees(): { id: string; name: string }[] {
-    const employeeMap = new Map<string, string>();
-    this.scheduleData.forEach((day) => {
-      day.shifts.forEach((shift) => {
-        shift.assigned_dates.forEach((assignment) => {
-          if (!employeeMap.has(assignment.employee_id)) {
-            employeeMap.set(assignment.employee_id, assignment.employee_name);
-          }
-        });
-      });
-    });
-    return Array.from(employeeMap.entries()).map(([id, name]) => ({ id, name }));
-  }
-
-  // Get unique shifts from the schedule for legend (no duplicates)
-  get uniqueShifts(): { id: string; name: string; colorIndex: number }[] {
-    const shiftMap = new Map<string, { name: string; index: number }>();
-    let colorIndex = 0;
-    this.scheduleData.forEach((day) => {
-      day.shifts.forEach((shift) => {
-        if (!shiftMap.has(shift.shift_id)) {
-          shiftMap.set(shift.shift_id, { name: shift.shift_name, index: colorIndex });
-          colorIndex++;
-        }
-      });
-    });
-    return Array.from(shiftMap.entries()).map(([id, data]) => ({
-      id,
-      name: data.name,
-      colorIndex: data.index,
-    }));
-  }
-
-  // Map shift_id to color index for consistent coloring
-  private shiftColorMap: Map<string, number> = new Map();
-
-  // Build or update the shift color map
-  private buildShiftColorMap(): void {
-    this.shiftColorMap.clear();
-    let colorIndex = 0;
-    this.scheduleData.forEach((day) => {
-      day.shifts.forEach((shift) => {
-        if (!this.shiftColorMap.has(shift.shift_id)) {
-          this.shiftColorMap.set(shift.shift_id, colorIndex);
-          colorIndex++;
-        }
-      });
-    });
-  }
-
-  // Get color index for a specific shift by ID
-  getShiftColorIndex(shiftId: string): number {
-    if (this.shiftColorMap.size === 0) {
-      this.buildShiftColorMap();
-    }
-    return this.shiftColorMap.get(shiftId) ?? 0;
-  }
-
-  // Get assignments for an employee on a specific day
-  getEmployeeAssignments(employeeId: string, date: Date): ShiftAssignment[] {
-    const shifts = this.getShiftsForDay(date);
-    const assignments: ShiftAssignment[] = [];
-    shifts.forEach((shift) => {
-      shift.assigned_dates
-        .filter((a) => a.employee_id === employeeId)
-        .forEach((a) => assignments.push(a));
-    });
-    return assignments;
-  }
-
-  // Get shift info for an assignment
-  getShiftForAssignment(date: Date, employeeId: string): { shift: ShiftSchedule; colorIndex: number } | null {
-    const shifts = this.getShiftsForDay(date);
-    for (const shift of shifts) {
-      if (shift.assigned_dates.some((a) => a.employee_id === employeeId)) {
-        return { shift, colorIndex: this.getShiftColorIndex(shift.shift_id) };
-      }
-    }
-    return null;
-  }
-
-  // ── Workstation view helpers ───────────────────────────────────────
-
-  // Get all unique workstations from the schedule
-  get allWorkstations(): { id: string; name: string }[] {
-    const workstationMap = new Map<string, string>();
-    this.scheduleData.forEach((day) => {
-      day.shifts.forEach((shift) => {
-        shift.assigned_dates.forEach((assignment) => {
-          if (!workstationMap.has(assignment.workstation_id)) {
-            workstationMap.set(assignment.workstation_id, assignment.workstation_name);
-          }
-        });
-      });
-    });
-    return Array.from(workstationMap.entries()).map(([id, name]) => ({ id, name }));
-  }
-
-  // Get workstation cell data for a specific day
-  getWorkstationCell(workstationId: string, date: Date): WorkstationCell {
-    const shifts = this.getShiftsForDay(date);
-    const cell: WorkstationCell = {
-      workstationId,
-      workstationName: '',
-      shifts: []
-    };
-
-    shifts.forEach((shift) => {
-      const assignments = shift.assigned_dates.filter((a) => a.workstation_id === workstationId);
-      if (assignments.length > 0) {
-        if (!cell.workstationName) {
-          cell.workstationName = assignments[0].workstation_name;
-        }
-        cell.shifts.push({
-          shift,
-          colorIndex: this.getShiftColorIndex(shift.shift_id),
-          assignments
-        });
-      }
-    });
-
-    return cell;
-  }
-
-  // Get total employee count for a workstation cell
-  getWorkstationCellCount(workstationId: string, date: Date): number {
-    const cell = this.getWorkstationCell(workstationId, date);
-    let count = 0;
-    cell.shifts.forEach((s) => {
-      count += s.assignments.length;
-    });
-    return count;
-  }
-
-  // Check if workstation has any assignments on a day
-  hasWorkstationAssignments(workstationId: string, date: Date): boolean {
-    const shifts = this.getShiftsForDay(date);
-    return shifts.some((shift) =>
-      shift.assigned_dates.some((a) => a.workstation_id === workstationId)
-    );
-  }
-
-  // Open cell detail modal
-  openCellDetail(workstationId: string, date: Date): void {
-    const cell = this.getWorkstationCell(workstationId, date);
-    if (cell.shifts.length > 0) {
-      this.selectedCellDetail = {
-        workstationName: cell.workstationName,
-        date,
-        shifts: cell.shifts
-      };
-      this.showCellDetail = true;
-    }
-  }
-
-  // Close cell detail modal
   closeCellDetail(): void {
     this.showCellDetail = false;
     this.selectedCellDetail = null;
   }
 
-  // Format date for display in modal
   formatModalDate(date: Date): string {
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
   }
 
-  // Get planning period info
-  get planningPeriodStart(): Date | null {
-    if (!this.selectedResult?.result.planning_period) return null;
-    return new Date(this.selectedResult.result.planning_period.start_date);
-  }
-
-  get planningPeriodEnd(): Date | null {
-    if (!this.selectedResult?.result.planning_period) return null;
-    return new Date(this.selectedResult.result.planning_period.end_date);
-  }
-
   get objectiveValue(): string {
-    if (!this.selectedResult?.result.objective_value) return 'N/A';
-    return this.selectedResult.result.objective_value.toFixed(2);
+    return this.selectedResult?.result.objective_value?.toFixed(2) ?? 'N/A';
   }
 
   get status(): string {
-    return this.selectedResult?.result.status || 'N/A';
+    return this.selectedResult?.result.status ?? 'N/A';
   }
 }

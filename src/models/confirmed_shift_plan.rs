@@ -11,7 +11,7 @@ use crate::schema::confirmed_shift_plans;
 pub struct ConfirmedShiftPlan {
     pub id: Uuid,
     pub employee_id: Uuid,
-    pub shift_id: Uuid,
+    pub shift_id: Option<Uuid>,
     pub workstation_id: Option<Uuid>,
     pub date: NaiveDate,
     pub is_present: bool,
@@ -25,7 +25,7 @@ pub struct ConfirmedShiftPlan {
 #[diesel(table_name = confirmed_shift_plans)]
 pub struct NewConfirmedShiftPlan {
     pub employee_id: Uuid,
-    pub shift_id: Uuid,
+    pub shift_id: Option<Uuid>,
     pub workstation_id: Option<Uuid>,
     pub date: NaiveDate,
     pub is_present: bool,
@@ -36,7 +36,7 @@ pub struct NewConfirmedShiftPlan {
 #[derive(AsChangeset, Serialize, Deserialize, Debug)]
 #[diesel(table_name = confirmed_shift_plans)]
 pub struct UpdateConfirmedShiftPlan {
-    pub shift_id: Option<Uuid>,
+    pub shift_id: Option<Option<Uuid>>,
     pub workstation_id: Option<Option<Uuid>>,
     pub is_present: Option<bool>,
     pub absence_type: Option<String>,

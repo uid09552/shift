@@ -1,9 +1,14 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormGroup, FormControl } from '@angular/forms';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatNativeDateModule } from '@angular/material/core';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { ActivatedRoute } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
+import { CalendarNavComponent } from '../../../shared/components/ui/calendar-nav/calendar-nav.component';
 import {
   EmployeeService,
   Employee,
@@ -17,6 +22,10 @@ import {
   ConfirmedShiftPlanService,
   ConfirmedShiftPlan,
 } from '../../../shared/services/confirmed-shift-plan.service';
+import {
+  UnavailabilityService,
+  Unavailability,
+} from '../../../shared/services/unavailability.service';
 
 interface CalendarDay {
   date: Date;
@@ -28,6 +37,7 @@ interface CalendarDay {
   shiftName: string | null;
   shiftColor: string | null;
   workstationName: string | null;
+  isUnavailable: boolean;
 }
 
 interface CalendarWeek {
@@ -37,7 +47,17 @@ interface CalendarWeek {
 @Component({
   selector: 'app-employee-calendar',
   standalone: true,
-  imports: [CommonModule, FormsModule, PageBreadcrumbComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    MatDatepickerModule,
+    MatNativeDateModule,
+    MatFormFieldModule,
+    MatInputModule,
+    PageBreadcrumbComponent,
+    CalendarNavComponent,
+  ],
   templateUrl: './employee-calendar.component.html',
   styleUrl: './employee-calendar.component.css',
 })
@@ -74,6 +94,27 @@ export class EmployeeCalendarComponent implements OnInit {
   // Pending workstation selection for empty cells (used when creating new plans)
   pendingWorkstationId: string | null = null;
 
+  // ── Mass absence operations ──────────────────────────────────────
+  massAbsenceMode: 'vacation' | 'sick' | null = null;
+  massFromDate: string = '';
+  massToDate: string = '';
+  massProcessing = false;
+  massError: string | null = null;
+
+  // ── Unavailability table ─────────────────────────────────────────
+  unavailabilities: Unavailability[] = [];
+  loadingUnavailabilities = false;
+  newUnavailabilityDate: string = '';
+  addingUnavailability = false;
+
+  // Material date range picker for unavailability range
+  unavailRangeForm = new FormGroup({
+    start: new FormControl<Date | null>(null),
+    end: new FormControl<Date | null>(null),
+  });
+  addingUnavailabilityRange = false;
+  unavailRangeError: string | null = null;
+
   readonly MONTH_NAMES = [
     'January',
     'February',
@@ -96,6 +137,7 @@ export class EmployeeCalendarComponent implements OnInit {
     private shiftService: ShiftService,
     private workstationService: WorkstationService,
     private confirmedShiftPlanService: ConfirmedShiftPlanService,
+    private unavailabilityService: UnavailabilityService,
     private route: ActivatedRoute,
   ) {
     const now = new Date();
@@ -106,15 +148,13 @@ export class EmployeeCalendarComponent implements OnInit {
   ngOnInit(): void {
     this.loadInitialData();
 
-    // Read employeeId from query params (e.g. navigated from Weekly Schedule)
     this.route.queryParams.subscribe((params) => {
       const employeeId = params['employeeId'];
       if (employeeId && !this.selectedEmployeeId) {
         this.selectedEmployeeId = employeeId;
-        // loadPlansForMonth will be called after initial data loads,
-        // but if data is already loaded, trigger it now
         if (!this.loading) {
           this.loadPlansForMonth();
+          this.loadUnavailabilities();
         }
       }
     });
@@ -134,7 +174,6 @@ export class EmployeeCalendarComponent implements OnInit {
         this.shifts = shifts;
         this.workstations = workstations;
 
-        // Build lookup maps
         this.shiftMap.clear();
         this.shifts.forEach((s) => this.shiftMap.set(s.id, s));
 
@@ -143,9 +182,9 @@ export class EmployeeCalendarComponent implements OnInit {
 
         this.loading = false;
         this.buildCalendar();
-        // If employeeId was set from query params before data loaded, load plans now
         if (this.selectedEmployeeId) {
           this.loadPlansForMonth();
+          this.loadUnavailabilities();
         }
       },
       error: (err) => {
@@ -158,6 +197,7 @@ export class EmployeeCalendarComponent implements OnInit {
 
   onEmployeeChange(): void {
     this.loadPlansForMonth();
+    this.loadUnavailabilities();
   }
 
   prevMonth(): void {
@@ -195,7 +235,6 @@ export class EmployeeCalendarComponent implements OnInit {
     }
 
     this.buildCalendar();
-
     this.loadingPlans = true;
 
     const fromDate = this.formatDate(
@@ -220,14 +259,30 @@ export class EmployeeCalendarComponent implements OnInit {
       });
   }
 
+  loadUnavailabilities(): void {
+    if (!this.selectedEmployeeId) {
+      this.unavailabilities = [];
+      return;
+    }
+    this.loadingUnavailabilities = true;
+    this.unavailabilityService.getUnavailabilities(this.selectedEmployeeId).subscribe({
+      next: (list) => {
+        this.unavailabilities = list.sort((a, b) => a.unavailable_date.localeCompare(b.unavailable_date));
+        this.loadingUnavailabilities = false;
+        this.applyPlansToCalendar();
+      },
+      error: () => {
+        this.loadingUnavailabilities = false;
+      },
+    });
+  }
+
   private buildCalendar(): void {
     this.monthLabel = `${this.MONTH_NAMES[this.currentMonth]} ${this.currentYear}`;
 
     const firstDayOfMonth = new Date(this.currentYear, this.currentMonth, 1);
-    const lastDayOfMonth = new Date(this.currentYear, this.currentMonth + 1, 0);
 
-    // Get the Monday of the week that contains the 1st of the month
-    const startDay = firstDayOfMonth.getDay(); // 0=Sun, 1=Mon, ...
+    const startDay = firstDayOfMonth.getDay();
     const mondayOffset = startDay === 0 ? -6 : 1 - startDay;
     const calendarStart = new Date(firstDayOfMonth);
     calendarStart.setDate(calendarStart.getDate() + mondayOffset);
@@ -238,7 +293,6 @@ export class EmployeeCalendarComponent implements OnInit {
     this.weeks = [];
     let current = new Date(calendarStart);
 
-    // Generate 6 weeks to fill the grid consistently
     for (let w = 0; w < 6; w++) {
       const week: CalendarWeek = { days: [] };
 
@@ -249,8 +303,8 @@ export class EmployeeCalendarComponent implements OnInit {
           current.getFullYear() === this.currentYear;
         const dayOfWeek = current.getDay();
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-
         const plan = this.planMap.get(dateStr) || null;
+        const isUnavailable = this.unavailabilities.some((u) => u.unavailable_date === dateStr);
 
         week.days.push({
           date: new Date(current),
@@ -262,6 +316,7 @@ export class EmployeeCalendarComponent implements OnInit {
           shiftName: null,
           shiftColor: null,
           workstationName: null,
+          isUnavailable,
         });
 
         current.setDate(current.getDate() + 1);
@@ -270,16 +325,18 @@ export class EmployeeCalendarComponent implements OnInit {
       this.weeks.push(week);
     }
 
-    // Apply any already-loaded plans
     this.applyPlansToCalendar();
   }
 
   private applyPlansToCalendar(): void {
+    const unavailDates = new Set(this.unavailabilities.map((u) => u.unavailable_date));
+
     for (const week of this.weeks) {
       for (const day of week.days) {
         const dateStr = this.formatDate(day.date);
         const plan = this.planMap.get(dateStr) || null;
         day.plan = plan;
+        day.isUnavailable = unavailDates.has(dateStr);
 
         if (plan) {
           const shift = plan.shift_id
@@ -356,7 +413,6 @@ export class EmployeeCalendarComponent implements OnInit {
   onShiftSelect(dateStr: string, newShiftId: string): void {
     const plan = this.planMap.get(dateStr);
 
-    // If no existing plan, create a new one
     if (!plan) {
       this.processingCell = { dateStr };
       this.editingCell = null;
@@ -385,7 +441,6 @@ export class EmployeeCalendarComponent implements OnInit {
       return;
     }
 
-    // Don't update if same shift selected
     if (plan.shift_id === newShiftId) {
       this.editingCell = null;
       return;
@@ -412,13 +467,11 @@ export class EmployeeCalendarComponent implements OnInit {
   onWorkstationSelect(dateStr: string, workstationId: string | null): void {
     const plan = this.planMap.get(dateStr);
 
-    // If no existing plan, store as pending and keep dropdown open for shift selection
     if (!plan) {
       this.pendingWorkstationId = workstationId;
       return;
     }
 
-    // Don't update if same workstation selected
     if (plan.workstation_id === workstationId) {
       this.editingCell = null;
       this.pendingWorkstationId = null;
@@ -463,6 +516,155 @@ export class EmployeeCalendarComponent implements OnInit {
           this.processingCell = null;
         },
       });
+  }
+
+  // ── Mass absence operations ──────────────────────────────────────
+
+  openMassAbsence(mode: 'vacation' | 'sick'): void {
+    this.massAbsenceMode = mode;
+    this.massFromDate = this.formatDate(new Date(this.currentYear, this.currentMonth, 1));
+    this.massToDate = this.formatDate(new Date(this.currentYear, this.currentMonth + 1, 0));
+    this.massError = null;
+  }
+
+  cancelMassAbsence(): void {
+    this.massAbsenceMode = null;
+    this.massError = null;
+  }
+
+  applyMassAbsence(): void {
+    if (!this.selectedEmployeeId || !this.massFromDate || !this.massToDate || !this.massAbsenceMode) return;
+
+    const from = new Date(this.massFromDate);
+    const to = new Date(this.massToDate);
+    if (from > to) {
+      this.massError = 'From date must be before to date.';
+      return;
+    }
+
+    this.massProcessing = true;
+    this.massError = null;
+
+    const absenceType = this.massAbsenceMode === 'vacation' ? 'day_off' : 'sick';
+    const dates: string[] = [];
+    const cur = new Date(from);
+    while (cur <= to) {
+      dates.push(this.formatDate(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    // Only create entries for days that don't already have a plan
+    const datesWithoutPlan = dates.filter((d) => !this.planMap.has(d));
+
+    if (datesWithoutPlan.length === 0) {
+      this.massProcessing = false;
+      this.massAbsenceMode = null;
+      return;
+    }
+
+    const requests = datesWithoutPlan.map((dateStr) =>
+      this.confirmedShiftPlanService.createConfirmedShiftPlan(this.selectedEmployeeId, {
+        date: dateStr,
+        is_present: false,
+        absence_type: absenceType,
+        creation_type: 'manual',
+      })
+    );
+
+    forkJoin(requests).subscribe({
+      next: (created) => {
+        created.forEach((plan) => this.planMap.set(plan.date, plan));
+        this.applyPlansToCalendar();
+        this.massProcessing = false;
+        this.massAbsenceMode = null;
+      },
+      error: () => {
+        this.massError = 'Failed to apply absence entries. Please try again.';
+        this.massProcessing = false;
+      },
+    });
+  }
+
+  // ── Unavailability management ────────────────────────────────────
+
+  addUnavailability(): void {
+    if (!this.selectedEmployeeId || !this.newUnavailabilityDate) return;
+
+    // Check if already exists
+    if (this.unavailabilities.some((u) => u.unavailable_date === this.newUnavailabilityDate)) {
+      return;
+    }
+
+    this.addingUnavailability = true;
+    this.unavailabilityService.createUnavailability({
+      employee_id: this.selectedEmployeeId,
+      unavailable_date: this.newUnavailabilityDate,
+    }).subscribe({
+      next: (created) => {
+        this.unavailabilities = [...this.unavailabilities, created]
+          .sort((a, b) => a.unavailable_date.localeCompare(b.unavailable_date));
+        this.newUnavailabilityDate = '';
+        this.addingUnavailability = false;
+        this.applyPlansToCalendar();
+      },
+      error: () => {
+        this.addingUnavailability = false;
+      },
+    });
+  }
+
+  deleteUnavailability(id: string): void {
+    this.unavailabilityService.deleteUnavailability(id).subscribe({
+      next: () => {
+        this.unavailabilities = this.unavailabilities.filter((u) => u.id !== id);
+        this.applyPlansToCalendar();
+      },
+      error: (err) => console.error('Failed to delete unavailability', err),
+    });
+  }
+
+  addUnavailabilityRange(): void {
+    const { start, end } = this.unavailRangeForm.value;
+    if (!this.selectedEmployeeId || !start || !end) return;
+
+    this.unavailRangeError = null;
+    this.addingUnavailabilityRange = true;
+
+    // Enumerate every date in the range
+    const dates: string[] = [];
+    const cur = new Date(start);
+    const last = new Date(end);
+    cur.setHours(0, 0, 0, 0);
+    last.setHours(0, 0, 0, 0);
+    while (cur <= last) {
+      const ds = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+      if (!this.unavailabilities.some(u => u.unavailable_date === ds)) {
+        dates.push(ds);
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    if (dates.length === 0) {
+      this.addingUnavailabilityRange = false;
+      this.unavailRangeForm.reset();
+      return;
+    }
+
+    const requests = dates.map(d =>
+      this.unavailabilityService.createUnavailability({ employee_id: this.selectedEmployeeId, unavailable_date: d })
+    );
+
+    forkJoin(requests).subscribe({
+      next: () => {
+        this.addingUnavailabilityRange = false;
+        this.unavailRangeForm.reset();
+        this.loadUnavailabilities();
+      },
+      error: () => {
+        this.addingUnavailabilityRange = false;
+        this.unavailRangeError = 'Failed to add some unavailability dates.';
+      },
+    });
   }
 
   // Close dropdowns when clicking outside

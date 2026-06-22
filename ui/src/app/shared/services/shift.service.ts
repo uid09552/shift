@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 export interface WeekdayTime {
   weekday: number;
@@ -50,7 +51,9 @@ export class ShiftService {
   constructor(private http: HttpClient) {}
 
   getShifts(): Observable<Shift[]> {
-    return this.http.get<Shift[]>(`${this.apiUrl}/shifts`);
+    return this.http.get<Shift[]>(`${this.apiUrl}/shifts`).pipe(
+      map(shifts => shifts.sort((a, b) => a.order - b.order))
+    );
   }
 
   getShiftById(shiftId: string): Observable<Shift> {

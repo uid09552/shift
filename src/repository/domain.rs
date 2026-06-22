@@ -46,6 +46,7 @@ pub struct Workstation {
     pub available: bool,
     pub active_shift_ids: Vec<Uuid>,
     pub required_capabilities: Vec<Capability>,
+    pub priority: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -68,7 +69,7 @@ pub struct EmployeeShiftAssignment {
 pub struct ConfirmedShiftPlan {
     pub id: Uuid,
     pub employee_id: Uuid,
-    pub shift_id: Uuid,
+    pub shift_id: Option<Uuid>,
     pub workstation_id: Option<Uuid>,
     pub date: NaiveDate,
     pub is_present: bool,
@@ -132,11 +133,12 @@ pub trait UnavailabilityRepository {
 
 #[async_trait]
 pub trait WorkstationRepository {
-    async fn create_workstation(&self, name: &str, available: bool, active_shift_ids: Vec<Uuid>) -> Result<Workstation, Box<dyn std::error::Error + Send + Sync>>;
+    async fn create_workstation(&self, name: &str, available: bool, active_shift_ids: Vec<Uuid>, priority: &str) -> Result<Workstation, Box<dyn std::error::Error + Send + Sync>>;
     async fn get_workstation(&self, id: Uuid) -> Result<Option<Workstation>, Box<dyn std::error::Error + Send + Sync>>;
     async fn list_workstations(&self) -> Result<Vec<Workstation>, Box<dyn std::error::Error + Send + Sync>>;
     async fn set_workstation_availability(&self, id: Uuid, available: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn set_workstation_active_shifts(&self, id: Uuid, active_shift_ids: Vec<Uuid>) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    async fn set_workstation_priority(&self, id: Uuid, priority: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn add_required_capability(&self, workstation_id: Uuid, capability_id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn list_required_capabilities(&self, workstation_id: Uuid) -> Result<Vec<Capability>, Box<dyn std::error::Error + Send + Sync>>;
     async fn delete_workstation(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
@@ -157,7 +159,7 @@ pub trait ConfirmedShiftPlanRepository {
     async fn get_confirmed_shift_plans_for_employee(&self, employee_id: Uuid) -> Result<Vec<ConfirmedShiftPlan>, Box<dyn std::error::Error + Send + Sync>>;
     async fn get_confirmed_shift_plans_for_employee_in_range(&self, employee_id: Uuid, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<ConfirmedShiftPlan>, Box<dyn std::error::Error + Send + Sync>>;
     async fn get_confirmed_shift_plan_by_id(&self, id: Uuid) -> Result<Option<ConfirmedShiftPlan>, Box<dyn std::error::Error + Send + Sync>>;
-    async fn update_confirmed_shift_plan(&self, id: Uuid, shift_id: Option<Uuid>, workstation_id: Option<Option<Uuid>>, is_present: Option<bool>, absence_type: Option<String>, creation_type: Option<String>) -> Result<ConfirmedShiftPlan, Box<dyn std::error::Error + Send + Sync>>;
+    async fn update_confirmed_shift_plan(&self, id: Uuid, shift_id: Option<Option<Uuid>>, workstation_id: Option<Option<Uuid>>, is_present: Option<bool>, absence_type: Option<String>, creation_type: Option<String>) -> Result<ConfirmedShiftPlan, Box<dyn std::error::Error + Send + Sync>>;
     async fn delete_confirmed_shift_plan(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn list_confirmed_shift_plans(&self, limit: Option<i64>, offset: Option<i64>) -> Result<Vec<ConfirmedShiftPlan>, Box<dyn std::error::Error + Send + Sync>>;
     async fn count_confirmed_shift_plans(&self) -> Result<i64, Box<dyn std::error::Error + Send + Sync>>;
@@ -195,4 +197,26 @@ pub trait OptimizedShiftResultRepository {
     async fn list_optimized_shift_results(&self, limit: Option<i64>, offset: Option<i64>) -> Result<Vec<OptimizedShiftResultDomain>, Box<dyn std::error::Error + Send + Sync>>;
     async fn count_optimized_shift_results(&self) -> Result<i64, Box<dyn std::error::Error + Send + Sync>>;
     async fn delete_optimized_shift_result(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PlanningTaskDomain {
+    pub id: Uuid,
+    pub status: String,
+    pub payload: serde_json::Value,
+    pub result_id: Option<Uuid>,
+    pub error_message: Option<String>,
+    pub created_at: chrono::NaiveDateTime,
+    pub updated_at: chrono::NaiveDateTime,
+}
+
+#[async_trait]
+pub trait PlanningTaskRepository {
+    async fn create_planning_task(&self, id: Uuid, payload: serde_json::Value) -> Result<PlanningTaskDomain, Box<dyn std::error::Error + Send + Sync>>;
+    async fn get_planning_task(&self, id: Uuid) -> Result<Option<PlanningTaskDomain>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn list_planning_tasks(&self) -> Result<Vec<PlanningTaskDomain>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn update_planning_task_done(&self, id: Uuid, result_id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    async fn update_planning_task_error(&self, id: Uuid, error_message: String) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    /// Mark all tasks with status 'scheduled' created before `cutoff` as 'error'.
+    async fn mark_stale_tasks_failed(&self, cutoff: chrono::NaiveDateTime) -> Result<usize, Box<dyn std::error::Error + Send + Sync>>;
 }
