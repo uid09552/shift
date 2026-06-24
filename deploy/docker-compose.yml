@@ -1,4 +1,50 @@
+# Shift Backend - Complete deployment configuration
+# Includes: Backend API, Planner, UI, Gateway (APISIX)
+#
+# Usage:
+#   docker-compose up -d
+#   make up
+
 services:
+
+  # ==========================================================================
+  # Infrastructure Services
+  # ==========================================================================
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: shift_postgres
+    environment:
+      POSTGRES_DB: shift
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  nats:
+    image: nats:2
+    container_name: shift_nats
+    command: ["-js"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    networks:
+      - backend
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Backend Services
+  # ==========================================================================
 
   backend:
     build:
@@ -7,6 +53,24 @@ services:
     container_name: shift_deploy_backend
     ports:
       - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    networks:
+      - backend
+    restart: unless-stopped
+
+  planner:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.planner
+    container_name: shift_deploy_planner
+    ports:
+      - "5000:5000"
+    depends_on:
+      - nats
     networks:
       - backend
     restart: unless-stopped
@@ -22,12 +86,39 @@ services:
       - backend
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - backend
     restart: unless-stopped
+
+  # ==========================================================================
+  # Gateway (APISIX)
+  # ==========================================================================
+
+  apisix:
+    image: apache/apisix:3.16.0-debian
+    container_name: shift_apisix
+    restart: always
+    volumes:
+      - ./gateway/apisix_conf/apisix-standalone.yaml:/usr/local/apisix/conf/apisix.yaml:ro
+      - ./gateway/apisix_conf/config-standalone.yaml:/usr/local/apisix/conf/config.yaml:ro
+    environment:
+      - APISIX_STAND_ALONE=true
+    ports:
+      - "9180:9180/tcp"
+      - "80:9080/tcp"
+      - "9091:9091/tcp"
+      - "443:9443/tcp"
+      - "9092:9092/tcp"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - backend
 
 networks:
   backend:
-    name: dev_backend
-    external: true
+    driver: bridge
+    external:
+      true
 
+volumes:
+  postgres_data:

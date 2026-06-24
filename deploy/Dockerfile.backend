@@ -31,4 +31,5 @@ EXPOSE 8080
 # Run the binary with CLI args to ensure correct Docker networking
 # --listen 0.0.0.0 binds to all interfaces so the container is reachable
 # --database-url uses the Docker service name "postgres" for DNS resolution
-CMD ["./shift", "serve", "--listen", "0.0.0.0", "--database-url", "postgresql://postgres:postgres@postgres:5432/shift"]
+# --broker-host uses the Docker service name "nats" for DNS resolution
+CMD ["./shift", "serve", "--listen", "0.0.0.0", "--database-url", "postgresql://postgres:postgres@postgres:5432/shift", "--broker-host", "nats", "--optimizer-url", "http://planner:5000"]

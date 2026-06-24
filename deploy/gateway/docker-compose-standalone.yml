@@ -35,9 +35,9 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
-      - dev_backend
+      - backend
 
 networks:
-  dev_backend:
-    name: dev_backend
+  backend:
+    name: backend
     external: true

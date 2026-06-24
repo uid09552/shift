@@ -14,9 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# NOTE: This configuration uses template placeholders for OAuth2 credentials.
-# Run `python iam/bootstrap.py bootstrap` to create the OAuth2 client and
-# replace the placeholders with actual credentials.
+# NOTE: This configuration uses static OAuth2 credentials defined in
+# deploy/iam/hydra/config/hydra.yml under oauth2.clients
 #
 
 routes:
@@ -31,7 +30,7 @@ routes:
     plugins:
       redirect:
         http_status: 302
-        uri: /planner
+        uri: /planner/
 
   # ===========================================
   # Hydra OAuth2/OIDC routes (bypass OIDC)
@@ -76,7 +75,13 @@ routes:
       type: roundrobin
       nodes:
         kratos:4433: 1
-
+  - uri: /consent/*
+    name: kratos-selfservice
+    priority: 100
+    upstream:
+      type: roundrobin
+      nodes:       
+        hydra:4444: 1
   # Self-service flows
   - uri: /self-service/*
     name: kratos-selfservice
@@ -108,8 +113,31 @@ routes:
   # Kratos Self-Service UI routes (bypass OIDC)
   # ===========================================
   
+  # Login with login_challenge goes to consent app (OAuth2 flow)
+  - uri: /login
+    name: oauth2-login
+    priority: 150
+    vars:
+      - - arg_login_challenge
+        - "!"
+        - "=="
+        - ""
+    upstream:
+      type: roundrobin
+      nodes:
+        consent:3000: 1
+
+  # Regular login goes to Kratos UI
   - uri: /login
     name: kratos-ui-login
+    priority: 100
+    upstream:
+      type: roundrobin
+      nodes:
+        kratos-ui:4455: 1
+
+  - uri: /assets
+    name: kratos-ui-assets
     priority: 100
     upstream:
       type: roundrobin
@@ -157,13 +185,12 @@ routes:
         kratos-ui:4455: 1
 
   - uri: /consent
-    name: kratos-ui-consent
+    name: oauth2-consent
     priority: 100
     upstream:
       type: roundrobin
       nodes:
-        kratos-ui:4455: 1
-
+        consent:3000: 1
   - uri: /logout
     name: kratos-ui-logout
     priority: 100
@@ -177,14 +204,14 @@ routes:
   # ===========================================
   
   # Planner UI - protected by OIDC
-  # Template placeholders - replaced by bootstrap.py
+  # Static credentials from hydra.yml oauth2.clients
   - uri: /planner/*
     name: planner-ui-oidc
     priority: 10
     plugins:
       openid-connect:
-        client_id: "${OAUTH2_CLIENT_ID}"
-        client_secret: "${OAUTH2_CLIENT_SECRET}"
+        client_id: apisix-gateway-client
+        client_secret: apisix-gateway-secret-change-me-in-production
         discovery: http://hydra:4444/.well-known/openid-configuration
         scope: "openid profile email"
         bearer_only: false
@@ -202,14 +229,14 @@ routes:
   # ===========================================
   
   # API routes protected by Hydra OIDC
-  # Template placeholders - replaced by bootstrap.py
+  # Static credentials from hydra.yml oauth2.clients
   - uri: /api/*
     name: api-oidc
     priority: 10
     plugins:
       openid-connect:
-        client_id: "${OAUTH2_CLIENT_ID}"
-        client_secret: "${OAUTH2_CLIENT_SECRET}"
+        client_id: apisix-gateway-client
+        client_secret: apisix-gateway-secret-change-me-in-production
         discovery: http://hydra:4444/.well-known/openid-configuration
         scope: "openid profile email"
         bearer_only: false
@@ -223,3 +250,4 @@ routes:
         backend:8080: 1
 
 #END
+
