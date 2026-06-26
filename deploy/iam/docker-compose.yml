@@ -1,61 +1,85 @@
-# Zitadel IAM - Standalone deployment with PostgreSQL
+# Keycloak IAM - Standalone deployment with PostgreSQL (Quarkus-based)
 #
 # Usage:
 #   docker-compose up -d
 #
-# Admin UI: http://localhost:8080
-# Default admin: zitadel-admin@zitadel.localhost / Password1!
+# On first start Keycloak imports realm-shift.json which creates:
+#   - Realm:           shift
+#   - Client (SPA):    shift-web       — public PKCE client for Angular
+#   - Client (GW):     shift-gateway   — confidential client for APISIX
+#   - User:            admin / admin
+#
+# Admin UI:   http://localhost/auth/admin/
+# Admin user: admin / admin
+# Realm UI:   http://localhost/auth/realms/shift/account
 
 services:
 
-  zitadel-db:
+  keycloak-db:
     image: postgres:17-alpine
-    container_name: shift_zitadel_db
+    container_name: shift_keycloak_db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: zitadel
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
     volumes:
-      - zitadel_db_data:/var/lib/postgresql/data
+      - keycloak_db_data:/var/lib/postgresql/data
     networks:
       - backend
+      - dev_backend
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d zitadel"]
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  zitadel:
-    image: ghcr.io/zitadel/zitadel:stable
-    container_name: shift_zitadel
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.2
+    container_name: shift_keycloak
     restart: unless-stopped
-    command: start-from-scratch --tlsMode disabled
+    command: start-dev --import-realm
     environment:
-      ZITADEL_MASTERKEY: "MasterkeyNeedsToHave32Characters"
-      ZITADEL_EXTERNALDOMAIN: localhost
-      ZITADEL_EXTERNALPORT: 8080
-      ZITADEL_EXTERNALSECURE: "false"
-      ZITADEL_DATABASE_POSTGRES_HOST: zitadel-db
-      ZITADEL_DATABASE_POSTGRES_PORT: 5432
-      ZITADEL_DATABASE_POSTGRES_DATABASE: zitadel
-      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: zitadel
-      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: zitadel
-      ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
-      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: postgres
-      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: postgres
-      ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_HOSTNAME: "http://localhost/auth"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KC_LOG_LEVEL: info
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    volumes:
+      - ./realm-shift.json:/opt/keycloak/data/import/realm-shift.json:ro
     ports:
       - "8080:8080"
+      - "9000:9000"
     networks:
       - backend
+      - dev_backend
     depends_on:
-      zitadel-db:
+      keycloak-db:
         condition: service_healthy
+    healthcheck:
+      # Health is served on the management port (9000), unaffected by KC_HTTP_RELATIVE_PATH
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/health/ready || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
 
 networks:
   backend:
     driver: bridge
+    external:
+      true
+  dev_backend:
+    name: dev_backend
 
 volumes:
-  zitadel_db_data:
+  keycloak_db_data:

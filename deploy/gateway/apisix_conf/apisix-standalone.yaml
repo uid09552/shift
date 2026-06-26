@@ -14,16 +14,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# NOTE: This configuration uses static OAuth2 credentials defined in
-# deploy/iam/hydra/config/hydra.yml under oauth2.clients
+# IAM: Keycloak (Quarkus) — realm: shift  subpath: /auth
+# Keycloak service name: keycloak  port: 8080  KC_HTTP_RELATIVE_PATH=/auth
 #
+# Gateway client credentials match the "shift-gateway" confidential client
+# created by the realm import in deploy/iam/realm-shift.json.
+# SPA client "shift-web" is a public PKCE client used by the Angular frontend.
+#
+# `discovery` is required by APISIX 3.16. lua-resty-openidc always uses the
+# endpoints from the fetched discovery document (explicit endpoint fields are
+# ignored for token/userinfo calls). The discovery document advertises
+# http://localhost/auth/... URLs (KC_HOSTNAME=localhost, KC_HOSTNAME_PORT=80).
+# APISIX is configured to ALSO listen on port 80 (loopback), so calls to
+# http://localhost/auth/... from within the container reach APISIX itself,
+# which proxies /auth/* to keycloak:8080.
 
 routes:
   # ===========================================
   # Root redirect
   # ===========================================
-  
-  # Redirect exact / to /planner
+
   - uri: /
     name: root-redirect
     priority: 5
@@ -33,190 +43,37 @@ routes:
         uri: /planner/
 
   # ===========================================
-  # Hydra OAuth2/OIDC routes (bypass OIDC)
+  # Keycloak IAM routes — no auth enforcement
+  # KC_HTTP_RELATIVE_PATH=/auth means all Keycloak endpoints are under /auth.
+  # A single wildcard route covers realms, admin console, resources, and JS adapter.
   # ===========================================
-  
-  # OpenID Connect discovery endpoint
-  - uri: /.well-known/*
-    name: hydra-wellknown
-    priority: 100
-    upstream:
-      type: roundrobin
-      nodes:
-        hydra:4444: 1
 
-  # OAuth2 endpoints (authorize, token, revoke, etc.)
-  - uri: /oauth2/*
-    name: hydra-oauth2
+  - uri: /auth/*
+    name: keycloak
     priority: 100
     upstream:
       type: roundrobin
       nodes:
-        hydra:4444: 1
-
-  # OIDC specific endpoints
-  - uri: /oidc/*
-    name: hydra-oidc
-    priority: 100
-    upstream:
-      type: roundrobin
-      nodes:
-        hydra:4444: 1
+        keycloak:8080: 1
 
   # ===========================================
-  # Kratos Identity Management routes (bypass OIDC)
+  # OIDC callback — exchanges the auth code for tokens and sets the session
+  # cookie, then redirects the browser to the original destination.
   # ===========================================
-  
-  # Kratos public API
-  - uri: /kratos/*
-    name: kratos-public
-    priority: 100
-    upstream:
-      type: roundrobin
-      nodes:
-        kratos:4433: 1
-  - uri: /consent/*
-    name: kratos-selfservice
-    priority: 100
-    upstream:
-      type: roundrobin
-      nodes:       
-        hydra:4444: 1
-  # Self-service flows
-  - uri: /self-service/*
-    name: kratos-selfservice
-    priority: 100
-    upstream:
-      type: roundrobin
-      nodes:
-        kratos:4433: 1
 
-  # Identity management
-  - uri: /identities/*
-    name: kratos-identities
-    priority: 100
-    upstream:
-      type: roundrobin
-      nodes:
-        kratos:4433: 1
-
-  # Session management
-  - uri: /sessions/*
-    name: kratos-sessions
-    priority: 100
-    upstream:
-      type: roundrobin
-      nodes:
-        kratos:4433: 1
-
-  # ===========================================
-  # Kratos Self-Service UI routes (bypass OIDC)
-  # ===========================================
-  
-  # Login with login_challenge goes to consent app (OAuth2 flow)
-  - uri: /login
-    name: oauth2-login
-    priority: 150
-    vars:
-      - - arg_login_challenge
-        - "!"
-        - "=="
-        - ""
-    upstream:
-      type: roundrobin
-      nodes:
-        consent:3000: 1
-
-  # Regular login goes to Kratos UI
-  - uri: /login
-    name: kratos-ui-login
-    priority: 100
-    upstream:
-      type: roundrobin
-      nodes:
-        kratos-ui:4455: 1
-
-  - uri: /assets
-    name: kratos-ui-assets
-    priority: 100
-    upstream:
-      type: roundrobin
-      nodes:
-        kratos-ui:4455: 1
-
-  - uri: /registration
-    name: kratos-ui-reg
-    priority: 100
-    upstream:
-      type: roundrobin
-      nodes:
-        kratos-ui:4455: 1
-
-  - uri: /settings
-    name: kratos-ui-settings
-    priority: 100
-    upstream:
-      type: roundrobin
-      nodes:
-        kratos-ui:4455: 1
-
-  - uri: /recovery
-    name: kratos-ui-recovery
-    priority: 100
-    upstream:
-      type: roundrobin
-      nodes:
-        kratos-ui:4455: 1
-
-  - uri: /verification
-    name: kratos-ui-verify
-    priority: 100
-    upstream:
-      type: roundrobin
-      nodes:
-        kratos-ui:4455: 1
-
-  - uri: /error
-    name: kratos-ui-error
-    priority: 100
-    upstream:
-      type: roundrobin
-      nodes:
-        kratos-ui:4455: 1
-
-  - uri: /consent
-    name: oauth2-consent
-    priority: 100
-    upstream:
-      type: roundrobin
-      nodes:
-        consent:3000: 1
-  - uri: /logout
-    name: kratos-ui-logout
-    priority: 100
-    upstream:
-      type: roundrobin
-      nodes:
-        kratos-ui:4455: 1
-
-  # ===========================================
-  # Protected UI routes (OIDC authentication)
-  # ===========================================
-  
-  # Planner UI - protected by OIDC
-  # Static credentials from hydra.yml oauth2.clients
-  - uri: /planner/*
-    name: planner-ui-oidc
-    priority: 10
+  - uri: /callback
+    name: oidc-callback
+    priority: 20
     plugins:
       openid-connect:
-        client_id: apisix-gateway-client
-        client_secret: apisix-gateway-secret-change-me-in-production
-        discovery: http://hydra:4444/.well-known/openid-configuration
+        client_id: shift-gateway
+        client_secret: shift-gateway-secret
+        discovery: http://keycloak:8080/auth/realms/shift/.well-known/openid-configuration
         scope: "openid profile email"
         bearer_only: false
         redirect_uri: http://localhost/callback
         post_logout_redirect_uri: http://localhost/
+        ssl_verify: false
         session:
           secret: geheimgeheimgeheimgeheim12345678
     upstream:
@@ -225,29 +82,49 @@ routes:
         planner-ui:80: 1
 
   # ===========================================
-  # Protected API routes (OIDC authentication)
+  # Protected UI routes (full OIDC via Keycloak)
   # ===========================================
-  
-  # API routes protected by Hydra OIDC
-  # Static credentials from hydra.yml oauth2.clients
-  - uri: /api/*
-    name: api-oidc
+
+  - uri: /planner/*
+    name: planner-ui-oidc
     priority: 10
     plugins:
       openid-connect:
-        client_id: apisix-gateway-client
-        client_secret: apisix-gateway-secret-change-me-in-production
-        discovery: http://hydra:4444/.well-known/openid-configuration
+        client_id: shift-gateway
+        client_secret: shift-gateway-secret
+        discovery: http://keycloak:8080/auth/realms/shift/.well-known/openid-configuration
         scope: "openid profile email"
         bearer_only: false
         redirect_uri: http://localhost/callback
         post_logout_redirect_uri: http://localhost/
+        ssl_verify: false
         session:
           secret: geheimgeheimgeheimgeheim12345678
+    upstream:
+      type: roundrobin
+      nodes:
+        planner-ui:80: 1
+
+  # ===========================================
+  # Protected API routes (JWT bearer via Keycloak)
+  # The Angular SPA handles the OIDC flow itself and sends Bearer tokens;
+  # the gateway only validates the JWT — no redirect needed.
+  # ===========================================
+
+  - uri: /api/*
+    name: api-bearer
+    priority: 10
+    plugins:
+      openid-connect:
+        client_id: shift-gateway
+        client_secret: shift-gateway-secret
+        discovery: http://keycloak:8080/auth/realms/shift/.well-known/openid-configuration
+        scope: "openid profile email"
+        bearer_only: true
+        ssl_verify: false
     upstream:
       type: roundrobin
       nodes:
         backend:8080: 1
 
 #END
-

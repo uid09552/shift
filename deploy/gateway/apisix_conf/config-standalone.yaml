@@ -16,7 +16,9 @@
 #
 
 apisix:
-  node_listen: 9080              # APISIX listening port
+  node_listen:
+    - 9080                       # external — mapped to host port 80
+    - 80                         # loopback — so localhost:80 inside the container reaches APISIX
   enable_ipv6: false
 
 deployment:
