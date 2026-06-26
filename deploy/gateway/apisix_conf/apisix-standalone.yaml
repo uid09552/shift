@@ -24,7 +24,7 @@
 # `discovery` is required by APISIX 3.16. lua-resty-openidc always uses the
 # endpoints from the fetched discovery document (explicit endpoint fields are
 # ignored for token/userinfo calls). The discovery document advertises
-# http://localhost/auth/... URLs (KC_HOSTNAME=localhost, KC_HOSTNAME_PORT=80).
+# http://localhost/auth/... URLs (KC_HOSTNAME="http://localhost/auth").
 # APISIX is configured to ALSO listen on port 80 (loopback), so calls to
 # http://localhost/auth/... from within the container reach APISIX itself,
 # which proxies /auth/* to keycloak:8080.
@@ -55,6 +55,18 @@ routes:
       type: roundrobin
       nodes:
         keycloak:8080: 1
+
+  # ===========================================
+  # Static assets — no auth, served directly from UI container
+  # ===========================================
+
+  - uri: /images/*
+    name: static-images
+    priority: 50
+    upstream:
+      type: roundrobin
+      nodes:
+        planner-ui:80: 1
 
   # ===========================================
   # OIDC callback — exchanges the auth code for tokens and sets the session
@@ -112,7 +124,7 @@ routes:
   # ===========================================
 
   - uri: /api/*
-    name: api-bearer
+    name: api-session
     priority: 10
     plugins:
       openid-connect:
@@ -120,8 +132,11 @@ routes:
         client_secret: shift-gateway-secret
         discovery: http://keycloak:8080/auth/realms/shift/.well-known/openid-configuration
         scope: "openid profile email"
-        bearer_only: true
+        bearer_only: false
+        unauth_action: deny
         ssl_verify: false
+        session:
+          secret: geheimgeheimgeheimgeheim12345678
     upstream:
       type: roundrobin
       nodes:
