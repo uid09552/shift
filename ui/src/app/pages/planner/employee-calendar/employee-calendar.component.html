@@ -42,6 +42,12 @@
           >
             + Sick Leave
           </button>
+          <button
+            (click)="openMassDelete()"
+            class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100 dark:border-red-700 dark:bg-red-500/10 dark:text-red-400"
+          >
+            Delete Range
+          </button>
         </div>
       }
     </div>
@@ -98,6 +104,54 @@
           </div>
           @if (massError) {
             <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ massError }}</p>
+          }
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Mass delete form -->
+  @if (massDeleteMode) {
+    <div class="border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6"
+      (click)="$event.stopPropagation()">
+      <div class="flex flex-wrap items-end gap-4">
+        <div>
+          <p class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            Delete <span class="font-semibold">absence entries and unavailabilities</span> for date range:
+          </p>
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-gray-500">From</label>
+              <input
+                type="date"
+                [(ngModel)]="massDeleteFromDate"
+                class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+              />
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-gray-500">To</label>
+              <input
+                type="date"
+                [(ngModel)]="massDeleteToDate"
+                class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+              />
+            </div>
+            <button
+              (click)="applyMassDelete()"
+              [disabled]="massDeleteProcessing"
+              class="rounded-lg bg-red-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
+            >
+              @if (massDeleteProcessing) { Deleting… } @else { Delete }
+            </button>
+            <button
+              (click)="cancelMassDelete()"
+              class="rounded-lg border border-gray-200 px-4 py-1.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400"
+            >
+              Cancel
+            </button>
+          </div>
+          @if (massDeleteError) {
+            <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ massDeleteError }}</p>
           }
         </div>
       </div>

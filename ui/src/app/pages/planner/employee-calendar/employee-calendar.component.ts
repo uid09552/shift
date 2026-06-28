@@ -520,6 +520,13 @@ export class EmployeeCalendarComponent implements OnInit {
 
   // ── Mass absence operations ──────────────────────────────────────
 
+  // Mass delete state
+  massDeleteMode = false;
+  massDeleteFromDate: string = '';
+  massDeleteToDate: string = '';
+  massDeleteProcessing = false;
+  massDeleteError: string | null = null;
+
   openMassAbsence(mode: 'vacation' | 'sick'): void {
     this.massAbsenceMode = mode;
     this.massFromDate = this.formatDate(new Date(this.currentYear, this.currentMonth, 1));
@@ -553,16 +560,10 @@ export class EmployeeCalendarComponent implements OnInit {
       cur.setDate(cur.getDate() + 1);
     }
 
-    // Only create entries for days that don't already have a plan
     const datesWithoutPlan = dates.filter((d) => !this.planMap.has(d));
+    const datesWithoutUnavail = dates.filter((d) => !this.unavailabilities.some((u) => u.unavailable_date === d));
 
-    if (datesWithoutPlan.length === 0) {
-      this.massProcessing = false;
-      this.massAbsenceMode = null;
-      return;
-    }
-
-    const requests = datesWithoutPlan.map((dateStr) =>
+    const planRequests = datesWithoutPlan.map((dateStr) =>
       this.confirmedShiftPlanService.createConfirmedShiftPlan(this.selectedEmployeeId, {
         date: dateStr,
         is_present: false,
@@ -571,16 +572,93 @@ export class EmployeeCalendarComponent implements OnInit {
       })
     );
 
-    forkJoin(requests).subscribe({
-      next: (created) => {
-        created.forEach((plan) => this.planMap.set(plan.date, plan));
-        this.applyPlansToCalendar();
+    const unavailRequests = datesWithoutUnavail.map((dateStr) =>
+      this.unavailabilityService.createUnavailability({
+        employee_id: this.selectedEmployeeId,
+        unavailable_date: dateStr,
+      })
+    );
+
+    const all = [...planRequests, ...unavailRequests];
+    if (all.length === 0) {
+      this.massProcessing = false;
+      this.massAbsenceMode = null;
+      return;
+    }
+
+    forkJoin(all).subscribe({
+      next: () => {
         this.massProcessing = false;
         this.massAbsenceMode = null;
+        this.loadPlansForMonth();
+        this.loadUnavailabilities();
       },
       error: () => {
         this.massError = 'Failed to apply absence entries. Please try again.';
         this.massProcessing = false;
+      },
+    });
+  }
+
+  openMassDelete(): void {
+    this.massDeleteMode = true;
+    this.massDeleteFromDate = this.formatDate(new Date(this.currentYear, this.currentMonth, 1));
+    this.massDeleteToDate = this.formatDate(new Date(this.currentYear, this.currentMonth + 1, 0));
+    this.massDeleteError = null;
+  }
+
+  cancelMassDelete(): void {
+    this.massDeleteMode = false;
+    this.massDeleteError = null;
+  }
+
+  applyMassDelete(): void {
+    if (!this.selectedEmployeeId || !this.massDeleteFromDate || !this.massDeleteToDate) return;
+
+    const from = new Date(this.massDeleteFromDate);
+    const to = new Date(this.massDeleteToDate);
+    if (from > to) {
+      this.massDeleteError = 'From date must be before to date.';
+      return;
+    }
+
+    this.massDeleteProcessing = true;
+    this.massDeleteError = null;
+
+    const dates = new Set<string>();
+    const cur = new Date(from);
+    while (cur <= to) {
+      dates.add(this.formatDate(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    // Delete absence plans (vacation/sick) in range
+    const planDeletes = [...this.planMap.entries()]
+      .filter(([d, p]) => dates.has(d) && !p.is_present)
+      .map(([, p]) => this.confirmedShiftPlanService.deleteConfirmedShiftPlan(p.id));
+
+    // Delete unavailabilities in range
+    const unavailDeletes = this.unavailabilities
+      .filter((u) => dates.has(u.unavailable_date))
+      .map((u) => this.unavailabilityService.deleteUnavailability(u.id));
+
+    const all = [...planDeletes, ...unavailDeletes];
+    if (all.length === 0) {
+      this.massDeleteProcessing = false;
+      this.massDeleteMode = false;
+      return;
+    }
+
+    forkJoin(all).subscribe({
+      next: () => {
+        this.massDeleteProcessing = false;
+        this.massDeleteMode = false;
+        this.loadPlansForMonth();
+        this.loadUnavailabilities();
+      },
+      error: () => {
+        this.massDeleteError = 'Failed to delete some entries. Please try again.';
+        this.massDeleteProcessing = false;
       },
     });
   }

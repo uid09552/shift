@@ -14,6 +14,7 @@ use tower_http::cors::CorsLayer;
 use crate::repository::{AppState, domain::PlanningTaskRepository};
 use crate::services::{
     analysis::AnalysisService,
+    auth,
     capability::CapabilityService,
     confirmed_shift_plan::ConfirmedShiftPlanService,
     employee::EmployeeService,
@@ -44,6 +45,8 @@ pub async fn health_check(
 
 pub fn create_router(state: AppState) -> Router {
     let api_v1 = Router::new()
+        // Self (current user from OIDC token)
+        .route("/self", get(auth::get_self))
         // Employees
         .route("/employees", get(EmployeeService::list_employees).post(EmployeeService::create_employee))
         .route("/employees/:employee_id", get(EmployeeService::get_employee_by_id).put(EmployeeService::update_employee).delete(EmployeeService::delete_employee))

@@ -69,6 +69,31 @@ routes:
         planner-ui:80: 1
 
   # ===========================================
+  # Logout — clears the APISIX session then redirects to Keycloak end_session_endpoint
+  # ===========================================
+
+  - uri: /logout
+    name: logout
+    priority: 20
+    plugins:
+      openid-connect:
+        client_id: shift-gateway
+        client_secret: shift-gateway-secret
+        discovery: http://keycloak:8080/auth/realms/shift/.well-known/openid-configuration
+        scope: "openid profile email"
+        bearer_only: false
+        redirect_uri: http://localhost/callback
+        post_logout_redirect_uri: http://localhost/
+        logout_path: /logout
+        ssl_verify: false
+        session:
+          secret: geheimgeheimgeheimgeheim12345678
+    upstream:
+      type: roundrobin
+      nodes:
+        planner-ui:80: 1
+
+  # ===========================================
   # OIDC callback — exchanges the auth code for tokens and sets the session
   # cookie, then redirects the browser to the original destination.
   # ===========================================

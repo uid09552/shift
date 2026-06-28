@@ -7,3 +7,4 @@ pub mod optimizer;
 pub mod shift_assignment;
 pub mod confirmed_shift_plan;
 pub mod analysis;
+pub mod auth;

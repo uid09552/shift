@@ -1,5 +1,1 @@
-1) deploy compose with all service, incl. env file to forward to local dev system.
-
-1) improve ui for mass operations, introduce e.g. right click, make buttons smoother like the delete button
-
-2) Gatewway to local for ui and backend. host dns is already in.
+1) delete also scheduled plans in schedule optimizer

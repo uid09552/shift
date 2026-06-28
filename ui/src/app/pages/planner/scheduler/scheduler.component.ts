@@ -66,9 +66,9 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   loading = false;
   isPlanning = false;
   planningTaskId: string | null = null;
-  showHistory = false;
   showTaskList = false;
   error: string | null = null;
+  deletingResultId: string | null = null;
 
   private pollSub: Subscription | null = null;
   private taskListSub: Subscription | null = null;
@@ -207,7 +207,25 @@ export class SchedulerComponent implements OnInit, OnDestroy {
 
   selectResult(result: OptimizedShiftResultResponse): void {
     this.setResult(result);
-    this.showHistory = false;
+  }
+
+  deleteResult(resultId: string): void {
+    this.deletingResultId = resultId;
+    this.plannerService.deleteOptimizedShift(resultId).subscribe({
+      next: () => {
+        this.deletingResultId = null;
+        if (this.selectedResult?.id === resultId) {
+          this.selectedResult = null;
+          this.latestResult = null;
+          this.scheduleData = [];
+          this.calendarTableRows = [];
+          this.calendarTableCellMap = new Map();
+        }
+        this.loadAllResults();
+        this.startTaskListPolling();
+      },
+      error: () => { this.deletingResultId = null; },
+    });
   }
 
   // ── Computed table data ──────────────────────────────────────────

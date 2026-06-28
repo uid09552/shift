@@ -70,8 +70,6 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile.planner
     container_name: shift_deploy_planner
-    ports:
-      - "5000:5000"
     depends_on:
       - nats
     networks:

@@ -74,15 +74,6 @@
           }
         </button>
 
-        @if (latestResult) {
-          <button (click)="showHistory = !showHistory" class="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]" [class.bg-gray-50]="showHistory">
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>
-            </svg>
-            <span>History</span>
-          </button>
-        }
-
         <button (click)="showTaskList = !showTaskList" class="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]" [class.bg-gray-50]="showTaskList">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line>
@@ -105,25 +96,6 @@
           <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
         </svg>
         <span class="text-sm text-red-600 dark:text-red-400">{{ error }}</span>
-      </div>
-    </div>
-  }
-
-  <!-- Job history panel -->
-  @if (showHistory && allResults.length > 0) {
-    <div class="border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
-      <div class="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Previous Plans</div>
-      <div class="flex flex-wrap gap-2">
-        @for (result of allResults; track result.id) {
-          <button (click)="selectResult(result)" class="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition"
-            [class.border-brand-500]="selectedResult?.id === result.id" [class.bg-brand-50]="selectedResult?.id === result.id"
-            [class.text-brand-600]="selectedResult?.id === result.id" [class.border-gray-200]="selectedResult?.id !== result.id"
-            [class.text-gray-600]="selectedResult?.id !== result.id" [class.hover:bg-gray-50]="selectedResult?.id !== result.id">
-            <span>{{ result.creation_date | date:'short' }}</span>
-            <span class="text-gray-400">•</span>
-            <span class="text-gray-500">Score: {{ result.result.objective_value.toFixed(2) }}</span>
-          </button>
-        }
       </div>
     </div>
   }
@@ -224,6 +196,10 @@
             @if (task.result_id) {
               <button (click)="loadResultById(task.result_id!)" class="rounded-lg border border-brand-200 px-3 py-1 text-xs font-medium text-brand-600 transition hover:bg-brand-50 dark:border-brand-800 dark:text-brand-400 dark:hover:bg-brand-500/10">
                 View
+              </button>
+              <button (click)="deleteResult(task.result_id!)" [disabled]="deletingResultId === task.result_id"
+                class="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-500/10">
+                @if (deletingResultId === task.result_id) { … } @else { Delete }
               </button>
             }
           </div>
