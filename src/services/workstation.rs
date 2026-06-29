@@ -136,6 +136,38 @@ impl WorkstationService {
         Ok(Json(serde_json::to_value(workstation).unwrap()))
     }
 
+    pub async fn enable_workstation(
+        Path(workstation_id): Path<Uuid>,
+        State(state): State<AppState>,
+    ) -> Result<Json<Value>, AppError> {
+        state.workstation_repo
+            .set_workstation_availability(workstation_id, true)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        let workstation = state.workstation_repo
+            .get_workstation(workstation_id)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::NotFound)?;
+        Ok(Json(serde_json::to_value(workstation).unwrap()))
+    }
+
+    pub async fn disable_workstation(
+        Path(workstation_id): Path<Uuid>,
+        State(state): State<AppState>,
+    ) -> Result<Json<Value>, AppError> {
+        state.workstation_repo
+            .set_workstation_availability(workstation_id, false)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        let workstation = state.workstation_repo
+            .get_workstation(workstation_id)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::NotFound)?;
+        Ok(Json(serde_json::to_value(workstation).unwrap()))
+    }
+
     pub async fn set_workstation_availability(
         Path(workstation_id): Path<Uuid>,
         State(state): State<AppState>,

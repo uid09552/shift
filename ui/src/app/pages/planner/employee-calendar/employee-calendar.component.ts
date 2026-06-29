@@ -1,14 +1,11 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormGroup, FormControl } from '@angular/forms';
-import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatNativeDateModule } from '@angular/material/core';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { forkJoin } from 'rxjs';
+import { Observable, forkJoin } from 'rxjs';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
 import { CalendarNavComponent } from '../../../shared/components/ui/calendar-nav/calendar-nav.component';
+import { DateRangePickerComponent, MarkedDay } from '../../../shared/components/ui/date-range-picker/date-range-picker.component';
 import {
   EmployeeService,
   Employee,
@@ -26,6 +23,13 @@ import {
   UnavailabilityService,
   Unavailability,
 } from '../../../shared/services/unavailability.service';
+
+interface LeaveEntry {
+  id: string;
+  date: string;
+  type: 'unavailable' | 'day_off' | 'sick';
+  source: 'unavailability' | 'plan';
+}
 
 interface CalendarDay {
   date: Date;
@@ -50,13 +54,9 @@ interface CalendarWeek {
   imports: [
     CommonModule,
     FormsModule,
-    ReactiveFormsModule,
-    MatDatepickerModule,
-    MatNativeDateModule,
-    MatFormFieldModule,
-    MatInputModule,
     PageBreadcrumbComponent,
     CalendarNavComponent,
+    DateRangePickerComponent,
   ],
   templateUrl: './employee-calendar.component.html',
   styleUrl: './employee-calendar.component.css',
@@ -94,26 +94,17 @@ export class EmployeeCalendarComponent implements OnInit {
   // Pending workstation selection for empty cells (used when creating new plans)
   pendingWorkstationId: string | null = null;
 
-  // ── Mass absence operations ──────────────────────────────────────
-  massAbsenceMode: 'vacation' | 'sick' | null = null;
-  massFromDate: string = '';
-  massToDate: string = '';
-  massProcessing = false;
-  massError: string | null = null;
-
-  // ── Unavailability table ─────────────────────────────────────────
+  // ── Unavailability (for calendar grid visualization) ─────────────
   unavailabilities: Unavailability[] = [];
   loadingUnavailabilities = false;
-  newUnavailabilityDate: string = '';
-  addingUnavailability = false;
 
-  // Material date range picker for unavailability range
-  unavailRangeForm = new FormGroup({
-    start: new FormControl<Date | null>(null),
-    end: new FormControl<Date | null>(null),
-  });
-  addingUnavailabilityRange = false;
-  unavailRangeError: string | null = null;
+  // ── Unified leave & unavailability panel ─────────────────────────
+  leaveEntries: LeaveEntry[] = [];
+  leaveType: 'unavailable' | 'day_off' | 'sick' = 'unavailable';
+  pickerRange: { start: string; end: string } | null = null;
+  pickerResetKey = 0;
+  leaveProcessing = false;
+  leaveError: string | null = null;
 
   readonly MONTH_NAMES = [
     'January',
@@ -154,7 +145,7 @@ export class EmployeeCalendarComponent implements OnInit {
         this.selectedEmployeeId = employeeId;
         if (!this.loading) {
           this.loadPlansForMonth();
-          this.loadUnavailabilities();
+          this.loadLeaveEntries();
         }
       }
     });
@@ -184,7 +175,7 @@ export class EmployeeCalendarComponent implements OnInit {
         this.buildCalendar();
         if (this.selectedEmployeeId) {
           this.loadPlansForMonth();
-          this.loadUnavailabilities();
+          this.loadLeaveEntries();
         }
       },
       error: (err) => {
@@ -196,8 +187,11 @@ export class EmployeeCalendarComponent implements OnInit {
   }
 
   onEmployeeChange(): void {
+    this.leaveEntries = [];
+    this.pickerRange = null;
+    this.leaveError = null;
     this.loadPlansForMonth();
-    this.loadUnavailabilities();
+    this.loadLeaveEntries();
   }
 
   prevMonth(): void {
@@ -259,15 +253,38 @@ export class EmployeeCalendarComponent implements OnInit {
       });
   }
 
-  loadUnavailabilities(): void {
+  loadLeaveEntries(): void {
     if (!this.selectedEmployeeId) {
       this.unavailabilities = [];
+      this.leaveEntries = [];
       return;
     }
     this.loadingUnavailabilities = true;
-    this.unavailabilityService.getUnavailabilities(this.selectedEmployeeId).subscribe({
-      next: (list) => {
-        this.unavailabilities = list.sort((a, b) => a.unavailable_date.localeCompare(b.unavailable_date));
+    forkJoin({
+      unavails: this.unavailabilityService.getUnavailabilities(this.selectedEmployeeId),
+      plans: this.confirmedShiftPlanService.getEmployeeConfirmedShiftPlans(this.selectedEmployeeId),
+    }).subscribe({
+      next: ({ unavails, plans }) => {
+        this.unavailabilities = unavails.sort((a, b) =>
+          a.unavailable_date.localeCompare(b.unavailable_date));
+
+        const unavailEntries: LeaveEntry[] = unavails.map(u => ({
+          id: u.id,
+          date: u.unavailable_date,
+          type: 'unavailable',
+          source: 'unavailability',
+        }));
+        const absenceEntries: LeaveEntry[] = plans
+          .filter(p => !p.is_present && p.absence_type !== 'unavailable')
+          .map(p => ({
+            id: p.id,
+            date: p.date,
+            type: (p.absence_type === 'sick' ? 'sick' : 'day_off') as 'sick' | 'day_off',
+            source: 'plan',
+          }));
+        this.leaveEntries = [...unavailEntries, ...absenceEntries]
+          .sort((a, b) => a.date.localeCompare(b.date));
+
         this.loadingUnavailabilities = false;
         this.applyPlansToCalendar();
       },
@@ -510,6 +527,8 @@ export class EmployeeCalendarComponent implements OnInit {
           this.planMap.delete(dateStr);
           this.applyPlansToCalendar();
           this.processingCell = null;
+          // also remove from leave entries list if it was a leave plan
+          this.leaveEntries = this.leaveEntries.filter(e => e.id !== planId);
         },
         error: (err) => {
           console.error('Failed to delete shift plan', err);
@@ -518,231 +537,165 @@ export class EmployeeCalendarComponent implements OnInit {
       });
   }
 
-  // ── Mass absence operations ──────────────────────────────────────
+  // ── Unified leave & unavailability ───────────────────────────────
 
-  // Mass delete state
-  massDeleteMode = false;
-  massDeleteFromDate: string = '';
-  massDeleteToDate: string = '';
-  massDeleteProcessing = false;
-  massDeleteError: string | null = null;
-
-  openMassAbsence(mode: 'vacation' | 'sick'): void {
-    this.massAbsenceMode = mode;
-    this.massFromDate = this.formatDate(new Date(this.currentYear, this.currentMonth, 1));
-    this.massToDate = this.formatDate(new Date(this.currentYear, this.currentMonth + 1, 0));
-    this.massError = null;
+  get markedDays(): MarkedDay[] {
+    return this.leaveEntries.map(e => ({
+      date: e.date,
+      type: e.type === 'unavailable' ? 'unavailable' : e.type === 'day_off' ? 'vacation' : 'sick',
+    }));
   }
 
-  cancelMassAbsence(): void {
-    this.massAbsenceMode = null;
-    this.massError = null;
+  leaveTypeLabel(type: string): string {
+    if (type === 'sick') return 'Sick Leave';
+    if (type === 'day_off') return 'Vacation';
+    return 'Unavailable';
   }
 
-  applyMassAbsence(): void {
-    if (!this.selectedEmployeeId || !this.massFromDate || !this.massToDate || !this.massAbsenceMode) return;
+  applyLeaveRange(): void {
+    if (!this.pickerRange || !this.selectedEmployeeId) return;
 
-    const from = new Date(this.massFromDate);
-    const to = new Date(this.massToDate);
-    if (from > to) {
-      this.massError = 'From date must be before to date.';
-      return;
-    }
+    const dates = this.datesBetween(this.pickerRange.start, this.pickerRange.end);
+    this.leaveProcessing = true;
+    this.leaveError = null;
 
-    this.massProcessing = true;
-    this.massError = null;
+    const creates: Observable<any>[] = this.leaveType === 'unavailable'
+      ? dates.map(date =>
+          this.unavailabilityService.createUnavailability({
+            employee_id: this.selectedEmployeeId,
+            unavailable_date: date,
+          })
+        )
+      : dates.map(date =>
+          this.confirmedShiftPlanService.createConfirmedShiftPlan(this.selectedEmployeeId, {
+            date,
+            is_present: false,
+            absence_type: this.leaveType as 'day_off' | 'sick',
+            creation_type: 'manual',
+          })
+        );
 
-    const absenceType = this.massAbsenceMode === 'vacation' ? 'day_off' : 'sick';
+    forkJoin(creates).subscribe({
+      next: (results: any[]) => {
+        const newEntries: LeaveEntry[] = results.map((r, i) => ({
+          id: r.id,
+          date: dates[i],
+          type: this.leaveType,
+          source: this.leaveType === 'unavailable' ? 'unavailability' : 'plan',
+        }));
+        this.leaveEntries = [...this.leaveEntries, ...newEntries]
+          .sort((a, b) => a.date.localeCompare(b.date));
+        this.leaveProcessing = false;
+        this.pickerRange = null;
+        this.pickerResetKey++;
+        // refresh calendar grid (unavailabilities or month plans may have changed)
+        if (this.leaveType === 'unavailable') {
+          this.unavailabilities = [
+            ...this.unavailabilities,
+            ...results.map((r: Unavailability) => r),
+          ].sort((a, b) => a.unavailable_date.localeCompare(b.unavailable_date));
+          this.applyPlansToCalendar();
+        } else {
+          this.loadPlansForMonth();
+        }
+      },
+      error: () => {
+        this.leaveProcessing = false;
+        this.leaveError = 'Failed to save some entries. Please try again.';
+      },
+    });
+  }
+
+  deleteLeaveEntry(entry: LeaveEntry): void {
+    const obs$: Observable<unknown> = entry.source === 'unavailability'
+      ? this.unavailabilityService.deleteUnavailability(entry.id)
+      : this.confirmedShiftPlanService.deleteConfirmedShiftPlan(entry.id);
+
+    obs$.subscribe({
+      next: () => {
+        this.leaveEntries = this.leaveEntries.filter(e => e.id !== entry.id);
+        if (entry.source === 'unavailability') {
+          this.unavailabilities = this.unavailabilities.filter(u => u.id !== entry.id);
+          this.applyPlansToCalendar();
+        } else {
+          this.loadPlansForMonth();
+        }
+      },
+      error: () => { this.leaveError = 'Failed to delete entry.'; },
+    });
+  }
+
+  private datesBetween(start: string, end: string): string[] {
     const dates: string[] = [];
-    const cur = new Date(from);
-    while (cur <= to) {
-      dates.push(this.formatDate(cur));
+    const cur = new Date(start + 'T00:00:00');
+    const endDate = new Date(end + 'T00:00:00');
+    while (cur <= endDate) {
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth() + 1).padStart(2, '0');
+      const d = String(cur.getDate()).padStart(2, '0');
+      dates.push(`${y}-${m}-${d}`);
       cur.setDate(cur.getDate() + 1);
     }
-
-    const datesWithoutPlan = dates.filter((d) => !this.planMap.has(d));
-    const datesWithoutUnavail = dates.filter((d) => !this.unavailabilities.some((u) => u.unavailable_date === d));
-
-    const planRequests = datesWithoutPlan.map((dateStr) =>
-      this.confirmedShiftPlanService.createConfirmedShiftPlan(this.selectedEmployeeId, {
-        date: dateStr,
-        is_present: false,
-        absence_type: absenceType,
-        creation_type: 'manual',
-      })
-    );
-
-    const unavailRequests = datesWithoutUnavail.map((dateStr) =>
-      this.unavailabilityService.createUnavailability({
-        employee_id: this.selectedEmployeeId,
-        unavailable_date: dateStr,
-      })
-    );
-
-    const all = [...planRequests, ...unavailRequests];
-    if (all.length === 0) {
-      this.massProcessing = false;
-      this.massAbsenceMode = null;
-      return;
-    }
-
-    forkJoin(all).subscribe({
-      next: () => {
-        this.massProcessing = false;
-        this.massAbsenceMode = null;
-        this.loadPlansForMonth();
-        this.loadUnavailabilities();
-      },
-      error: () => {
-        this.massError = 'Failed to apply absence entries. Please try again.';
-        this.massProcessing = false;
-      },
-    });
+    return dates;
   }
 
-  openMassDelete(): void {
-    this.massDeleteMode = true;
-    this.massDeleteFromDate = this.formatDate(new Date(this.currentYear, this.currentMonth, 1));
-    this.massDeleteToDate = this.formatDate(new Date(this.currentYear, this.currentMonth + 1, 0));
-    this.massDeleteError = null;
-  }
+  // ── Excel export ─────────────────────────────────────────
 
-  cancelMassDelete(): void {
-    this.massDeleteMode = false;
-    this.massDeleteError = null;
-  }
+  exportToExcel(): void {
+    if (!this.selectedEmployeeId) return;
+    const emp = this.employees.find(e => e.id === this.selectedEmployeeId);
+    const empName = emp?.name ?? 'employee';
 
-  applyMassDelete(): void {
-    if (!this.selectedEmployeeId || !this.massDeleteFromDate || !this.massDeleteToDate) return;
+    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+<head><meta charset="UTF-8">
+<style>
+  th { background:#2563EB; color:#fff; font-weight:bold; border:1px solid #ccc; padding:6px 10px; }
+  td { border:1px solid #ccc; padding:5px 10px; font-size:12px; }
+  tr:nth-child(even) td { background:#f0f4ff; }
+  .absent { background:#FEF3C7; color:#92400E; }
+  .unavail { background:#F3F4F6; color:#6B7280; }
+</style></head><body><table>
+<thead><tr>
+  <th>Date</th><th>Weekday</th><th>Shift</th><th>Workstation</th><th>Status</th>
+</tr></thead><tbody>`;
 
-    const from = new Date(this.massDeleteFromDate);
-    const to = new Date(this.massDeleteToDate);
-    if (from > to) {
-      this.massDeleteError = 'From date must be before to date.';
-      return;
-    }
+    for (const week of this.weeks) {
+      for (const day of week.days) {
+        if (!day.isCurrentMonth) continue;
+        const dateStr = this.formatDate(day.date);
+        const weekday = day.date.toLocaleDateString('en-US', { weekday: 'long' });
 
-    this.massDeleteProcessing = true;
-    this.massDeleteError = null;
-
-    const dates = new Set<string>();
-    const cur = new Date(from);
-    while (cur <= to) {
-      dates.add(this.formatDate(cur));
-      cur.setDate(cur.getDate() + 1);
-    }
-
-    // Delete absence plans (vacation/sick) in range
-    const planDeletes = [...this.planMap.entries()]
-      .filter(([d, p]) => dates.has(d) && !p.is_present)
-      .map(([, p]) => this.confirmedShiftPlanService.deleteConfirmedShiftPlan(p.id));
-
-    // Delete unavailabilities in range
-    const unavailDeletes = this.unavailabilities
-      .filter((u) => dates.has(u.unavailable_date))
-      .map((u) => this.unavailabilityService.deleteUnavailability(u.id));
-
-    const all = [...planDeletes, ...unavailDeletes];
-    if (all.length === 0) {
-      this.massDeleteProcessing = false;
-      this.massDeleteMode = false;
-      return;
-    }
-
-    forkJoin(all).subscribe({
-      next: () => {
-        this.massDeleteProcessing = false;
-        this.massDeleteMode = false;
-        this.loadPlansForMonth();
-        this.loadUnavailabilities();
-      },
-      error: () => {
-        this.massDeleteError = 'Failed to delete some entries. Please try again.';
-        this.massDeleteProcessing = false;
-      },
-    });
-  }
-
-  // ── Unavailability management ────────────────────────────────────
-
-  addUnavailability(): void {
-    if (!this.selectedEmployeeId || !this.newUnavailabilityDate) return;
-
-    // Check if already exists
-    if (this.unavailabilities.some((u) => u.unavailable_date === this.newUnavailabilityDate)) {
-      return;
-    }
-
-    this.addingUnavailability = true;
-    this.unavailabilityService.createUnavailability({
-      employee_id: this.selectedEmployeeId,
-      unavailable_date: this.newUnavailabilityDate,
-    }).subscribe({
-      next: (created) => {
-        this.unavailabilities = [...this.unavailabilities, created]
-          .sort((a, b) => a.unavailable_date.localeCompare(b.unavailable_date));
-        this.newUnavailabilityDate = '';
-        this.addingUnavailability = false;
-        this.applyPlansToCalendar();
-      },
-      error: () => {
-        this.addingUnavailability = false;
-      },
-    });
-  }
-
-  deleteUnavailability(id: string): void {
-    this.unavailabilityService.deleteUnavailability(id).subscribe({
-      next: () => {
-        this.unavailabilities = this.unavailabilities.filter((u) => u.id !== id);
-        this.applyPlansToCalendar();
-      },
-      error: (err) => console.error('Failed to delete unavailability', err),
-    });
-  }
-
-  addUnavailabilityRange(): void {
-    const { start, end } = this.unavailRangeForm.value;
-    if (!this.selectedEmployeeId || !start || !end) return;
-
-    this.unavailRangeError = null;
-    this.addingUnavailabilityRange = true;
-
-    // Enumerate every date in the range
-    const dates: string[] = [];
-    const cur = new Date(start);
-    const last = new Date(end);
-    cur.setHours(0, 0, 0, 0);
-    last.setHours(0, 0, 0, 0);
-    while (cur <= last) {
-      const ds = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
-      if (!this.unavailabilities.some(u => u.unavailable_date === ds)) {
-        dates.push(ds);
+        if (day.plan && day.plan.is_present) {
+          html += `<tr><td>${dateStr}</td><td>${weekday}</td>
+            <td>${day.shiftName ?? '—'}</td>
+            <td>${day.workstationName ?? '—'}</td>
+            <td>Present</td></tr>`;
+        } else if (day.plan && !day.plan.is_present) {
+          const absLabel = day.plan.absence_type === 'day_off' ? 'Vacation'
+            : day.plan.absence_type === 'sick' ? 'Sick Leave'
+            : day.plan.absence_type ?? 'Absent';
+          html += `<tr class="absent"><td>${dateStr}</td><td>${weekday}</td>
+            <td>—</td><td>—</td><td>${absLabel}</td></tr>`;
+        } else if (day.isUnavailable) {
+          html += `<tr class="unavail"><td>${dateStr}</td><td>${weekday}</td>
+            <td>—</td><td>—</td><td>Unavailable</td></tr>`;
+        } else {
+          html += `<tr><td>${dateStr}</td><td>${weekday}</td>
+            <td>—</td><td>—</td><td>—</td></tr>`;
+        }
       }
-      cur.setDate(cur.getDate() + 1);
     }
 
-    if (dates.length === 0) {
-      this.addingUnavailabilityRange = false;
-      this.unavailRangeForm.reset();
-      return;
-    }
+    html += `</tbody></table></body></html>`;
 
-    const requests = dates.map(d =>
-      this.unavailabilityService.createUnavailability({ employee_id: this.selectedEmployeeId, unavailable_date: d })
-    );
-
-    forkJoin(requests).subscribe({
-      next: () => {
-        this.addingUnavailabilityRange = false;
-        this.unavailRangeForm.reset();
-        this.loadUnavailabilities();
-      },
-      error: () => {
-        this.addingUnavailabilityRange = false;
-        this.unavailRangeError = 'Failed to add some unavailability dates.';
-      },
-    });
+    const blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const month = String(this.currentMonth + 1).padStart(2, '0');
+    a.download = `${empName.replace(/\s+/g, '-')}-${this.currentYear}-${month}.xls`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // Close dropdowns when clicking outside

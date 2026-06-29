@@ -64,6 +64,14 @@ export class WorkstationService {
     });
   }
 
+  enable(workstationId: string): Observable<Workstation> {
+    return this.http.patch<Workstation>(`${this.apiUrl}/workstations/${workstationId}/enable`, {});
+  }
+
+  disable(workstationId: string): Observable<Workstation> {
+    return this.http.patch<Workstation>(`${this.apiUrl}/workstations/${workstationId}/disable`, {});
+  }
+
   getRequiredCapabilities(workstationId: string): Observable<Capability[]> {
     return this.http.get<Capability[]>(`${this.apiUrl}/workstations/${workstationId}/required-capabilities`);
   }

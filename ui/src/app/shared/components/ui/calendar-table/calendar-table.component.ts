@@ -44,6 +44,8 @@ export class CalendarTableComponent implements OnDestroy {
   @Input() days: CalendarTableDay[] = [];
   @Input() cellMap: Map<string, Map<string, CalendarTableCellData>> = new Map();
   @Input() rowLabel = 'Workstation';
+  @Input() rowIcon: 'workstation' | 'employee' = 'workstation';
+  @Input() cellDisplayMode: 'count' | 'name' = 'count';
   @Input() rowColWidth = 220;
   @Output() cellClick = new EventEmitter<CalendarTableCellClickEvent>();
 

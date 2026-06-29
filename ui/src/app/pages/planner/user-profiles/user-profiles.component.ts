@@ -6,11 +6,20 @@ import { PageBreadcrumbComponent } from '../../../shared/components/common/page-
 import { InputFieldComponent } from '../../../shared/components/form/input/input-field.component';
 import { LabelComponent } from '../../../shared/components/form/label/label.component';
 import { ButtonComponent } from '../../../shared/components/ui/button/button.component';
+import { DateRangePickerComponent, MarkedDay } from '../../../shared/components/ui/date-range-picker/date-range-picker.component';
 import { EmployeeService, EmployeeProfile, CreateEmployeeRequest, PaginatedEmployeeResponse } from '../../../shared/services/employee.service';
 import { CapabilityService, Capability } from '../../../shared/services/capability.service';
 import { ShiftService, Shift } from '../../../shared/services/shift.service';
-import { UnavailabilityService, Unavailability } from '../../../shared/services/unavailability.service';
+import { UnavailabilityService } from '../../../shared/services/unavailability.service';
 import { GlobalSearchService } from '../../../shared/services/global-search.service';
+import { ConfirmedShiftPlanService } from '../../../shared/services/confirmed-shift-plan.service';
+
+interface LeaveEntry {
+  id: string;
+  date: string;
+  type: 'unavailable' | 'day_off' | 'sick';
+  source: 'unavailability' | 'plan';
+}
 
 @Component({
   selector: 'app-user-profiles',
@@ -22,6 +31,7 @@ import { GlobalSearchService } from '../../../shared/services/global-search.serv
     InputFieldComponent,
     LabelComponent,
     ButtonComponent,
+    DateRangePickerComponent,
   ],
   template: `
     <app-page-breadcrumb pageTitle="User Profiles" />
@@ -110,77 +120,117 @@ import { GlobalSearchService } from '../../../shared/services/global-search.serv
               }
             </div>
 
-            <!-- Unavailabilities (only in edit mode) -->
+            <!-- Leave & Unavailability (unified calendar picker) -->
             <div class="mb-5">
-              <app-label className="mb-2">Unavailabilities</app-label>
-              <p class="mb-3 text-sm text-gray-500 dark:text-gray-400">
-                Add dates when this employee is unavailable for work.
-              </p>
-              
-              <!-- Add new unavailability -->
-              <div class="mb-4 flex flex-wrap items-end gap-3">
-                <div class="flex-1 min-w-[200px]">
-                  <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Date</label>
-                  <input
-                    type="date"
-                    [value]="newUnavailabilityDate"
-                    (input)="onUnavailabilityDateChange($event)"
-                    class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
-                  />
-                </div>
-                <div class="flex-1 min-w-[150px]">
-                  <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Shift (optional)</label>
-                  <select
-                    [value]="newUnavailabilityShiftId"
-                    (change)="onUnavailabilityShiftChange($event)"
-                    class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
-                  >
-                    <option value="">All shifts</option>
-                    @for (shift of allShifts; track shift.id) {
-                      <option [value]="shift.id">{{ shift.name }}</option>
-                    }
-                  </select>
-                </div>
-                <app-button
-                  size="sm"
-                  variant="outline"
-                  (btnClick)="addUnavailability()"
-                  [disabled]="!newUnavailabilityDate"
-                >
-                  Add
-                </app-button>
-              </div>
+              <app-label className="mb-3">Leave &amp; Unavailability</app-label>
 
-              <!-- List existing unavailabilities -->
-              @if (employeeUnavailabilities.length === 0) {
-                <p class="text-sm text-gray-400 dark:text-gray-500">No unavailabilities recorded.</p>
-              } @else {
-                <div class="space-y-2">
-                  @for (unavail of employeeUnavailabilities; track unavail.id) {
-                    <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800">
-                      <div class="flex items-center gap-3">
-                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          {{ unavail.unavailable_date }}
-                        </span>
-                        @if (unavail.shift_id) {
-                          <span class="text-xs text-gray-500 dark:text-gray-400">
-                            ({{ getShiftName(unavail.shift_id) }})
-                          </span>
-                        }
-                      </div>
-                      <button
-                        type="button"
-                        (click)="deleteUnavailability(unavail.id)"
-                        class="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
-                      </button>
+              <div class="grid grid-cols-1 gap-5 lg:grid-cols-[280px_1fr]">
+
+                <!-- Left: type tabs + calendar picker + apply button -->
+                <div>
+                  <!-- Type selector -->
+                  <div class="mb-3 inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 dark:border-gray-700 dark:bg-gray-800">
+                    <button type="button" (click)="leaveType = 'unavailable'"
+                      class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
+                      [class.bg-white]="leaveType === 'unavailable'"
+                      [class.shadow-sm]="leaveType === 'unavailable'"
+                      [class.text-amber-700]="leaveType === 'unavailable'"
+                      [class.dark:bg-gray-700]="leaveType === 'unavailable'"
+                      [class.dark:text-amber-300]="leaveType === 'unavailable'"
+                      [class.text-gray-500]="leaveType !== 'unavailable'"
+                      [class.dark:text-gray-400]="leaveType !== 'unavailable'"
+                    >Unavailable</button>
+                    <button type="button" (click)="leaveType = 'day_off'"
+                      class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
+                      [class.bg-white]="leaveType === 'day_off'"
+                      [class.shadow-sm]="leaveType === 'day_off'"
+                      [class.text-yellow-700]="leaveType === 'day_off'"
+                      [class.dark:bg-gray-700]="leaveType === 'day_off'"
+                      [class.dark:text-yellow-300]="leaveType === 'day_off'"
+                      [class.text-gray-500]="leaveType !== 'day_off'"
+                      [class.dark:text-gray-400]="leaveType !== 'day_off'"
+                    >Vacation</button>
+                    <button type="button" (click)="leaveType = 'sick'"
+                      class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
+                      [class.bg-white]="leaveType === 'sick'"
+                      [class.shadow-sm]="leaveType === 'sick'"
+                      [class.text-red-600]="leaveType === 'sick'"
+                      [class.dark:bg-gray-700]="leaveType === 'sick'"
+                      [class.dark:text-red-400]="leaveType === 'sick'"
+                      [class.text-gray-500]="leaveType !== 'sick'"
+                      [class.dark:text-gray-400]="leaveType !== 'sick'"
+                    >Sick Leave</button>
+                  </div>
+
+                  <!-- Calendar range picker -->
+                  <app-date-range-picker
+                    [markedDays]="markedDays"
+                    [resetKey]="pickerResetKey"
+                    (rangeChange)="pickerRange = $event"
+                  />
+
+                  <!-- Apply button -->
+                  <button
+                    type="button"
+                    (click)="applyLeaveRange()"
+                    [disabled]="!pickerRange || leaveProcessing"
+                    class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    @if (leaveProcessing) {
+                      <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+                        <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
+                      </svg>
+                    }
+                    Add {{ leaveTypeLabel(leaveType) }}
+                  </button>
+
+                  @if (leaveError) {
+                    <p class="mt-2 text-xs text-red-500 dark:text-red-400">{{ leaveError }}</p>
+                  }
+                </div>
+
+                <!-- Right: existing entries list -->
+                <div>
+                  @if (leaveEntries.length === 0) {
+                    <p class="mt-2 text-sm text-gray-400 dark:text-gray-500">No leave or unavailability recorded yet.</p>
+                  } @else {
+                    <div class="max-h-80 space-y-1.5 overflow-y-auto pr-1">
+                      @for (entry of leaveEntries; track entry.id) {
+                        <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/50">
+                          <div class="flex items-center gap-2.5">
+                            <span class="font-mono text-sm text-gray-700 dark:text-gray-300">{{ entry.date }}</span>
+                            <span class="rounded-full px-2 py-0.5 text-xs font-medium"
+                              [class.bg-amber-100]="entry.type === 'unavailable'"
+                              [class.text-amber-700]="entry.type === 'unavailable'"
+                              [class.dark:bg-amber-900]="entry.type === 'unavailable'"
+                              [class.dark:text-amber-300]="entry.type === 'unavailable'"
+                              [class.bg-yellow-100]="entry.type === 'day_off'"
+                              [class.text-yellow-700]="entry.type === 'day_off'"
+                              [class.dark:bg-yellow-900]="entry.type === 'day_off'"
+                              [class.dark:text-yellow-300]="entry.type === 'day_off'"
+                              [class.bg-red-100]="entry.type === 'sick'"
+                              [class.text-red-700]="entry.type === 'sick'"
+                              [class.dark:bg-red-900]="entry.type === 'sick'"
+                              [class.dark:text-red-300]="entry.type === 'sick'"
+                            >{{ leaveTypeLabel(entry.type) }}</span>
+                          </div>
+                          <button
+                            type="button"
+                            (click)="deleteLeaveEntry(entry)"
+                            class="ml-2 shrink-0 text-gray-400 hover:text-red-500 dark:hover:text-red-400"
+                          >
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                              <path d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                          </button>
+                        </div>
+                      }
                     </div>
                   }
                 </div>
-              }
+
+              </div>
             </div>
           }
 
@@ -409,10 +459,13 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
   formCapabilities: { [id: string]: boolean } = {};
   formShifts: { [id: string]: boolean } = {};
 
-  // Unavailability
-  employeeUnavailabilities: Unavailability[] = [];
-  newUnavailabilityDate = '';
-  newUnavailabilityShiftId = '';
+  // Unified leave & unavailability
+  leaveEntries: LeaveEntry[] = [];
+  leaveType: 'unavailable' | 'day_off' | 'sick' = 'unavailable';
+  pickerRange: { start: string; end: string } | null = null;
+  pickerResetKey = 0;
+  leaveProcessing = false;
+  leaveError: string | null = null;
 
   plusIcon = `<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.25C12.4142 3.25 12.75 3.58579 12.75 4V11.25H20C20.4142 11.25 20.75 11.5858 20.75 12C20.75 12.4142 20.4142 12.75 20 12.75H12.75V20C12.75 20.4142 12.4142 20.75 12 20.75C11.5858 20.75 11.25 20.4142 11.25 20V12.75H4C3.58579 12.75 3.25 12.4142 3.25 12C3.25 11.5858 3.58579 11.25 4 11.25H11.25V4C11.25 3.58579 11.5858 3.25 12 3.25Z" fill="currentColor"></path></svg>`;
 
@@ -421,7 +474,8 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
     private capabilityService: CapabilityService,
     private shiftService: ShiftService,
     private unavailabilityService: UnavailabilityService,
-    private globalSearchService: GlobalSearchService
+    private globalSearchService: GlobalSearchService,
+    private confirmedShiftPlanService: ConfirmedShiftPlanService,
   ) {}
 
   ngOnInit(): void {
@@ -493,33 +547,47 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
     this.formEmail = employee.email;
     this.formCapabilities = {};
     this.formShifts = {};
-    this.employeeUnavailabilities = [];
-    this.newUnavailabilityDate = '';
-    this.newUnavailabilityShiftId = '';
+    this.leaveEntries = [];
+    this.leaveError = null;
+    this.pickerRange = null;
 
-    // Load all capabilities, shifts, and unavailabilities for the employee
     forkJoin({
       capabilities: this.capabilityService.getCapabilities(),
       shifts: this.shiftService.getShifts(),
       unavailabilities: this.unavailabilityService.getUnavailabilities(employee.id),
+      absences: this.confirmedShiftPlanService.getEmployeeConfirmedShiftPlans(employee.id),
     }).subscribe({
-      next: ({ capabilities, shifts, unavailabilities }) => {
+      next: ({ capabilities, shifts, unavailabilities, absences }) => {
         this.allCapabilities = capabilities;
         this.allShifts = shifts;
-        this.employeeUnavailabilities = unavailabilities;
 
-        // Pre-check capabilities the employee already has
+        const unavailEntries: LeaveEntry[] = unavailabilities.map(u => ({
+          id: u.id,
+          date: u.unavailable_date,
+          type: 'unavailable',
+          source: 'unavailability',
+        }));
+        const absenceEntries: LeaveEntry[] = absences
+          .filter(p => !p.is_present && p.absence_type !== 'unavailable')
+          .map(p => ({
+            id: p.id,
+            date: p.date,
+            type: (p.absence_type === 'sick' ? 'sick' : 'day_off') as 'sick' | 'day_off',
+            source: 'plan',
+          }));
+        this.leaveEntries = [...unavailEntries, ...absenceEntries]
+          .sort((a, b) => a.date.localeCompare(b.date));
+
         for (const cap of capabilities) {
           this.formCapabilities[cap.id] = employee.capabilities.includes(cap.name);
         }
-        // Pre-check shifts the employee already has
         for (const shift of shifts) {
           this.formShifts[shift.id] = employee.shifts.includes(shift.name);
         }
 
         this.showForm = true;
       },
-      error: (err) => console.error('Failed to load capabilities/shifts/unavailabilities', err),
+      error: (err) => console.error('Failed to load employee data', err),
     });
   }
 
@@ -530,9 +598,10 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
     this.formEmail = '';
     this.formCapabilities = {};
     this.formShifts = {};
-    this.employeeUnavailabilities = [];
-    this.newUnavailabilityDate = '';
-    this.newUnavailabilityShiftId = '';
+    this.leaveEntries = [];
+    this.leaveError = null;
+    this.pickerRange = null;
+    this.pickerResetKey = 0;
   }
 
   onNameChange(value: string | number): void {
@@ -640,49 +709,85 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
     }
   }
 
-  // Unavailability methods
-  addUnavailability(): void {
-    if (!this.editingEmployee || !this.newUnavailabilityDate) {
-      return;
-    }
-
-    const request = {
-      employee_id: this.editingEmployee.id,
-      unavailable_date: this.newUnavailabilityDate,
-      shift_id: this.newUnavailabilityShiftId || undefined,
-    };
-
-    this.unavailabilityService.createUnavailability(request).subscribe({
-      next: (newUnavailability) => {
-        this.employeeUnavailabilities.push(newUnavailability);
-        this.newUnavailabilityDate = '';
-        this.newUnavailabilityShiftId = '';
-      },
-      error: (err) => console.error('Failed to add unavailability', err),
-    });
+  get markedDays(): MarkedDay[] {
+    return this.leaveEntries.map(e => ({
+      date: e.date,
+      type: e.type === 'unavailable' ? 'unavailable' : e.type === 'day_off' ? 'vacation' : 'sick',
+    }));
   }
 
-  deleteUnavailability(unavailabilityId: string): void {
-    this.unavailabilityService.deleteUnavailability(unavailabilityId).subscribe({
-      next: () => {
-        this.employeeUnavailabilities = this.employeeUnavailabilities.filter(
-          (u) => u.id !== unavailabilityId
+  leaveTypeLabel(type: string): string {
+    if (type === 'sick') return 'Sick Leave';
+    if (type === 'day_off') return 'Vacation';
+    return 'Unavailable';
+  }
+
+  applyLeaveRange(): void {
+    if (!this.pickerRange || !this.editingEmployee) return;
+
+    const dates = this.datesBetween(this.pickerRange.start, this.pickerRange.end);
+    this.leaveProcessing = true;
+    this.leaveError = null;
+
+    const creates: Observable<any>[] = this.leaveType === 'unavailable'
+      ? dates.map(date =>
+          this.unavailabilityService.createUnavailability({
+            employee_id: this.editingEmployee!.id,
+            unavailable_date: date,
+          })
+        )
+      : dates.map(date =>
+          this.confirmedShiftPlanService.createConfirmedShiftPlan(this.editingEmployee!.id, {
+            date,
+            is_present: false,
+            absence_type: this.leaveType as 'day_off' | 'sick',
+            creation_type: 'manual',
+          })
         );
+
+    forkJoin(creates).subscribe({
+      next: (results: any[]) => {
+        const newEntries: LeaveEntry[] = results.map((r, i) => ({
+          id: r.id,
+          date: dates[i],
+          type: this.leaveType,
+          source: this.leaveType === 'unavailable' ? 'unavailability' : 'plan',
+        }));
+        this.leaveEntries = [...this.leaveEntries, ...newEntries]
+          .sort((a, b) => a.date.localeCompare(b.date));
+        this.leaveProcessing = false;
+        this.pickerRange = null;
+        this.pickerResetKey++;
       },
-      error: (err) => console.error('Failed to delete unavailability', err),
+      error: () => {
+        this.leaveProcessing = false;
+        this.leaveError = 'Failed to save some entries. Please try again.';
+      },
     });
   }
 
-  getShiftName(shiftId: string): string {
-    const shift = this.allShifts.find((s) => s.id === shiftId);
-    return shift ? shift.name : 'Unknown';
+  deleteLeaveEntry(entry: LeaveEntry): void {
+    const obs$: Observable<unknown> = entry.source === 'unavailability'
+      ? this.unavailabilityService.deleteUnavailability(entry.id)
+      : this.confirmedShiftPlanService.deleteConfirmedShiftPlan(entry.id);
+
+    obs$.subscribe({
+      next: () => { this.leaveEntries = this.leaveEntries.filter(e => e.id !== entry.id); },
+      error: () => { this.leaveError = 'Failed to delete entry.'; },
+    });
   }
 
-  onUnavailabilityDateChange(event: Event): void {
-    this.newUnavailabilityDate = (event.target as HTMLInputElement).value;
-  }
-
-  onUnavailabilityShiftChange(event: Event): void {
-    this.newUnavailabilityShiftId = (event.target as HTMLSelectElement).value;
+  private datesBetween(start: string, end: string): string[] {
+    const dates: string[] = [];
+    const cur = new Date(start + 'T00:00:00');
+    const endDate = new Date(end + 'T00:00:00');
+    while (cur <= endDate) {
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth() + 1).padStart(2, '0');
+      const d = String(cur.getDate()).padStart(2, '0');
+      dates.push(`${y}-${m}-${d}`);
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dates;
   }
 }

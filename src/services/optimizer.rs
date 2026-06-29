@@ -131,24 +131,52 @@ impl OptimizerService {
         }
 
         let shift_tasks = Self::build_shift_tasks(shifts);
-        let workstation_tasks: Vec<WorkstationTask> = workstations.into_iter().map(|ws| WorkstationTask {
-            id: ws.id.to_string(),
-            name: ws.name,
-            required_skills: ws.required_capabilities.iter().map(|c| c.name.clone()).collect(),
-            priority: ws.priority.clone(),
-            operating_shifts: ws.active_shift_ids.iter().map(|id| id.to_string()).collect(),
-        }).collect();
-        let employee_tasks: Vec<EmployeeTask> = employees.into_iter().map(|emp| {
-            let unavailability = unavail_map.get(&emp.id).cloned().unwrap_or_default();
-            EmployeeTask {
-                id: emp.id.to_string(),
-                name: emp.name,
-                skills: emp.capabilities.iter().map(|c| c.name.clone()).collect(),
-                available_shifts: emp.available_shifts.iter().map(|s| s.id.to_string()).collect(),
-                unavailability,
-                monthly_working_hours: emp.monthly_working_hours,
-            }
-        }).collect();
+
+        let total_workstations = workstations.len();
+        let workstation_tasks: Vec<WorkstationTask> = workstations.into_iter()
+            .filter(|ws| ws.available && !ws.active_shift_ids.is_empty())
+            .map(|ws| WorkstationTask {
+                id: ws.id.to_string(),
+                name: ws.name,
+                required_skills: ws.required_capabilities.iter().map(|c| c.name.clone()).collect(),
+                priority: ws.priority.clone(),
+                operating_shifts: ws.active_shift_ids.iter().map(|id| id.to_string()).collect(),
+            }).collect();
+
+        let total_employees = employees.len();
+        let employee_tasks: Vec<EmployeeTask> = employees.into_iter()
+            .filter(|emp| !emp.available_shifts.is_empty())
+            .map(|emp| {
+                let unavailability = unavail_map.get(&emp.id).cloned().unwrap_or_default();
+                EmployeeTask {
+                    id: emp.id.to_string(),
+                    name: emp.name,
+                    skills: emp.capabilities.iter().map(|c| c.name.clone()).collect(),
+                    available_shifts: emp.available_shifts.iter().map(|s| s.id.to_string()).collect(),
+                    unavailability,
+                    monthly_working_hours: emp.monthly_working_hours,
+                }
+            }).collect();
+
+        if workstation_tasks.is_empty() {
+            return Err(format!(
+                "No schedulable workstations ({} total — all are disabled or have no active shifts assigned).",
+                total_workstations
+            ).into());
+        }
+        if employee_tasks.is_empty() {
+            return Err(format!(
+                "No schedulable employees ({} total — all have no available shifts assigned). \
+                 Assign at least one shift to each employee before running the optimizer.",
+                total_employees
+            ).into());
+        }
+
+        eprintln!(
+            "Optimizer payload: {} workstations ({} skipped), {} employees ({} skipped)",
+            workstation_tasks.len(), total_workstations - workstation_tasks.len(),
+            employee_tasks.len(), total_employees - employee_tasks.len(),
+        );
 
         let today = Local::now().naive_local().date();
         let period_start = start_date
@@ -319,8 +347,9 @@ pub async fn trigger_plan(
         end_date.as_deref(),
         constraints,
     ).await {
-        eprintln!("Failed to schedule task {}: {}", task_id, e);
-        return Err(AppError::Internal);
+        let msg = e.to_string();
+        eprintln!("Failed to schedule task {}: {}", task_id, msg);
+        return Err(AppError::Validation(msg));
     }
 
     Ok(Json(PlanTaskResponse { task_id }))
@@ -412,10 +441,30 @@ pub async fn get_optimized_shift(
     Ok(Json(OptimizedShiftResultResponse { id: stored.id, result: result_dto, creation_date: stored.creation_date }))
 }
 
+pub async fn delete_task(
+    Path(task_id): Path<Uuid>,
+    State(state): State<AppState>,
+) -> Result<StatusCode, AppError> {
+    state.planning_task_repo.delete_planning_task(task_id).await
+        .map_err(|e| {
+            if let Some(app_err) = e.downcast_ref::<AppError>() {
+                if matches!(app_err, AppError::NotFound) { return AppError::NotFound; }
+            }
+            eprintln!("Failed to delete planning task: {}", e);
+            AppError::Internal
+        })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 pub async fn delete_optimized_shift(
     Path(result_id): Path<Uuid>,
     State(state): State<AppState>,
 ) -> Result<StatusCode, AppError> {
+    // Clear the result reference from any task that points to this result first,
+    // so that after deletion the task list no longer shows stale View/Delete buttons.
+    state.planning_task_repo.clear_task_result_id(result_id).await
+        .map_err(|e| { eprintln!("Failed to clear task result_id: {}", e); AppError::Internal })?;
+
     state.optimized_shift_result_repo.delete_optimized_shift_result(result_id).await
         .map_err(|e| {
             if let Some(app_err) = e.downcast_ref::<AppError>() {

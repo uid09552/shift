@@ -11,6 +11,44 @@
         }
       </div>
       <div class="flex flex-wrap items-center gap-2">
+        <!-- View toggle -->
+        @if (selectedResult) {
+          <div class="flex items-center rounded-lg border border-gray-200 p-0.5 dark:border-gray-700">
+            <button
+              (click)="setView('workstation')"
+              class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition"
+              [class.bg-white]="viewMode === 'workstation'"
+              [class.shadow-sm]="viewMode === 'workstation'"
+              [class.text-gray-800]="viewMode === 'workstation'"
+              [class.dark:bg-gray-700]="viewMode === 'workstation'"
+              [class.dark:text-white]="viewMode === 'workstation'"
+              [class.text-gray-500]="viewMode !== 'workstation'"
+              [class.dark:text-gray-400]="viewMode !== 'workstation'"
+            >
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+              </svg>
+              Workstations
+            </button>
+            <button
+              (click)="setView('employee')"
+              class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition"
+              [class.bg-white]="viewMode === 'employee'"
+              [class.shadow-sm]="viewMode === 'employee'"
+              [class.text-gray-800]="viewMode === 'employee'"
+              [class.dark:bg-gray-700]="viewMode === 'employee'"
+              [class.dark:text-white]="viewMode === 'employee'"
+              [class.text-gray-500]="viewMode !== 'employee'"
+              [class.dark:text-gray-400]="viewMode !== 'employee'"
+            >
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              Employees
+            </button>
+          </div>
+        }
+
         <!-- Planning weeks -->
         <div class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 dark:border-gray-700">
           <span class="text-xs text-gray-500 dark:text-gray-400">Plan</span>
@@ -74,6 +112,34 @@
           }
         </button>
 
+        <!-- Take as plan button -->
+        @if (selectedResult) {
+          <button
+            (click)="takeAsPlan()"
+            [disabled]="takingAsPlan"
+            class="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20"
+            title="Save this optimizer result as confirmed shift plans (overwrites existing plans for the period)"
+          >
+            @if (takingAsPlan) {
+              <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+                <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
+              </svg>
+              <span>Saving…</span>
+            } @else if (takePlanSuccess) {
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span>Saved!</span>
+            } @else {
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
+              <span>Take as Plan</span>
+            }
+          </button>
+        }
+
         <button (click)="showTaskList = !showTaskList" class="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]" [class.bg-gray-50]="showTaskList">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line>
@@ -88,14 +154,14 @@
     </div>
   </div>
 
-  <!-- Error -->
-  @if (error) {
+  <!-- Error / take-plan feedback -->
+  @if (error || takePlanError) {
     <div class="flex items-center justify-center border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
       <div class="flex items-center gap-2 rounded-lg bg-red-50 px-4 py-3 dark:bg-red-500/10">
         <svg class="h-5 w-5 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
         </svg>
-        <span class="text-sm text-red-600 dark:text-red-400">{{ error }}</span>
+        <span class="text-sm text-red-600 dark:text-red-400">{{ error || takePlanError }}</span>
       </div>
     </div>
   }
@@ -116,7 +182,7 @@
     <app-calendar-nav [label]="weekLabel" periodType="week" (prev)="prevWeek()" (next)="nextWeek()" (today)="goToday()" />
   </div>
 
-  <!-- Calendar table -->
+  <!-- Calendar table (shared component, toggled by viewMode) -->
   @if (loading) {
     <div class="flex items-center justify-center py-20 text-gray-400 dark:text-gray-500">
       <svg class="mr-2 h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -136,10 +202,12 @@
     </div>
   } @else {
     <app-calendar-table
-      [rows]="calendarTableRows"
+      [rows]="currentRows"
       [days]="days"
-      [cellMap]="calendarTableCellMap"
-      rowLabel="Workstation"
+      [cellMap]="currentCellMap"
+      [rowLabel]="currentRowLabel"
+      [rowIcon]="currentRowIcon"
+      [cellDisplayMode]="currentCellMode"
       (cellClick)="onTableCellClick($event)"
     />
   }
@@ -174,34 +242,43 @@
         <div class="px-5 py-6 text-center text-sm text-gray-400">No jobs found.</div>
       }
       @for (task of planningTasks; track task.id) {
-        <div class="flex items-center justify-between px-5 py-3">
-          <div class="flex items-center gap-3">
+        <div class="flex flex-col gap-1 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div class="flex flex-wrap items-center gap-3">
             <span class="font-mono text-xs text-gray-400 dark:text-gray-500">{{ task.id.substring(0, 8) }}…</span>
             <span class="rounded-full px-2.5 py-0.5 text-xs font-medium"
               [class.bg-yellow-100]="task.status === 'scheduled'"
               [class.text-yellow-800]="task.status === 'scheduled'"
+              [class.dark:bg-yellow-900/30]="task.status === 'scheduled'"
+              [class.dark:text-yellow-400]="task.status === 'scheduled'"
               [class.bg-green-100]="task.status === 'done'"
               [class.text-green-800]="task.status === 'done'"
+              [class.dark:bg-green-900/30]="task.status === 'done'"
+              [class.dark:text-green-400]="task.status === 'done'"
               [class.bg-red-100]="task.status === 'error'"
               [class.text-red-800]="task.status === 'error'"
+              [class.dark:bg-red-900/30]="task.status === 'error'"
+              [class.dark:text-red-400]="task.status === 'error'"
             >
               {{ taskStatusLabel(task.status) }}
             </span>
             @if (task.error_message) {
-              <span class="text-xs text-red-500" [title]="task.error_message">error</span>
+              <span class="max-w-xs truncate text-xs text-red-500 dark:text-red-400" [title]="task.error_message">
+                {{ task.error_message }}
+              </span>
             }
           </div>
           <div class="flex items-center gap-3">
             <span class="text-xs text-gray-400">{{ task.created_at | date:'short' }}</span>
             @if (task.result_id) {
-              <button (click)="loadResultById(task.result_id!)" class="rounded-lg border border-brand-200 px-3 py-1 text-xs font-medium text-brand-600 transition hover:bg-brand-50 dark:border-brand-800 dark:text-brand-400 dark:hover:bg-brand-500/10">
+              <button (click)="loadResultById(task.result_id!)"
+                class="rounded-lg border border-brand-200 px-3 py-1 text-xs font-medium text-brand-600 transition hover:bg-brand-50 dark:border-brand-800 dark:text-brand-400 dark:hover:bg-brand-500/10">
                 View
               </button>
-              <button (click)="deleteResult(task.result_id!)" [disabled]="deletingResultId === task.result_id"
-                class="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-500/10">
-                @if (deletingResultId === task.result_id) { … } @else { Delete }
-              </button>
             }
+            <button (click)="deleteEntry(task)" [disabled]="deletingResultId === task.id"
+              class="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-500/10">
+              @if (deletingResultId === task.id) { … } @else { Delete }
+            </button>
           </div>
         </div>
       }

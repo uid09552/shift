@@ -32,10 +32,10 @@ export interface DaySchedule {
 export interface DailyPlanEntry {
   date: string;
   status: 'assigned' | 'not_assigned';
-  shift_id?: string;
-  shift_name?: string;
-  workstation_id?: string;
-  workstation_name?: string;
+  shift_id?: string | null;
+  shift_name?: string | null;
+  workstation_id?: string | null;
+  workstation_name?: string | null;
 }
 
 export interface EmployeeDailyPlan {
@@ -178,5 +178,13 @@ export class PlannerService {
    */
   getPlanningTasks(): Observable<PlanningTasksResponse> {
     return this.http.get<PlanningTasksResponse>(`${this.apiUrl}/tasks`);
+  }
+
+  /**
+   * DELETE /planner/tasks/:task_id
+   * Deletes a planning task (e.g. failed jobs).
+   */
+  deletePlanningTask(taskId: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/tasks/${taskId}`);
   }
 }

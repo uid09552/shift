@@ -1,6 +1,6 @@
 use axum::{
     response::Json,
-    routing::{delete, get, post, put},
+    routing::{delete, get, patch, post, put},
     Router,
     extract::{ State},
     http::StatusCode,
@@ -78,6 +78,14 @@ pub fn create_router(state: AppState) -> Router {
             put(WorkstationService::set_workstation_availability),
         )
         .route(
+            "/workstations/:workstation_id/enable",
+            patch(WorkstationService::enable_workstation),
+        )
+        .route(
+            "/workstations/:workstation_id/disable",
+            patch(WorkstationService::disable_workstation),
+        )
+        .route(
             "/workstations/:workstation_id/required-capabilities",
             get(WorkstationService::get_workstation_required_capabilities).post(WorkstationService::add_workstation_required_capability),
         )
@@ -92,7 +100,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/planner/plan/:task_id/status", get(optimizer::get_plan_status))
         .route("/planner/prepare", post(optimizer::prepare))
         .route("/planner/tasks", get(optimizer::list_tasks))
-        .route("/planner/tasks/:task_id", get(optimizer::get_task))
+        .route("/planner/tasks/:task_id", get(optimizer::get_task).delete(optimizer::delete_task))
         .route("/planner/optimized-shifts", get(optimizer::list_optimized_shifts))
         .route("/planner/optimized-shifts/:result_id", get(optimizer::get_optimized_shift).delete(optimizer::delete_optimized_shift))
         // Shift Assignments

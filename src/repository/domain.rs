@@ -161,6 +161,7 @@ pub trait ConfirmedShiftPlanRepository {
     async fn get_confirmed_shift_plan_by_id(&self, id: Uuid) -> Result<Option<ConfirmedShiftPlan>, Box<dyn std::error::Error + Send + Sync>>;
     async fn update_confirmed_shift_plan(&self, id: Uuid, shift_id: Option<Option<Uuid>>, workstation_id: Option<Option<Uuid>>, is_present: Option<bool>, absence_type: Option<String>, creation_type: Option<String>) -> Result<ConfirmedShiftPlan, Box<dyn std::error::Error + Send + Sync>>;
     async fn delete_confirmed_shift_plan(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    async fn delete_confirmed_shift_plans_for_employee_date_type(&self, employee_id: Uuid, date: NaiveDate, absence_type: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn list_confirmed_shift_plans(&self, limit: Option<i64>, offset: Option<i64>) -> Result<Vec<ConfirmedShiftPlan>, Box<dyn std::error::Error + Send + Sync>>;
     async fn count_confirmed_shift_plans(&self) -> Result<i64, Box<dyn std::error::Error + Send + Sync>>;
     async fn get_confirmed_shift_plans_for_date_range(&self, from_date: NaiveDate, to_date: NaiveDate, limit: Option<i64>, offset: Option<i64>) -> Result<Vec<ConfirmedShiftPlan>, Box<dyn std::error::Error + Send + Sync>>;
@@ -217,6 +218,10 @@ pub trait PlanningTaskRepository {
     async fn list_planning_tasks(&self) -> Result<Vec<PlanningTaskDomain>, Box<dyn std::error::Error + Send + Sync>>;
     async fn update_planning_task_done(&self, id: Uuid, result_id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn update_planning_task_error(&self, id: Uuid, error_message: String) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    async fn delete_planning_task(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    /// Set result_id = NULL on any task that references the given result, so the task
+    /// no longer points to a deleted result.
+    async fn clear_task_result_id(&self, result_id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     /// Mark all tasks with status 'scheduled' created before `cutoff` as 'error'.
     async fn mark_stale_tasks_failed(&self, cutoff: chrono::NaiveDateTime) -> Result<usize, Box<dyn std::error::Error + Send + Sync>>;
 }

@@ -148,7 +148,7 @@ impl ConfirmedShiftPlanService {
 
         // Validate absence_type if provided
         if let Some(ref at) = absence_type {
-            let valid_absence = matches!(at.as_str(), "sick" | "day_off" | "holiday" | "unknown");
+            let valid_absence = matches!(at.as_str(), "sick" | "day_off" | "holiday" | "unknown" | "unavailable");
             if !valid_absence {
                 return Err(AppError::Validation(
                     "Invalid 'absence_type', must be one of: sick, day_off, holiday, unknown".into(),
@@ -273,7 +273,7 @@ impl ConfirmedShiftPlanService {
 
         // Validate absence_type if provided
         if let Some(ref at) = absence_type {
-            let valid_absence = matches!(at.as_str(), "sick" | "day_off" | "holiday" | "unknown");
+            let valid_absence = matches!(at.as_str(), "sick" | "day_off" | "holiday" | "unknown" | "unavailable");
             if !valid_absence {
                 return Err(AppError::Validation(
                     "Invalid 'absence_type', must be one of: sick, day_off, holiday, unknown".into(),

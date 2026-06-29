@@ -1,1 +1,3 @@
-1) delete also scheduled plans in schedule optimizer
+1) planner algorithm meet user monthly working hours. more people per workstation and shift possible, conser min, max value
+2) introduce "free" flag for days optimizer algorithm planned employee as free to meet 40 hours contract. consider between shift switches, (10 hours free time between shift, espeically night, evening shift). 
+3) introduce rest api, free days after shift in confiuration shift. impelment api, spec and ui to edit a value between 0-5. default is 0.

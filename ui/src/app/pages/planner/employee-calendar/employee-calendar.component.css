@@ -216,19 +216,6 @@
   min-height: 32px;
 }
 
-/* Compact Material date range field */
-.unavail-range-field {
-  font-size: 0.875rem;
-}
-
-.unavail-range-field .mat-mdc-form-field-subscript-wrapper {
-  display: none;
-}
-
-.unavail-range-field .mat-mdc-text-field-wrapper {
-  padding: 0 0.75rem;
-}
-
 /* Responsive adjustments */
 @media (max-width: 640px) {
   .calendar-cell {

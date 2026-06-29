@@ -119,6 +119,43 @@ impl PlanningTaskRepository for DieselPlanningTaskRepository {
         .await?
     }
 
+    async fn delete_planning_task(
+        &self,
+        id: Uuid,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let pool = Arc::clone(&self.pool);
+        task::spawn_blocking(move || {
+            let mut conn = pool.get()?;
+            let count = diesel::delete(planning_tasks::table.find(id))
+                .execute(&mut conn)?;
+            if count == 0 {
+                return Err(Box::new(crate::errors::AppError::NotFound) as Box<dyn std::error::Error + Send + Sync>);
+            }
+            Ok(())
+        })
+        .await?
+    }
+
+    async fn clear_task_result_id(
+        &self,
+        result_id: Uuid,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let pool = Arc::clone(&self.pool);
+        task::spawn_blocking(move || {
+            let mut conn = pool.get()?;
+            diesel::update(
+                planning_tasks::table.filter(planning_tasks::result_id.eq(Some(result_id))),
+            )
+            .set((
+                planning_tasks::result_id.eq(None::<Uuid>),
+                planning_tasks::updated_at.eq(diesel::dsl::now),
+            ))
+            .execute(&mut conn)?;
+            Ok(())
+        })
+        .await?
+    }
+
     async fn mark_stale_tasks_failed(
         &self,
         cutoff: chrono::NaiveDateTime,

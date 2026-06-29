@@ -11,7 +11,7 @@ use crate::repository::domain::{
     OptimizedShiftResultDomain, OptimizedShiftResultRepository,
 };
 use crate::models as models;
-use crate::schema::optimized_shift_results;
+use crate::schema::{optimized_shift_results, planning_tasks};
 
 #[derive(Clone)]
 pub struct DieselOptimizedShiftResultRepository {
@@ -145,13 +145,23 @@ impl OptimizedShiftResultRepository for DieselOptimizedShiftResultRepository {
         let pool = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
-            let count = diesel::delete(optimized_shift_results::table.find(id))
-                .execute(&mut conn)
+            conn.transaction::<_, Box<dyn std::error::Error + Send + Sync>, _>(|conn| {
+                // Detach any planning tasks that reference this result before deleting
+                diesel::update(
+                    planning_tasks::table.filter(planning_tasks::result_id.eq(Some(id))),
+                )
+                .set(planning_tasks::result_id.eq(None::<Uuid>))
+                .execute(conn)
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
-            if count == 0 {
-                return Err(Box::new(AppError::NotFound) as Box<dyn std::error::Error + Send + Sync>);
-            }
-            Ok(())
+
+                let count = diesel::delete(optimized_shift_results::table.find(id))
+                    .execute(conn)
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                if count == 0 {
+                    return Err(Box::new(AppError::NotFound) as Box<dyn std::error::Error + Send + Sync>);
+                }
+                Ok(())
+            })
         })
         .await?
     }

@@ -637,10 +637,10 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
   /workstations/{workstationId}/availability:
-    patch:
+    put:
       tags:
         - Workstations
-      summary: Set workstation availability status
+      summary: Set workstation availability (full update)
       operationId: setWorkstationAvailability
       parameters:
         - name: workstationId
@@ -675,6 +675,58 @@ paths:
                 $ref: '#/components/schemas/Workstation'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /workstations/{workstationId}/enable:
+    patch:
+      tags:
+        - Workstations
+      summary: Enable a workstation
+      description: Sets the workstation's available flag to true, making it eligible for shift assignments and optimizer scheduling.
+      operationId: enableWorkstation
+      parameters:
+        - name: workstationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Workstation enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workstation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /workstations/{workstationId}/disable:
+    patch:
+      tags:
+        - Workstations
+      summary: Disable a workstation
+      description: Sets the workstation's available flag to false, excluding it from shift assignments and optimizer scheduling without deleting it.
+      operationId: disableWorkstation
+      parameters:
+        - name: workstationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Workstation disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workstation'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':

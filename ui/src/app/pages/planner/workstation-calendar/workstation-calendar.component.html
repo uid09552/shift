@@ -1,8 +1,8 @@
 <app-page-breadcrumb pageTitle="Workstation Calendar" />
 
 <div class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-  <!-- Header with week navigation -->
-  <div class="flex items-center justify-center border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
+  <!-- Header with week navigation + export -->
+  <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
     <app-calendar-nav
       [label]="weekLabel"
       periodType="week"
@@ -10,6 +10,19 @@
       (next)="nextWeek()"
       (today)="goToday()"
     />
+    <button
+      (click)="exportToExcel()"
+      [disabled]="loading || workstations.length === 0"
+      class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
+      title="Export current week to Excel"
+    >
+      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+      Export Excel
+    </button>
   </div>
 
   <!-- Calendar table -->

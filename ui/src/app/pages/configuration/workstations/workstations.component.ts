@@ -192,14 +192,25 @@ import { GlobalSearchService } from '../../../shared/services/global-search.serv
                     </span>
                   </td>
                   <td class="px-4 py-3 text-start text-theme-sm">
-                    <span
-                      class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                    <button
+                      (click)="toggleAvailability(ws)"
+                      [disabled]="togglingId === ws.id"
+                      class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium transition-opacity disabled:opacity-50"
                       [ngClass]="ws.available
-                        ? 'bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400'
-                        : 'bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400'"
+                        ? 'bg-success-50 text-success-700 hover:bg-success-100 dark:bg-success-500/15 dark:text-success-400 dark:hover:bg-success-500/25'
+                        : 'bg-error-50 text-error-700 hover:bg-error-100 dark:bg-error-500/15 dark:text-error-400 dark:hover:bg-error-500/25'"
+                      [title]="ws.available ? 'Click to disable' : 'Click to enable'"
                     >
-                      {{ ws.available ? 'Available' : 'Unavailable' }}
-                    </span>
+                      @if (togglingId === ws.id) {
+                        <svg class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+                          <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
+                        </svg>
+                      } @else {
+                        <span class="h-1.5 w-1.5 rounded-full" [ngClass]="ws.available ? 'bg-success-500' : 'bg-error-500'"></span>
+                      }
+                      {{ ws.available ? 'Enabled' : 'Disabled' }}
+                    </button>
                   </td>
                   <td class="px-4 py-3 text-start text-theme-sm">
                     <span
@@ -284,6 +295,8 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
   // Search
   private searchQuery = '';
   private searchSub!: Subscription;
+
+  togglingId: string | null = null;
 
   formName = '';
   formAvailable = true;
@@ -494,6 +507,26 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
           error: (err: any) => console.error('Failed to create workstation', err),
         });
     }
+  }
+
+  toggleAvailability(ws: Workstation): void {
+    this.togglingId = ws.id;
+    const action$ = ws.available
+      ? this.workstationService.disable(ws.id)
+      : this.workstationService.enable(ws.id);
+
+    action$.subscribe({
+      next: (updated) => {
+        const idx = this.allWorkstations.findIndex(w => w.id === ws.id);
+        if (idx >= 0) this.allWorkstations[idx] = updated;
+        this.applySearch();
+        this.togglingId = null;
+      },
+      error: (err: any) => {
+        console.error('Failed to toggle workstation availability', err);
+        this.togglingId = null;
+      },
+    });
   }
 
   deleteWorkstation(ws: Workstation): void {

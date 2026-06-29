@@ -1,4 +1,4 @@
-import { Component, HostListener, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { forkJoin, Subscription } from 'rxjs';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
@@ -7,7 +7,6 @@ import {
   CalendarTableComponent,
   CalendarTableRow,
   CalendarTableCellData,
-  CalendarTableDay,
   CalendarTableCellClickEvent,
 } from '../../../shared/components/ui/calendar-table/calendar-table.component';
 import {
@@ -271,6 +270,53 @@ export class WorkstationCalendarComponent implements OnInit, OnDestroy {
       cellMap.set(wsId, tableDateMap);
     }
     this.calendarTableCellMap = cellMap;
+  }
+
+  // ── Excel export ─────────────────────────────────────────
+
+  exportToExcel(): void {
+    const fmt = (d: Date) => d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+
+    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+<head><meta charset="UTF-8">
+<style>
+  th { background:#2563EB; color:#fff; font-weight:bold; border:1px solid #ccc; padding:6px 8px; white-space:nowrap; }
+  td { border:1px solid #ccc; padding:5px 8px; vertical-align:top; font-size:12px; }
+  tr:nth-child(even) td { background:#f0f4ff; }
+  .ws-cell { font-weight:600; background:#EFF6FF; }
+</style></head><body><table>
+<thead><tr><th>Workstation</th>`;
+    for (const day of this.days) {
+      html += `<th>${fmt(day.date)}</th>`;
+    }
+    html += `</tr></thead><tbody>`;
+
+    for (const ws of this.workstations) {
+      html += `<tr><td class="ws-cell">${ws.name}</td>`;
+      for (const day of this.days) {
+        const dateStr = this.formatDate(day.date);
+        const cellData = this.planMap.get(ws.id)?.get(dateStr);
+        if (cellData && cellData.shiftGroups.length > 0) {
+          const lines = cellData.shiftGroups.map(g =>
+            `<b>[${g.shift.short_name}]</b> ${g.employees.map(e => e.name).join(', ')}`
+          ).join('<br>');
+          html += `<td>${lines}</td>`;
+        } else {
+          html += `<td></td>`;
+        }
+      }
+      html += `</tr>`;
+    }
+
+    html += `</tbody></table></body></html>`;
+
+    const blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `workstation-calendar-${this.formatDate(this.weekStart)}.xls`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // ── Helpers ──────────────────────────────────────────────

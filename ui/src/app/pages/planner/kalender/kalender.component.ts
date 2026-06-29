@@ -498,6 +498,64 @@ export class KalenderComponent implements OnInit, OnDestroy {
     this.router.navigate(['/employee-calendar'], { queryParams: { employeeId } });
   }
 
+  // ── Excel export ─────────────────────────────────────────────────
+
+  exportToExcel(): void {
+    const fmt = (d: Date) =>
+      d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+
+    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+<head><meta charset="UTF-8">
+<style>
+  th { background:#2563EB; color:#fff; font-weight:bold; border:1px solid #ccc; padding:6px 8px; white-space:nowrap; }
+  td { border:1px solid #ccc; padding:5px 8px; font-size:12px; vertical-align:middle; }
+  tr:nth-child(even) td { background:#f0f4ff; }
+  .emp-cell { font-weight:600; background:#EFF6FF; }
+  .absent { background:#FEF3C7; color:#92400E; }
+  .sick { background:#FEE2E2; color:#991B1B; }
+  .empty { color:#9CA3AF; }
+</style></head><body><table>
+<thead><tr><th>Employee</th>`;
+    for (const day of this.days) {
+      html += `<th>${fmt(day.date)}</th>`;
+    }
+    html += `</tr></thead><tbody>`;
+
+    for (const emp of this.employees) {
+      html += `<tr><td class="emp-cell">${emp.name}</td>`;
+      for (const day of this.days) {
+        const cell = this.getCell(emp.id, day);
+        if (!cell.plan) {
+          html += `<td class="empty">—</td>`;
+        } else if (!cell.isPresent) {
+          const label = cell.absenceType === 'sick' ? 'Sick Leave'
+            : cell.absenceType === 'day_off' ? 'Vacation'
+            : cell.absenceType === 'holiday' ? 'Holiday'
+            : cell.absenceType ?? 'Absent';
+          const cls = cell.absenceType === 'sick' ? 'sick' : 'absent';
+          html += `<td class="${cls}">${label}</td>`;
+        } else {
+          const shiftLabel = cell.shift
+            ? `[${cell.shift.short_name}] ${cell.shift.name}`
+            : '?';
+          const wsLabel = cell.workstation ? ` – ${cell.workstation.name}` : '';
+          html += `<td>${shiftLabel}${wsLabel}</td>`;
+        }
+      }
+      html += `</tr>`;
+    }
+
+    html += `</tbody></table></body></html>`;
+
+    const blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `weekly-schedule-${this.formatDate(this.weekStart)}.xls`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   // Close dropdowns when clicking outside
   onDocumentClick(event: MouseEvent): void {
     const target = event.target as HTMLElement;

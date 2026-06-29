@@ -96,7 +96,7 @@ _DEFAULT_CONSTRAINTS = {
     "priority_weights": {"high": 10000, "medium": 1000, "low": 100},
     "shift_continuity_weight": 500,  # Reward for same shift on consecutive days
     "shift_continuity_week_bonus": 2000,  # Bonus for 7+ day streaks on same shift
-    "monthly_hours_target_weight": 0,  # Penalty weight for deviation from monthly hours target (0 = disabled)
+    "monthly_hours_target_weight": 1000,  # Penalty weight for deviation from monthly hours target
     "solver_time_limit_seconds": 120.0,
     "solver_num_workers": 8,
 }
@@ -259,7 +259,13 @@ def solve(data: dict) -> dict:
             if terms:
                 model.Add(sum(terms) <= 1)
 
-    # 3b) Minimum and maximum employees per (day, shift)
+    # 3b) Minimum (soft) and maximum (hard) employees per (day, shift).
+    # min_employees is enforced as a soft penalty so the solver can always find
+    # a feasible solution even when not enough eligible employees are available.
+    # max_employees remains a hard constraint.
+    min_emp_penalty = max(prio_weights.values()) * 20  # strong but not blocking
+    staffing_shortfall_terms: list = []
+
     for d_idx, day in enumerate(days):
         wday = weekday_num(day)
         for s_idx, shift in enumerate(shifts):
@@ -276,9 +282,17 @@ def solve(data: dict) -> dict:
                 min_emp = shift_min_emp[sid]
                 max_emp = shift_max_emp[sid]
                 if min_emp > 0:
-                    model.Add(sum(shift_day_terms) >= min_emp)
+                    # Soft: shortfall = max(0, min_emp - assigned)
+                    shortfall = model.NewIntVar(0, min_emp, f"shortfall_{s_idx}_{d_idx}")
+                    model.Add(shortfall >= min_emp - sum(shift_day_terms))
+                    staffing_shortfall_terms.append(min_emp_penalty * shortfall)
                 if max_emp is not None:
                     model.Add(sum(shift_day_terms) <= max_emp)
+
+    logger.info(
+        "Soft staffing minimum: %d penalty terms (penalty/slot=%d)",
+        len(staffing_shortfall_terms), min_emp_penalty,
+    )
 
     # 4) Night-shift recovery (configurable, 0 = disabled)
     if night_recovery > 0:
@@ -383,6 +397,10 @@ def solve(data: dict) -> dict:
     # ---- Objective (soft constraints) --------------------------------------
 
     obj_terms = []
+
+    # 0) Staffing shortfall penalties (negated because we maximise)
+    for term in staffing_shortfall_terms:
+        obj_terms.append(-term)
 
     # 1) Coverage: reward assignments weighted by workstation priority
     for key, var in x.items():

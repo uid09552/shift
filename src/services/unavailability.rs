@@ -9,7 +9,8 @@ use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::repository::AppState;
-use crate::repository::domain::{Unavailability, UnavailabilityRepository};
+use crate::repository::domain::{ConfirmedShiftPlan, ConfirmedShiftPlanRepository, Unavailability, UnavailabilityRepository};
+use chrono::Utc;
 
 #[derive(Deserialize)]
 pub struct ListUnavailabilitiesQuery {
@@ -97,6 +98,26 @@ impl UnavailabilityService {
             .await
             .map_err(|_| AppError::Internal)?;
 
+        // Mirror the unavailability as a confirmed shift plan with absence_type = 'unavailable'
+        // so that planner calendar UIs display the blocked day automatically.
+        let now = Utc::now().naive_utc();
+        let plan = ConfirmedShiftPlan {
+            id: Uuid::new_v4(),
+            employee_id,
+            shift_id,  // propagate shift-specific flag if present
+            workstation_id: None,
+            date: unavailable_date,
+            is_present: false,
+            absence_type: Some("unavailable".to_string()),
+            creation_type: "manual".to_string(),
+            created_at: now,
+            updated_at: now,
+        };
+        let _ = state
+            .confirmed_shift_plan_repo
+            .create_confirmed_shift_plan(plan)
+            .await;  // best-effort; don't fail the main request if sync fails
+
         Ok(Json(serde_json::to_value(created).unwrap()))
     }
 
@@ -117,11 +138,29 @@ impl UnavailabilityService {
         Path(unavailability_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
+        // Fetch first so we can cascade-delete the mirrored confirmed plan entry.
+        let unavailability = state
+            .unavailability_repo
+            .get_unavailability(unavailability_id)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::NotFound)?;
+
         state
             .unavailability_repo
             .delete_unavailability(unavailability_id)
             .await
             .map_err(|_| AppError::Internal)?;
+
+        // Remove the mirrored confirmed shift plan (best-effort).
+        let _ = state
+            .confirmed_shift_plan_repo
+            .delete_confirmed_shift_plans_for_employee_date_type(
+                unavailability.employee_id,
+                unavailability.unavailable_date,
+                "unavailable",
+            )
+            .await;
 
         Ok(Json(serde_json::json!({ "message": "Unavailability deleted successfully" })))
     }

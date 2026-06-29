@@ -18,13 +18,19 @@ import {
   ShiftSchedule,
   ShiftAssignment,
   PlanningTaskItem,
+  EmployeeDailyPlan,
+  DailyPlanEntry,
 } from '../../../shared/services/planner.service';
-import { Subscription, interval } from 'rxjs';
+import { Subscription, interval, forkJoin, of } from 'rxjs';
 import { switchMap, takeWhile, startWith } from 'rxjs/operators';
 import {
   EmployeeService,
   Employee,
 } from '../../../shared/services/employee.service';
+import { GlobalSearchService } from '../../../shared/services/global-search.service';
+import {
+  ConfirmedShiftPlanService,
+} from '../../../shared/services/confirmed-shift-plan.service';
 
 interface DayInfo {
   date: Date;
@@ -53,9 +59,21 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   allResults: OptimizedShiftResultResponse[] = [];
   scheduleData: DaySchedule[] = [];
 
-  // Computed table data (rebuilt when scheduleData changes)
+  // View toggle
+  viewMode: 'workstation' | 'employee' = 'workstation';
+
+  // Workstation-centric table data
   calendarTableRows: CalendarTableRow[] = [];
   calendarTableCellMap: Map<string, Map<string, CalendarTableCellData>> = new Map();
+
+  // Employee-centric table data
+  employeeCalendarRows: CalendarTableRow[] = [];
+  employeeCalendarCellMap: Map<string, Map<string, CalendarTableCellData>> = new Map();
+
+  // Filtered rows/map (after applying search)
+  filteredRows: CalendarTableRow[] = [];
+  filteredCellMap: Map<string, Map<string, CalendarTableCellData>> = new Map();
+
   private shiftColorMap = new Map<string, number>();
 
   // Week navigation
@@ -72,6 +90,8 @@ export class SchedulerComponent implements OnInit, OnDestroy {
 
   private pollSub: Subscription | null = null;
   private taskListSub: Subscription | null = null;
+  private searchSub: Subscription | null = null;
+  private currentSearchTerm = '';
 
   // Modal state
   showCellDetail = false;
@@ -92,11 +112,18 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   // Task list
   planningTasks: PlanningTaskItem[] = [];
 
+  // Take as plan
+  takingAsPlan = false;
+  takePlanSuccess = false;
+  takePlanError: string | null = null;
+
   readonly DAY_NAMES_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   constructor(
     private plannerService: PlannerService,
     private employeeService: EmployeeService,
+    private globalSearchService: GlobalSearchService,
+    private confirmedShiftPlanService: ConfirmedShiftPlanService,
   ) {}
 
   ngOnInit(): void {
@@ -104,12 +131,30 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     this.loadLatestResult();
     this.loadEmployees();
     this.startTaskListPolling();
+    this.searchSub = this.globalSearchService.searchTerm.subscribe(term => {
+      this.currentSearchTerm = term;
+      this.applySearchFilter(term);
+    });
   }
 
   ngOnDestroy(): void {
     this.pollSub?.unsubscribe();
     this.taskListSub?.unsubscribe();
+    this.searchSub?.unsubscribe();
   }
+
+  // ── View toggle ───────────────────────────────────────────────────
+
+  setView(mode: 'workstation' | 'employee'): void {
+    this.viewMode = mode;
+    this.applySearchFilter(this.currentSearchTerm);
+  }
+
+  get currentRows(): CalendarTableRow[] { return this.filteredRows; }
+  get currentCellMap(): Map<string, Map<string, CalendarTableCellData>> { return this.filteredCellMap; }
+  get currentRowLabel(): string { return this.viewMode === 'workstation' ? 'Workstation' : 'Employee'; }
+  get currentRowIcon(): 'workstation' | 'employee' { return this.viewMode; }
+  get currentCellMode(): 'count' | 'name' { return this.viewMode === 'workstation' ? 'count' : 'name'; }
 
   // ── Week navigation ──────────────────────────────────────────────
 
@@ -203,35 +248,48 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     this.selectedResult = result;
     this.scheduleData = result.result.schedule || [];
     this.buildTableData();
+    this.buildEmployeeTableData();
+    this.applySearchFilter(this.currentSearchTerm);
   }
 
   selectResult(result: OptimizedShiftResultResponse): void {
     this.setResult(result);
   }
 
-  deleteResult(resultId: string): void {
-    this.deletingResultId = resultId;
-    this.plannerService.deleteOptimizedShift(resultId).subscribe({
+  deleteEntry(task: PlanningTaskItem): void {
+    this.deletingResultId = task.id;
+    const deleteResult$ = task.result_id
+      ? this.plannerService.deleteOptimizedShift(task.result_id)
+      : of(undefined as void);
+
+    deleteResult$.pipe(
+      switchMap(() => this.plannerService.deletePlanningTask(task.id)),
+    ).subscribe({
       next: () => {
         this.deletingResultId = null;
-        if (this.selectedResult?.id === resultId) {
+        if (task.result_id && this.selectedResult?.id === task.result_id) {
           this.selectedResult = null;
           this.latestResult = null;
           this.scheduleData = [];
           this.calendarTableRows = [];
           this.calendarTableCellMap = new Map();
+          this.employeeCalendarRows = [];
+          this.employeeCalendarCellMap = new Map();
+          this.filteredRows = [];
+          this.filteredCellMap = new Map();
         }
-        this.loadAllResults();
-        this.startTaskListPolling();
+        this.planningTasks = this.planningTasks.filter(t => t.id !== task.id);
+        if (task.result_id) {
+          this.allResults = this.allResults.filter(r => r.id !== task.result_id);
+        }
       },
       error: () => { this.deletingResultId = null; },
     });
   }
 
-  // ── Computed table data ──────────────────────────────────────────
+  // ── Workstation-centric table data ───────────────────────────────
 
   private buildTableData(): void {
-    // Build shift color map
     this.shiftColorMap.clear();
     let colorIndex = 0;
     const workstationMap = new Map<string, string>();
@@ -274,6 +332,58 @@ export class SchedulerComponent implements OnInit, OnDestroy {
       cellMap.set(wsId, dateMap);
     }
     this.calendarTableCellMap = cellMap;
+  }
+
+  // ── Employee-centric table data ──────────────────────────────────
+
+  private buildEmployeeTableData(): void {
+    if (!this.selectedResult) return;
+    const plans: EmployeeDailyPlan[] = (this.selectedResult.result.employee_plans as any[]) || [];
+
+    this.employeeCalendarRows = plans.map(ep => ({
+      id: ep.employee_id,
+      name: ep.employee_name,
+    }));
+
+    const cellMap = new Map<string, Map<string, CalendarTableCellData>>();
+    for (const ep of plans) {
+      const dateMap = new Map<string, CalendarTableCellData>();
+      for (const entry of ep.daily_plan) {
+        if (entry.status === 'assigned' && entry.shift_id) {
+          const colorIdx = this.shiftColorMap.get(entry.shift_id) ?? 0;
+          dateMap.set(entry.date, {
+            groups: [{
+              shiftId: entry.shift_id,
+              shiftName: entry.shift_name ?? '',
+              shiftColor: this.getShiftColor(colorIdx),
+              employeeNames: entry.workstation_name ? [entry.workstation_name] : [],
+            }],
+          });
+        }
+      }
+      if (dateMap.size > 0) {
+        cellMap.set(ep.employee_id, dateMap);
+      }
+    }
+    this.employeeCalendarCellMap = cellMap;
+  }
+
+  // ── Search filter ────────────────────────────────────────────────
+
+  private applySearchFilter(term: string): void {
+    const q = term.trim().toLowerCase();
+    const allRows = this.viewMode === 'workstation' ? this.calendarTableRows : this.employeeCalendarRows;
+    const allCellMap = this.viewMode === 'workstation' ? this.calendarTableCellMap : this.employeeCalendarCellMap;
+
+    if (!q) {
+      this.filteredRows = allRows;
+      this.filteredCellMap = allCellMap;
+      return;
+    }
+
+    this.filteredRows = allRows.filter(row => row.name.toLowerCase().includes(q));
+    const ids = new Set(this.filteredRows.map(r => r.id));
+    this.filteredCellMap = new Map([...allCellMap].filter(([id]) => ids.has(id)));
   }
 
   getShiftColor(index: number): string {
@@ -399,6 +509,88 @@ export class SchedulerComponent implements OnInit, OnDestroy {
 
   taskStatusLabel(status: string): string {
     return status === 'done' ? 'completed' : status;
+  }
+
+  // ── Take as plan ─────────────────────────────────────────────────
+
+  takeAsPlan(): void {
+    if (!this.selectedResult) return;
+
+    const plans: EmployeeDailyPlan[] = (this.selectedResult.result.employee_plans as any[]) || [];
+    if (!plans.length) {
+      this.takePlanError = 'No employee plans in this result.';
+      return;
+    }
+
+    const period = this.selectedResult.result.planning_period;
+    const assignments: { employeeId: string; entry: DailyPlanEntry }[] = [];
+    for (const ep of plans) {
+      for (const entry of ep.daily_plan) {
+        if (entry.status === 'assigned' && entry.shift_id) {
+          assignments.push({ employeeId: ep.employee_id, entry });
+        }
+      }
+    }
+
+    if (!assignments.length) {
+      this.takePlanError = 'No assignments found in this plan.';
+      return;
+    }
+
+    this.takingAsPlan = true;
+    this.takePlanError = null;
+    this.takePlanSuccess = false;
+
+    const employeeIds = [...new Set(plans.map(ep => ep.employee_id))];
+
+    // Load existing plans for all employees in the period, delete them, then create new ones
+    forkJoin(
+      employeeIds.map(eid =>
+        this.confirmedShiftPlanService.getEmployeeConfirmedShiftPlans(eid, period.start_date, period.end_date)
+      )
+    ).subscribe({
+      next: (existingByEmployee) => {
+        const deleteObs = existingByEmployee
+          .flat()
+          .map(p => this.confirmedShiftPlanService.deleteConfirmedShiftPlan(p.id));
+
+        const deleteAll$ = deleteObs.length ? forkJoin(deleteObs) : of([]);
+
+        deleteAll$.subscribe({
+          next: () => {
+            const createObs = assignments.map(({ employeeId, entry }) =>
+              this.confirmedShiftPlanService.createConfirmedShiftPlan(employeeId, {
+                shift_id: entry.shift_id ?? undefined,
+                workstation_id: entry.workstation_id ?? undefined,
+                date: entry.date,
+                is_present: true,
+                creation_type: 'automated',
+              })
+            );
+
+            forkJoin(createObs).subscribe({
+              next: () => {
+                this.takingAsPlan = false;
+                this.takePlanSuccess = true;
+                setTimeout(() => { this.takePlanSuccess = false; }, 3000);
+              },
+              error: () => {
+                this.takingAsPlan = false;
+                this.takePlanError = 'Failed to create some shift plans.';
+              },
+            });
+          },
+          error: () => {
+            this.takingAsPlan = false;
+            this.takePlanError = 'Failed to delete existing plans before overwrite.';
+          },
+        });
+      },
+      error: () => {
+        this.takingAsPlan = false;
+        this.takePlanError = 'Failed to load existing plans.';
+      },
+    });
   }
 
   // ── Modal ─────────────────────────────────────────────────────────

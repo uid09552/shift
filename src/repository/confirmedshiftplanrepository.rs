@@ -7,6 +7,7 @@ use tokio::task;
 use uuid::Uuid;
 use crate::errors::AppError;
 use diesel::result::{Error as DieselError, DatabaseErrorKind};
+use diesel::pg::upsert::excluded;
 
 use crate::database::DbPool;
 use crate::repository::domain::{
@@ -40,8 +41,20 @@ impl ConfirmedShiftPlanRepository for DieselConfirmedShiftPlanRepository {
         };
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            // Upsert: if a plan already exists for (employee_id, date), update it
+            // so that marking a day as leave never conflicts with an existing entry.
             let created = diesel::insert_into(confirmed_shift_plans::table)
                 .values(&new_plan)
+                .on_conflict((confirmed_shift_plans::employee_id, confirmed_shift_plans::date))
+                .do_update()
+                .set((
+                    confirmed_shift_plans::shift_id.eq(excluded(confirmed_shift_plans::shift_id)),
+                    confirmed_shift_plans::workstation_id.eq(excluded(confirmed_shift_plans::workstation_id)),
+                    confirmed_shift_plans::is_present.eq(excluded(confirmed_shift_plans::is_present)),
+                    confirmed_shift_plans::absence_type.eq(excluded(confirmed_shift_plans::absence_type)),
+                    confirmed_shift_plans::creation_type.eq(excluded(confirmed_shift_plans::creation_type)),
+                    confirmed_shift_plans::updated_at.eq(diesel::dsl::now),
+                ))
                 .get_result::<models::ConfirmedShiftPlan>(&mut conn)
                 .map(|p| ConfirmedShiftPlan {
                     id: p.id,
@@ -55,12 +68,7 @@ impl ConfirmedShiftPlanRepository for DieselConfirmedShiftPlanRepository {
                     created_at: p.created_at,
                     updated_at: p.updated_at,
                 })
-                .map_err(|e| match e {
-                    DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
-                        Box::new(AppError::Duplicate) as Box<dyn std::error::Error + Send + Sync>
-                    }
-                    _ => Box::new(e) as Box<dyn std::error::Error + Send + Sync>,
-                })?;
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
             Ok(created)
         })
         .await?
@@ -221,6 +229,29 @@ impl ConfirmedShiftPlanRepository for DieselConfirmedShiftPlanRepository {
             if count == 0 {
                 return Err(Box::new(AppError::NotFound) as Box<dyn std::error::Error + Send + Sync>);
             }
+            Ok(())
+        })
+        .await?
+    }
+
+    async fn delete_confirmed_shift_plans_for_employee_date_type(
+        &self,
+        employee_id: Uuid,
+        date: NaiveDate,
+        absence_type: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let pool = Arc::clone(&self.pool);
+        let absence_type = absence_type.to_owned();
+        task::spawn_blocking(move || {
+            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            diesel::delete(
+                confirmed_shift_plans::table
+                    .filter(confirmed_shift_plans::employee_id.eq(employee_id))
+                    .filter(confirmed_shift_plans::date.eq(date))
+                    .filter(confirmed_shift_plans::absence_type.eq(Some(absence_type))),
+            )
+            .execute(&mut conn)
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
             Ok(())
         })
         .await?
