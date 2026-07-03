@@ -32,6 +32,13 @@ pub struct ShiftTask {
     pub is_night_shift: bool,
     pub min_employees: i16,
     pub max_employees: Option<i16>,
+    pub free_days_after_shift: i16,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WorkstationUnavailabilityRange {
+    pub from_date: String,
+    pub to_date: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -41,6 +48,10 @@ pub struct WorkstationTask {
     pub required_skills: Vec<String>,
     pub priority: String,
     pub operating_shifts: Vec<String>,
+    pub min_employees: i16,
+    pub max_employees: Option<i16>,
+    #[serde(default)]
+    pub unavailability: Vec<WorkstationUnavailabilityRange>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

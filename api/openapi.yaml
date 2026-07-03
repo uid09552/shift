@@ -793,6 +793,136 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /workstations/{workstationId}/unavailabilities:
+    get:
+      tags:
+        - Workstations
+      summary: List unavailability periods for a workstation
+      operationId: listWorkstationUnavailabilities
+      parameters:
+        - name: workstationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: from_date
+          in: query
+          description: Filter to ranges overlapping on/after this date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          description: Filter to ranges overlapping on/before this date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: List of workstation unavailability periods
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkstationUnavailability'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Workstations
+      summary: Create a new workstation unavailability period
+      description: |
+        Marks the workstation as unavailable for planning during an inclusive date range
+        (e.g. maintenance or renovation). The planner will skip assigning employees to
+        this workstation for any day within the range.
+      operationId: createWorkstationUnavailability
+      parameters:
+        - name: workstationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkstationUnavailabilityRequest'
+      responses:
+        '201':
+          description: Workstation unavailability created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkstationUnavailability'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /workstations/{workstationId}/unavailabilities/{unavailabilityId}:
+    get:
+      tags:
+        - Workstations
+      summary: Get a workstation unavailability period by ID
+      operationId: getWorkstationUnavailabilityById
+      parameters:
+        - name: workstationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: unavailabilityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Workstation unavailability details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkstationUnavailability'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Workstations
+      summary: Delete a workstation unavailability period
+      operationId: deleteWorkstationUnavailability
+      parameters:
+        - name: workstationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: unavailabilityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Workstation unavailability deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /unavailabilities:
     get:
       tags:
@@ -1767,6 +1897,13 @@ components:
           default: null
           description: Maximum number of employees allowed for this shift on this weekday (null = no limit)
           example: 5
+        free_days_after_shift:
+          type: integer
+          minimum: 0
+          maximum: 5
+          default: 0
+          description: Number of consecutive days an employee should be kept free/rest after working this shift on this weekday (0 = no forced recovery days)
+          example: 0
 
     SetWeekdayTimeRequest:
       type: object
@@ -1804,6 +1941,13 @@ components:
           default: null
           description: Maximum number of employees allowed (null = no limit)
           example: 5
+        free_days_after_shift:
+          type: integer
+          minimum: 0
+          maximum: 5
+          default: 0
+          description: Number of consecutive days an employee should be kept free/rest after working this shift (0-5, default 0)
+          example: 0
 
     CreateShiftRequest:
       type: object
@@ -1887,6 +2031,19 @@ components:
           enum: [high, medium, low]
           default: medium
           description: Scheduling priority for the optimizer
+        min_employees:
+          type: integer
+          minimum: 0
+          default: 1
+          description: Minimum number of employees that should be scheduled at this workstation per shift (soft constraint)
+          example: 1
+        max_employees:
+          type: integer
+          nullable: true
+          minimum: 0
+          default: null
+          description: Maximum number of employees allowed at this workstation per shift (null = no limit)
+          example: 3
 
     WorkstationDetail:
       allOf:
@@ -1923,6 +2080,17 @@ components:
           enum: [high, medium, low]
           default: medium
           description: Scheduling priority for the optimizer
+        min_employees:
+          type: integer
+          minimum: 0
+          default: 1
+          description: Minimum number of employees that should be scheduled at this workstation per shift (soft constraint)
+        max_employees:
+          type: integer
+          nullable: true
+          minimum: 0
+          default: null
+          description: Maximum number of employees allowed at this workstation per shift (null = no limit)
 
     UpdateWorkstationRequest:
       type: object
@@ -1944,6 +2112,54 @@ components:
           type: string
           enum: [high, medium, low]
           description: Scheduling priority for the optimizer
+        min_employees:
+          type: integer
+          minimum: 0
+          description: Minimum number of employees that should be scheduled at this workstation per shift (soft constraint)
+        max_employees:
+          type: integer
+          nullable: true
+          minimum: 0
+          description: Maximum number of employees allowed at this workstation per shift (null = no limit)
+
+    WorkstationUnavailability:
+      type: object
+      required:
+        - id
+        - workstation_id
+        - unavailable_from
+        - unavailable_to
+      properties:
+        id:
+          type: string
+          format: uuid
+        workstation_id:
+          type: string
+          format: uuid
+          description: ID of the workstation that is unavailable
+        unavailable_from:
+          type: string
+          format: date
+          description: First date of the unavailability period (YYYY-MM-DD, inclusive)
+        unavailable_to:
+          type: string
+          format: date
+          description: Last date of the unavailability period (YYYY-MM-DD, inclusive)
+
+    CreateWorkstationUnavailabilityRequest:
+      type: object
+      required:
+        - unavailable_from
+        - unavailable_to
+      properties:
+        unavailable_from:
+          type: string
+          format: date
+          description: First date of the unavailability period (YYYY-MM-DD, inclusive)
+        unavailable_to:
+          type: string
+          format: date
+          description: Last date of the unavailability period (YYYY-MM-DD, inclusive)
 
     Unavailability:
       type: object

@@ -23,6 +23,7 @@ use crate::services::{
     shift_assignment::ShiftAssignmentService,
     unavailability::UnavailabilityService,
     workstation::WorkstationService,
+    workstation_unavailability::WorkstationUnavailabilityService,
 };
 
 pub async fn health_check(
@@ -88,6 +89,14 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/workstations/:workstation_id/required-capabilities",
             get(WorkstationService::get_workstation_required_capabilities).post(WorkstationService::add_workstation_required_capability),
+        )
+        .route(
+            "/workstations/:workstation_id/unavailabilities",
+            get(WorkstationUnavailabilityService::list_workstation_unavailabilities).post(WorkstationUnavailabilityService::create_workstation_unavailability),
+        )
+        .route(
+            "/workstations/:workstation_id/unavailabilities/:unavailability_id",
+            get(WorkstationUnavailabilityService::get_workstation_unavailability_by_id).delete(WorkstationUnavailabilityService::delete_workstation_unavailability),
         )
         // Unavailabilities
         .route("/unavailabilities", get(UnavailabilityService::list_unavailabilities).post(UnavailabilityService::create_unavailability))

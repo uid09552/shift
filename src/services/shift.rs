@@ -19,6 +19,7 @@ pub struct SetWeekdayTimeRequest {
     pub end_time: String,
     pub min_employees: Option<i16>,
     pub max_employees: Option<i16>,
+    pub free_days_after_shift: Option<i16>,
 }
 
 pub struct ShiftService;
@@ -144,9 +145,16 @@ impl ShiftService {
             }
         }
 
+        let free_days_after_shift = body.free_days_after_shift.unwrap_or(0);
+        if !(0..=5).contains(&free_days_after_shift) {
+            return Err(AppError::Validation(
+                "free_days_after_shift must be between 0 and 5".into(),
+            ));
+        }
+
         let wt = state
             .shift_repo
-            .set_weekday_time(shift_id, body.weekday, start_time, end_time, min_employees, max_employees)
+            .set_weekday_time(shift_id, body.weekday, start_time, end_time, min_employees, max_employees, free_days_after_shift)
             .await?;
 
         Ok(Json(serde_json::to_value(wt).unwrap()))

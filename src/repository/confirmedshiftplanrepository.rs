@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tokio::task;
 use uuid::Uuid;
 use crate::errors::AppError;
-use diesel::result::{Error as DieselError, DatabaseErrorKind};
+use diesel::result::Error as DieselError;
 use diesel::pg::upsert::excluded;
 
 use crate::database::DbPool;

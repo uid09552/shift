@@ -35,6 +35,7 @@ pub struct ShiftWeekdayTime {
     pub end_time: NaiveTime,
     pub min_employees: i16,
     pub max_employees: Option<i16>,
+    pub free_days_after_shift: i16,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
@@ -46,4 +47,5 @@ pub struct NewShiftWeekdayTime {
     pub end_time: NaiveTime,
     pub min_employees: i16,
     pub max_employees: Option<i16>,
+    pub free_days_after_shift: i16,
 }

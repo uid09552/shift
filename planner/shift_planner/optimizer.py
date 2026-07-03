@@ -163,6 +163,15 @@ def solve(data: dict) -> dict:
     ws_req_skills = {w["id"]: set(w["required_skills"]) for w in workstations}
     ws_op_shifts = {w["id"]: set(w["operating_shifts"]) for w in workstations}
     ws_priority = {w["id"]: w["priority"] for w in workstations}
+    ws_min_emp = {w["id"]: w.get("min_employees", 1) for w in workstations}
+    ws_max_emp = {w["id"]: w.get("max_employees") for w in workstations}
+    ws_unavail = {
+        w["id"]: [
+            (parse_date(u["from_date"]), parse_date(u["to_date"]))
+            for u in w.get("unavailability", [])
+        ]
+        for w in workstations
+    }
 
     shift_is_night = {s["id"]: s["is_night_shift"] for s in shifts}
     shift_weekdays = {s["id"]: set(s["weekdays"]) for s in shifts}
@@ -171,6 +180,22 @@ def solve(data: dict) -> dict:
     shift_duration = {s["id"]: _shift_duration_hours(s) for s in shifts}
     shift_min_emp = {s["id"]: s.get("min_employees", 1) for s in shifts}
     shift_max_emp = {s["id"]: s.get("max_employees") for s in shifts}
+    # Per-shift forced recovery days: explicit free_days_after_shift, or
+    # night_shift_recovery_days for night shifts (whichever is larger).
+    shift_recovery_days = {
+        s["id"]: max(s.get("free_days_after_shift", 0), night_recovery if s["is_night_shift"] else 0)
+        for s in shifts
+    }
+
+    # Monthly working-hours targets (tenths of hours, scaled to the planning period)
+    target_tenths_map = {
+        e_idx: int(emp["monthly_working_hours"] * 10 * num_days / 30)
+        for e_idx, emp in enumerate(employees)
+        if emp.get("monthly_working_hours", 0.0) > 0
+    }
+
+    def _ws_unavailable_on(wid: str, day) -> bool:
+        return any(start <= day <= end for start, end in ws_unavail.get(wid, []))
 
     # ---- Build model -------------------------------------------------------
     model = cp_model.CpModel()
@@ -195,6 +220,8 @@ def solve(data: dict) -> dict:
                     if sid not in ws_op_shifts[wid]:
                         continue
                     if not ws_req_skills[wid].issubset(emp_skills[eid]):
+                        continue
+                    if _ws_unavailable_on(wid, day):
                         continue
                     x[e_idx, d_idx, s_idx, w_idx] = model.NewBoolVar(
                         f"x_{e_idx}_{d_idx}_{s_idx}_{w_idx}"
@@ -223,6 +250,9 @@ def solve(data: dict) -> dict:
 
     # ---- Hard constraints --------------------------------------------------
 
+    min_emp_penalty = max(prio_weights.values()) * 20  # strong but not blocking
+    staffing_shortfall_terms: list = []
+
     # 1) At most one workstation per (employee, day, shift)
     for e_idx in range(num_emp):
         for d_idx in range(num_days):
@@ -235,17 +265,29 @@ def solve(data: dict) -> dict:
                 if terms:
                     model.Add(sum(terms) <= 1)
 
-    # 2) At most one employee per (day, shift, workstation)
+    # 2) Minimum (soft) and maximum (hard) employees per (day, shift, workstation).
+    # Multiple employees may be assigned to the same workstation+shift, bounded
+    # by the workstation's configured staffing limits (max_employees=None means
+    # no explicit cap beyond what other constraints allow).
     for d_idx in range(num_days):
         for s_idx in range(num_shifts):
-            for w_idx in range(num_ws):
+            for w_idx, ws in enumerate(workstations):
+                wid = ws["id"]
                 terms = [
                     x[e_idx, d_idx, s_idx, w_idx]
                     for e_idx in range(num_emp)
                     if (e_idx, d_idx, s_idx, w_idx) in x
                 ]
-                if terms:
-                    model.Add(sum(terms) <= 1)
+                if not terms:
+                    continue
+                min_emp = ws_min_emp.get(wid, 1)
+                max_emp = ws_max_emp.get(wid)
+                if min_emp > 0:
+                    shortfall = model.NewIntVar(0, min_emp, f"ws_shortfall_{w_idx}_{d_idx}_{s_idx}")
+                    model.Add(shortfall >= min_emp - sum(terms))
+                    staffing_shortfall_terms.append(min_emp_penalty * shortfall)
+                if max_emp is not None:
+                    model.Add(sum(terms) <= max_emp)
 
     # 3) At most one shift per (employee, day) – no double shifts
     for e_idx in range(num_emp):
@@ -259,13 +301,11 @@ def solve(data: dict) -> dict:
             if terms:
                 model.Add(sum(terms) <= 1)
 
-    # 3b) Minimum (soft) and maximum (hard) employees per (day, shift).
+    # 3b) Minimum (soft) and maximum (hard) employees per (day, shift), summed
+    # across all workstations operating that shift.
     # min_employees is enforced as a soft penalty so the solver can always find
     # a feasible solution even when not enough eligible employees are available.
     # max_employees remains a hard constraint.
-    min_emp_penalty = max(prio_weights.values()) * 20  # strong but not blocking
-    staffing_shortfall_terms: list = []
-
     for d_idx, day in enumerate(days):
         wday = weekday_num(day)
         for s_idx, shift in enumerate(shifts):
@@ -294,37 +334,40 @@ def solve(data: dict) -> dict:
         len(staffing_shortfall_terms), min_emp_penalty,
     )
 
-    # 4) Night-shift recovery (configurable, 0 = disabled)
-    if night_recovery > 0:
+    # 4) Per-shift forced recovery days (night-shift recovery generalized to any
+    # shift via free_days_after_shift; 0 recovery days = disabled for that shift).
+    if any(d > 0 for d in shift_recovery_days.values()):
         for e_idx in range(num_emp):
             for d_idx in range(num_days):
-                night_vars = []
                 for s_idx, shift in enumerate(shifts):
-                    if not shift_is_night[shift["id"]]:
+                    sid = shift["id"]
+                    rec_days = shift_recovery_days[sid]
+                    if rec_days <= 0:
                         continue
-                    for w_idx in range(num_ws):
-                        key = (e_idx, d_idx, s_idx, w_idx)
-                        if key in x:
-                            night_vars.append(x[key])
 
-                if not night_vars:
-                    continue
-
-                works_night = model.NewBoolVar(f"works_night_{e_idx}_{d_idx}")
-                model.Add(sum(night_vars) == works_night)
-
-                for offset in range(1, night_recovery + 1):
-                    rd = d_idx + offset
-                    if rd >= num_days:
-                        continue
-                    recovery_vars = [
-                        x[e_idx, rd, rs_idx, rw_idx]
-                        for rs_idx in range(num_shifts)
-                        for rw_idx in range(num_ws)
-                        if (e_idx, rd, rs_idx, rw_idx) in x
+                    shift_vars = [
+                        x[e_idx, d_idx, s_idx, w_idx]
+                        for w_idx in range(num_ws)
+                        if (e_idx, d_idx, s_idx, w_idx) in x
                     ]
-                    for rv in recovery_vars:
-                        model.AddImplication(works_night, rv.Not())
+                    if not shift_vars:
+                        continue
+
+                    works_shift = model.NewBoolVar(f"works_recov_{e_idx}_{d_idx}_{s_idx}")
+                    model.Add(sum(shift_vars) == works_shift)
+
+                    for offset in range(1, rec_days + 1):
+                        rd = d_idx + offset
+                        if rd >= num_days:
+                            continue
+                        recovery_vars = [
+                            x[e_idx, rd, rs_idx, rw_idx]
+                            for rs_idx in range(num_shifts)
+                            for rw_idx in range(num_ws)
+                            if (e_idx, rd, rs_idx, rw_idx) in x
+                        ]
+                        for rv in recovery_vars:
+                            model.AddImplication(works_shift, rv.Not())
 
     # 5) Maximum working days per week (configurable, 0 = disabled)
     if max_weekly > 0:
@@ -411,7 +454,9 @@ def solve(data: dict) -> dict:
         obj_terms.append(weight * var)
 
     # 2) Equal treatment: minimise spread of working hours across employees
-    emp_hour_totals = []
+    # Keyed by e_idx (not a plain list) so lookups below stay aligned even when
+    # some employees have no feasible hour terms at all.
+    emp_hour_totals: dict = {}
     for e_idx in range(num_emp):
         hour_terms = []
         for d_idx in range(num_days):
@@ -424,13 +469,13 @@ def solve(data: dict) -> dict:
         if hour_terms:
             total_h = model.NewIntVar(0, num_days * 24 * 10, f"emp_hours_{e_idx}")
             model.Add(total_h == sum(hour_terms))
-            emp_hour_totals.append(total_h)
+            emp_hour_totals[e_idx] = total_h
 
     if len(emp_hour_totals) >= 2 and equality_w > 0:
         max_hours = model.NewIntVar(0, num_days * 24 * 10, "max_hours")
         min_hours = model.NewIntVar(0, num_days * 24 * 10, "min_hours")
-        model.AddMaxEquality(max_hours, emp_hour_totals)
-        model.AddMinEquality(min_hours, emp_hour_totals)
+        model.AddMaxEquality(max_hours, list(emp_hour_totals.values()))
+        model.AddMinEquality(min_hours, list(emp_hour_totals.values()))
 
         obj_terms.append(-equality_w * max_hours)
         obj_terms.append(equality_w * min_hours)
@@ -461,15 +506,10 @@ def solve(data: dict) -> dict:
     # 3) Monthly hours target: penalise deviation from each employee's monthly working hours target
     if monthly_weight > 0:
         max_possible = num_days * 24 * 10  # tenths of hours
-        for e_idx, emp in enumerate(employees):
-            if emp.get("monthly_working_hours", 0.0) <= 0:
-                continue
-            # Scale monthly target to the planning period length
-            target_tenths = int(emp["monthly_working_hours"] * 10 * num_days / 30)
-            if e_idx < len(emp_hour_totals):
+        for e_idx, target_tenths in target_tenths_map.items():
+            if e_idx in emp_hour_totals:
                 over_dev = model.NewIntVar(0, max_possible, f"over_dev_{e_idx}")
                 under_dev = model.NewIntVar(0, max_possible, f"under_dev_{e_idx}")
-                # emp_hour_totals[e_idx] - target_tenths == over_dev - under_dev
                 model.Add(emp_hour_totals[e_idx] - target_tenths == over_dev - under_dev)
                 # Penalise deviation from target (symmetric penalty)
                 obj_terms.append(-monthly_weight * over_dev)
@@ -606,8 +646,39 @@ def solve(data: dict) -> dict:
             shifts=day_shifts,
         ))
 
+    # Determine which (employee, day) slots are forced "free" days: either a
+    # mandatory rest day after a shift with recovery days, or a day left open
+    # because the employee already reached their monthly hours target.
+    assigned_shift_for: dict = {}  # (e_idx, d_idx) -> shift_id
+    for e_idx in range(num_emp):
+        for d_idx in range(num_days):
+            for s_idx, shift in enumerate(shifts):
+                for w_idx in range(num_ws):
+                    key = (e_idx, d_idx, s_idx, w_idx)
+                    if key in x and solver.Value(x[key]) == 1:
+                        assigned_shift_for[(e_idx, d_idx)] = shift["id"]
+                        break
+                else:
+                    continue
+                break
+
+    forced_free_days: set = set()
+    for (e_idx, d_idx), sid in assigned_shift_for.items():
+        rec_days = shift_recovery_days.get(sid, 0)
+        for offset in range(1, rec_days + 1):
+            rd = d_idx + offset
+            if rd < num_days:
+                forced_free_days.add((e_idx, rd))
+
+    emp_met_target = {
+        e_idx
+        for e_idx, total_var in emp_hour_totals.items()
+        if e_idx in target_tenths_map and solver.Value(total_var) >= target_tenths_map[e_idx]
+    }
+
     # Per-employee daily plan: one DailyPlanEntry per day for every employee.
-    # Each entry is either "assigned" (with shift + workstation details) or
+    # Each entry is "assigned" (with shift + workstation details), "free"
+    # (mandatory rest, or contracted monthly hours already met), or
     # "not_assigned" so callers always receive a complete grid.
     employee_plans: list[EmployeeDailyPlan] = []
     for e_idx, emp in enumerate(employees):
@@ -636,9 +707,10 @@ def solve(data: dict) -> dict:
                         break
 
             if not found:
+                is_free = (e_idx, d_idx) in forced_free_days or e_idx in emp_met_target
                 daily_plan.append(DailyPlanEntry(
                     date=day_str,
-                    status="not_assigned",
+                    status="free" if is_free else "not_assigned",
                 ))
 
         employee_plans.append(EmployeeDailyPlan(

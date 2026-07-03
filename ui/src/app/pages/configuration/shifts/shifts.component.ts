@@ -154,6 +154,15 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
                           (input)="onMaxEmployeesChange(day.value, $event)"
                           class="w-16 h-9 rounded border border-gray-300 px-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                         />
+                        <span class="whitespace-nowrap">Free days after:</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="5"
+                          [value]="formWeekdays[day.value].free_days_after_shift"
+                          (input)="onFreeDaysAfterShiftChange(day.value, $event)"
+                          class="w-16 h-9 rounded border border-gray-300 px-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                        />
                       </div>
                     }
                   </div>
@@ -260,6 +269,9 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
                           >
                             {{ getWeekdayName(wt.weekday) }} {{ wt.start_time }}–{{ wt.end_time }}
                             <span class="ml-1 text-brand-500 dark:text-brand-500">({{ wt.min_employees }}–{{ wt.max_employees ?? '∞' }})</span>
+                            @if (wt.free_days_after_shift > 0) {
+                              <span class="ml-1 text-brand-500 dark:text-brand-500">+{{ wt.free_days_after_shift }}d free</span>
+                            }
                           </span>
                         }
                       </div>
@@ -305,8 +317,8 @@ export class ShiftsComponent implements OnInit {
 
   weekdayOptions = WEEKDAY_NAMES.map((name, i) => ({ label: name, value: i }));
 
-  formWeekdays: { enabled: boolean; start_time: string; end_time: string; min_employees: number; max_employees: number | null }[] =
-    WEEKDAY_NAMES.map(() => ({ enabled: false, start_time: '08:00', end_time: '16:00', min_employees: 1, max_employees: null }));
+  formWeekdays: { enabled: boolean; start_time: string; end_time: string; min_employees: number; max_employees: number | null; free_days_after_shift: number }[] =
+    WEEKDAY_NAMES.map(() => ({ enabled: false, start_time: '08:00', end_time: '16:00', min_employees: 1, max_employees: null, free_days_after_shift: 0 }));
 
   plusIcon = `<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.25C12.4142 3.25 12.75 3.58579 12.75 4V11.25H20C20.4142 11.25 20.75 11.5858 20.75 12C20.75 12.4142 20.4142 12.75 20 12.75H12.75V20C12.75 20.4142 12.4142 20.75 12 20.75C11.5858 20.75 11.25 20.4142 11.25 20V12.75H4C3.58579 12.75 3.25 12.4142 3.25 12C3.25 11.5858 3.58579 11.25 4 11.25H11.25V4C11.25 3.58579 11.5858 3.25 12 3.25Z" fill="currentColor"></path></svg>`;
 
@@ -360,6 +372,7 @@ export class ShiftsComponent implements OnInit {
         end_time: wt.end_time.substring(0, 5),
         min_employees: wt.min_employees ?? 1,
         max_employees: wt.max_employees ?? null,
+        free_days_after_shift: wt.free_days_after_shift ?? 0,
       };
     }
 
@@ -411,6 +424,11 @@ export class ShiftsComponent implements OnInit {
     this.formWeekdays[weekday].max_employees = val === '' ? null : Math.max(0, parseInt(val, 10) || 0);
   }
 
+  onFreeDaysAfterShiftChange(weekday: number, event: Event): void {
+    const val = (event.target as HTMLInputElement).value;
+    this.formWeekdays[weekday].free_days_after_shift = val === '' ? 0 : Math.min(5, Math.max(0, parseInt(val, 10) || 0));
+  }
+
   saveShift(): void {
     if (!this.formName || !this.formName.trim()) {
       return;
@@ -443,6 +461,7 @@ export class ShiftsComponent implements OnInit {
                   end_time: wd.end_time,
                   min_employees: wd.min_employees,
                   max_employees: wd.max_employees,
+                  free_days_after_shift: wd.free_days_after_shift,
                 })
               );
             } else if (!wd.enabled) {
@@ -496,6 +515,7 @@ export class ShiftsComponent implements OnInit {
       end_time: '16:00',
       min_employees: 1,
       max_employees: null,
+      free_days_after_shift: 0,
     }));
   }
 

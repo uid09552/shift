@@ -14,6 +14,15 @@ import {
 } from '../../../shared/services/workstation.service';
 import { ShiftService, Shift } from '../../../shared/services/shift.service';
 import { GlobalSearchService } from '../../../shared/services/global-search.service';
+import {
+  WorkstationUnavailabilityService,
+  WorkstationUnavailability,
+} from '../../../shared/services/workstation-unavailability.service';
+import {
+  DateRangePickerComponent,
+  MarkedDay,
+  DateRange,
+} from '../../../shared/components/ui/date-range-picker/date-range-picker.component';
 
 @Component({
   selector: 'app-workstations',
@@ -26,6 +35,7 @@ import { GlobalSearchService } from '../../../shared/services/global-search.serv
     InputFieldComponent,
     LabelComponent,
     ButtonComponent,
+    DateRangePickerComponent,
   ],
   template: `
     <app-page-breadcrumb pageTitle="Workstations" />
@@ -83,6 +93,31 @@ import { GlobalSearchService } from '../../../shared/services/global-search.serv
             </select>
           </div>
 
+          <!-- Staffing limits -->
+          <div class="mb-5">
+            <app-label className="mb-1.5">Staffing per Shift</app-label>
+            <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+              <span class="whitespace-nowrap">Min:</span>
+              <input
+                type="number"
+                min="0"
+                [value]="formMinEmployees"
+                (input)="onMinEmployeesChange($event)"
+                class="w-20 h-9 rounded border border-gray-300 px-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              />
+              <span class="whitespace-nowrap">Max:</span>
+              <input
+                type="number"
+                min="0"
+                [value]="formMaxEmployees ?? ''"
+                placeholder="∞"
+                (input)="onMaxEmployeesChange($event)"
+                class="w-20 h-9 rounded border border-gray-300 px-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">How many employees may work this workstation per shift (max blank = no limit)</p>
+          </div>
+
           <!-- Active Shifts (edit mode) -->
           @if (editingWorkstation) {
             <div class="mb-5">
@@ -117,6 +152,47 @@ import { GlobalSearchService } from '../../../shared/services/global-search.serv
                     {{ cap.name }}
                   </label>
                 }
+              </div>
+            </div>
+
+            <!-- Unavailability periods -->
+            <div class="mb-5">
+              <app-label className="mb-2">Unavailability Periods</app-label>
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-start">
+                <div class="w-full max-w-[280px]">
+                  <app-date-range-picker
+                    [markedDays]="unavailMarkedDays"
+                    [resetKey]="pickerResetKey"
+                    (rangeChange)="pickerRange = $event"
+                  />
+                  <app-button
+                    size="sm"
+                    variant="outline"
+                    [disabled]="!pickerRange"
+                    (btnClick)="addUnavailability()"
+                    className="mt-2 w-full"
+                  >
+                    Mark Period Unavailable
+                  </app-button>
+                </div>
+                <div class="flex-1 space-y-2">
+                  @if (workstationUnavailabilities.length === 0) {
+                    <p class="text-sm text-gray-400 dark:text-gray-500">No unavailability periods configured.</p>
+                  } @else {
+                    @for (u of workstationUnavailabilities; track u.id) {
+                      <div class="flex items-center justify-between gap-2 rounded border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
+                        <span class="text-gray-700 dark:text-gray-300">{{ u.unavailable_from }} – {{ u.unavailable_to }}</span>
+                        <button
+                          type="button"
+                          (click)="deleteUnavailability(u)"
+                          class="text-error-600 hover:text-error-700 text-xs font-medium dark:text-error-400"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    }
+                  }
+                </div>
               </div>
             </div>
           }
@@ -165,6 +241,7 @@ import { GlobalSearchService } from '../../../shared/services/global-search.serv
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Name</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Available</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Priority</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Staffing</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Active Shifts</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Required Capabilities</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Actions</th>
@@ -173,13 +250,13 @@ import { GlobalSearchService } from '../../../shared/services/global-search.serv
           <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
             @if (loading) {
               <tr>
-                <td colspan="6" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
+                <td colspan="7" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
                   Loading workstations...
                 </td>
               </tr>
             } @else if (workstations.length === 0) {
               <tr>
-                <td colspan="6" class="px-5 py-8 text-center text-gray-400 dark:text-gray-500">
+                <td colspan="7" class="px-5 py-8 text-center text-gray-400 dark:text-gray-500">
                   No workstations found. Click "Add Workstation" to create one.
                 </td>
               </tr>
@@ -223,6 +300,9 @@ import { GlobalSearchService } from '../../../shared/services/global-search.serv
                     >
                       {{ ws.priority | titlecase }}
                     </span>
+                  </td>
+                  <td class="px-4 py-3 text-start text-theme-sm text-gray-600 dark:text-gray-400">
+                    {{ ws.min_employees }}–{{ ws.max_employees ?? '∞' }}
                   </td>
                   <td class="px-4 py-3 text-start text-theme-sm">
                     @if (ws.active_shift_ids.length === 0) {
@@ -303,6 +383,12 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
   formPriority = 'medium';
   formActiveShiftIds: string[] = [];
   formRequiredCapabilityIds: string[] = [];
+  formMinEmployees = 1;
+  formMaxEmployees: number | null = null;
+
+  workstationUnavailabilities: WorkstationUnavailability[] = [];
+  pickerRange: DateRange | null = null;
+  pickerResetKey = 0;
 
   plusIcon = `<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.25C12.4142 3.25 12.75 3.58579 12.75 4V11.25H20C20.4142 11.25 20.75 11.5858 20.75 12C20.75 12.4142 20.4142 12.75 20 12.75H12.75V20C12.75 20.4142 12.4142 20.75 12 20.75C11.5858 20.75 11.25 20.4142 11.25 20V12.75H4C3.58579 12.75 3.25 12.4142 3.25 12C3.25 11.5858 3.58579 11.25 4 11.25H11.25V4C11.25 3.58579 11.5858 3.25 12 3.25Z" fill="currentColor"></path></svg>`;
 
@@ -310,6 +396,7 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
     private workstationService: WorkstationService,
     private shiftService: ShiftService,
     private globalSearchService: GlobalSearchService,
+    private workstationUnavailabilityService: WorkstationUnavailabilityService,
   ) {}
 
   ngOnInit(): void {
@@ -408,6 +495,11 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
     this.formPriority = 'medium';
     this.formActiveShiftIds = [];
     this.formRequiredCapabilityIds = [];
+    this.formMinEmployees = 1;
+    this.formMaxEmployees = null;
+    this.workstationUnavailabilities = [];
+    this.pickerRange = null;
+    this.pickerResetKey++;
     this.showForm = true;
   }
 
@@ -418,12 +510,88 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
     this.formPriority = ws.priority || 'medium';
     this.formActiveShiftIds = [...ws.active_shift_ids];
     this.formRequiredCapabilityIds = (this.workstationCapabilities.get(ws.id) || []).map((c) => c.id);
+    this.formMinEmployees = ws.min_employees ?? 1;
+    this.formMaxEmployees = ws.max_employees ?? null;
+    this.workstationUnavailabilities = [];
+    this.pickerRange = null;
+    this.pickerResetKey++;
+    this.loadUnavailabilities(ws.id);
     this.showForm = true;
   }
 
   cancelForm(): void {
     this.showForm = false;
     this.editingWorkstation = null;
+  }
+
+  loadUnavailabilities(workstationId: string): void {
+    this.workstationUnavailabilityService.getUnavailabilities(workstationId).subscribe({
+      next: (unavailabilities) => {
+        this.workstationUnavailabilities = unavailabilities;
+      },
+      error: (err: any) => console.error('Failed to load workstation unavailabilities', err),
+    });
+  }
+
+  onMinEmployeesChange(event: Event): void {
+    const val = (event.target as HTMLInputElement).value;
+    this.formMinEmployees = val === '' ? 1 : Math.max(0, parseInt(val, 10) || 0);
+  }
+
+  onMaxEmployeesChange(event: Event): void {
+    const val = (event.target as HTMLInputElement).value;
+    this.formMaxEmployees = val === '' ? null : Math.max(0, parseInt(val, 10) || 0);
+  }
+
+  get unavailMarkedDays(): MarkedDay[] {
+    const marked: MarkedDay[] = [];
+    for (const u of this.workstationUnavailabilities) {
+      for (const date of this.datesBetween(u.unavailable_from, u.unavailable_to)) {
+        marked.push({ date, type: 'unavailable' });
+      }
+    }
+    return marked;
+  }
+
+  addUnavailability(): void {
+    if (!this.editingWorkstation || !this.pickerRange) {
+      return;
+    }
+    this.workstationUnavailabilityService
+      .createUnavailability(this.editingWorkstation.id, {
+        unavailable_from: this.pickerRange.start,
+        unavailable_to: this.pickerRange.end,
+      })
+      .subscribe({
+        next: () => {
+          this.pickerRange = null;
+          this.pickerResetKey++;
+          this.loadUnavailabilities(this.editingWorkstation!.id);
+        },
+        error: (err: any) => console.error('Failed to add workstation unavailability', err),
+      });
+  }
+
+  deleteUnavailability(u: WorkstationUnavailability): void {
+    if (!this.editingWorkstation) return;
+    this.workstationUnavailabilityService.deleteUnavailability(this.editingWorkstation.id, u.id).subscribe({
+      next: () => this.loadUnavailabilities(this.editingWorkstation!.id),
+      error: (err: any) => console.error('Failed to delete workstation unavailability', err),
+    });
+  }
+
+  private datesBetween(start: string, end: string): string[] {
+    const dates: string[] = [];
+    const cur = new Date(start + 'T00:00:00');
+    const endDate = new Date(end + 'T00:00:00');
+    while (cur <= endDate) {
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth() + 1).padStart(2, '0');
+      const d = String(cur.getDate()).padStart(2, '0');
+      dates.push(`${y}-${m}-${d}`);
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dates;
   }
 
   onNameChange(value: string | number): void {
@@ -464,6 +632,8 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
           available: this.formAvailable,
           active_shift_ids: this.formActiveShiftIds,
           priority: this.formPriority,
+          min_employees: this.formMinEmployees,
+          max_employees: this.formMaxEmployees,
         }),
       );
 
@@ -498,6 +668,8 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
           available: this.formAvailable,
           active_shift_ids: this.formActiveShiftIds,
           priority: this.formPriority,
+          min_employees: this.formMinEmployees,
+          max_employees: this.formMaxEmployees,
         })
         .subscribe({
           next: (newWs) => {

@@ -61,9 +61,29 @@ impl WorkstationService {
             .and_then(|v| v.as_str())
             .unwrap_or("medium");
 
+        let min_employees = body
+            .get("min_employees")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(1) as i16;
+        if min_employees < 0 {
+            return Err(AppError::Validation("min_employees must be >= 0".into()));
+        }
+
+        let max_employees = body
+            .get("max_employees")
+            .and_then(|v| if v.is_null() { None } else { v.as_i64() })
+            .map(|v| v as i16);
+        if let Some(max) = max_employees {
+            if max < min_employees {
+                return Err(AppError::Validation(
+                    "max_employees must be >= min_employees".into(),
+                ));
+            }
+        }
+
         let workstation = state
             .workstation_repo
-            .create_workstation(name, available, active_shift_ids, priority)
+            .create_workstation(name, available, active_shift_ids, priority, min_employees, max_employees)
             .await
             .map_err(|_| AppError::Internal)?;
 
@@ -121,6 +141,44 @@ impl WorkstationService {
             state
                 .workstation_repo
                 .set_workstation_priority(workstation_id, priority)
+                .await
+                .map_err(|_| AppError::Internal)?;
+        }
+
+        // Update staffing limits if provided
+        if body.get("min_employees").is_some() || body.get("max_employees").is_some() {
+            let current = state
+                .workstation_repo
+                .get_workstation(workstation_id)
+                .await
+                .map_err(|_| AppError::Internal)?
+                .ok_or(AppError::NotFound)?;
+
+            let min_employees = body
+                .get("min_employees")
+                .and_then(|v| v.as_i64())
+                .map(|v| v as i16)
+                .unwrap_or(current.min_employees);
+            if min_employees < 0 {
+                return Err(AppError::Validation("min_employees must be >= 0".into()));
+            }
+
+            let max_employees = if let Some(v) = body.get("max_employees") {
+                if v.is_null() { None } else { v.as_i64().map(|v| v as i16) }
+            } else {
+                current.max_employees
+            };
+            if let Some(max) = max_employees {
+                if max < min_employees {
+                    return Err(AppError::Validation(
+                        "max_employees must be >= min_employees".into(),
+                    ));
+                }
+            }
+
+            state
+                .workstation_repo
+                .set_workstation_staffing(workstation_id, min_employees, max_employees)
                 .await
                 .map_err(|_| AppError::Internal)?;
         }

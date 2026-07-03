@@ -8,7 +8,7 @@ use axum::{
 use chrono::Local;
 use crate::broker::JetStreamStatus;
 use crate::errors::AppError;
-use crate::models::{ConstraintTask, PlanningPeriod, ShiftTask, TaskDTO, TaskResultDto, EmployeeTask, WorkstationTask};
+use crate::models::{ConstraintTask, PlanningPeriod, ShiftTask, TaskDTO, TaskResultDto, EmployeeTask, WorkstationTask, WorkstationUnavailabilityRange};
 use crate::repository::{AppState, domain::*};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -130,17 +130,32 @@ impl OptimizerService {
             unavail_map.entry(u.employee_id).or_default().push(u.unavailable_date.to_string());
         }
 
+        let all_ws_unavailabilities = state.workstation_unavailability_repo.list_workstation_unavailabilities().await?;
+        let mut ws_unavail_map: std::collections::HashMap<Uuid, Vec<WorkstationUnavailabilityRange>> = std::collections::HashMap::new();
+        for u in all_ws_unavailabilities {
+            ws_unavail_map.entry(u.workstation_id).or_default().push(WorkstationUnavailabilityRange {
+                from_date: u.unavailable_from.to_string(),
+                to_date: u.unavailable_to.to_string(),
+            });
+        }
+
         let shift_tasks = Self::build_shift_tasks(shifts);
 
         let total_workstations = workstations.len();
         let workstation_tasks: Vec<WorkstationTask> = workstations.into_iter()
             .filter(|ws| ws.available && !ws.active_shift_ids.is_empty())
-            .map(|ws| WorkstationTask {
-                id: ws.id.to_string(),
-                name: ws.name,
-                required_skills: ws.required_capabilities.iter().map(|c| c.name.clone()).collect(),
-                priority: ws.priority.clone(),
-                operating_shifts: ws.active_shift_ids.iter().map(|id| id.to_string()).collect(),
+            .map(|ws| {
+                let unavailability = ws_unavail_map.get(&ws.id).cloned().unwrap_or_default();
+                WorkstationTask {
+                    id: ws.id.to_string(),
+                    name: ws.name,
+                    required_skills: ws.required_capabilities.iter().map(|c| c.name.clone()).collect(),
+                    priority: ws.priority.clone(),
+                    operating_shifts: ws.active_shift_ids.iter().map(|id| id.to_string()).collect(),
+                    min_employees: ws.min_employees,
+                    max_employees: ws.max_employees,
+                    unavailability,
+                }
             }).collect();
 
         let total_employees = employees.len();
@@ -210,6 +225,7 @@ impl OptimizerService {
                 is_night_shift: false,
                 min_employees: first_wt.map(|wt| wt.min_employees).unwrap_or(1),
                 max_employees: first_wt.and_then(|wt| wt.max_employees),
+                free_days_after_shift: first_wt.map(|wt| wt.free_days_after_shift).unwrap_or(0),
             }
         }).collect()
     }

@@ -8,6 +8,8 @@ export interface Workstation {
   available: boolean;
   active_shift_ids: string[];
   priority: string;
+  min_employees: number;
+  max_employees: number | null;
 }
 
 export interface Capability {
@@ -24,6 +26,8 @@ export interface CreateWorkstationRequest {
   available: boolean;
   active_shift_ids?: string[];
   priority?: string;
+  min_employees?: number;
+  max_employees?: number | null;
 }
 
 export interface UpdateWorkstationRequest {
@@ -31,6 +35,8 @@ export interface UpdateWorkstationRequest {
   available?: boolean;
   active_shift_ids?: string[];
   priority?: string;
+  min_employees?: number;
+  max_employees?: number | null;
 }
 
 @Injectable({

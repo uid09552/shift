@@ -9,6 +9,7 @@ export interface WeekdayTime {
   end_time: string;
   min_employees: number;
   max_employees: number | null;
+  free_days_after_shift: number;
 }
 
 export interface Shift {
@@ -40,6 +41,7 @@ export interface SetWeekdayTimeRequest {
   end_time: string;
   min_employees?: number;
   max_employees?: number | null;
+  free_days_after_shift?: number;
 }
 
 @Injectable({

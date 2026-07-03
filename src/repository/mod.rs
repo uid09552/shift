@@ -15,6 +15,7 @@ use self::employeerepository::{
     DieselEmployeeRepository,
     DieselUnavailabilityRepository,
     DieselWorkstationRepository,
+    DieselWorkstationUnavailabilityRepository,
 };
 use self::shiftrepository::DieselShiftRepository;
 use self::shiftassignmentrepository::DieselEmployeeShiftAssignmentRepository;
@@ -30,6 +31,7 @@ pub struct AppState {
     pub capability_repo: DieselCapabilityRepository,
     pub workstation_repo: DieselWorkstationRepository,
     pub unavailability_repo: DieselUnavailabilityRepository,
+    pub workstation_unavailability_repo: DieselWorkstationUnavailabilityRepository,
     pub shift_assignment_repo: DieselEmployeeShiftAssignmentRepository,
     pub confirmed_shift_plan_repo: DieselConfirmedShiftPlanRepository,
     pub optimized_shift_result_repo: DieselOptimizedShiftResultRepository,
@@ -49,6 +51,7 @@ impl AppState {
             capability_repo: DieselCapabilityRepository { pool: Arc::clone(&pool) },
             workstation_repo: DieselWorkstationRepository { pool: Arc::clone(&pool) },
             unavailability_repo: DieselUnavailabilityRepository { pool: Arc::clone(&pool) },
+            workstation_unavailability_repo: DieselWorkstationUnavailabilityRepository { pool: Arc::clone(&pool) },
             shift_assignment_repo: DieselEmployeeShiftAssignmentRepository { pool: Arc::clone(&pool) },
             confirmed_shift_plan_repo: DieselConfirmedShiftPlanRepository { pool: Arc::clone(&pool) },
             optimized_shift_result_repo: DieselOptimizedShiftResultRepository { pool: Arc::clone(&pool) },
@@ -68,6 +71,7 @@ impl AppState {
             capability_repo: DieselCapabilityRepository { pool: Arc::clone(&pool) },
             workstation_repo: DieselWorkstationRepository { pool: Arc::clone(&pool) },
             unavailability_repo: DieselUnavailabilityRepository { pool: Arc::clone(&pool) },
+            workstation_unavailability_repo: DieselWorkstationUnavailabilityRepository { pool: Arc::clone(&pool) },
             shift_assignment_repo: DieselEmployeeShiftAssignmentRepository { pool: Arc::clone(&pool) },
             confirmed_shift_plan_repo: DieselConfirmedShiftPlanRepository { pool: Arc::clone(&pool) },
             optimized_shift_result_repo: DieselOptimizedShiftResultRepository { pool: Arc::clone(&pool) },

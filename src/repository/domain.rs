@@ -21,6 +21,7 @@ pub struct WeekdayTime {
     pub end_time: NaiveTime,
     pub min_employees: i16,
     pub max_employees: Option<i16>,
+    pub free_days_after_shift: i16,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -47,6 +48,8 @@ pub struct Workstation {
     pub active_shift_ids: Vec<Uuid>,
     pub required_capabilities: Vec<Capability>,
     pub priority: String,
+    pub min_employees: i16,
+    pub max_employees: Option<i16>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -55,6 +58,14 @@ pub struct Unavailability {
     pub employee_id: Uuid,
     pub unavailable_date: NaiveDate,
     pub shift_id: Option<Uuid>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WorkstationUnavailability {
+    pub id: Uuid,
+    pub workstation_id: Uuid,
+    pub unavailable_from: NaiveDate,
+    pub unavailable_to: NaiveDate,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -133,16 +144,26 @@ pub trait UnavailabilityRepository {
 
 #[async_trait]
 pub trait WorkstationRepository {
-    async fn create_workstation(&self, name: &str, available: bool, active_shift_ids: Vec<Uuid>, priority: &str) -> Result<Workstation, Box<dyn std::error::Error + Send + Sync>>;
+    async fn create_workstation(&self, name: &str, available: bool, active_shift_ids: Vec<Uuid>, priority: &str, min_employees: i16, max_employees: Option<i16>) -> Result<Workstation, Box<dyn std::error::Error + Send + Sync>>;
     async fn get_workstation(&self, id: Uuid) -> Result<Option<Workstation>, Box<dyn std::error::Error + Send + Sync>>;
     async fn list_workstations(&self) -> Result<Vec<Workstation>, Box<dyn std::error::Error + Send + Sync>>;
     async fn set_workstation_availability(&self, id: Uuid, available: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn set_workstation_active_shifts(&self, id: Uuid, active_shift_ids: Vec<Uuid>) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn set_workstation_priority(&self, id: Uuid, priority: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    async fn set_workstation_staffing(&self, id: Uuid, min_employees: i16, max_employees: Option<i16>) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn add_required_capability(&self, workstation_id: Uuid, capability_id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn list_required_capabilities(&self, workstation_id: Uuid) -> Result<Vec<Capability>, Box<dyn std::error::Error + Send + Sync>>;
     async fn delete_workstation(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
     async fn remove_required_capability(&self, workstation_id: Uuid, capability_id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+}
+
+#[async_trait]
+pub trait WorkstationUnavailabilityRepository {
+    async fn create_workstation_unavailability(&self, unavailability: WorkstationUnavailability) -> Result<WorkstationUnavailability, Box<dyn std::error::Error + Send + Sync>>;
+    async fn get_workstation_unavailability(&self, id: Uuid) -> Result<Option<WorkstationUnavailability>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn list_workstation_unavailabilities(&self) -> Result<Vec<WorkstationUnavailability>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn get_unavailabilities_for_workstation(&self, workstation_id: Uuid) -> Result<Vec<WorkstationUnavailability>, Box<dyn std::error::Error + Send + Sync>>;
+    async fn delete_workstation_unavailability(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 }
 
 #[async_trait]

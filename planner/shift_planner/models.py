@@ -38,6 +38,9 @@ class Shift(BaseModel):
     is_night_shift: bool = False
     min_employees: int = Field(default=1, ge=0)
     max_employees: Optional[int] = Field(default=None, ge=0)
+    # Number of consecutive days an employee must be kept free/rest after
+    # working this shift (0-5, 0 = no forced recovery days for this shift).
+    free_days_after_shift: int = Field(default=0, ge=0, le=5)
 
     @field_validator("weekdays")
     @classmethod
@@ -58,6 +61,21 @@ class Shift(BaseModel):
         return v
 
 
+class WorkstationUnavailabilityRange(BaseModel):
+    """A date range during which a workstation cannot be staffed."""
+
+    from_date: date
+    to_date: date
+
+    @field_validator("to_date")
+    @classmethod
+    def to_after_from(cls, v, info):
+        """Validate that to_date is not before from_date."""
+        if "from_date" in info.data and v < info.data["from_date"]:
+            raise ValueError("to_date must be after from_date")
+        return v
+
+
 class Workstation(BaseModel):
     """Workstation definition with skills and priority."""
 
@@ -66,6 +84,13 @@ class Workstation(BaseModel):
     required_skills: List[str] = Field(default_factory=list)
     priority: str = Field(default="medium")
     operating_shifts: List[str] = Field(..., min_length=1)
+    # Staffing limits: how many employees may work at this workstation per
+    # shift per day. min_employees is enforced as a soft constraint, max_employees
+    # is hard (None = unlimited).
+    min_employees: int = Field(default=1, ge=0)
+    max_employees: Optional[int] = Field(default=None, ge=0)
+    # Periods during which this workstation cannot be staffed (e.g. maintenance).
+    unavailability: List[WorkstationUnavailabilityRange] = Field(default_factory=list)
 
     @field_validator("priority")
     @classmethod
@@ -128,8 +153,9 @@ class ConstraintConfig(BaseModel):
 
     # Weight for penalizing deviation from each employee's monthly working hours target.
     # Higher values make the solver try harder to hit each employee's target hours.
-    # Set to 0 (default) to disable.
-    monthly_hours_target_weight: int = Field(default=0, ge=0)
+    # Enabled by default so employees' monthly_working_hours targets are respected;
+    # set to 0 to disable.
+    monthly_hours_target_weight: int = Field(default=1000, ge=0)
 
     # Solver time limit in seconds
     solver_time_limit_seconds: float = Field(default=120.0, gt=0)
@@ -191,7 +217,7 @@ class DailyPlanEntry(BaseModel):
     """One entry per day in the planning period for a given employee."""
 
     date: str
-    status: str  # "assigned" or "not_assigned"
+    status: str  # "assigned", "free" (mandatory rest or contract hours met), or "not_assigned"
     shift_id: Optional[str] = None
     shift_name: Optional[str] = None
     workstation_id: Optional[str] = None

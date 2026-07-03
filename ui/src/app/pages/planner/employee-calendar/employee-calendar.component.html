@@ -458,6 +458,69 @@
   </div>
 </div>
 
+<!-- Hours Summary Panel -->
+@if (selectedEmployeeId && !loading) {
+  <div class="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+    <div class="px-5 py-4 sm:px-6">
+      <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">Hours Summary</h3>
+      <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Planned working hours for {{ monthLabel }}</p>
+    </div>
+
+    <div class="border-t border-gray-100 px-5 py-5 dark:border-white/[0.05] sm:px-6">
+      <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+
+        <!-- Monthly total -->
+        <div>
+          <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Month Total</h4>
+          <div class="rounded-xl bg-brand-50 px-4 py-5 text-center dark:bg-brand-500/10">
+            <span class="text-3xl font-bold text-brand-600 dark:text-brand-400">{{ monthlyHours | number: '1.0-1' }}</span>
+            <span class="ml-1 text-sm text-gray-500 dark:text-gray-400">hours</span>
+          </div>
+        </div>
+
+        <!-- Per week -->
+        <div>
+          <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Per Week</h4>
+          @if (weeklyHoursSummaries.length === 0) {
+            <p class="text-sm text-gray-400 dark:text-gray-500">No planned hours yet.</p>
+          } @else {
+            <div class="space-y-1.5">
+              @for (w of weeklyHoursSummaries; track w.weekLabel) {
+                <div class="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
+                  <span class="text-gray-600 dark:text-gray-400">{{ w.weekLabel }}</span>
+                  <span class="font-medium text-gray-800 dark:text-white/90">{{ w.hours | number: '1.0-1' }}h</span>
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Per shift -->
+        <div>
+          <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Per Shift</h4>
+          @if (shiftHoursSummaries.length === 0) {
+            <p class="text-sm text-gray-400 dark:text-gray-500">No planned hours yet.</p>
+          } @else {
+            <div class="space-y-1.5">
+              @for (s of shiftHoursSummaries; track s.shiftId) {
+                <div class="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
+                  <div class="flex items-center gap-2">
+                    <span class="inline-block h-2.5 w-2.5 rounded-sm" [style.backgroundColor]="s.shiftColor"></span>
+                    <span class="text-gray-600 dark:text-gray-400">{{ s.shiftName }}</span>
+                    <span class="text-xs text-gray-400 dark:text-gray-500">({{ s.days }}d)</span>
+                  </div>
+                  <span class="font-medium text-gray-800 dark:text-white/90">{{ s.hours | number: '1.0-1' }}h</span>
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+      </div>
+    </div>
+  </div>
+}
+
 <!-- Leave & Unavailability Panel -->
 @if (selectedEmployeeId) {
   <div class="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">

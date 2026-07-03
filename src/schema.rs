@@ -47,6 +47,7 @@ diesel::table! {
         end_time -> Time,
         min_employees -> Int2,
         max_employees -> Nullable<Int2>,
+        free_days_after_shift -> Int2,
     }
 }
 
@@ -57,6 +58,17 @@ diesel::table! {
         available -> Bool,
         active_shift_ids -> Array<Uuid>,
         priority -> Varchar,
+        min_employees -> Int2,
+        max_employees -> Nullable<Int2>,
+    }
+}
+
+diesel::table! {
+    workstation_unavailabilities (id) {
+        id -> Uuid,
+        workstation_id -> Uuid,
+        unavailable_from -> Date,
+        unavailable_to -> Date,
     }
 }
 
@@ -130,6 +142,7 @@ diesel::joinable!(workstation_required_capabilities -> workstations (workstation
 diesel::joinable!(unavailabilities -> employees (employee_id));
 diesel::joinable!(unavailabilities -> shifts (shift_id));
 diesel::joinable!(shift_weekday_times -> shifts (shift_id));
+diesel::joinable!(workstation_unavailabilities -> workstations (workstation_id));
 diesel::joinable!(employee_shift_assignments -> employees (employee_id));
 diesel::joinable!(employee_shift_assignments -> shifts (shift_id));
 diesel::joinable!(confirmed_shift_plans -> employees (employee_id));
@@ -150,4 +163,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     confirmed_shift_plans,
     optimized_shift_results,
     planning_tasks,
+    workstation_unavailabilities,
 );

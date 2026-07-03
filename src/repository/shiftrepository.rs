@@ -34,6 +34,7 @@ fn load_weekday_times_for_shifts(
                 end_time: t.end_time,
                 min_employees: t.min_employees,
                 max_employees: t.max_employees,
+                free_days_after_shift: t.free_days_after_shift,
             });
     }
     Ok(map)
@@ -207,6 +208,7 @@ impl DieselShiftRepository {
         end_time: chrono::NaiveTime,
         min_employees: i16,
         max_employees: Option<i16>,
+        free_days_after_shift: i16,
     ) -> Result<WeekdayTime, AppError> {
         let pool = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
@@ -225,6 +227,7 @@ impl DieselShiftRepository {
                 end_time,
                 min_employees,
                 max_employees,
+                free_days_after_shift,
             };
 
             // Upsert: insert or update if the (shift_id, weekday) pair already exists
@@ -237,6 +240,7 @@ impl DieselShiftRepository {
                     shift_weekday_times::end_time.eq(end_time),
                     shift_weekday_times::min_employees.eq(min_employees),
                     shift_weekday_times::max_employees.eq(max_employees),
+                    shift_weekday_times::free_days_after_shift.eq(free_days_after_shift),
                 ))
                 .get_result::<models::ShiftWeekdayTime>(&mut conn)
                 .map_err(|_| AppError::DbError)?;
@@ -247,6 +251,7 @@ impl DieselShiftRepository {
                 end_time: wt.end_time,
                 min_employees: wt.min_employees,
                 max_employees: wt.max_employees,
+                free_days_after_shift: wt.free_days_after_shift,
             })
         })
         .await.map_err(|_| AppError::Internal)?

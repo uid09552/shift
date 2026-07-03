@@ -48,6 +48,19 @@ interface CalendarWeek {
   days: CalendarDay[];
 }
 
+interface WeeklyHoursSummary {
+  weekLabel: string;
+  hours: number;
+}
+
+interface ShiftHoursSummary {
+  shiftId: string;
+  shiftName: string;
+  shiftColor: string;
+  hours: number;
+  days: number;
+}
+
 @Component({
   selector: 'app-employee-calendar',
   standalone: true,
@@ -97,6 +110,11 @@ export class EmployeeCalendarComponent implements OnInit {
   // ── Unavailability (for calendar grid visualization) ─────────────
   unavailabilities: Unavailability[] = [];
   loadingUnavailabilities = false;
+
+  // ── Hours summary (per week / per month / per shift) ─────────────
+  weeklyHoursSummaries: WeeklyHoursSummary[] = [];
+  monthlyHours = 0;
+  shiftHoursSummaries: ShiftHoursSummary[] = [];
 
   // ── Unified leave & unavailability panel ─────────────────────────
   leaveEntries: LeaveEntry[] = [];
@@ -373,6 +391,85 @@ export class EmployeeCalendarComponent implements OnInit {
         }
       }
     }
+
+    this.computeHoursSummaries();
+  }
+
+  // ── Hours summary (per week / per month / per shift) ─────────────
+
+  private computeHoursSummaries(): void {
+    const weekly: WeeklyHoursSummary[] = [];
+    const shiftTotals = new Map<string, ShiftHoursSummary>();
+    let monthly = 0;
+
+    for (const week of this.weeks) {
+      const monthDays = week.days.filter((d) => d.isCurrentMonth);
+      if (monthDays.length === 0) continue;
+
+      let weekHours = 0;
+      for (const day of monthDays) {
+        if (!day.plan || !day.plan.is_present || !day.plan.shift_id) continue;
+
+        const hours = this.getShiftDurationHours(day.plan.shift_id, day.date);
+        weekHours += hours;
+        monthly += hours;
+
+        const existing = shiftTotals.get(day.plan.shift_id);
+        if (existing) {
+          existing.hours += hours;
+          existing.days += 1;
+        } else {
+          const shift = this.shiftMap.get(day.plan.shift_id);
+          shiftTotals.set(day.plan.shift_id, {
+            shiftId: day.plan.shift_id,
+            shiftName: shift ? shift.name : 'Unknown shift',
+            shiftColor: shift ? shift.color : '#6B7280',
+            hours,
+            days: 1,
+          });
+        }
+      }
+
+      const first = monthDays[0].date;
+      const last = monthDays[monthDays.length - 1].date;
+      const weekLabel =
+        first.getTime() === last.getTime()
+          ? this.formatShortDate(first)
+          : `${this.formatShortDate(first)} – ${this.formatShortDate(last)}`;
+      weekly.push({ weekLabel, hours: weekHours });
+    }
+
+    this.weeklyHoursSummaries = weekly;
+    this.monthlyHours = monthly;
+    this.shiftHoursSummaries = Array.from(shiftTotals.values()).sort(
+      (a, b) => b.hours - a.hours,
+    );
+  }
+
+  /** Duration in hours of the given shift on the given date, based on that weekday's configured times. */
+  private getShiftDurationHours(shiftId: string, date: Date): number {
+    const shift = this.shiftMap.get(shiftId);
+    if (!shift || shift.weekday_times.length === 0) return 0;
+
+    const jsDay = date.getDay(); // 0=Sunday..6=Saturday
+    const weekday = jsDay === 0 ? 6 : jsDay - 1; // 0=Monday..6=Sunday, matches backend convention
+    const wt =
+      shift.weekday_times.find((w) => w.weekday === weekday) ??
+      shift.weekday_times[0];
+
+    const toMinutes = (t: string): number => {
+      const [h, m] = t.split(':');
+      return parseInt(h, 10) * 60 + parseInt(m, 10);
+    };
+
+    const start = toMinutes(wt.start_time);
+    const end = toMinutes(wt.end_time);
+    const minutes = end > start ? end - start : 24 * 60 - start + end; // handles overnight shifts
+    return minutes / 60;
+  }
+
+  private formatShortDate(d: Date): string {
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
   formatDate(date: Date): string {

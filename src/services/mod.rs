@@ -3,6 +3,7 @@ pub mod shift;
 pub mod capability;
 pub mod workstation;
 pub mod unavailability;
+pub mod workstation_unavailability;
 pub mod optimizer;
 pub mod shift_assignment;
 pub mod confirmed_shift_plan;
