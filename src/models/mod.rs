@@ -1,4 +1,5 @@
 pub mod analysis;
+pub mod audit_log;
 pub mod capability;
 pub mod confirmed_shift_plan;
 pub mod employee;
@@ -16,6 +17,7 @@ pub mod workstation_required_capabilities;
 pub mod workstation_unavailability;
 
 pub use analysis::{WorkstationDailyHours, WorkstationDailyEmployees};
+pub use audit_log::{AuditLog, NewAuditLog};
 pub use capability::{Capability, NewCapability};
 pub use confirmed_shift_plan::{ConfirmedShiftPlan, NewConfirmedShiftPlan, UpdateConfirmedShiftPlan};
 pub use employee::{Employee, NewEmployee};
@@ -25,8 +27,8 @@ pub use employee_shift_assignment::{EmployeeShiftAssignment, NewEmployeeShiftAss
 pub use optimized_shift_result::{OptimizedShiftResult, NewOptimizedShiftResult};
 pub use planning_task::{PlanningTask, NewPlanningTask};
 pub use shift::{Shift, NewShift, ShiftWeekdayTime, NewShiftWeekdayTime};
-pub use task_dto::{ConstraintTask, TaskDTO, PlanningPeriod, ShiftTask, WorkstationTask, WorkstationUnavailabilityRange, EmployeeTask};
-pub use task_result_dto::{TaskResultDto, PlanningPeriodResult, DaySchedule, ShiftSchedule, ShiftAssignment, EmployeeSummary, EmployeeShiftSummary};
+pub use task_dto::{ConstraintTask, TaskDTO, PlanningPeriod, ShiftTask, ShiftWeekdayTimeTask, WorkstationTask, WorkstationUnavailabilityRange, EmployeeTask};
+pub use task_result_dto::{TaskResultDto, PlanningPeriodResult, DaySchedule, ShiftSchedule, ShiftAssignment, EmployeeSummary, EmployeeShiftSummary, EmployeeDailyPlan, DailyPlanEntry};
 pub use unavailability::{NewUnavailability, Unavailability};
 pub use workstation::{NewWorkstation, Workstation};
 pub use workstation_required_capabilities::{NewWorkstationRequiredCapability, WorkstationRequiredCapability};

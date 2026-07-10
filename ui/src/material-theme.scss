@@ -35,3 +35,17 @@ body {
   margin: 0;
   height: 100%;
 }
+
+// The app's own dark-mode toggle (theme.service.ts) adds/removes a `.dark`
+// class on <html>, independently of Angular Material's mat.theme() color
+// scheme. Without this override, `--mat-sys-surface`/`--mat-sys-on-surface`
+// never change, so `body` (and anything layered on top of it) stays on the
+// light Material surface color even after switching to dark mode.
+html.dark {
+  color-scheme: dark;
+
+  body {
+    --mat-sys-surface: var(--color-gray-900, #101828);
+    --mat-sys-on-surface: rgba(255, 255, 255, 0.9);
+  }
+}

@@ -25,15 +25,18 @@ pub struct DieselAnalysisRepository {
 impl AnalysisRepository for DieselAnalysisRepository {
     async fn get_planned_hours_per_day_per_workstation(
         &self,
+        tenant_id: &str,
         from_date: NaiveDate,
         to_date: NaiveDate,
     ) -> Result<Vec<WorkstationDailyHoursDomain>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::Internal)?;
 
             // Fetch confirmed shift plans in range where employee is present and workstation is assigned
             let plans: Vec<models::ConfirmedShiftPlan> = confirmed_shift_plans::table
+                .filter(confirmed_shift_plans::tenant_id.eq(&tenant_id))
                 .filter(confirmed_shift_plans::is_present.eq(true))
                 .filter(confirmed_shift_plans::workstation_id.is_not_null())
                 .filter(confirmed_shift_plans::date.ge(from_date))
@@ -52,6 +55,7 @@ impl AnalysisRepository for DieselAnalysisRepository {
             // Fetch shift weekday times for the relevant shifts
             let weekday_times: Vec<models::ShiftWeekdayTime> = shift_weekday_times::table
                 .filter(shift_weekday_times::shift_id.eq_any(&shift_ids))
+                .filter(shift_weekday_times::tenant_id.eq(&tenant_id))
                 .load::<models::ShiftWeekdayTime>(&mut conn)
                 .map_err(|_| AppError::Internal)?;
 
@@ -74,6 +78,7 @@ impl AnalysisRepository for DieselAnalysisRepository {
             // Fetch workstation names
             let ws_list: Vec<models::Workstation> = workstations::table
                 .filter(workstations::id.eq_any(&workstation_ids))
+                .filter(workstations::tenant_id.eq(&tenant_id))
                 .load::<models::Workstation>(&mut conn)
                 .map_err(|_| AppError::Internal)?;
 
@@ -113,15 +118,18 @@ impl AnalysisRepository for DieselAnalysisRepository {
 
     async fn get_planned_employees_per_day_per_workstation(
         &self,
+        tenant_id: &str,
         from_date: NaiveDate,
         to_date: NaiveDate,
     ) -> Result<Vec<WorkstationDailyEmployeesDomain>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::Internal)?;
 
             // Fetch confirmed shift plans in range where employee is present and workstation is assigned
             let plans: Vec<models::ConfirmedShiftPlan> = confirmed_shift_plans::table
+                .filter(confirmed_shift_plans::tenant_id.eq(&tenant_id))
                 .filter(confirmed_shift_plans::is_present.eq(true))
                 .filter(confirmed_shift_plans::workstation_id.is_not_null())
                 .filter(confirmed_shift_plans::date.ge(from_date))
@@ -139,6 +147,7 @@ impl AnalysisRepository for DieselAnalysisRepository {
             // Fetch workstation names
             let ws_list: Vec<models::Workstation> = workstations::table
                 .filter(workstations::id.eq_any(&workstation_ids))
+                .filter(workstations::tenant_id.eq(&tenant_id))
                 .load::<models::Workstation>(&mut conn)
                 .map_err(|_| AppError::Internal)?;
 

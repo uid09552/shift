@@ -13,6 +13,7 @@ import { ShiftService, Shift } from '../../../shared/services/shift.service';
 import { UnavailabilityService } from '../../../shared/services/unavailability.service';
 import { GlobalSearchService } from '../../../shared/services/global-search.service';
 import { ConfirmedShiftPlanService } from '../../../shared/services/confirmed-shift-plan.service';
+import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
 
 interface LeaveEntry {
   id: string;
@@ -73,6 +74,20 @@ interface LeaveEntry {
               [value]="formEmail"
               (valueChange)="onEmailChange($event)"
             />
+          </div>
+
+          <!-- Monthly working hours -->
+          <div class="mb-5">
+            <app-label for="userMonthlyHours" className="mb-1.5">Max Working Hours (per Month)</app-label>
+            <app-input-field
+              id="userMonthlyHours"
+              name="userMonthlyHours"
+              type="number"
+              placeholder="e.g. 160"
+              [value]="formMonthlyWorkingHours"
+              (valueChange)="onMonthlyWorkingHoursChange($event)"
+            />
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Target monthly working hours used by the schedule optimizer</p>
           </div>
 
           <!-- Capabilities (only in edit mode) -->
@@ -276,6 +291,7 @@ interface LeaveEntry {
           <thead class="border-b border-gray-100 dark:border-white/[0.05]">
             <tr>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Name</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Max Hrs/Month</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Shifts</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Capabilities</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Actions</th>
@@ -284,19 +300,19 @@ interface LeaveEntry {
           <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
             @if (loading) {
               <tr>
-                <td colspan="4" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
+                <td colspan="5" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
                   Loading employees...
                 </td>
               </tr>
             } @else if (employees.length === 0 && !loading) {
               <tr>
-                <td colspan="4" class="px-5 py-8 text-center text-gray-400 dark:text-gray-500">
+                <td colspan="5" class="px-5 py-8 text-center text-gray-400 dark:text-gray-500">
                   No employees found. Click "Add User" to create one.
                 </td>
               </tr>
             } @else {
               @for (employee of employees; track employee.id) {
-                <tr>
+                <tr (dblclick)="openEditForm(employee)">
                   <td class="px-5 py-4 sm:px-6 text-start">
                     <div>
                       <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
@@ -306,6 +322,9 @@ interface LeaveEntry {
                         {{ employee.email }}
                       </span>
                     </div>
+                  </td>
+                  <td class="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                    {{ employee.monthly_working_hours || '—' }}
                   </td>
                   <td class="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
                     @if (employee.shifts.length === 0) {
@@ -412,6 +431,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
   editingEmployee: EmployeeProfile | null = null;
   formName = '';
   formEmail = '';
+  formMonthlyWorkingHours: number = 0;
 
   // Search
   private searchQuery = '';
@@ -476,6 +496,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
     private unavailabilityService: UnavailabilityService,
     private globalSearchService: GlobalSearchService,
     private confirmedShiftPlanService: ConfirmedShiftPlanService,
+    private confirmDialog: ConfirmDialogService,
   ) {}
 
   ngOnInit(): void {
@@ -500,6 +521,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
           id: emp.id,
           name: emp.name,
           email: emp.email,
+          monthly_working_hours: emp.monthly_working_hours,
           shifts: emp.available_shifts.map((s) => s.name),
           capabilities: emp.capabilities.map((c) => c.name),
         }));
@@ -536,6 +558,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
     this.editingEmployee = null;
     this.formName = '';
     this.formEmail = '';
+    this.formMonthlyWorkingHours = 0;
     this.formCapabilities = {};
     this.formShifts = {};
     this.showForm = true;
@@ -545,6 +568,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
     this.editingEmployee = employee;
     this.formName = employee.name;
     this.formEmail = employee.email;
+    this.formMonthlyWorkingHours = employee.monthly_working_hours;
     this.formCapabilities = {};
     this.formShifts = {};
     this.leaveEntries = [];
@@ -596,6 +620,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
     this.editingEmployee = null;
     this.formName = '';
     this.formEmail = '';
+    this.formMonthlyWorkingHours = 0;
     this.formCapabilities = {};
     this.formShifts = {};
     this.leaveEntries = [];
@@ -610,6 +635,10 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
 
   onEmailChange(value: string | number): void {
     this.formEmail = String(value);
+  }
+
+  onMonthlyWorkingHoursChange(value: string | number): void {
+    this.formMonthlyWorkingHours = typeof value === 'string' ? parseFloat(value) || 0 : value;
   }
 
   toggleCapability(capId: string, event: Event): void {
@@ -636,6 +665,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
         this.employeeService.updateEmployee(this.editingEmployee.id, {
           name: this.formName.trim(),
           email: this.formEmail.trim(),
+          monthly_working_hours: this.formMonthlyWorkingHours,
         })
       );
 
@@ -677,6 +707,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
       const request: CreateEmployeeRequest = {
         name: this.formName.trim(),
         email: this.formEmail.trim(),
+        monthly_working_hours: this.formMonthlyWorkingHours,
       };
 
       this.employeeService.createEmployee(request).subscribe({
@@ -688,6 +719,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
             id: newEmployee.id,
             name: newEmployee.name,
             email: newEmployee.email,
+            monthly_working_hours: newEmployee.monthly_working_hours,
             shifts: [],
             capabilities: [],
           };
@@ -698,15 +730,21 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
     }
   }
 
-  deleteEmployee(employee: EmployeeProfile): void {
-    if (confirm(`Are you sure you want to delete "${employee.name}"?`)) {
-      this.employeeService.deleteEmployee(employee.id).subscribe({
-        next: () => {
-          this.loadEmployees();
-        },
-        error: (err) => console.error('Failed to delete employee', err),
-      });
-    }
+  async deleteEmployee(employee: EmployeeProfile): Promise<void> {
+    const ok = await this.confirmDialog.confirm({
+      title: 'Delete Employee',
+      message: `Are you sure you want to delete "${employee.name}"? This action cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
+
+    this.employeeService.deleteEmployee(employee.id).subscribe({
+      next: () => {
+        this.loadEmployees();
+      },
+      error: (err) => console.error('Failed to delete employee', err),
+    });
   }
 
   get markedDays(): MarkedDay[] {

@@ -9,6 +9,7 @@ use crate::schema::employee_available_shifts;
 pub struct EmployeeAvailableShift {
     pub employee_id: Uuid,
     pub shift_id: Uuid,
+    pub tenant_id: String,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
@@ -16,4 +17,5 @@ pub struct EmployeeAvailableShift {
 pub struct NewEmployeeAvailableShift {
     pub employee_id: Uuid,
     pub shift_id: Uuid,
+    pub tenant_id: String,
 }

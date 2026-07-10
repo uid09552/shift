@@ -14,6 +14,7 @@ use tower_http::cors::CorsLayer;
 use crate::repository::{AppState, domain::PlanningTaskRepository};
 use crate::services::{
     analysis::AnalysisService,
+    audit_log::AuditLogService,
     auth,
     capability::CapabilityService,
     confirmed_shift_plan::ConfirmedShiftPlanService,
@@ -67,7 +68,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/shifts/:shift_id/weekday-times/:weekday", delete(ShiftService::delete_weekday_time))
         // Capabilities
         .route("/capabilities", get(CapabilityService::list_capabilities).post(CapabilityService::create_capability))
-        .route("/capabilities/:capability_id", get(CapabilityService::get_capability_by_id).delete(CapabilityService::delete_capability))
+        .route("/capabilities/:capability_id", get(CapabilityService::get_capability_by_id).put(CapabilityService::update_capability).delete(CapabilityService::delete_capability))
         // Workstations
         .route("/workstations", get(WorkstationService::list_workstations).post(WorkstationService::create_workstation))
         .route(
@@ -111,7 +112,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/planner/tasks", get(optimizer::list_tasks))
         .route("/planner/tasks/:task_id", get(optimizer::get_task).delete(optimizer::delete_task))
         .route("/planner/optimized-shifts", get(optimizer::list_optimized_shifts))
-        .route("/planner/optimized-shifts/:result_id", get(optimizer::get_optimized_shift).delete(optimizer::delete_optimized_shift))
+        .route("/planner/optimized-shifts/:result_id", get(optimizer::get_optimized_shift).put(optimizer::update_optimized_shift).delete(optimizer::delete_optimized_shift))
+        .route("/planner/optimized-shifts/:result_id/take-as-plan", post(optimizer::take_as_plan))
         // Shift Assignments
         .route(
             "/employees/:employee_id/shift-assignments",
@@ -142,7 +144,9 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/analysis/planned-employees-per-day-per-workstation",
             get(AnalysisService::get_planned_employees_per_day_per_workstation),
-        );
+        )
+        // Audit Logs
+        .route("/audit-logs", get(AuditLogService::list_audit_logs));
 
     Router::new()
         .route("/health", get(health_check))

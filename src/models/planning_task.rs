@@ -14,6 +14,7 @@ pub struct PlanningTask {
     pub error_message: Option<String>,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
+    pub tenant_id: String,
 }
 
 #[derive(Insertable, Debug)]
@@ -22,4 +23,5 @@ pub struct NewPlanningTask {
     pub id: Uuid,
     pub status: String,
     pub payload: serde_json::Value,
+    pub tenant_id: String,
 }

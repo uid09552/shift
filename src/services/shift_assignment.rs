@@ -10,6 +10,7 @@ use uuid::Uuid;
 use crate::errors::AppError;
 use crate::repository::AppState;
 use crate::repository::domain::{EmployeeShiftAssignment, EmployeeShiftAssignmentRepository};
+use crate::services::tenant::TenantContext;
 
 #[derive(Deserialize)]
 pub struct ListShiftAssignmentsQuery {
@@ -24,6 +25,7 @@ impl ShiftAssignmentService {
     /// Returns the fixed shift plan for a specific employee.
     /// Supports optional from_date/to_date query parameters for date range filtering.
     pub async fn get_employee_shift_assignments(
+        tenant: TenantContext,
         Path(employee_id): Path<Uuid>,
         Query(q): Query<ListShiftAssignmentsQuery>,
         State(state): State<AppState>,
@@ -35,13 +37,13 @@ impl ShiftAssignmentService {
                 .map_err(|_| AppError::Validation("Invalid to_date format, use YYYY-MM-DD".into()))?;
             state
                 .shift_assignment_repo
-                .get_assignments_for_employee_in_range(employee_id, from_date, to_date)
+                .get_assignments_for_employee_in_range(&tenant.0, employee_id, from_date, to_date)
                 .await
                 .map_err(|_| AppError::Internal)?
         } else {
             state
                 .shift_assignment_repo
-                .get_assignments_for_employee(employee_id)
+                .get_assignments_for_employee(&tenant.0, employee_id)
                 .await
                 .map_err(|_| AppError::Internal)?
         };
@@ -52,6 +54,7 @@ impl ShiftAssignmentService {
     /// POST /employees/:employee_id/shift-assignments
     /// Creates a new fixed shift assignment for an employee.
     pub async fn create_shift_assignment(
+        tenant: TenantContext,
         Path(employee_id): Path<Uuid>,
         State(state): State<AppState>,
         Json(body): Json<Value>,
@@ -80,17 +83,8 @@ impl ShiftAssignmentService {
 
         let created = state
             .shift_assignment_repo
-            .create_assignment(assignment)
-            .await
-            .map_err(|e| {
-                // Check if it's a duplicate violation from our repository
-                if let Some(app_err) = e.downcast_ref::<AppError>() {
-                    if matches!(app_err, AppError::Duplicate) {
-                        return AppError::Duplicate;
-                    }
-                }
-                AppError::Internal
-            })?;
+            .create_assignment(&tenant.0, assignment)
+            .await?;
 
         Ok(Json(serde_json::to_value(created).unwrap()))
     }
@@ -98,21 +92,14 @@ impl ShiftAssignmentService {
     /// DELETE /shift-assignments/:assignment_id
     /// Deletes a specific shift assignment.
     pub async fn delete_shift_assignment(
+        tenant: TenantContext,
         Path(assignment_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         state
             .shift_assignment_repo
-            .delete_assignment(assignment_id)
-            .await
-            .map_err(|e| {
-                if let Some(app_err) = e.downcast_ref::<AppError>() {
-                    if matches!(app_err, AppError::NotFound) {
-                        return AppError::NotFound;
-                    }
-                }
-                AppError::Internal
-            })?;
+            .delete_assignment(&tenant.0, assignment_id)
+            .await?;
 
         Ok(Json(serde_json::json!({ "deleted": true })))
     }

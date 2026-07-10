@@ -172,10 +172,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
   }
 
   goToday(): void {
-    // Center the view on today: show 3 days before, today, 3 days after
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    this.weekStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 3);
+    this.weekStart = this.getMonday(new Date());
     this.computeDays();
     this.loadPlans();
   }

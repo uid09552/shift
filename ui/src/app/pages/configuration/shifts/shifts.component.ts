@@ -7,6 +7,8 @@ import { InputFieldComponent } from '../../../shared/components/form/input/input
 import { LabelComponent } from '../../../shared/components/form/label/label.component';
 import { ButtonComponent } from '../../../shared/components/ui/button/button.component';
 import { ShiftService, Shift, WeekdayTime, SetWeekdayTimeRequest } from '../../../shared/services/shift.service';
+import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
+import { ContextMenuService } from '../../../shared/components/ui/context-menu/context-menu.service';
 
 const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -222,19 +224,26 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
           <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
             @if (loading) {
               <tr>
-                <td colspan="3" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
+                <td colspan="5" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
                   Loading shifts...
                 </td>
               </tr>
             } @else if (shifts.length === 0) {
               <tr>
-                <td colspan="3" class="px-5 py-8 text-center text-gray-400 dark:text-gray-500">
-                  No shifts found. Click "Add Shift" to create one.
+                <td colspan="5" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
+                  <svg class="mx-auto mb-3 h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
+                  </svg>
+                  <p class="text-sm">No shifts found. Click "Add Shift" to create one.</p>
                 </td>
               </tr>
             } @else {
               @for (shift of shifts; track shift.id) {
-                <tr>
+                <tr
+                  (dblclick)="openEditForm(shift)"
+                  (contextmenu)="onRowContextMenu($event, shift)"
+                >
                   <td class="px-5 py-4 sm:px-6 text-start">
                     <div class="flex items-center gap-2">
                       <div
@@ -322,7 +331,11 @@ export class ShiftsComponent implements OnInit {
 
   plusIcon = `<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.25C12.4142 3.25 12.75 3.58579 12.75 4V11.25H20C20.4142 11.25 20.75 11.5858 20.75 12C20.75 12.4142 20.4142 12.75 20 12.75H12.75V20C12.75 20.4142 12.4142 20.75 12 20.75C11.5858 20.75 11.25 20.4142 11.25 20V12.75H4C3.58579 12.75 3.25 12.4142 3.25 12C3.25 11.5858 3.58579 11.25 4 11.25H11.25V4C11.25 3.58579 11.5858 3.25 12 3.25Z" fill="currentColor"></path></svg>`;
 
-  constructor(private shiftService: ShiftService) {}
+  constructor(
+    private shiftService: ShiftService,
+    private confirmDialog: ConfirmDialogService,
+    private contextMenu: ContextMenuService,
+  ) {}
 
   ngOnInit(): void {
     this.loadShifts();
@@ -519,14 +532,27 @@ export class ShiftsComponent implements OnInit {
     }));
   }
 
-  deleteShift(shift: Shift): void {
-    if (confirm(`Are you sure you want to delete "${shift.name}"?`)) {
-      this.shiftService.deleteShift(shift.id).subscribe({
-        next: () => {
-          this.loadShifts();
-        },
-        error: (err) => console.error('Failed to delete shift', err),
-      });
-    }
+  onRowContextMenu(event: MouseEvent, shift: Shift): void {
+    this.contextMenu.open(event, [
+      { label: 'Edit', action: () => this.openEditForm(shift) },
+      { label: 'Delete', danger: true, action: () => this.deleteShift(shift) },
+    ]);
+  }
+
+  async deleteShift(shift: Shift): Promise<void> {
+    const ok = await this.confirmDialog.confirm({
+      title: 'Delete Shift',
+      message: `Are you sure you want to delete "${shift.name}"? This action cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
+
+    this.shiftService.deleteShift(shift.id).subscribe({
+      next: () => {
+        this.loadShifts();
+      },
+      error: (err) => console.error('Failed to delete shift', err),
+    });
   }
 }

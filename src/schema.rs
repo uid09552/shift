@@ -2,6 +2,7 @@ diesel::table! {
     capabilities (id) {
         id -> Uuid,
         name -> Varchar,
+        tenant_id -> Varchar,
     }
 }
 
@@ -9,6 +10,7 @@ diesel::table! {
     employee_available_shifts (employee_id, shift_id) {
         employee_id -> Uuid,
         shift_id -> Uuid,
+        tenant_id -> Varchar,
     }
 }
 
@@ -16,6 +18,7 @@ diesel::table! {
     employee_capabilities (employee_id, capability_id) {
         employee_id -> Uuid,
         capability_id -> Uuid,
+        tenant_id -> Varchar,
     }
 }
 
@@ -25,6 +28,7 @@ diesel::table! {
         name -> Varchar,
         email -> Varchar,
         monthly_working_hours -> Float8,
+        tenant_id -> Varchar,
     }
 }
 
@@ -35,6 +39,7 @@ diesel::table! {
         short_name -> Varchar,
         color -> Varchar,
         order -> Int4,
+        tenant_id -> Varchar,
     }
 }
 
@@ -48,6 +53,7 @@ diesel::table! {
         min_employees -> Int2,
         max_employees -> Nullable<Int2>,
         free_days_after_shift -> Int2,
+        tenant_id -> Varchar,
     }
 }
 
@@ -60,6 +66,7 @@ diesel::table! {
         priority -> Varchar,
         min_employees -> Int2,
         max_employees -> Nullable<Int2>,
+        tenant_id -> Varchar,
     }
 }
 
@@ -69,6 +76,7 @@ diesel::table! {
         workstation_id -> Uuid,
         unavailable_from -> Date,
         unavailable_to -> Date,
+        tenant_id -> Varchar,
     }
 }
 
@@ -76,6 +84,7 @@ diesel::table! {
     workstation_required_capabilities (workstation_id, capability_id) {
         workstation_id -> Uuid,
         capability_id -> Uuid,
+        tenant_id -> Varchar,
     }
 }
 
@@ -85,6 +94,7 @@ diesel::table! {
         employee_id -> Uuid,
         unavailable_date -> Date,
         shift_id -> Nullable<Uuid>,
+        tenant_id -> Varchar,
     }
 }
 
@@ -94,6 +104,7 @@ diesel::table! {
         employee_id -> Uuid,
         shift_id -> Uuid,
         date -> Date,
+        tenant_id -> Varchar,
     }
 }
 
@@ -109,6 +120,7 @@ diesel::table! {
         creation_type -> Varchar,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
+        tenant_id -> Varchar,
     }
 }
 
@@ -117,6 +129,7 @@ diesel::table! {
         id -> Uuid,
         result -> Jsonb,
         creation_date -> Timestamptz,
+        tenant_id -> Varchar,
     }
 }
 
@@ -129,6 +142,20 @@ diesel::table! {
         error_message -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
+        tenant_id -> Varchar,
+    }
+}
+
+diesel::table! {
+    audit_logs (id) {
+        id -> Uuid,
+        tenant_id -> Varchar,
+        actor -> Nullable<Varchar>,
+        action -> Varchar,
+        entity_type -> Nullable<Varchar>,
+        entity_id -> Nullable<Varchar>,
+        changes -> Nullable<Text>,
+        created_at -> Timestamptz,
     }
 }
 
@@ -164,4 +191,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     optimized_shift_results,
     planning_tasks,
     workstation_unavailabilities,
+    audit_logs,
 );

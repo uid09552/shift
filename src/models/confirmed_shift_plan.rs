@@ -19,6 +19,7 @@ pub struct ConfirmedShiftPlan {
     pub creation_type: String,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    pub tenant_id: String,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
@@ -31,6 +32,7 @@ pub struct NewConfirmedShiftPlan {
     pub is_present: bool,
     pub absence_type: Option<String>,
     pub creation_type: String,
+    pub tenant_id: String,
 }
 
 #[derive(AsChangeset, Serialize, Deserialize, Debug)]

@@ -7,26 +7,38 @@
     {
       "id": "morning",
       "name": "Morning Shift",
-      "start_time": "06:00",
-      "end_time": "14:00",
-      "weekdays": ["monday", "tuesday", "wednesday", "thursday", "friday"],
-      "is_night_shift": false
+      "is_night_shift": false,
+      "weekday_times": [
+        {"weekday": "0", "start_time": "06:00", "end_time": "14:00", "min_employees": 1},
+        {"weekday": "1", "start_time": "06:00", "end_time": "14:00", "min_employees": 1},
+        {"weekday": "2", "start_time": "06:00", "end_time": "14:00", "min_employees": 1},
+        {"weekday": "3", "start_time": "06:00", "end_time": "14:00", "min_employees": 1},
+        {"weekday": "4", "start_time": "06:00", "end_time": "14:00", "min_employees": 1}
+      ]
     },
     {
       "id": "afternoon",
       "name": "Afternoon Shift",
-      "start_time": "14:00",
-      "end_time": "22:00",
-      "weekdays": ["monday", "tuesday", "wednesday", "thursday", "friday"],
-      "is_night_shift": false
+      "is_night_shift": false,
+      "weekday_times": [
+        {"weekday": "0", "start_time": "14:00", "end_time": "22:00", "min_employees": 1},
+        {"weekday": "1", "start_time": "14:00", "end_time": "22:00", "min_employees": 1},
+        {"weekday": "2", "start_time": "14:00", "end_time": "22:00", "min_employees": 1},
+        {"weekday": "3", "start_time": "14:00", "end_time": "22:00", "min_employees": 1},
+        {"weekday": "4", "start_time": "14:00", "end_time": "22:00", "min_employees": 1}
+      ]
     },
     {
       "id": "night",
       "name": "Night Shift",
-      "start_time": "22:00",
-      "end_time": "06:00",
-      "weekdays": ["monday", "tuesday", "wednesday", "thursday", "friday"],
-      "is_night_shift": true
+      "is_night_shift": true,
+      "weekday_times": [
+        {"weekday": "0", "start_time": "22:00", "end_time": "06:00", "min_employees": 1, "free_days_after_shift": 2},
+        {"weekday": "1", "start_time": "22:00", "end_time": "06:00", "min_employees": 1, "free_days_after_shift": 2},
+        {"weekday": "2", "start_time": "22:00", "end_time": "06:00", "min_employees": 1, "free_days_after_shift": 2},
+        {"weekday": "3", "start_time": "22:00", "end_time": "06:00", "min_employees": 1, "free_days_after_shift": 2},
+        {"weekday": "4", "start_time": "22:00", "end_time": "06:00", "min_employees": 1, "free_days_after_shift": 2}
+      ]
     }
   ],
   "workstations": [

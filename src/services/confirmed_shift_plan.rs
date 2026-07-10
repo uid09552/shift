@@ -11,6 +11,7 @@ use uuid::Uuid;
 use crate::errors::AppError;
 use crate::repository::AppState;
 use crate::repository::domain::{ConfirmedShiftPlan, ConfirmedShiftPlanRepository};
+use crate::services::tenant::TenantContext;
 
 #[derive(Deserialize)]
 pub struct ListConfirmedShiftPlansQuery {
@@ -34,6 +35,7 @@ impl ConfirmedShiftPlanService {
     /// GET /confirmed-shift-plans
     /// Lists all confirmed shift plans with pagination. Supports optional from_date/to_date query parameters for date range filtering.
     pub async fn list_confirmed_shift_plans(
+        tenant: TenantContext,
         Query(q): Query<ListConfirmedShiftPlansQuery>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
@@ -47,24 +49,24 @@ impl ConfirmedShiftPlanService {
                 .map_err(|_| AppError::Validation("Invalid to_date format, use YYYY-MM-DD".into()))?;
             let plans = state
                 .confirmed_shift_plan_repo
-                .get_confirmed_shift_plans_for_date_range(from_date, to_date, limit, offset)
+                .get_confirmed_shift_plans_for_date_range(&tenant.0, from_date, to_date, limit, offset)
                 .await
                 .map_err(|_| AppError::Internal)?;
             let total = state
                 .confirmed_shift_plan_repo
-                .count_confirmed_shift_plans_for_date_range(from_date, to_date)
+                .count_confirmed_shift_plans_for_date_range(&tenant.0, from_date, to_date)
                 .await
                 .map_err(|_| AppError::Internal)?;
             (plans, total)
         } else {
             let plans = state
                 .confirmed_shift_plan_repo
-                .list_confirmed_shift_plans(limit, offset)
+                .list_confirmed_shift_plans(&tenant.0, limit, offset)
                 .await
                 .map_err(|_| AppError::Internal)?;
             let total = state
                 .confirmed_shift_plan_repo
-                .count_confirmed_shift_plans()
+                .count_confirmed_shift_plans(&tenant.0)
                 .await
                 .map_err(|_| AppError::Internal)?;
             (plans, total)
@@ -83,6 +85,7 @@ impl ConfirmedShiftPlanService {
     /// Returns the confirmed shift plans for a specific employee.
     /// Supports optional from_date/to_date query parameters for date range filtering.
     pub async fn get_employee_confirmed_shift_plans(
+        tenant: TenantContext,
         Path(employee_id): Path<Uuid>,
         Query(q): Query<ListConfirmedShiftPlansQuery>,
         State(state): State<AppState>,
@@ -94,13 +97,13 @@ impl ConfirmedShiftPlanService {
                 .map_err(|_| AppError::Validation("Invalid to_date format, use YYYY-MM-DD".into()))?;
             state
                 .confirmed_shift_plan_repo
-                .get_confirmed_shift_plans_for_employee_in_range(employee_id, from_date, to_date)
+                .get_confirmed_shift_plans_for_employee_in_range(&tenant.0, employee_id, from_date, to_date)
                 .await
                 .map_err(|_| AppError::Internal)?
         } else {
             state
                 .confirmed_shift_plan_repo
-                .get_confirmed_shift_plans_for_employee(employee_id)
+                .get_confirmed_shift_plans_for_employee(&tenant.0, employee_id)
                 .await
                 .map_err(|_| AppError::Internal)?
         };
@@ -111,6 +114,7 @@ impl ConfirmedShiftPlanService {
     /// POST /employees/:employee_id/confirmed-shift-plans
     /// Creates a new confirmed shift plan entry for an employee.
     pub async fn create_confirmed_shift_plan(
+        tenant: TenantContext,
         Path(employee_id): Path<Uuid>,
         State(state): State<AppState>,
         Json(body): Json<Value>,
@@ -148,10 +152,10 @@ impl ConfirmedShiftPlanService {
 
         // Validate absence_type if provided
         if let Some(ref at) = absence_type {
-            let valid_absence = matches!(at.as_str(), "sick" | "day_off" | "holiday" | "unknown" | "unavailable");
+            let valid_absence = matches!(at.as_str(), "sick" | "day_off" | "holiday" | "unknown" | "unavailable" | "free");
             if !valid_absence {
                 return Err(AppError::Validation(
-                    "Invalid 'absence_type', must be one of: sick, day_off, holiday, unknown".into(),
+                    "Invalid 'absence_type', must be one of: sick, day_off, holiday, unknown, unavailable, free".into(),
                 ));
             }
         }
@@ -194,16 +198,8 @@ impl ConfirmedShiftPlanService {
 
         let created = state
             .confirmed_shift_plan_repo
-            .create_confirmed_shift_plan(plan)
-            .await
-            .map_err(|e| {
-                if let Some(app_err) = e.downcast_ref::<AppError>() {
-                    if matches!(app_err, AppError::Duplicate) {
-                        return AppError::Duplicate;
-                    }
-                }
-                AppError::Internal
-            })?;
+            .create_confirmed_shift_plan(&tenant.0, plan)
+            .await?;
 
         Ok(Json(serde_json::to_value(created).unwrap()))
     }
@@ -211,12 +207,13 @@ impl ConfirmedShiftPlanService {
     /// GET /confirmed-shift-plans/:plan_id
     /// Gets a specific confirmed shift plan by ID.
     pub async fn get_confirmed_shift_plan_by_id(
+        tenant: TenantContext,
         Path(plan_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         let plan = state
             .confirmed_shift_plan_repo
-            .get_confirmed_shift_plan_by_id(plan_id)
+            .get_confirmed_shift_plan_by_id(&tenant.0, plan_id)
             .await
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
@@ -227,6 +224,7 @@ impl ConfirmedShiftPlanService {
     /// PUT /confirmed-shift-plans/:plan_id
     /// Updates a specific confirmed shift plan.
     pub async fn update_confirmed_shift_plan(
+        tenant: TenantContext,
         Path(plan_id): Path<Uuid>,
         State(state): State<AppState>,
         Json(body): Json<Value>,
@@ -273,10 +271,10 @@ impl ConfirmedShiftPlanService {
 
         // Validate absence_type if provided
         if let Some(ref at) = absence_type {
-            let valid_absence = matches!(at.as_str(), "sick" | "day_off" | "holiday" | "unknown" | "unavailable");
+            let valid_absence = matches!(at.as_str(), "sick" | "day_off" | "holiday" | "unknown" | "unavailable" | "free");
             if !valid_absence {
                 return Err(AppError::Validation(
-                    "Invalid 'absence_type', must be one of: sick, day_off, holiday, unknown".into(),
+                    "Invalid 'absence_type', must be one of: sick, day_off, holiday, unknown, unavailable, free".into(),
                 ));
             }
         }
@@ -298,16 +296,8 @@ impl ConfirmedShiftPlanService {
 
         let updated = state
             .confirmed_shift_plan_repo
-            .update_confirmed_shift_plan(plan_id, shift_id, workstation_id, is_present, absence_type, creation_type)
-            .await
-            .map_err(|e| {
-                if let Some(app_err) = e.downcast_ref::<AppError>() {
-                    if matches!(app_err, AppError::NotFound) {
-                        return AppError::NotFound;
-                    }
-                }
-                AppError::Internal
-            })?;
+            .update_confirmed_shift_plan(&tenant.0, plan_id, shift_id, workstation_id, is_present, absence_type, creation_type)
+            .await?;
 
         Ok(Json(serde_json::to_value(updated).unwrap()))
     }
@@ -315,21 +305,14 @@ impl ConfirmedShiftPlanService {
     /// DELETE /confirmed-shift-plans/:plan_id
     /// Deletes a specific confirmed shift plan.
     pub async fn delete_confirmed_shift_plan(
+        tenant: TenantContext,
         Path(plan_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         state
             .confirmed_shift_plan_repo
-            .delete_confirmed_shift_plan(plan_id)
-            .await
-            .map_err(|e| {
-                if let Some(app_err) = e.downcast_ref::<AppError>() {
-                    if matches!(app_err, AppError::NotFound) {
-                        return AppError::NotFound;
-                    }
-                }
-                AppError::Internal
-            })?;
+            .delete_confirmed_shift_plan(&tenant.0, plan_id)
+            .await?;
 
         Ok(Json(serde_json::json!({ "deleted": true })))
     }

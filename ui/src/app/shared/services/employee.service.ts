@@ -6,6 +6,7 @@ export interface Employee {
   id: string;
   name: string;
   email: string;
+  monthly_working_hours: number;
   available_shifts: Shift[];
   capabilities: Capability[];
 }
@@ -24,6 +25,7 @@ export interface EmployeeProfile {
   id: string;
   name: string;
   email: string;
+  monthly_working_hours: number;
   shifts: string[];
   capabilities: string[];
 }
@@ -38,6 +40,7 @@ export interface PaginatedEmployeeResponse {
 export interface CreateEmployeeRequest {
   name: string;
   email: string;
+  monthly_working_hours: number;
 }
 
 export interface AddCapabilityRequest {
@@ -71,6 +74,7 @@ export class EmployeeService {
         id: employee.id,
         name: employee.name,
         email: employee.email,
+        monthly_working_hours: employee.monthly_working_hours,
         capabilities: capabilities.map((c) => c.name),
         shifts: shifts.map((s) => s.name),
       }))
@@ -81,7 +85,7 @@ export class EmployeeService {
     return this.http.post<Employee>(`${this.apiUrl}/employees`, request);
   }
 
-  updateEmployee(id: string, body: { name?: string; email?: string }): Observable<Employee> {
+  updateEmployee(id: string, body: { name?: string; email?: string; monthly_working_hours?: number }): Observable<Employee> {
     return this.http.put<Employee>(`${this.apiUrl}/employees/${id}`, body);
   }
 

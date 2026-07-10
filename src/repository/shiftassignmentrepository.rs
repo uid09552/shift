@@ -24,16 +24,18 @@ pub struct DieselEmployeeShiftAssignmentRepository {
 impl EmployeeShiftAssignmentRepository for DieselEmployeeShiftAssignmentRepository {
     async fn create_assignment(
         &self,
+        tenant_id: &str,
         assignment: EmployeeShiftAssignment,
-    ) -> Result<EmployeeShiftAssignment, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<EmployeeShiftAssignment, AppError> {
         let pool = Arc::clone(&self.pool);
         let new_assignment = NewEmployeeShiftAssignment {
             employee_id: assignment.employee_id,
             shift_id: assignment.shift_id,
             date: assignment.date,
+            tenant_id: tenant_id.to_string(),
         };
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let created = diesel::insert_into(employee_shift_assignments::table)
                 .values(&new_assignment)
                 .get_result::<models::EmployeeShiftAssignment>(&mut conn)
@@ -44,25 +46,26 @@ impl EmployeeShiftAssignmentRepository for DieselEmployeeShiftAssignmentReposito
                     date: a.date,
                 })
                 .map_err(|e| match e {
-                    DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
-                        Box::new(AppError::Duplicate) as Box<dyn std::error::Error + Send + Sync>
-                    }
-                    _ => Box::new(e) as Box<dyn std::error::Error + Send + Sync>,
+                    DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => AppError::Duplicate,
+                    _ => AppError::DbError,
                 })?;
             Ok(created)
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
     async fn get_assignments_for_employee(
         &self,
+        tenant_id: &str,
         employee_id: Uuid,
-    ) -> Result<Vec<EmployeeShiftAssignment>, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<Vec<EmployeeShiftAssignment>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             employee_shift_assignments::table
                 .filter(employee_shift_assignments::employee_id.eq(employee_id))
+                .filter(employee_shift_assignments::tenant_id.eq(&tenant_id))
                 .order(employee_shift_assignments::date.asc())
                 .load::<models::EmployeeShiftAssignment>(&mut conn)
                 .map(|assignments: Vec<models::EmployeeShiftAssignment>| {
@@ -76,22 +79,25 @@ impl EmployeeShiftAssignmentRepository for DieselEmployeeShiftAssignmentReposito
                         })
                         .collect()
                 })
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                .map_err(|_| AppError::DbError)
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
     async fn get_assignments_for_employee_in_range(
         &self,
+        tenant_id: &str,
         employee_id: Uuid,
         from_date: NaiveDate,
         to_date: NaiveDate,
-    ) -> Result<Vec<EmployeeShiftAssignment>, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<Vec<EmployeeShiftAssignment>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             employee_shift_assignments::table
                 .filter(employee_shift_assignments::employee_id.eq(employee_id))
+                .filter(employee_shift_assignments::tenant_id.eq(&tenant_id))
                 .filter(employee_shift_assignments::date.ge(from_date))
                 .filter(employee_shift_assignments::date.le(to_date))
                 .order(employee_shift_assignments::date.asc())
@@ -107,26 +113,32 @@ impl EmployeeShiftAssignmentRepository for DieselEmployeeShiftAssignmentReposito
                         })
                         .collect()
                 })
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                .map_err(|_| AppError::DbError)
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
     async fn delete_assignment(
         &self,
+        tenant_id: &str,
         id: Uuid,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<(), AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
-            let count = diesel::delete(employee_shift_assignments::table.find(id))
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            let count = diesel::delete(
+                employee_shift_assignments::table
+                    .filter(employee_shift_assignments::id.eq(id))
+                    .filter(employee_shift_assignments::tenant_id.eq(&tenant_id)),
+            )
                 .execute(&mut conn)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|_| AppError::DbError)?;
             if count == 0 {
-                return Err(Box::new(AppError::NotFound) as Box<dyn std::error::Error + Send + Sync>);
+                return Err(AppError::NotFound);
             }
             Ok(())
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 }

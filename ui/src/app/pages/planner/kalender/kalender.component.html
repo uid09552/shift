@@ -168,7 +168,7 @@
                   [class.bg-brand-50/40]="day.isToday"
                   [class.dark:bg-brand-500/5]="day.isToday"
                 >
-                  @if (cell.plan) {
+                  @if (cell.plan && cell.isPresent) {
                     <!-- Cell with an assigned shift -->
                     <div
                       class="shift-chip group/chip relative flex flex-col items-center gap-0.5 rounded-lg px-2 py-1.5 text-center transition-shadow hover:shadow-sm"
@@ -323,12 +323,20 @@
                     }
                   } @else if (cell.absenceType) {
                     <div
-                      class="flex items-center justify-center rounded-lg bg-red-50 px-2 py-1.5 dark:bg-red-500/10"
+                      class="flex items-center justify-center rounded-lg px-2 py-1.5"
+                      [class.bg-red-50]="cell.absenceType !== 'free'"
+                      [class.dark:bg-red-500/10]="cell.absenceType !== 'free'"
+                      [class.bg-slate-50]="cell.absenceType === 'free'"
+                      [class.dark:bg-slate-800]="cell.absenceType === 'free'"
                     >
                       <span
-                        class="text-xs font-medium text-red-600 dark:text-red-400"
+                        class="text-xs font-medium"
+                        [class.text-red-600]="cell.absenceType !== 'free'"
+                        [class.dark:text-red-400]="cell.absenceType !== 'free'"
+                        [class.text-slate-500]="cell.absenceType === 'free'"
+                        [class.dark:text-slate-400]="cell.absenceType === 'free'"
                       >
-                        {{ cell.absenceType }}
+                        {{ cell.absenceType === 'free' ? 'Free' : cell.absenceType === 'day_off' ? 'Vacation' : cell.absenceType === 'sick' ? 'Sick' : cell.absenceType }}
                       </span>
                     </div>
                   } @else {

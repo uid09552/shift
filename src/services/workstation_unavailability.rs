@@ -10,6 +10,7 @@ use uuid::Uuid;
 use crate::errors::AppError;
 use crate::repository::AppState;
 use crate::repository::domain::{WorkstationRepository, WorkstationUnavailability, WorkstationUnavailabilityRepository};
+use crate::services::tenant::TenantContext;
 
 #[derive(Deserialize)]
 pub struct ListWorkstationUnavailabilitiesQuery {
@@ -21,13 +22,14 @@ pub struct WorkstationUnavailabilityService;
 
 impl WorkstationUnavailabilityService {
     pub async fn list_workstation_unavailabilities(
+        tenant: TenantContext,
         Path(workstation_id): Path<Uuid>,
         Query(q): Query<ListWorkstationUnavailabilitiesQuery>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         let unavailabilities = state
             .workstation_unavailability_repo
-            .get_unavailabilities_for_workstation(workstation_id)
+            .get_unavailabilities_for_workstation(&tenant.0, workstation_id)
             .await
             .map_err(|_| AppError::Internal)?;
 
@@ -49,6 +51,7 @@ impl WorkstationUnavailabilityService {
     }
 
     pub async fn create_workstation_unavailability(
+        tenant: TenantContext,
         Path(workstation_id): Path<Uuid>,
         State(state): State<AppState>,
         Json(body): Json<Value>,
@@ -56,7 +59,7 @@ impl WorkstationUnavailabilityService {
         // Verify workstation exists
         state
             .workstation_repo
-            .get_workstation(workstation_id)
+            .get_workstation(&tenant.0, workstation_id)
             .await
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
@@ -90,7 +93,7 @@ impl WorkstationUnavailabilityService {
 
         let created = state
             .workstation_unavailability_repo
-            .create_workstation_unavailability(unavailability)
+            .create_workstation_unavailability(&tenant.0, unavailability)
             .await
             .map_err(|_| AppError::Internal)?;
 
@@ -98,12 +101,13 @@ impl WorkstationUnavailabilityService {
     }
 
     pub async fn get_workstation_unavailability_by_id(
+        tenant: TenantContext,
         Path((_workstation_id, unavailability_id)): Path<(Uuid, Uuid)>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         let unavailability = state
             .workstation_unavailability_repo
-            .get_workstation_unavailability(unavailability_id)
+            .get_workstation_unavailability(&tenant.0, unavailability_id)
             .await
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
@@ -111,19 +115,20 @@ impl WorkstationUnavailabilityService {
     }
 
     pub async fn delete_workstation_unavailability(
+        tenant: TenantContext,
         Path((_workstation_id, unavailability_id)): Path<(Uuid, Uuid)>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         state
             .workstation_unavailability_repo
-            .get_workstation_unavailability(unavailability_id)
+            .get_workstation_unavailability(&tenant.0, unavailability_id)
             .await
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
 
         state
             .workstation_unavailability_repo
-            .delete_workstation_unavailability(unavailability_id)
+            .delete_workstation_unavailability(&tenant.0, unavailability_id)
             .await
             .map_err(|_| AppError::Internal)?;
 

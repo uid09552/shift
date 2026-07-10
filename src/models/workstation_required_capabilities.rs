@@ -9,6 +9,7 @@ use crate::schema::workstation_required_capabilities;
 pub struct WorkstationRequiredCapability {
     pub workstation_id: Uuid,
     pub capability_id: Uuid,
+    pub tenant_id: String,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
@@ -16,4 +17,5 @@ pub struct WorkstationRequiredCapability {
 pub struct NewWorkstationRequiredCapability {
     pub workstation_id: Uuid,
     pub capability_id: Uuid,
+    pub tenant_id: String,
 }

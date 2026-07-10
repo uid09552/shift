@@ -9,6 +9,8 @@ use uuid::Uuid;
 use crate::errors::AppError;
 use crate::repository::AppState;
 use crate::repository::domain::WorkstationRepository;
+use crate::services::audit_log::{self, AuditActor};
+use crate::services::tenant::TenantContext;
 
 #[derive(Deserialize)]
 pub struct ListWorkstationsQuery {
@@ -21,18 +23,21 @@ pub struct WorkstationService;
 
 impl WorkstationService {
     pub async fn list_workstations(
+        tenant: TenantContext,
         Query(_q): Query<ListWorkstationsQuery>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         let workstations = state
             .workstation_repo
-            .list_workstations()
+            .list_workstations(&tenant.0)
             .await
             .map_err(|_| AppError::Internal)?;
         Ok(Json(serde_json::to_value(workstations).unwrap()))
     }
 
     pub async fn create_workstation(
+        tenant: TenantContext,
+        actor: AuditActor,
         State(state): State<AppState>,
         Json(body): Json<Value>,
     ) -> Result<Json<Value>, AppError> {
@@ -83,20 +88,23 @@ impl WorkstationService {
 
         let workstation = state
             .workstation_repo
-            .create_workstation(name, available, active_shift_ids, priority, min_employees, max_employees)
+            .create_workstation(&tenant.0, name, available, active_shift_ids, priority, min_employees, max_employees)
             .await
             .map_err(|_| AppError::Internal)?;
+
+        audit_log::record(&state, &tenant.0, actor.0, "workstation.create", "workstation", Some(workstation.id.to_string()), Some(body.to_string())).await;
 
         Ok(Json(serde_json::to_value(workstation).unwrap()))
     }
 
     pub async fn get_workstation_by_id(
+        tenant: TenantContext,
         Path(workstation_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         let workstation = state
             .workstation_repo
-            .get_workstation(workstation_id)
+            .get_workstation(&tenant.0, workstation_id)
             .await
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
@@ -104,6 +112,8 @@ impl WorkstationService {
     }
 
     pub async fn update_workstation(
+        tenant: TenantContext,
+        actor: AuditActor,
         Path(workstation_id): Path<Uuid>,
         State(state): State<AppState>,
         Json(body): Json<Value>,
@@ -112,7 +122,7 @@ impl WorkstationService {
         if let Some(available) = body.get("available").and_then(|v| v.as_bool()) {
             state
                 .workstation_repo
-                .set_workstation_availability(workstation_id, available)
+                .set_workstation_availability(&tenant.0, workstation_id, available)
                 .await
                 .map_err(|_| AppError::Internal)?;
         }
@@ -131,7 +141,7 @@ impl WorkstationService {
             };
             state
                 .workstation_repo
-                .set_workstation_active_shifts(workstation_id, active_shift_ids)
+                .set_workstation_active_shifts(&tenant.0, workstation_id, active_shift_ids)
                 .await
                 .map_err(|_| AppError::Internal)?;
         }
@@ -140,7 +150,7 @@ impl WorkstationService {
         if let Some(priority) = body.get("priority").and_then(|v| v.as_str()) {
             state
                 .workstation_repo
-                .set_workstation_priority(workstation_id, priority)
+                .set_workstation_priority(&tenant.0, workstation_id, priority)
                 .await
                 .map_err(|_| AppError::Internal)?;
         }
@@ -149,7 +159,7 @@ impl WorkstationService {
         if body.get("min_employees").is_some() || body.get("max_employees").is_some() {
             let current = state
                 .workstation_repo
-                .get_workstation(workstation_id)
+                .get_workstation(&tenant.0, workstation_id)
                 .await
                 .map_err(|_| AppError::Internal)?
                 .ok_or(AppError::NotFound)?;
@@ -178,7 +188,7 @@ impl WorkstationService {
 
             state
                 .workstation_repo
-                .set_workstation_staffing(workstation_id, min_employees, max_employees)
+                .set_workstation_staffing(&tenant.0, workstation_id, min_employees, max_employees)
                 .await
                 .map_err(|_| AppError::Internal)?;
         }
@@ -186,24 +196,27 @@ impl WorkstationService {
         // Return the updated workstation
         let workstation = state
             .workstation_repo
-            .get_workstation(workstation_id)
+            .get_workstation(&tenant.0, workstation_id)
             .await
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
+
+        audit_log::record(&state, &tenant.0, actor.0, "workstation.update", "workstation", Some(workstation_id.to_string()), Some(body.to_string())).await;
 
         Ok(Json(serde_json::to_value(workstation).unwrap()))
     }
 
     pub async fn enable_workstation(
+        tenant: TenantContext,
         Path(workstation_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         state.workstation_repo
-            .set_workstation_availability(workstation_id, true)
+            .set_workstation_availability(&tenant.0, workstation_id, true)
             .await
             .map_err(|_| AppError::Internal)?;
         let workstation = state.workstation_repo
-            .get_workstation(workstation_id)
+            .get_workstation(&tenant.0, workstation_id)
             .await
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
@@ -211,15 +224,16 @@ impl WorkstationService {
     }
 
     pub async fn disable_workstation(
+        tenant: TenantContext,
         Path(workstation_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         state.workstation_repo
-            .set_workstation_availability(workstation_id, false)
+            .set_workstation_availability(&tenant.0, workstation_id, false)
             .await
             .map_err(|_| AppError::Internal)?;
         let workstation = state.workstation_repo
-            .get_workstation(workstation_id)
+            .get_workstation(&tenant.0, workstation_id)
             .await
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
@@ -227,6 +241,7 @@ impl WorkstationService {
     }
 
     pub async fn set_workstation_availability(
+        tenant: TenantContext,
         Path(workstation_id): Path<Uuid>,
         State(state): State<AppState>,
         Json(body): Json<Value>,
@@ -238,7 +253,7 @@ impl WorkstationService {
 
         state
             .workstation_repo
-            .set_workstation_availability(workstation_id, available)
+            .set_workstation_availability(&tenant.0, workstation_id, available)
             .await
             .map_err(|_| AppError::Internal)?;
 
@@ -256,7 +271,7 @@ impl WorkstationService {
             };
             state
                 .workstation_repo
-                .set_workstation_active_shifts(workstation_id, active_shift_ids)
+                .set_workstation_active_shifts(&tenant.0, workstation_id, active_shift_ids)
                 .await
                 .map_err(|_| AppError::Internal)?;
         }
@@ -264,7 +279,7 @@ impl WorkstationService {
         // Return the updated workstation
         let workstation = state
             .workstation_repo
-            .get_workstation(workstation_id)
+            .get_workstation(&tenant.0, workstation_id)
             .await
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
@@ -273,18 +288,20 @@ impl WorkstationService {
     }
 
     pub async fn get_workstation_required_capabilities(
+        tenant: TenantContext,
         Path(workstation_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         let capabilities = state
             .workstation_repo
-            .list_required_capabilities(workstation_id)
+            .list_required_capabilities(&tenant.0, workstation_id)
             .await
             .map_err(|_| AppError::Internal)?;
         Ok(Json(serde_json::to_value(capabilities).unwrap()))
     }
 
     pub async fn add_workstation_required_capability(
+        tenant: TenantContext,
         Path(workstation_id): Path<Uuid>,
         State(state): State<AppState>,
         Json(body): Json<Value>,
@@ -298,7 +315,7 @@ impl WorkstationService {
 
         state
             .workstation_repo
-            .add_required_capability(workstation_id, capability_id)
+            .add_required_capability(&tenant.0, workstation_id, capability_id)
             .await
             .map_err(|_| AppError::Internal)?;
 
@@ -306,14 +323,17 @@ impl WorkstationService {
     }
 
     pub async fn delete_workstation(
+        tenant: TenantContext,
+        actor: AuditActor,
         Path(workstation_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         state
             .workstation_repo
-            .delete_workstation(workstation_id)
+            .delete_workstation(&tenant.0, workstation_id)
             .await
             .map_err(|_| AppError::Internal)?;
+        audit_log::record(&state, &tenant.0, actor.0, "workstation.delete", "workstation", Some(workstation_id.to_string()), None).await;
         Ok(Json(serde_json::json!({ "message": "Workstation deleted successfully" })))
     }
 }

@@ -31,6 +31,10 @@ export class CapabilityService {
     return this.http.post<Capability>(this.apiUrl, request);
   }
 
+  updateCapability(id: string, request: CreateCapabilityRequest): Observable<Capability> {
+    return this.http.put<Capability>(`${this.apiUrl}/${id}`, request);
+  }
+
   deleteCapability(id: string): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/${id}`);
   }

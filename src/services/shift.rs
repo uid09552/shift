@@ -10,7 +10,9 @@ use uuid::Uuid;
 use crate::errors::AppError;
 use crate::repository::AppState;
 use crate::repository::domain::ShiftRepository;
+use crate::services::audit_log::{self, AuditActor};
 use crate::services::employee::PaginationQuery;
+use crate::services::tenant::TenantContext;
 
 #[derive(Deserialize)]
 pub struct SetWeekdayTimeRequest {
@@ -26,18 +28,21 @@ pub struct ShiftService;
 
 impl ShiftService {
     pub async fn list_shifts(
+        tenant: TenantContext,
         Query(_q): Query<PaginationQuery>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         let shifts = state
             .shift_repo
-            .list_shifts()
+            .list_shifts(&tenant.0)
             .await
             .map_err(|_| AppError::Internal)?;
         Ok(Json(serde_json::to_value(shifts).unwrap()))
     }
 
     pub async fn create_shift(
+        tenant: TenantContext,
+        actor: AuditActor,
         State(state): State<AppState>,
         Json(body): Json<Value>,
     ) -> Result<Json<Value>, AppError> {
@@ -68,19 +73,22 @@ impl ShiftService {
 
         let shift = state
             .shift_repo
-            .create_shift(name, short_name, color, order)
+            .create_shift(&tenant.0, name, short_name, color, order)
             .await?;
+
+        audit_log::record(&state, &tenant.0, actor.0, "shift.create", "shift", Some(shift.id.to_string()), Some(body.to_string())).await;
 
         Ok(Json(serde_json::to_value(shift).unwrap()))
     }
 
     pub async fn get_shift_by_id(
+        tenant: TenantContext,
         Path(shift_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         let shift = state
             .shift_repo
-            .get_shift(shift_id)
+            .get_shift(&tenant.0, shift_id)
             .await
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
@@ -88,6 +96,8 @@ impl ShiftService {
     }
 
     pub async fn update_shift(
+        tenant: TenantContext,
+        actor: AuditActor,
         Path(shift_id): Path<Uuid>,
         State(state): State<AppState>,
         Json(body): Json<Value>,
@@ -106,13 +116,16 @@ impl ShiftService {
 
         let shift = state
             .shift_repo
-            .update_shift(shift_id, name, short_name, color, order)
+            .update_shift(&tenant.0, shift_id, name, short_name, color, order)
             .await?;
+
+        audit_log::record(&state, &tenant.0, actor.0, "shift.update", "shift", Some(shift_id.to_string()), Some(body.to_string())).await;
 
         Ok(Json(serde_json::to_value(shift).unwrap()))
     }
 
     pub async fn set_weekday_time(
+        tenant: TenantContext,
         Path(shift_id): Path<Uuid>,
         State(state): State<AppState>,
         Json(body): Json<SetWeekdayTimeRequest>,
@@ -154,13 +167,14 @@ impl ShiftService {
 
         let wt = state
             .shift_repo
-            .set_weekday_time(shift_id, body.weekday, start_time, end_time, min_employees, max_employees, free_days_after_shift)
+            .set_weekday_time(&tenant.0, shift_id, body.weekday, start_time, end_time, min_employees, max_employees, free_days_after_shift)
             .await?;
 
         Ok(Json(serde_json::to_value(wt).unwrap()))
     }
 
     pub async fn delete_weekday_time(
+        tenant: TenantContext,
         Path((shift_id, weekday)): Path<(Uuid, i16)>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
@@ -172,20 +186,23 @@ impl ShiftService {
 
         state
             .shift_repo
-            .delete_weekday_time(shift_id, weekday)
+            .delete_weekday_time(&tenant.0, shift_id, weekday)
             .await?;
 
         Ok(Json(serde_json::json!({ "message": "Weekday time deleted" })))
     }
 
     pub async fn delete_shift(
+        tenant: TenantContext,
+        actor: AuditActor,
         Path(shift_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         state
             .shift_repo
-            .delete_shift(shift_id)
+            .delete_shift(&tenant.0, shift_id)
             .await?;
+        audit_log::record(&state, &tenant.0, actor.0, "shift.delete", "shift", Some(shift_id.to_string()), None).await;
         Ok(Json(serde_json::json!({ "message": "Shift deleted successfully" })))
     }
 }

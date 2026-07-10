@@ -9,6 +9,7 @@ use serde_json::Value;
 use crate::errors::AppError;
 use crate::repository::AppState;
 use crate::repository::domain::AnalysisRepository;
+use crate::services::tenant::TenantContext;
 
 #[derive(Deserialize)]
 pub struct AnalysisQuery {
@@ -23,6 +24,7 @@ impl AnalysisService {
     /// Returns the planned hours per day per workstation based on confirmed shift plans.
     /// Requires from_date and to_date query parameters (YYYY-MM-DD format).
     pub async fn get_planned_hours_per_day_per_workstation(
+        tenant: TenantContext,
         Query(q): Query<AnalysisQuery>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
@@ -37,7 +39,7 @@ impl AnalysisService {
 
         let results = state
             .analysis_repo
-            .get_planned_hours_per_day_per_workstation(from_date, to_date)
+            .get_planned_hours_per_day_per_workstation(&tenant.0, from_date, to_date)
             .await?;
 
         Ok(Json(serde_json::to_value(results).unwrap()))
@@ -47,6 +49,7 @@ impl AnalysisService {
     /// Returns the number of planned employees per day per workstation based on confirmed shift plans.
     /// Requires from_date and to_date query parameters (YYYY-MM-DD format).
     pub async fn get_planned_employees_per_day_per_workstation(
+        tenant: TenantContext,
         Query(q): Query<AnalysisQuery>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
@@ -61,7 +64,7 @@ impl AnalysisService {
 
         let results = state
             .analysis_repo
-            .get_planned_employees_per_day_per_workstation(from_date, to_date)
+            .get_planned_employees_per_day_per_workstation(&tenant.0, from_date, to_date)
             .await?;
 
         Ok(Json(serde_json::to_value(results).unwrap()))

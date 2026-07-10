@@ -20,6 +20,16 @@ pub enum AppError {
     Internal,
 }
 
+impl From<diesel::result::Error> for AppError {
+    fn from(e: diesel::result::Error) -> Self {
+        match e {
+            diesel::result::Error::DatabaseError(diesel::result::DatabaseErrorKind::UniqueViolation, _) => AppError::Duplicate,
+            diesel::result::Error::NotFound => AppError::NotFound,
+            _ => AppError::DbError,
+        }
+    }
+}
+
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         let (status, message) = match self {

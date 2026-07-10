@@ -9,6 +9,7 @@ use crate::schema::employee_capabilities;
 pub struct EmployeeCapability {
     pub employee_id: Uuid,
     pub capability_id: Uuid,
+    pub tenant_id: String,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
@@ -16,4 +17,5 @@ pub struct EmployeeCapability {
 pub struct NewEmployeeCapability {
     pub employee_id: Uuid,
     pub capability_id: Uuid,
+    pub tenant_id: String,
 }

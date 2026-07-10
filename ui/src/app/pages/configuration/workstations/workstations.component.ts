@@ -23,6 +23,8 @@ import {
   MarkedDay,
   DateRange,
 } from '../../../shared/components/ui/date-range-picker/date-range-picker.component';
+import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
+import { ContextMenuService } from '../../../shared/components/ui/context-menu/context-menu.service';
 
 @Component({
   selector: 'app-workstations',
@@ -256,13 +258,20 @@ import {
               </tr>
             } @else if (workstations.length === 0) {
               <tr>
-                <td colspan="7" class="px-5 py-8 text-center text-gray-400 dark:text-gray-500">
-                  No workstations found. Click "Add Workstation" to create one.
+                <td colspan="7" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
+                  <svg class="mx-auto mb-3 h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                  </svg>
+                  <p class="text-sm">No workstations found. Click "Add Workstation" to create one.</p>
                 </td>
               </tr>
             } @else {
               @for (ws of workstations; track ws.id) {
-                <tr>
+                <tr
+                  (dblclick)="openEditForm(ws)"
+                  (contextmenu)="onRowContextMenu($event, ws)"
+                >
                   <td class="px-5 py-4 sm:px-6 text-start">
                     <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
                       {{ ws.name }}
@@ -397,6 +406,8 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
     private shiftService: ShiftService,
     private globalSearchService: GlobalSearchService,
     private workstationUnavailabilityService: WorkstationUnavailabilityService,
+    private confirmDialog: ConfirmDialogService,
+    private contextMenu: ContextMenuService,
   ) {}
 
   ngOnInit(): void {
@@ -701,14 +712,27 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
     });
   }
 
-  deleteWorkstation(ws: Workstation): void {
-    if (confirm(`Are you sure you want to delete "${ws.name}"?`)) {
-      this.workstationService.deleteWorkstation(ws.id).subscribe({
-        next: () => {
-          this.loadData();
-        },
-        error: (err: any) => console.error('Failed to delete workstation', err),
-      });
-    }
+  onRowContextMenu(event: MouseEvent, ws: Workstation): void {
+    this.contextMenu.open(event, [
+      { label: 'Edit', action: () => this.openEditForm(ws) },
+      { label: 'Delete', danger: true, action: () => this.deleteWorkstation(ws) },
+    ]);
+  }
+
+  async deleteWorkstation(ws: Workstation): Promise<void> {
+    const ok = await this.confirmDialog.confirm({
+      title: 'Delete Workstation',
+      message: `Are you sure you want to delete "${ws.name}"? This action cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
+
+    this.workstationService.deleteWorkstation(ws.id).subscribe({
+      next: () => {
+        this.loadData();
+      },
+      error: (err: any) => console.error('Failed to delete workstation', err),
+    });
   }
 }

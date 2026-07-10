@@ -14,6 +14,7 @@ pub struct Workstation {
     pub priority: String,
     pub min_employees: i16,
     pub max_employees: Option<i16>,
+    pub tenant_id: String,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
@@ -25,4 +26,5 @@ pub struct NewWorkstation<'a> {
     pub priority: &'a str,
     pub min_employees: i16,
     pub max_employees: Option<i16>,
+    pub tenant_id: &'a str,
 }

@@ -8,6 +8,8 @@ use uuid::Uuid;
 use crate::errors::AppError;
 use crate::repository::AppState;
 use crate::repository::domain::EmployeeRepository;
+use crate::services::audit_log::{self, AuditActor};
+use crate::services::tenant::TenantContext;
 
 #[derive(Deserialize)]
 pub struct PaginationQuery {
@@ -32,6 +34,7 @@ pub struct EmployeeService;
 
 impl EmployeeService {
     pub async fn list_employees(
+        tenant: TenantContext,
         Query(q): Query<PaginationQuery>,
         State(state): State<AppState>,
     ) -> Json<Value> {
@@ -41,14 +44,14 @@ impl EmployeeService {
         // Retrieve paginated list of employees from repository
         let employees = state
             .employee_repo
-            .list_employees(limit, offset)
+            .list_employees(&tenant.0, limit, offset)
             .await
             .expect("Error loading employees: check if database migration for shifts.order column has been applied");
 
         // Get total count for pagination metadata
         let total = state
             .employee_repo
-            .count_employees()
+            .count_employees(&tenant.0)
             .await
             .expect("Error counting employees");
 
@@ -62,31 +65,35 @@ impl EmployeeService {
     }
 
     pub async fn create_employee(
-    State(state): State<AppState>,
-    Json(body): Json<Value>,
-) -> Result<Json<Value>, AppError> {
-    let name = body
-        .get("name")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| AppError::Validation("Missing 'name'".into()))?;
+        tenant: TenantContext,
+        actor: AuditActor,
+        State(state): State<AppState>,
+        Json(body): Json<Value>,
+    ) -> Result<Json<Value>, AppError> {
+        let name = body
+            .get("name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| AppError::Validation("Missing 'name'".into()))?;
 
-    let email = body
-        .get("email")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| AppError::Validation("Missing 'email'".into()))?;
+        let email = body
+            .get("email")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| AppError::Validation("Missing 'email'".into()))?;
 
-    let monthly_working_hours = body
-        .get("monthly_working_hours")
-        .and_then(|v| v.as_f64())
-        .ok_or_else(|| AppError::Validation("Missing 'monthly_working_hours'".into()))?;
+        let monthly_working_hours = body
+            .get("monthly_working_hours")
+            .and_then(|v| v.as_f64())
+            .ok_or_else(|| AppError::Validation("Missing 'monthly_working_hours'".into()))?;
 
-    let employee = state
-        .employee_repo
-        .create_employee(name, email, monthly_working_hours)
-        .await?;
+        let employee = state
+            .employee_repo
+            .create_employee(&tenant.0, name, email, monthly_working_hours)
+            .await?;
 
-    Ok(Json(serde_json::to_value(employee).unwrap()))
-}
+        audit_log::record(&state, &tenant.0, actor.0, "employee.create", "employee", Some(employee.id.to_string()), Some(body.to_string())).await;
+
+        Ok(Json(serde_json::to_value(employee).unwrap()))
+    }
 
     pub async fn get_employee_by_id(
         Path(_employee_id): Path<Uuid>,
@@ -96,6 +103,8 @@ impl EmployeeService {
     }
 
     pub async fn update_employee(
+        tenant: TenantContext,
+        actor: AuditActor,
         Path(employee_id): Path<Uuid>,
         State(state): State<AppState>,
         Json(body): Json<Value>,
@@ -108,7 +117,7 @@ impl EmployeeService {
         // Retrieve existing employee
         let existing = state
             .employee_repo
-            .get_employee(employee_id)
+            .get_employee(&tenant.0, employee_id)
             .await
             .expect("Error loading employee");
 
@@ -128,9 +137,11 @@ impl EmployeeService {
                 // Persist changes via repository
                 state
                     .employee_repo
-                    .update_employee(employee.clone())
+                    .update_employee(&tenant.0, employee.clone())
                     .await
                     .expect("Error updating employee");
+
+                audit_log::record(&state, &tenant.0, actor.0, "employee.update", "employee", Some(employee_id.to_string()), Some(body.to_string())).await;
 
                 Json(serde_json::to_value(employee).unwrap())
             }
@@ -139,13 +150,14 @@ impl EmployeeService {
     }
 
     pub async fn get_employee_by_email(
+        tenant: TenantContext,
         Path(email): Path<String>,
         State(state): State<AppState>,
     ) -> Json<Value> {
         // Retrieve employee by email using repository
         let employee_opt = state
             .employee_repo
-            .get_employee_by_email(&email)
+            .get_employee_by_email(&tenant.0, &email)
             .await
             .expect("Error loading employee by email");
         match employee_opt {
@@ -155,12 +167,13 @@ impl EmployeeService {
     }
 
     pub async fn get_employee_capabilities(
+        tenant: TenantContext,
         Path(employee_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Json<Value> {
         let capabilities = state
             .employee_repo
-            .get_employee_capabilities(employee_id)
+            .get_employee_capabilities(&tenant.0, employee_id)
             .await
             .expect("Error loading employee capabilities");
 
@@ -168,13 +181,14 @@ impl EmployeeService {
     }
 
     pub async fn add_employee_capability(
+        tenant: TenantContext,
         Path(employee_id): Path<Uuid>,
         State(state): State<AppState>,
         Json(body): Json<AddCapabilityRequest>,
     ) -> Json<Value> {
         state
             .employee_repo
-            .add_employee_capability(employee_id, body.capability_id)
+            .add_employee_capability(&tenant.0, employee_id, body.capability_id)
             .await
             .expect("Error inserting employee capability");
 
@@ -182,17 +196,19 @@ impl EmployeeService {
     }
 
     pub async fn get_employee_available_shifts(
+        tenant: TenantContext,
         Path(employee_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         let shifts = state
             .employee_repo
-            .get_employee_available_shifts(employee_id)
+            .get_employee_available_shifts(&tenant.0, employee_id)
             .await?;
         Ok(Json(serde_json::to_value(shifts).unwrap()))
     }
 
     pub async fn add_employee_available_shift(
+        tenant: TenantContext,
         Path(employee_id): Path<Uuid>,
         State(state): State<AppState>,
         Json(body): Json<Value>,
@@ -206,20 +222,23 @@ impl EmployeeService {
 
         state
             .employee_repo
-            .add_employee_available_shift(employee_id, shift_id)
+            .add_employee_available_shift(&tenant.0, employee_id, shift_id)
             .await?;
 
         Ok(Json(serde_json::json!({ "message": "Available shift added successfully" })))
     }
 
     pub async fn delete_employee(
+        tenant: TenantContext,
+        actor: AuditActor,
         Path(employee_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         state
             .employee_repo
-            .delete_employee(employee_id)
+            .delete_employee(&tenant.0, employee_id)
             .await?;
+        audit_log::record(&state, &tenant.0, actor.0, "employee.delete", "employee", Some(employee_id.to_string()), None).await;
         Ok(Json(serde_json::json!({ "message": "Employee deleted successfully" })))
     }
 }

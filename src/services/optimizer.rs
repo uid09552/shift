@@ -5,11 +5,13 @@ use axum::{
     http::StatusCode,
     response::{Json, Response},
 };
-use chrono::Local;
+use chrono::{Local, NaiveDate, Utc};
 use crate::broker::JetStreamStatus;
 use crate::errors::AppError;
-use crate::models::{ConstraintTask, PlanningPeriod, ShiftTask, TaskDTO, TaskResultDto, EmployeeTask, WorkstationTask, WorkstationUnavailabilityRange};
+use crate::models::{ConstraintTask, PlanningPeriod, ShiftTask, ShiftWeekdayTimeTask, TaskDTO, TaskResultDto, EmployeeTask, WorkstationTask, WorkstationUnavailabilityRange};
 use crate::repository::{AppState, domain::*};
+use crate::services::audit_log::{self, AuditActor};
+use crate::services::tenant::TenantContext;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -71,7 +73,7 @@ pub struct PaginatedOptimizedShiftResultsResponse {
     pub offset: i64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct PlanRequest {
     pub start_date: Option<String>,
     pub end_date: Option<String>,
@@ -105,32 +107,33 @@ impl OptimizerService {
 
     pub async fn build_task_dto(
         state: &AppState,
+        tenant_id: &str,
         employee_filter: Option<&[Uuid]>,
         start_date: Option<&str>,
         end_date: Option<&str>,
         constraints: Option<ConstraintTask>,
     ) -> Result<TaskDTO, Box<dyn std::error::Error + Send + Sync>> {
-        let shifts = state.shift_repo.list_shifts().await?;
+        let shifts = state.shift_repo.list_shifts(tenant_id).await?;
 
         let employees = if let Some(ids) = employee_filter {
             if ids.is_empty() {
-                state.employee_repo.list_employees(None, None).await?
+                state.employee_repo.list_employees(tenant_id, None, None).await?
             } else {
-                state.employee_repo.list_employees_by_ids(ids).await?
+                state.employee_repo.list_employees_by_ids(tenant_id, ids).await?
             }
         } else {
-            state.employee_repo.list_employees(None, None).await?
+            state.employee_repo.list_employees(tenant_id, None, None).await?
         };
 
-        let workstations = state.workstation_repo.list_workstations().await?;
+        let workstations = state.workstation_repo.list_workstations(tenant_id).await?;
 
-        let all_unavailabilities = state.unavailability_repo.list_unavailabilities().await?;
+        let all_unavailabilities = state.unavailability_repo.list_unavailabilities(tenant_id).await?;
         let mut unavail_map: std::collections::HashMap<Uuid, Vec<String>> = std::collections::HashMap::new();
         for u in all_unavailabilities {
             unavail_map.entry(u.employee_id).or_default().push(u.unavailable_date.to_string());
         }
 
-        let all_ws_unavailabilities = state.workstation_unavailability_repo.list_workstation_unavailabilities().await?;
+        let all_ws_unavailabilities = state.workstation_unavailability_repo.list_workstation_unavailabilities(tenant_id).await?;
         let mut ws_unavail_map: std::collections::HashMap<Uuid, Vec<WorkstationUnavailabilityRange>> = std::collections::HashMap::new();
         for u in all_ws_unavailabilities {
             ws_unavail_map.entry(u.workstation_id).or_default().push(WorkstationUnavailabilityRange {
@@ -158,9 +161,7 @@ impl OptimizerService {
                 }
             }).collect();
 
-        let total_employees = employees.len();
         let employee_tasks: Vec<EmployeeTask> = employees.into_iter()
-            .filter(|emp| !emp.available_shifts.is_empty())
             .map(|emp| {
                 let unavailability = unavail_map.get(&emp.id).cloned().unwrap_or_default();
                 EmployeeTask {
@@ -180,17 +181,15 @@ impl OptimizerService {
             ).into());
         }
         if employee_tasks.is_empty() {
-            return Err(format!(
-                "No schedulable employees ({} total — all have no available shifts assigned). \
-                 Assign at least one shift to each employee before running the optimizer.",
-                total_employees
-            ).into());
+            return Err(
+                "No employees found. Add at least one employee before running the optimizer.".into()
+            );
         }
 
         eprintln!(
-            "Optimizer payload: {} workstations ({} skipped), {} employees ({} skipped)",
+            "Optimizer payload: {} workstations ({} skipped), {} employees",
             workstation_tasks.len(), total_workstations - workstation_tasks.len(),
-            employee_tasks.len(), total_employees - employee_tasks.len(),
+            employee_tasks.len(),
         );
 
         let today = Local::now().naive_local().date();
@@ -215,17 +214,19 @@ impl OptimizerService {
 
     fn build_shift_tasks(shifts: Vec<Shift>) -> Vec<ShiftTask> {
         shifts.into_iter().map(|shift| {
-            let first_wt = shift.weekday_times.first();
+            let weekday_times = shift.weekday_times.iter().map(|wt| ShiftWeekdayTimeTask {
+                weekday: wt.weekday.to_string(),
+                start_time: wt.start_time.to_string(),
+                end_time: wt.end_time.to_string(),
+                min_employees: wt.min_employees,
+                max_employees: wt.max_employees,
+                free_days_after_shift: wt.free_days_after_shift,
+            }).collect();
             ShiftTask {
                 id: shift.id.to_string(),
                 name: shift.name,
-                start_time: first_wt.map(|wt| wt.start_time.to_string()).unwrap_or_default(),
-                end_time: first_wt.map(|wt| wt.end_time.to_string()).unwrap_or_default(),
-                weekdays: shift.weekday_times.iter().map(|wt| wt.weekday.to_string()).collect(),
                 is_night_shift: false,
-                min_employees: first_wt.map(|wt| wt.min_employees).unwrap_or(1),
-                max_employees: first_wt.and_then(|wt| wt.max_employees),
-                free_days_after_shift: first_wt.map(|wt| wt.free_days_after_shift).unwrap_or(0),
+                weekday_times,
             }
         }).collect()
     }
@@ -233,6 +234,7 @@ impl OptimizerService {
     /// Build task DTO, store it in the DB, publish to NATS, return the task_id.
     pub async fn schedule(
         &self,
+        tenant_id: &str,
         task_id: Uuid,
         employee_filter: Option<&[Uuid]>,
         start_date: Option<&str>,
@@ -242,7 +244,7 @@ impl OptimizerService {
         let nats_client = self.state.nats_client.as_ref()
             .ok_or("NATS client not configured")?;
 
-        let task_dto = Self::build_task_dto(&self.state, employee_filter, start_date, end_date, constraints).await?;
+        let task_dto = Self::build_task_dto(&self.state, tenant_id, employee_filter, start_date, end_date, constraints).await?;
 
         // Wrap with job_id so the Python can echo it back
         let mut payload_value = serde_json::to_value(&task_dto)?;
@@ -252,7 +254,7 @@ impl OptimizerService {
         let payload_bytes = serde_json::to_vec(&payload_value)?;
 
         // Store task in DB
-        self.state.planning_task_repo.create_planning_task(task_id, payload_value).await?;
+        self.state.planning_task_repo.create_planning_task(tenant_id, task_id, payload_value).await?;
 
         // Publish to NATS JetStream (preferred) or plain NATS
         match self.state.jetstream_status {
@@ -318,20 +320,24 @@ async fn handle_result_message(
     };
     let job_id: Uuid = job_id_str.parse()?;
 
+    // Background jobs have no request/token to resolve a tenant from, so they're
+    // scoped to the server's configured tenant (see TenantContext for the HTTP-side equivalent).
+    let tenant_id = state.default_tenant_id.as_str();
+
     // Check status field for errors from optimizer
     let opt_status = raw.get("status").and_then(|v| v.as_str()).unwrap_or("unknown");
     if opt_status == "error" || opt_status == "validation_error" {
         let msg = raw.get("message").and_then(|v| v.as_str()).unwrap_or("optimizer error").to_string();
         eprintln!("Optimizer reported error for task {}: {}", job_id, msg);
-        state.planning_task_repo.update_planning_task_error(job_id, msg).await?;
+        state.planning_task_repo.update_planning_task_error(tenant_id, job_id, msg).await?;
         return Ok(());
     }
 
     // Deserialize the result, store it, update task
     let result_dto: TaskResultDto = serde_json::from_value(raw.clone())?;
     let result_json = serde_json::to_value(&result_dto)?;
-    let stored = state.optimized_shift_result_repo.create_optimized_shift_result(result_json).await?;
-    state.planning_task_repo.update_planning_task_done(job_id, stored.id).await?;
+    let stored = state.optimized_shift_result_repo.create_optimized_shift_result(tenant_id, result_json).await?;
+    state.planning_task_repo.update_planning_task_done(tenant_id, job_id, stored.id).await?;
     println!("Task {} done — result stored as {}", job_id, stored.id);
 
     Ok(())
@@ -340,6 +346,8 @@ async fn handle_result_message(
 // ── HTTP handlers ─────────────────────────────────────────────────────────────
 
 pub async fn trigger_plan(
+    tenant: TenantContext,
+    actor: AuditActor,
     State(state): State<AppState>,
     Json(request): Json<PlanRequest>,
 ) -> Result<Json<PlanTaskResponse>, AppError> {
@@ -357,6 +365,7 @@ pub async fn trigger_plan(
 
     let svc = OptimizerService::new(state.clone());
     if let Err(e) = svc.schedule(
+        &tenant.0,
         task_id,
         employee_ids.as_deref(),
         start_date.as_deref(),
@@ -368,14 +377,18 @@ pub async fn trigger_plan(
         return Err(AppError::Validation(msg));
     }
 
+    let changes = serde_json::to_string(&request).unwrap_or_default();
+    audit_log::record(&state, &tenant.0, actor.0, "planner.optimize", "planning_task", Some(task_id.to_string()), Some(changes)).await;
+
     Ok(Json(PlanTaskResponse { task_id }))
 }
 
 pub async fn get_plan_status(
+    tenant: TenantContext,
     Path(task_id): Path<Uuid>,
     State(state): State<AppState>,
 ) -> Result<Json<PlanTaskStatusResponse>, AppError> {
-    let task = state.planning_task_repo.get_planning_task(task_id).await
+    let task = state.planning_task_repo.get_planning_task(&tenant.0, task_id).await
         .map_err(|e| { eprintln!("Failed to get task status: {}", e); AppError::Internal })?
         .ok_or(AppError::NotFound)?;
 
@@ -392,8 +405,8 @@ pub async fn get_plan_status(
     }))
 }
 
-pub async fn list_tasks(State(state): State<AppState>) -> Result<Json<ListTasksResponse>, AppError> {
-    let tasks = state.planning_task_repo.list_planning_tasks().await
+pub async fn list_tasks(tenant: TenantContext, State(state): State<AppState>) -> Result<Json<ListTasksResponse>, AppError> {
+    let tasks = state.planning_task_repo.list_planning_tasks(&tenant.0).await
         .map_err(|e| { eprintln!("Failed to list tasks: {}", e); AppError::Internal })?;
     let count = tasks.len();
     Ok(Json(ListTasksResponse {
@@ -403,10 +416,11 @@ pub async fn list_tasks(State(state): State<AppState>) -> Result<Json<ListTasksR
 }
 
 pub async fn get_task(
+    tenant: TenantContext,
     Path(task_id): Path<Uuid>,
     State(state): State<AppState>,
 ) -> Result<Response, AppError> {
-    let task = state.planning_task_repo.get_planning_task(task_id).await
+    let task = state.planning_task_repo.get_planning_task(&tenant.0, task_id).await
         .map_err(|e| { eprintln!("Failed to get task: {}", e); AppError::Internal })?
         .ok_or(AppError::NotFound)?;
     let body = serde_json::to_vec(&PlanningTaskResponse::from(task))
@@ -419,11 +433,12 @@ pub async fn get_task(
 }
 
 pub async fn list_optimized_shifts(
+    tenant: TenantContext,
     Query(q): Query<ListOptimizedShiftResultsQuery>,
     State(state): State<AppState>,
 ) -> Result<Json<PaginatedOptimizedShiftResultsResponse>, AppError> {
     if q.latest.unwrap_or(false) {
-        let latest = state.optimized_shift_result_repo.get_latest_optimized_shift_result().await
+        let latest = state.optimized_shift_result_repo.get_latest_optimized_shift_result(&tenant.0).await
             .map_err(|e| { eprintln!("Failed to get latest optimized shift result: {}", e); AppError::Internal })?;
         let data: Vec<OptimizedShiftResultResponse> = latest.into_iter().filter_map(|r| {
             let result_dto: TaskResultDto = serde_json::from_value(r.result.clone()).ok()?;
@@ -434,9 +449,9 @@ pub async fn list_optimized_shifts(
     }
     let limit = q.limit.map(|l| l as i64);
     let offset = q.offset.map(|o| o as i64);
-    let results = state.optimized_shift_result_repo.list_optimized_shift_results(limit, offset).await
+    let results = state.optimized_shift_result_repo.list_optimized_shift_results(&tenant.0, limit, offset).await
         .map_err(|e| { eprintln!("Failed to list optimized shift results: {}", e); AppError::Internal })?;
-    let total = state.optimized_shift_result_repo.count_optimized_shift_results().await
+    let total = state.optimized_shift_result_repo.count_optimized_shift_results(&tenant.0).await
         .map_err(|e| { eprintln!("Failed to count optimized shift results: {}", e); AppError::Internal })?;
     let data: Vec<OptimizedShiftResultResponse> = results.into_iter().filter_map(|r| {
         let result_dto: TaskResultDto = serde_json::from_value(r.result.clone()).ok()?;
@@ -446,10 +461,11 @@ pub async fn list_optimized_shifts(
 }
 
 pub async fn get_optimized_shift(
+    tenant: TenantContext,
     Path(result_id): Path<Uuid>,
     State(state): State<AppState>,
 ) -> Result<Json<OptimizedShiftResultResponse>, AppError> {
-    let stored = state.optimized_shift_result_repo.get_optimized_shift_result_by_id(result_id).await
+    let stored = state.optimized_shift_result_repo.get_optimized_shift_result_by_id(&tenant.0, result_id).await
         .map_err(|e| { eprintln!("Failed to get optimized shift result: {}", e); AppError::Internal })?
         .ok_or(AppError::NotFound)?;
     let result_dto: TaskResultDto = serde_json::from_value(stored.result)
@@ -458,41 +474,145 @@ pub async fn get_optimized_shift(
 }
 
 pub async fn delete_task(
+    tenant: TenantContext,
     Path(task_id): Path<Uuid>,
     State(state): State<AppState>,
 ) -> Result<StatusCode, AppError> {
-    state.planning_task_repo.delete_planning_task(task_id).await
-        .map_err(|e| {
-            if let Some(app_err) = e.downcast_ref::<AppError>() {
-                if matches!(app_err, AppError::NotFound) { return AppError::NotFound; }
-            }
-            eprintln!("Failed to delete planning task: {}", e);
-            AppError::Internal
-        })?;
+    state.planning_task_repo.delete_planning_task(&tenant.0, task_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
+pub async fn update_optimized_shift(
+    tenant: TenantContext,
+    Path(result_id): Path<Uuid>,
+    State(state): State<AppState>,
+    Json(request): Json<TaskResultDto>,
+) -> Result<Json<OptimizedShiftResultResponse>, AppError> {
+    let result_json = serde_json::to_value(&request).map_err(|_| AppError::Internal)?;
+    let updated = state.optimized_shift_result_repo
+        .update_optimized_shift_result(&tenant.0, result_id, result_json).await
+        .map_err(|e| { eprintln!("Failed to update optimized shift result: {}", e); e })?;
+    Ok(Json(OptimizedShiftResultResponse { id: updated.id, result: request, creation_date: updated.creation_date }))
+}
+
+#[derive(Deserialize)]
+pub struct TakeAsPlanRequest {
+    pub employee_ids: Option<Vec<Uuid>>,
+}
+
+#[derive(Serialize)]
+pub struct TakeAsPlanResponse {
+    pub employee_count: usize,
+    pub created: usize,
+}
+
+/// POST /planner/optimized-shifts/:result_id/take-as-plan
+/// Overwrites the confirmed shift plans for the result's planning period (optionally
+/// scoped to a subset of employees) with the assignments/free days from this optimized
+/// result. Runs entirely server-side in one transaction, replacing what used to be a
+/// per-employee load + per-entry delete/create sequence of API calls from the UI.
+pub async fn take_as_plan(
+    tenant: TenantContext,
+    actor: AuditActor,
+    Path(result_id): Path<Uuid>,
+    State(state): State<AppState>,
+    Json(request): Json<TakeAsPlanRequest>,
+) -> Result<Json<TakeAsPlanResponse>, AppError> {
+    let stored = state.optimized_shift_result_repo.get_optimized_shift_result_by_id(&tenant.0, result_id).await?
+        .ok_or(AppError::NotFound)?;
+    let result: TaskResultDto = serde_json::from_value(stored.result)
+        .map_err(|_| AppError::Internal)?;
+
+    let filter_ids: Option<Vec<String>> = request.employee_ids
+        .filter(|ids| !ids.is_empty())
+        .map(|ids| ids.iter().map(|id| id.to_string()).collect());
+
+    let plans: Vec<_> = match &filter_ids {
+        Some(ids) => result.employee_plans.into_iter().filter(|ep| ids.contains(&ep.employee_id)).collect(),
+        None => result.employee_plans,
+    };
+    if plans.is_empty() {
+        return Err(AppError::Validation("No employee plans found for the given selection".into()));
+    }
+
+    let from_date = NaiveDate::parse_from_str(&result.planning_period.start_date, "%Y-%m-%d")
+        .map_err(|_| AppError::Internal)?;
+    let to_date = NaiveDate::parse_from_str(&result.planning_period.end_date, "%Y-%m-%d")
+        .map_err(|_| AppError::Internal)?;
+
+    let now = Utc::now().naive_utc();
+    let mut employee_ids: Vec<Uuid> = Vec::new();
+    let mut new_plans: Vec<ConfirmedShiftPlan> = Vec::new();
+
+    for ep in &plans {
+        let Ok(employee_id) = ep.employee_id.parse::<Uuid>() else { continue };
+        employee_ids.push(employee_id);
+
+        for entry in &ep.daily_plan {
+            let Ok(date) = NaiveDate::parse_from_str(&entry.date, "%Y-%m-%d") else { continue };
+            match entry.status.as_str() {
+                "assigned" => {
+                    let Some(shift_id) = entry.shift_id.as_ref().and_then(|s| s.parse::<Uuid>().ok()) else { continue };
+                    let workstation_id = entry.workstation_id.as_ref().and_then(|s| s.parse::<Uuid>().ok());
+                    new_plans.push(ConfirmedShiftPlan {
+                        id: Uuid::new_v4(),
+                        employee_id,
+                        shift_id: Some(shift_id),
+                        workstation_id,
+                        date,
+                        is_present: true,
+                        absence_type: None,
+                        creation_type: "automated".to_string(),
+                        created_at: now,
+                        updated_at: now,
+                    });
+                }
+                "free" => {
+                    new_plans.push(ConfirmedShiftPlan {
+                        id: Uuid::new_v4(),
+                        employee_id,
+                        shift_id: None,
+                        workstation_id: None,
+                        date,
+                        is_present: false,
+                        absence_type: Some("free".to_string()),
+                        creation_type: "automated".to_string(),
+                        created_at: now,
+                        updated_at: now,
+                    });
+                }
+                _ => {}
+            }
+        }
+    }
+
+    let created = state.confirmed_shift_plan_repo
+        .replace_confirmed_shift_plans_for_period(&tenant.0, &employee_ids, from_date, to_date, new_plans)
+        .await?;
+
+    let response = TakeAsPlanResponse { employee_count: employee_ids.len(), created: created.len() };
+    let changes = serde_json::to_string(&response).unwrap_or_default();
+    audit_log::record(&state, &tenant.0, actor.0, "planner.take_as_plan", "confirmed_shift_plan", Some(result_id.to_string()), Some(changes)).await;
+
+    Ok(Json(response))
+}
+
 pub async fn delete_optimized_shift(
+    tenant: TenantContext,
     Path(result_id): Path<Uuid>,
     State(state): State<AppState>,
 ) -> Result<StatusCode, AppError> {
     // Clear the result reference from any task that points to this result first,
     // so that after deletion the task list no longer shows stale View/Delete buttons.
-    state.planning_task_repo.clear_task_result_id(result_id).await
+    state.planning_task_repo.clear_task_result_id(&tenant.0, result_id).await
         .map_err(|e| { eprintln!("Failed to clear task result_id: {}", e); AppError::Internal })?;
 
-    state.optimized_shift_result_repo.delete_optimized_shift_result(result_id).await
-        .map_err(|e| {
-            if let Some(app_err) = e.downcast_ref::<AppError>() {
-                if matches!(app_err, AppError::NotFound) { return AppError::NotFound; }
-            }
-            eprintln!("Failed to delete optimized shift result: {}", e);
-            AppError::Internal
-        })?;
+    state.optimized_shift_result_repo.delete_optimized_shift_result(&tenant.0, result_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn prepare(
+    tenant: TenantContext,
     State(state): State<AppState>,
     Json(request): Json<PlanRequest>,
 ) -> Result<Json<TaskDTO>, AppError> {
@@ -500,7 +620,7 @@ pub async fn prepare(
     let constraints = request.monthly_hours_target_weight.map(|w| ConstraintTask {
         monthly_hours_target_weight: Some(w),
     });
-    match OptimizerService::build_task_dto(&state, employee_filter, request.start_date.as_deref(), request.end_date.as_deref(), constraints).await {
+    match OptimizerService::build_task_dto(&state, &tenant.0, employee_filter, request.start_date.as_deref(), request.end_date.as_deref(), constraints).await {
         Ok(task_dto) => Ok(Json(task_dto)),
         Err(e) => {
             eprintln!("Failed to prepare task DTO: {}", e);

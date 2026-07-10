@@ -11,10 +11,12 @@ pub struct OptimizedShiftResult {
     pub id: Uuid,
     pub result: serde_json::Value,
     pub creation_date: NaiveDateTime,
+    pub tenant_id: String,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
 #[diesel(table_name = optimized_shift_results)]
 pub struct NewOptimizedShiftResult {
     pub result: serde_json::Value,
+    pub tenant_id: String,
 }

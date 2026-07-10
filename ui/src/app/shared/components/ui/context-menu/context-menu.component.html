@@ -1,0 +1,26 @@
+@if (state) {
+  <div
+    #menuRef
+    class="fixed z-99999 min-w-[140px] overflow-hidden rounded-lg border border-gray-200 bg-white py-1.5 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"
+    [style.left.px]="state.x"
+    [style.top.px]="state.y"
+  >
+    @for (item of state.items; track item.label) {
+      <button
+        type="button"
+        (click)="runAction(item.action)"
+        class="block w-full px-4 py-2 text-left text-sm font-medium transition"
+        [class.text-gray-700]="!item.danger"
+        [class.dark:text-gray-300]="!item.danger"
+        [class.hover:bg-gray-50]="!item.danger"
+        [class.dark:hover:bg-white/[0.05]]="!item.danger"
+        [class.text-error-600]="item.danger"
+        [class.dark:text-error-400]="item.danger"
+        [class.hover:bg-error-50]="item.danger"
+        [class.dark:hover:bg-error-500/15]="item.danger"
+      >
+        {{ item.label }}
+      </button>
+    }
+  </div>
+}

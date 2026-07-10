@@ -11,8 +11,31 @@ pub struct TaskResultDto {
     #[serde(default)]
     pub employee_summary: Vec<EmployeeSummary>,
     #[serde(default)]
-    pub employee_plans: Vec<serde_json::Value>,
+    pub employee_plans: Vec<EmployeeDailyPlan>,
     pub message: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct EmployeeDailyPlan {
+    pub employee_id: String,
+    pub employee_name: String,
+    pub daily_plan: Vec<DailyPlanEntry>,
+}
+
+/// One day's plan entry for an employee: either "assigned" (with shift +
+/// workstation details) or "free" (no shift planned for that day).
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DailyPlanEntry {
+    pub date: String,
+    pub status: String,
+    #[serde(default)]
+    pub shift_id: Option<String>,
+    #[serde(default)]
+    pub shift_name: Option<String>,
+    #[serde(default)]
+    pub workstation_id: Option<String>,
+    #[serde(default)]
+    pub workstation_name: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

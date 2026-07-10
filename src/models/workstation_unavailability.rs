@@ -12,6 +12,7 @@ pub struct WorkstationUnavailability {
     pub workstation_id: Uuid,
     pub unavailable_from: NaiveDate,
     pub unavailable_to: NaiveDate,
+    pub tenant_id: String,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
@@ -20,4 +21,5 @@ pub struct NewWorkstationUnavailability {
     pub workstation_id: Uuid,
     pub unavailable_from: NaiveDate,
     pub unavailable_to: NaiveDate,
+    pub tenant_id: String,
 }

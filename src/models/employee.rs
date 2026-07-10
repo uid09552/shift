@@ -11,6 +11,7 @@ pub struct Employee {
     pub name: String,
     pub email: String,
     pub monthly_working_hours: f64,
+    pub tenant_id: String,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
@@ -19,4 +20,5 @@ pub struct NewEmployee<'a> {
     pub name: &'a str,
     pub email: &'a str,
     pub monthly_working_hours: f64,
+    pub tenant_id: &'a str,
 }

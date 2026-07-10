@@ -173,12 +173,42 @@
         <span>Period: {{ selectedResult.result.planning_period.start_date | date:'mediumDate' }} – {{ selectedResult.result.planning_period.end_date | date:'mediumDate' }}</span>
         <span>Score: {{ objectiveValue }}</span>
         <span>Status: {{ status }}</span>
+        @if (savingSchedule) {
+          <span class="flex items-center gap-1 text-brand-500">
+            <svg class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+              <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
+            </svg>
+            Saving edit…
+          </span>
+        }
+        @if (viewMode === 'employee') {
+          <span class="italic text-gray-400 dark:text-gray-500">Right-click a day or employee name to edit</span>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- Mass operations toolbar (employee view, multi-select) -->
+  @if (viewMode === 'employee' && editSelectedIds.size > 0) {
+    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-brand-100 bg-brand-50 px-5 py-2.5 dark:border-brand-900/40 dark:bg-brand-500/10 sm:px-6">
+      <span class="text-xs font-medium text-brand-700 dark:text-brand-300">{{ editSelectedLabel }} selected</span>
+      <div class="flex items-center gap-2">
+        <button (click)="takeAsPlan([...editSelectedIds])" class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20">
+          Take as Plan
+        </button>
+        <button (click)="confirmClearEmployees([...editSelectedIds])" class="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-500/10">
+          Clear Assignments
+        </button>
+        <button (click)="clearEditSelection()" class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]">
+          Clear Selection
+        </button>
       </div>
     </div>
   }
 
   <!-- Week navigation -->
-  <div class="flex items-center justify-center border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
+  <div class="flex items-center justify-start border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
     <app-calendar-nav [label]="weekLabel" periodType="week" (prev)="prevWeek()" (next)="nextWeek()" (today)="goToday()" />
   </div>
 
@@ -208,7 +238,12 @@
       [rowLabel]="currentRowLabel"
       [rowIcon]="currentRowIcon"
       [cellDisplayMode]="currentCellMode"
+      [selectable]="viewMode === 'employee'"
+      [selectedRowIds]="editSelectedIds"
       (cellClick)="onTableCellClick($event)"
+      (cellContextMenu)="onCellContextMenu($event)"
+      (rowContextMenu)="onRowContextMenu($event)"
+      (rowSelectionToggle)="onRowSelectionToggle($event)"
     />
   }
 </div>
@@ -320,6 +355,70 @@
             </div>
           </div>
         }
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Edit Assignment Modal -->
+@if (showEditAssignment && editingAssignment) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" (click)="closeEditAssignment()">
+    <div class="mx-4 w-full max-w-sm rounded-xl bg-white p-6 shadow-xl dark:bg-gray-900" (click)="$event.stopPropagation()">
+      <div class="mb-4 flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">Edit Assignment</h3>
+          <p class="text-sm text-gray-500 dark:text-gray-400">{{ editingAssignment.employeeName }} · {{ editingAssignment.date }}</p>
+        </div>
+        <button (click)="closeEditAssignment()" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Status</label>
+          <select [(ngModel)]="editingAssignment.status" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+            <option value="assigned">Assigned</option>
+            <option value="free">Free (day off)</option>
+            <option value="unassigned">Unassigned (no entry)</option>
+          </select>
+        </div>
+
+        @if (editingAssignment.status === 'assigned') {
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Shift</label>
+            <select [(ngModel)]="editingAssignment.shiftId" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+              <option [ngValue]="null">Select a shift…</option>
+              @for (s of shifts; track s.id) {
+                <option [ngValue]="s.id">{{ s.name }}</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Workstation</label>
+            <select [(ngModel)]="editingAssignment.workstationId" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+              <option [ngValue]="null">None</option>
+              @for (w of workstations; track w.id) {
+                <option [ngValue]="w.id">{{ w.name }}</option>
+              }
+            </select>
+          </div>
+        }
+      </div>
+
+      <div class="mt-5 flex items-center justify-end gap-3">
+        <button (click)="closeEditAssignment()" class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]">
+          Cancel
+        </button>
+        <button
+          (click)="saveEditAssignment()"
+          [disabled]="editingAssignment.status === 'assigned' && !editingAssignment.shiftId"
+          class="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Save
+        </button>
       </div>
     </div>
   </div>

@@ -23,16 +23,21 @@ pub struct PlanningPeriod {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ShiftTask {
-    pub id: String,
-    pub name: String,
+pub struct ShiftWeekdayTimeTask {
+    pub weekday: String,
     pub start_time: String,
     pub end_time: String,
-    pub weekdays: Vec<String>,
-    pub is_night_shift: bool,
     pub min_employees: i16,
     pub max_employees: Option<i16>,
     pub free_days_after_shift: i16,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ShiftTask {
+    pub id: String,
+    pub name: String,
+    pub is_night_shift: bool,
+    pub weekday_times: Vec<ShiftWeekdayTimeTask>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -6,6 +6,7 @@ pub mod confirmedshiftplanrepository;
 pub mod optimizedshiftresultrepository;
 pub mod planningtaskrepository;
 pub mod analysisrepository;
+pub mod auditlogrepository;
 
 use std::sync::Arc;
 use crate::database::DbPool;
@@ -23,6 +24,7 @@ use self::confirmedshiftplanrepository::DieselConfirmedShiftPlanRepository;
 use self::optimizedshiftresultrepository::DieselOptimizedShiftResultRepository;
 use self::planningtaskrepository::DieselPlanningTaskRepository;
 use self::analysisrepository::DieselAnalysisRepository;
+use self::auditlogrepository::DieselAuditLogRepository;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -37,10 +39,13 @@ pub struct AppState {
     pub optimized_shift_result_repo: DieselOptimizedShiftResultRepository,
     pub planning_task_repo: DieselPlanningTaskRepository,
     pub analysis_repo: DieselAnalysisRepository,
+    pub audit_log_repo: DieselAuditLogRepository,
     pub pool: Arc<DbPool>,
     pub nats_client: Option<async_nats::Client>,
     pub jetstream_status: JetStreamStatus,
     pub optimizer_url: String,
+    pub dev_mode: bool,
+    pub default_tenant_id: String,
 }
 
 impl AppState {
@@ -57,10 +62,13 @@ impl AppState {
             optimized_shift_result_repo: DieselOptimizedShiftResultRepository { pool: Arc::clone(&pool) },
             planning_task_repo: DieselPlanningTaskRepository { pool: Arc::clone(&pool) },
             analysis_repo: DieselAnalysisRepository { pool: Arc::clone(&pool) },
+            audit_log_repo: DieselAuditLogRepository { pool: Arc::clone(&pool) },
             pool,
             nats_client: None,
             jetstream_status: JetStreamStatus::Unavailable,
             optimizer_url: "http://localhost:8888".to_string(),
+            dev_mode: false,
+            default_tenant_id: "0".to_string(),
         }
     }
 
@@ -77,10 +85,13 @@ impl AppState {
             optimized_shift_result_repo: DieselOptimizedShiftResultRepository { pool: Arc::clone(&pool) },
             planning_task_repo: DieselPlanningTaskRepository { pool: Arc::clone(&pool) },
             analysis_repo: DieselAnalysisRepository { pool: Arc::clone(&pool) },
+            audit_log_repo: DieselAuditLogRepository { pool: Arc::clone(&pool) },
             pool,
             nats_client: Some(nats_client),
             jetstream_status,
             optimizer_url,
+            dev_mode: false,
+            default_tenant_id: "0".to_string(),
         }
     }
 }

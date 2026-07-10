@@ -73,10 +73,10 @@ def _parse_time_minutes(t) -> int:
     return t.hour * 60 + t.minute
 
 
-def _shift_duration_hours(shift: dict) -> float:
-    """Calculate the duration of a shift in hours."""
-    start = _parse_time_minutes(shift["start_time"])
-    end = _parse_time_minutes(shift["end_time"])
+def _shift_duration_hours(weekday_time: dict) -> float:
+    """Calculate the duration in hours of a shift's weekday_time entry."""
+    start = _parse_time_minutes(weekday_time["start_time"])
+    end = _parse_time_minutes(weekday_time["end_time"])
     if end > start:
         return (end - start) / 60.0
     # Night shift wraps midnight
@@ -174,18 +174,30 @@ def solve(data: dict) -> dict:
     }
 
     shift_is_night = {s["id"]: s["is_night_shift"] for s in shifts}
-    shift_weekdays = {s["id"]: set(s["weekdays"]) for s in shifts}
-    shift_start_min = {s["id"]: _parse_time_minutes(s["start_time"]) for s in shifts}
-    shift_end_min = {s["id"]: _parse_time_minutes(s["end_time"]) for s in shifts}
-    shift_duration = {s["id"]: _shift_duration_hours(s) for s in shifts}
-    shift_min_emp = {s["id"]: s.get("min_employees", 1) for s in shifts}
-    shift_max_emp = {s["id"]: s.get("max_employees") for s in shifts}
-    # Per-shift forced recovery days: explicit free_days_after_shift, or
-    # night_shift_recovery_days for night shifts (whichever is larger).
-    shift_recovery_days = {
-        s["id"]: max(s.get("free_days_after_shift", 0), night_recovery if s["is_night_shift"] else 0)
+    # Per-(shift, weekday) time/staffing configuration, keyed by weekday string.
+    # A shift only operates on the weekdays present in its weekday_times list.
+    shift_wt = {
+        (s["id"], wt["weekday"]): wt
         for s in shifts
+        for wt in s["weekday_times"]
     }
+    shift_weekdays = {s["id"]: {wt["weekday"] for wt in s["weekday_times"]} for s in shifts}
+
+    def _shift_min_emp(sid: str, wday: str) -> int:
+        return shift_wt[(sid, wday)].get("min_employees", 1)
+
+    def _shift_max_emp(sid: str, wday: str):
+        return shift_wt[(sid, wday)].get("max_employees")
+
+    def _shift_recovery_days(sid: str, wday: str) -> int:
+        """Forced rest days after working this shift on this weekday: explicit
+        free_days_after_shift, or night_shift_recovery_days for night shifts
+        (whichever is larger)."""
+        wt = shift_wt[(sid, wday)]
+        return max(
+            wt.get("free_days_after_shift", 0),
+            night_recovery if shift_is_night[sid] else 0,
+        )
 
     # Monthly working-hours targets (tenths of hours, scaled to the planning period)
     target_tenths_map = {
@@ -319,8 +331,8 @@ def solve(data: dict) -> dict:
                 if (e_idx, d_idx, s_idx, w_idx) in x
             ]
             if shift_day_terms:
-                min_emp = shift_min_emp[sid]
-                max_emp = shift_max_emp[sid]
+                min_emp = _shift_min_emp(sid, wday)
+                max_emp = _shift_max_emp(sid, wday)
                 if min_emp > 0:
                     # Soft: shortfall = max(0, min_emp - assigned)
                     shortfall = model.NewIntVar(0, min_emp, f"shortfall_{s_idx}_{d_idx}")
@@ -336,12 +348,18 @@ def solve(data: dict) -> dict:
 
     # 4) Per-shift forced recovery days (night-shift recovery generalized to any
     # shift via free_days_after_shift; 0 recovery days = disabled for that shift).
-    if any(d > 0 for d in shift_recovery_days.values()):
+    any_recovery_days = any(
+        _shift_recovery_days(sid, wday) > 0 for (sid, wday) in shift_wt
+    )
+    if any_recovery_days:
         for e_idx in range(num_emp):
-            for d_idx in range(num_days):
+            for d_idx, day in enumerate(days):
+                wday = weekday_num(day)
                 for s_idx, shift in enumerate(shifts):
                     sid = shift["id"]
-                    rec_days = shift_recovery_days[sid]
+                    if wday not in shift_weekdays[sid]:
+                        continue
+                    rec_days = _shift_recovery_days(sid, wday)
                     if rec_days <= 0:
                         continue
 
@@ -386,38 +404,58 @@ def solve(data: dict) -> dict:
 
     # 6) Minimum rest between shifts on consecutive days (configurable, 0 = disabled)
     if min_rest > 0:
-        forbidden_transitions = []
-        for s1_idx, s1 in enumerate(shifts):
-            if shift_is_night[s1["id"]]:
-                continue  # night shifts already handled by recovery constraint
-            end1 = shift_end_min[s1["id"]]
-            for s2_idx, s2 in enumerate(shifts):
-                start2 = shift_start_min[s2["id"]]
-                rest_hours = (24 * 60 - end1 + start2) / 60.0
-                if rest_hours < min_rest:
-                    forbidden_transitions.append((s1_idx, s2_idx))
+        # Start/end times are per-weekday, so forbidden shift-to-shift
+        # transitions are cached per (weekday1, weekday2) pair rather than
+        # computed once globally.
+        forbidden_cache: dict = {}
 
-        if forbidden_transitions:
+        def _forbidden_transitions(wd1: str, wd2: str):
+            key = (wd1, wd2)
+            if key in forbidden_cache:
+                return forbidden_cache[key]
+            pairs = []
+            for s1_idx, s1 in enumerate(shifts):
+                sid1 = s1["id"]
+                if shift_is_night[sid1] or (sid1, wd1) not in shift_wt:
+                    continue  # night shifts already handled by recovery constraint
+                end1 = _parse_time_minutes(shift_wt[(sid1, wd1)]["end_time"])
+                for s2_idx, s2 in enumerate(shifts):
+                    sid2 = s2["id"]
+                    if (sid2, wd2) not in shift_wt:
+                        continue
+                    start2 = _parse_time_minutes(shift_wt[(sid2, wd2)]["start_time"])
+                    rest_hours = (24 * 60 - end1 + start2) / 60.0
+                    if rest_hours < min_rest:
+                        pairs.append((s1_idx, s2_idx))
+            forbidden_cache[key] = pairs
+            return pairs
+
+        total_forbidden = 0
+        for e_idx in range(num_emp):
+            for d_idx in range(num_days - 1):
+                wd1 = weekday_num(days[d_idx])
+                wd2 = weekday_num(days[d_idx + 1])
+                for s1_idx, s2_idx in _forbidden_transitions(wd1, wd2):
+                    late_vars = [
+                        x[e_idx, d_idx, s1_idx, w_idx]
+                        for w_idx in range(num_ws)
+                        if (e_idx, d_idx, s1_idx, w_idx) in x
+                    ]
+                    early_vars = [
+                        x[e_idx, d_idx + 1, s2_idx, w_idx]
+                        for w_idx in range(num_ws)
+                        if (e_idx, d_idx + 1, s2_idx, w_idx) in x
+                    ]
+                    if not late_vars or not early_vars:
+                        continue
+                    model.Add(sum(late_vars) + sum(early_vars) <= 1)
+                    total_forbidden += 1
+
+        if total_forbidden:
             logger.info(
-                "Adding %d forbidden shift-transition types (rest < %.1fh)",
-                len(forbidden_transitions), min_rest,
+                "Added %d forbidden shift-transition constraints (rest < %.1fh)",
+                total_forbidden, min_rest,
             )
-            for e_idx in range(num_emp):
-                for d_idx in range(num_days - 1):
-                    for s1_idx, s2_idx in forbidden_transitions:
-                        late_vars = [
-                            x[e_idx, d_idx, s1_idx, w_idx]
-                            for w_idx in range(num_ws)
-                            if (e_idx, d_idx, s1_idx, w_idx) in x
-                        ]
-                        early_vars = [
-                            x[e_idx, d_idx + 1, s2_idx, w_idx]
-                            for w_idx in range(num_ws)
-                            if (e_idx, d_idx + 1, s2_idx, w_idx) in x
-                        ]
-                        if not late_vars or not early_vars:
-                            continue
-                        model.Add(sum(late_vars) + sum(early_vars) <= 1)
 
     # 7) Maximum consecutive working days (configurable, 0 = disabled)
     if max_consec > 0:
@@ -459,9 +497,13 @@ def solve(data: dict) -> dict:
     emp_hour_totals: dict = {}
     for e_idx in range(num_emp):
         hour_terms = []
-        for d_idx in range(num_days):
+        for d_idx, day in enumerate(days):
+            wday = weekday_num(day)
             for s_idx, shift in enumerate(shifts):
-                dur = int(shift_duration[shift["id"]] * 10)  # tenths of hours
+                sid = shift["id"]
+                if (sid, wday) not in shift_wt:
+                    continue
+                dur = int(_shift_duration_hours(shift_wt[(sid, wday)]) * 10)  # tenths of hours
                 for w_idx in range(num_ws):
                     key = (e_idx, d_idx, s_idx, w_idx)
                     if key in x:
@@ -646,40 +688,10 @@ def solve(data: dict) -> dict:
             shifts=day_shifts,
         ))
 
-    # Determine which (employee, day) slots are forced "free" days: either a
-    # mandatory rest day after a shift with recovery days, or a day left open
-    # because the employee already reached their monthly hours target.
-    assigned_shift_for: dict = {}  # (e_idx, d_idx) -> shift_id
-    for e_idx in range(num_emp):
-        for d_idx in range(num_days):
-            for s_idx, shift in enumerate(shifts):
-                for w_idx in range(num_ws):
-                    key = (e_idx, d_idx, s_idx, w_idx)
-                    if key in x and solver.Value(x[key]) == 1:
-                        assigned_shift_for[(e_idx, d_idx)] = shift["id"]
-                        break
-                else:
-                    continue
-                break
-
-    forced_free_days: set = set()
-    for (e_idx, d_idx), sid in assigned_shift_for.items():
-        rec_days = shift_recovery_days.get(sid, 0)
-        for offset in range(1, rec_days + 1):
-            rd = d_idx + offset
-            if rd < num_days:
-                forced_free_days.add((e_idx, rd))
-
-    emp_met_target = {
-        e_idx
-        for e_idx, total_var in emp_hour_totals.items()
-        if e_idx in target_tenths_map and solver.Value(total_var) >= target_tenths_map[e_idx]
-    }
-
-    # Per-employee daily plan: one DailyPlanEntry per day for every employee.
-    # Each entry is "assigned" (with shift + workstation details), "free"
-    # (mandatory rest, or contracted monthly hours already met), or
-    # "not_assigned" so callers always receive a complete grid.
+    # Per-employee daily plan: one DailyPlanEntry per day for every employee,
+    # covering the full roster so callers always receive a complete grid.
+    # Each entry is "assigned" (with shift + workstation details) or "free"
+    # (no shift planned for that day, for any reason).
     employee_plans: list[EmployeeDailyPlan] = []
     for e_idx, emp in enumerate(employees):
         daily_plan: list[DailyPlanEntry] = []
@@ -707,10 +719,9 @@ def solve(data: dict) -> dict:
                         break
 
             if not found:
-                is_free = (e_idx, d_idx) in forced_free_days or e_idx in emp_met_target
                 daily_plan.append(DailyPlanEntry(
                     date=day_str,
-                    status="free" if is_free else "not_assigned",
+                    status="free",
                 ))
 
         employee_plans.append(EmployeeDailyPlan(

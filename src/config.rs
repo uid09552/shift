@@ -7,6 +7,7 @@ pub struct Config {
     pub database: DatabaseConfig,
     pub broker: BrokerConfig,
     pub optimizer: OptimizerConfig,
+    pub tenant: TenantConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -14,6 +15,14 @@ pub struct ServerConfig {
     pub port: u16,
     pub listen: String,
     pub verbose: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TenantConfig {
+    /// When true, every request is scoped to `tenant_id` instead of resolving a tenant from an auth token.
+    pub dev_mode: bool,
+    /// Default tenant used in dev mode. Later this will come from the auth token instead.
+    pub tenant_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,6 +68,10 @@ impl Default for Config {
             },
             optimizer: OptimizerConfig {
                 url: "http://localhost:8888".to_string(),
+            },
+            tenant: TenantConfig {
+                dev_mode: false,
+                tenant_id: "0".to_string(),
             },
         }
     }
@@ -114,6 +127,12 @@ impl Config {
         if let Some(optimizer_url) = args.optimizer_url.clone() {
             figment = figment.merge(("optimizer.url", optimizer_url));
         }
+        if args.dev_mode {
+            figment = figment.merge(("tenant.dev_mode", true));
+        }
+        if let Some(tenant_id) = args.tenant_id.clone() {
+            figment = figment.merge(("tenant.tenant_id", tenant_id));
+        }
 
         figment.extract()
     }
@@ -133,4 +152,6 @@ pub struct CliArgs {
     pub broker_host: Option<String>,
     pub broker_port: Option<u16>,
     pub optimizer_url: Option<String>,
+    pub dev_mode: bool,
+    pub tenant_id: Option<String>,
 }

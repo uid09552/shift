@@ -9,6 +9,8 @@ import {
   CalendarTableCellData,
   CalendarTableDay,
   CalendarTableCellClickEvent,
+  CalendarTableCellContextMenuEvent,
+  CalendarTableRowContextMenuEvent,
 } from '../../../shared/components/ui/calendar-table/calendar-table.component';
 import {
   PlannerService,
@@ -28,9 +30,10 @@ import {
   Employee,
 } from '../../../shared/services/employee.service';
 import { GlobalSearchService } from '../../../shared/services/global-search.service';
-import {
-  ConfirmedShiftPlanService,
-} from '../../../shared/services/confirmed-shift-plan.service';
+import { ShiftService, Shift } from '../../../shared/services/shift.service';
+import { WorkstationService, Workstation } from '../../../shared/services/workstation.service';
+import { ContextMenuService, ContextMenuItem } from '../../../shared/components/ui/context-menu/context-menu.service';
+import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
 
 interface DayInfo {
   date: Date;
@@ -119,17 +122,40 @@ export class SchedulerComponent implements OnInit, OnDestroy {
 
   readonly DAY_NAMES_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+  // ── Editing the proposed schedule ────────────────────────────────
+  shifts: Shift[] = [];
+  workstations: Workstation[] = [];
+  savingSchedule = false;
+
+  // Mass selection (employee view rows) for bulk edit operations
+  editSelectedIds = new Set<string>();
+
+  // Edit assignment modal
+  showEditAssignment = false;
+  editingAssignment: {
+    employeeId: string;
+    employeeName: string;
+    date: string;
+    status: 'assigned' | 'free' | 'unassigned';
+    shiftId: string | null;
+    workstationId: string | null;
+  } | null = null;
+
   constructor(
     private plannerService: PlannerService,
     private employeeService: EmployeeService,
     private globalSearchService: GlobalSearchService,
-    private confirmedShiftPlanService: ConfirmedShiftPlanService,
+    private shiftService: ShiftService,
+    private workstationService: WorkstationService,
+    private contextMenuService: ContextMenuService,
+    private confirmDialogService: ConfirmDialogService,
   ) {}
 
   ngOnInit(): void {
     this.computeDays();
     this.loadLatestResult();
     this.loadEmployees();
+    this.loadShiftsAndWorkstations();
     this.startTaskListPolling();
     this.searchSub = this.globalSearchService.searchTerm.subscribe(term => {
       this.currentSearchTerm = term;
@@ -244,6 +270,19 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     });
   }
 
+  loadShiftsAndWorkstations(): void {
+    forkJoin({
+      shifts: this.shiftService.getShifts(),
+      workstations: this.workstationService.getWorkstations(),
+    }).subscribe({
+      next: ({ shifts, workstations }) => {
+        this.shifts = shifts;
+        this.workstations = workstations;
+      },
+      error: (e) => console.error('Error loading shifts/workstations:', e),
+    });
+  }
+
   setResult(result: OptimizedShiftResultResponse): void {
     this.selectedResult = result;
     this.scheduleData = result.result.schedule || [];
@@ -322,6 +361,7 @@ export class SchedulerComponent implements OnInit, OnDestroy {
               shiftName: shift.shift_name,
               shiftColor: this.getShiftColor(this.shiftColorMap.get(shift.shift_id) ?? 0),
               employeeNames: assignments.map(a => a.employee_name),
+              assignments: assignments.map(a => ({ employeeId: a.employee_id, employeeName: a.employee_name })),
             });
           }
         }
@@ -357,6 +397,17 @@ export class SchedulerComponent implements OnInit, OnDestroy {
               shiftName: entry.shift_name ?? '',
               shiftColor: this.getShiftColor(colorIdx),
               employeeNames: entry.workstation_name ? [entry.workstation_name] : [],
+              assignments: [{ employeeId: ep.employee_id, employeeName: ep.employee_name }],
+            }],
+          });
+        } else if (entry.status === 'free') {
+          dateMap.set(entry.date, {
+            groups: [{
+              shiftId: 'free',
+              shiftName: 'Free',
+              shiftColor: '#9CA3AF',
+              employeeNames: [],
+              assignments: [{ employeeId: ep.employee_id, employeeName: ep.employee_name }],
             }],
           });
         }
@@ -513,82 +564,27 @@ export class SchedulerComponent implements OnInit, OnDestroy {
 
   // ── Take as plan ─────────────────────────────────────────────────
 
-  takeAsPlan(): void {
+  /**
+   * Takes the (optionally edited) result as the confirmed plan. Pass employeeIds to scope
+   * to a single user or a mass selection. The actual reassignment (deleting existing plans
+   * for the period and creating the new ones) happens server-side in one call/transaction.
+   */
+  takeAsPlan(filterEmployeeIds?: string[]): void {
     if (!this.selectedResult) return;
-
-    const plans: EmployeeDailyPlan[] = (this.selectedResult.result.employee_plans as any[]) || [];
-    if (!plans.length) {
-      this.takePlanError = 'No employee plans in this result.';
-      return;
-    }
-
-    const period = this.selectedResult.result.planning_period;
-    const assignments: { employeeId: string; entry: DailyPlanEntry }[] = [];
-    for (const ep of plans) {
-      for (const entry of ep.daily_plan) {
-        if (entry.status === 'assigned' && entry.shift_id) {
-          assignments.push({ employeeId: ep.employee_id, entry });
-        }
-      }
-    }
-
-    if (!assignments.length) {
-      this.takePlanError = 'No assignments found in this plan.';
-      return;
-    }
 
     this.takingAsPlan = true;
     this.takePlanError = null;
     this.takePlanSuccess = false;
 
-    const employeeIds = [...new Set(plans.map(ep => ep.employee_id))];
-
-    // Load existing plans for all employees in the period, delete them, then create new ones
-    forkJoin(
-      employeeIds.map(eid =>
-        this.confirmedShiftPlanService.getEmployeeConfirmedShiftPlans(eid, period.start_date, period.end_date)
-      )
-    ).subscribe({
-      next: (existingByEmployee) => {
-        const deleteObs = existingByEmployee
-          .flat()
-          .map(p => this.confirmedShiftPlanService.deleteConfirmedShiftPlan(p.id));
-
-        const deleteAll$ = deleteObs.length ? forkJoin(deleteObs) : of([]);
-
-        deleteAll$.subscribe({
-          next: () => {
-            const createObs = assignments.map(({ employeeId, entry }) =>
-              this.confirmedShiftPlanService.createConfirmedShiftPlan(employeeId, {
-                shift_id: entry.shift_id ?? undefined,
-                workstation_id: entry.workstation_id ?? undefined,
-                date: entry.date,
-                is_present: true,
-                creation_type: 'automated',
-              })
-            );
-
-            forkJoin(createObs).subscribe({
-              next: () => {
-                this.takingAsPlan = false;
-                this.takePlanSuccess = true;
-                setTimeout(() => { this.takePlanSuccess = false; }, 3000);
-              },
-              error: () => {
-                this.takingAsPlan = false;
-                this.takePlanError = 'Failed to create some shift plans.';
-              },
-            });
-          },
-          error: () => {
-            this.takingAsPlan = false;
-            this.takePlanError = 'Failed to delete existing plans before overwrite.';
-          },
-        });
-      },
-      error: () => {
+    this.plannerService.takeAsPlan(this.selectedResult.id, filterEmployeeIds).subscribe({
+      next: () => {
         this.takingAsPlan = false;
-        this.takePlanError = 'Failed to load existing plans.';
+        this.takePlanSuccess = true;
+        setTimeout(() => { this.takePlanSuccess = false; }, 3000);
+      },
+      error: (err) => {
+        this.takingAsPlan = false;
+        this.takePlanError = err?.error?.error ?? 'Failed to take this result as the confirmed plan.';
       },
     });
   }
@@ -603,6 +599,297 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   closeCellDetail(): void {
     this.showCellDetail = false;
     this.selectedCellDetail = null;
+  }
+
+  // ── Editing the proposed schedule (right-click context menus) ─────
+
+  private fmtDate(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dd}`;
+  }
+
+  private findDailyPlanEntry(employeeId: string, dateStr: string): DailyPlanEntry | undefined {
+    const plans = (this.selectedResult?.result.employee_plans as EmployeeDailyPlan[] | undefined) ?? [];
+    return plans.find(ep => ep.employee_id === employeeId)?.daily_plan.find(d => d.date === dateStr);
+  }
+
+  onCellContextMenu(evt: CalendarTableCellContextMenuEvent): void {
+    if (!this.selectedResult) return;
+    const dateStr = this.fmtDate(evt.day.date);
+
+    if (this.viewMode === 'employee') {
+      const employeeId = evt.row.id;
+      const employeeName = evt.row.name;
+      const entry = this.findDailyPlanEntry(employeeId, dateStr);
+      const hasAssignment = entry?.status === 'assigned';
+      const isFree = entry?.status === 'free';
+
+      const items: ContextMenuItem[] = [
+        { label: hasAssignment ? 'Edit Assignment' : 'Assign Shift', action: () => this.openEditAssignment(employeeId, employeeName, dateStr) },
+      ];
+      if (hasAssignment) {
+        items.push({ label: 'Mark as Free', action: () => {
+          this.mutateAssignment(employeeId, employeeName, dateStr, { status: 'free', shiftId: null, workstationId: null });
+          this.commitScheduleChange();
+        }});
+        items.push({ label: 'Remove Entry', danger: true, action: () => this.confirmRemoveAssignment(employeeId, employeeName, dateStr) });
+      } else if (isFree) {
+        items.push({ label: 'Clear (Unassign)', action: () => {
+          this.mutateAssignment(employeeId, employeeName, dateStr, { status: 'unassigned', shiftId: null, workstationId: null });
+          this.commitScheduleChange();
+        }});
+      }
+      this.contextMenuService.open(evt.event, items);
+      return;
+    }
+
+    // Workstation view — bulk actions on all assignments visible in this cell
+    const assignments = evt.cell.groups.flatMap(g => g.assignments ?? []);
+    if (assignments.length === 0) return;
+    const uniqueEmployeeIds = [...new Set(assignments.map(a => a.employeeId))];
+    const items: ContextMenuItem[] = [
+      {
+        label: `Take as Plan (${uniqueEmployeeIds.length} employee${uniqueEmployeeIds.length > 1 ? 's' : ''})`,
+        action: () => this.takeAsPlan(uniqueEmployeeIds),
+      },
+      {
+        label: `Remove All in Cell (${assignments.length})`,
+        danger: true,
+        action: () => this.confirmRemoveCellAssignments(assignments, dateStr),
+      },
+    ];
+    this.contextMenuService.open(evt.event, items);
+  }
+
+  onRowContextMenu(evt: CalendarTableRowContextMenuEvent): void {
+    if (this.viewMode !== 'employee' || !this.selectedResult) return;
+    const employeeId = evt.row.id;
+    const employeeName = evt.row.name;
+    const selected = this.editSelectedIds;
+    const isMassSelection = selected.has(employeeId) && selected.size > 1;
+
+    const items: ContextMenuItem[] = isMassSelection
+      ? [
+          { label: `Take as Plan (${selected.size} selected)`, action: () => this.takeAsPlan([...selected]) },
+          { label: `Clear Assignments (${selected.size} selected)`, danger: true, action: () => this.confirmClearEmployees([...selected]) },
+        ]
+      : [
+          { label: `Take as Plan (${employeeName})`, action: () => this.takeAsPlan([employeeId]) },
+          { label: `Clear All Assignments (${employeeName})`, danger: true, action: () => this.confirmClearEmployees([employeeId]) },
+        ];
+    this.contextMenuService.open(evt.event, items);
+  }
+
+  onRowSelectionToggle(rowId: string): void {
+    if (this.editSelectedIds.has(rowId)) this.editSelectedIds.delete(rowId);
+    else this.editSelectedIds.add(rowId);
+  }
+
+  clearEditSelection(): void {
+    this.editSelectedIds.clear();
+  }
+
+  get editSelectedLabel(): string {
+    if (this.editSelectedIds.size === 1) {
+      const id = [...this.editSelectedIds][0];
+      return this.employees.find(e => e.id === id)?.name ?? '1 employee';
+    }
+    return `${this.editSelectedIds.size} employees`;
+  }
+
+  // ── Edit assignment modal ──────────────────────────────────────────
+
+  openEditAssignment(employeeId: string, employeeName: string, dateStr: string): void {
+    const entry = this.findDailyPlanEntry(employeeId, dateStr);
+    this.editingAssignment = {
+      employeeId,
+      employeeName,
+      date: dateStr,
+      status: 'assigned',
+      shiftId: entry?.status === 'assigned' ? (entry.shift_id ?? null) : null,
+      workstationId: entry?.status === 'assigned' ? (entry.workstation_id ?? null) : null,
+    };
+    this.showEditAssignment = true;
+  }
+
+  closeEditAssignment(): void {
+    this.showEditAssignment = false;
+    this.editingAssignment = null;
+  }
+
+  saveEditAssignment(): void {
+    if (!this.editingAssignment) return;
+    const { employeeId, employeeName, date, status, shiftId, workstationId } = this.editingAssignment;
+    if (status === 'assigned' && !shiftId) return;
+
+    this.mutateAssignment(employeeId, employeeName, date, {
+      status,
+      shiftId: status === 'assigned' ? shiftId : null,
+      workstationId: status === 'assigned' ? workstationId : null,
+    });
+    this.commitScheduleChange();
+    this.closeEditAssignment();
+  }
+
+  // ── Mutation + persistence helpers ─────────────────────────────────
+
+  /** Mutates the in-memory employee_plans entry. Call commitScheduleChange() afterwards to rebuild views and persist. */
+  private mutateAssignment(
+    employeeId: string,
+    employeeName: string,
+    dateStr: string,
+    change: { status: 'assigned' | 'free' | 'unassigned'; shiftId: string | null; workstationId: string | null },
+  ): void {
+    if (!this.selectedResult) return;
+    const plans = this.selectedResult.result.employee_plans as EmployeeDailyPlan[];
+    let ep = plans.find(p => p.employee_id === employeeId);
+    if (!ep) {
+      ep = { employee_id: employeeId, employee_name: employeeName, daily_plan: [] };
+      plans.push(ep);
+    }
+
+    const shift = change.shiftId ? this.shifts.find(s => s.id === change.shiftId) : undefined;
+    const workstation = change.workstationId ? this.workstations.find(w => w.id === change.workstationId) : undefined;
+    const newEntry: DailyPlanEntry = {
+      date: dateStr,
+      status: change.status,
+      shift_id: change.status === 'assigned' ? change.shiftId : null,
+      shift_name: change.status === 'assigned' ? (shift?.name ?? null) : null,
+      workstation_id: change.status === 'assigned' ? change.workstationId : null,
+      workstation_name: change.status === 'assigned' ? (workstation?.name ?? null) : null,
+    };
+
+    const entry = ep.daily_plan.find(d => d.date === dateStr);
+    if (entry) {
+      Object.assign(entry, newEntry);
+    } else {
+      ep.daily_plan.push(newEntry);
+    }
+  }
+
+  /** Rebuilds the workstation-centric schedule from employee_plans, refreshes both table views, and persists the edit. */
+  private commitScheduleChange(): void {
+    if (!this.selectedResult) return;
+    this.rebuildScheduleFromEmployeePlans();
+    this.buildTableData();
+    this.buildEmployeeTableData();
+    this.applySearchFilter(this.currentSearchTerm);
+
+    this.savingSchedule = true;
+    this.plannerService.updateOptimizedShift(this.selectedResult.id, this.selectedResult.result).subscribe({
+      next: (updated) => {
+        this.savingSchedule = false;
+        const idx = this.allResults.findIndex(r => r.id === updated.id);
+        if (idx > -1) this.allResults[idx] = updated;
+        if (this.latestResult?.id === updated.id) this.latestResult = updated;
+      },
+      error: () => {
+        this.savingSchedule = false;
+        this.error = 'Failed to save schedule edit.';
+      },
+    });
+  }
+
+  private rebuildScheduleFromEmployeePlans(): void {
+    if (!this.selectedResult) return;
+    const plans = this.selectedResult.result.employee_plans as EmployeeDailyPlan[];
+    interface Bucket { shiftName: string; assignments: ShiftAssignment[]; }
+    const dayMap = new Map<string, Map<string, Bucket>>();
+
+    for (const ep of plans) {
+      for (const entry of ep.daily_plan) {
+        if (entry.status !== 'assigned' || !entry.shift_id || !entry.workstation_id) continue;
+        let shiftMap = dayMap.get(entry.date);
+        if (!shiftMap) { shiftMap = new Map(); dayMap.set(entry.date, shiftMap); }
+        let bucket = shiftMap.get(entry.shift_id);
+        if (!bucket) {
+          bucket = { shiftName: entry.shift_name || this.shifts.find(s => s.id === entry.shift_id)?.name || entry.shift_id, assignments: [] };
+          shiftMap.set(entry.shift_id, bucket);
+        }
+        bucket.assignments.push({
+          date: entry.date,
+          employee_id: ep.employee_id,
+          employee_name: ep.employee_name,
+          workstation_id: entry.workstation_id,
+          workstation_name: entry.workstation_name || this.workstations.find(w => w.id === entry.workstation_id)?.name || '',
+        });
+      }
+    }
+
+    const newSchedule: DaySchedule[] = Array.from(dayMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, shiftMap]) => ({
+        date,
+        weekday: new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' }),
+        shifts: Array.from(shiftMap.entries()).map(([shiftId, bucket]) => ({
+          shift_id: shiftId,
+          shift_name: bucket.shiftName,
+          assigned_dates: bucket.assignments,
+        })),
+      }));
+
+    this.selectedResult.result.schedule = newSchedule;
+    this.scheduleData = newSchedule;
+  }
+
+  private async confirmRemoveAssignment(employeeId: string, employeeName: string, dateStr: string): Promise<void> {
+    const ok = await this.confirmDialogService.confirm({
+      title: 'Remove Assignment',
+      message: `Remove ${employeeName}'s assignment on ${dateStr}?`,
+      confirmLabel: 'Remove',
+      danger: true,
+    });
+    if (!ok) return;
+    this.mutateAssignment(employeeId, employeeName, dateStr, { status: 'unassigned', shiftId: null, workstationId: null });
+    this.commitScheduleChange();
+  }
+
+  private async confirmRemoveCellAssignments(
+    assignments: { employeeId: string; employeeName: string }[],
+    dateStr: string,
+  ): Promise<void> {
+    const ok = await this.confirmDialogService.confirm({
+      title: 'Remove Assignments',
+      message: `Remove ${assignments.length} assignment(s) on ${dateStr}?`,
+      confirmLabel: 'Remove',
+      danger: true,
+    });
+    if (!ok) return;
+    for (const a of assignments) {
+      this.mutateAssignment(a.employeeId, a.employeeName, dateStr, { status: 'unassigned', shiftId: null, workstationId: null });
+    }
+    this.commitScheduleChange();
+  }
+
+  async confirmClearEmployees(employeeIds: string[]): Promise<void> {
+    const label = employeeIds.length === 1
+      ? (this.employees.find(e => e.id === employeeIds[0])?.name ?? '1 employee')
+      : `${employeeIds.length} employees`;
+    const ok = await this.confirmDialogService.confirm({
+      title: 'Clear Assignments',
+      message: `Remove all shift assignments in this plan for ${label}? Free/day-off entries are kept.`,
+      confirmLabel: 'Clear',
+      danger: true,
+    });
+    if (!ok || !this.selectedResult) return;
+
+    const plans = this.selectedResult.result.employee_plans as EmployeeDailyPlan[];
+    for (const ep of plans) {
+      if (!employeeIds.includes(ep.employee_id)) continue;
+      for (const entry of ep.daily_plan) {
+        if (entry.status === 'assigned') {
+          entry.status = 'unassigned';
+          entry.shift_id = null;
+          entry.shift_name = null;
+          entry.workstation_id = null;
+          entry.workstation_name = null;
+        }
+      }
+    }
+    this.commitScheduleChange();
+    this.editSelectedIds.clear();
   }
 
   formatModalDate(date: Date): string {

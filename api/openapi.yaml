@@ -31,6 +31,8 @@ tags:
     description: Confirmed shift plan management endpoints per employee
   - name: Analysis
     description: Analysis and summary endpoints for shift planning data
+  - name: Audit Logs
+    description: Audit log events for user/config changes and optimizer runs
 
 paths:
   /employees:
@@ -1229,6 +1231,37 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+    put:
+      tags:
+        - Planner
+      summary: Update a specific optimized shift result
+      description: Overwrites the stored proposed schedule for a specific optimization result. Used to persist manual edits made in the scheduler UI (single-assignment changes, mass operations) before taking the schedule as a confirmed plan.
+      operationId: updateOptimizedShift
+      parameters:
+        - name: resultId
+          in: path
+          required: true
+          description: The ID of the optimized shift result to update
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskResultDto'
+      responses:
+        '200':
+          description: Updated optimized shift result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptimizedShiftResultResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
     delete:
       tags:
         - Planner
@@ -1246,6 +1279,60 @@ paths:
       responses:
         '204':
           description: Optimized shift result deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /planner/optimized-shifts/{resultId}/take-as-plan:
+    post:
+      tags:
+        - Planner
+      summary: Take an optimized result as the confirmed shift plan
+      description: Overwrites the confirmed shift plans for this result's planning period with its assignments and free days, optionally scoped to a subset of employees. Runs entirely server-side in one transaction (delete existing plans in the period + bulk upsert the new ones) instead of requiring the client to issue a per-employee load, per-entry delete, and per-entry create sequence of calls.
+      operationId: takeOptimizedShiftAsPlan
+      parameters:
+        - name: resultId
+          in: path
+          required: true
+          description: The ID of the optimized shift result to take as the confirmed plan
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                employee_ids:
+                  type: array
+                  description: Restrict the operation to these employees. Omit or leave empty to apply to every employee in the result.
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '200':
+          description: Confirmed shift plans replaced successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - employee_count
+                  - created
+                properties:
+                  employee_count:
+                    type: integer
+                    description: Number of employees the operation was applied to
+                    example: 12
+                  created:
+                    type: integer
+                    description: Number of confirmed shift plan rows created/updated
+                    example: 156
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -1624,6 +1711,62 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/WorkstationDailyEmployees'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /audit-logs:
+    get:
+      tags:
+        - Audit Logs
+      summary: List audit log events
+      description: Returns audit log events for the current tenant, most recent first. Events are recorded for employee add/remove, configuration changes (shifts, workstations, capabilities), and scheduler optimize requests. Supports optional filtering by action, entity_type, and a from_date/to_date range, plus pagination.
+      operationId: listAuditLogs
+      parameters:
+        - name: action
+          in: query
+          required: false
+          description: "Filter by exact action, e.g. employee.create, shift.update, planner.optimize"
+          schema:
+            type: string
+        - name: entity_type
+          in: query
+          required: false
+          description: "Filter by entity type, e.g. employee, shift, workstation, capability, planning_task"
+          schema:
+            type: string
+        - name: from_date
+          in: query
+          required: false
+          description: Only include events at or after this date/time. Accepts YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS.
+          schema:
+            type: string
+        - name: to_date
+          in: query
+          required: false
+          description: Only include events at or before this date/time. Accepts YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Paginated list of audit log events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAuditLogsResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
@@ -2253,10 +2396,8 @@ components:
       required:
         - id
         - name
-        - start_time
-        - end_time
-        - weekdays
         - is_night_shift
+        - weekday_times
       properties:
         id:
           type: string
@@ -2265,24 +2406,48 @@ components:
           type: string
           description: Shift name
           example: "Morning (8:00 - 16:00)"
-        start_time:
-          type: string
-          description: Shift start time
-          example: "06:00"
-        end_time:
-          type: string
-          description: Shift end time
-          example: "14:00"
-        weekdays:
-          type: array
-          items:
-            type: string
-          description: List of weekday numbers this shift applies to
-          example: ["0", "1", "2", "3", "4"]
         is_night_shift:
           type: boolean
           description: Whether this is a night shift
           example: false
+        weekday_times:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShiftWeekdayTimeTask'
+          description: Per-weekday time and staffing configuration for this shift
+
+    ShiftWeekdayTimeTask:
+      type: object
+      required:
+        - weekday
+        - start_time
+        - end_time
+        - min_employees
+      properties:
+        weekday:
+          type: string
+          description: Weekday number this entry applies to ('0'=Monday ... '6'=Sunday)
+          example: "0"
+        start_time:
+          type: string
+          description: Shift start time on this weekday
+          example: "06:00"
+        end_time:
+          type: string
+          description: Shift end time on this weekday
+          example: "14:00"
+        min_employees:
+          type: integer
+          description: Minimum employees required for this shift on this weekday
+          example: 1
+        max_employees:
+          type: integer
+          nullable: true
+          description: Maximum employees allowed for this shift on this weekday (null = unlimited)
+        free_days_after_shift:
+          type: integer
+          description: Number of consecutive rest days required after working this shift on this weekday
+          example: 0
 
     WorkstationTask:
       type: object
@@ -2480,12 +2645,14 @@ components:
           example: true
         absence_type:
           type: string
-          description: "Type of absence when is_present is false. One of: sick, day_off, holiday, unknown"
+          description: "Type of absence when is_present is false. One of: sick, day_off, holiday, unknown, unavailable, free"
           enum:
             - sick
             - day_off
             - holiday
             - unknown
+            - unavailable
+            - free
           nullable: true
           example: null
         creation_type:
@@ -2534,12 +2701,14 @@ components:
           example: true
         absence_type:
           type: string
-          description: "Type of absence when is_present is false. Required when is_present is false. One of: sick, day_off, holiday, unknown"
+          description: "Type of absence when is_present is false. Required when is_present is false. One of: sick, day_off, holiday, unknown, unavailable, free"
           enum:
             - sick
             - day_off
             - holiday
             - unknown
+            - unavailable
+            - free
           nullable: true
           example: null
         creation_type:
@@ -2570,12 +2739,14 @@ components:
           nullable: true
         absence_type:
           type: string
-          description: "Type of absence when is_present is false. One of: sick, day_off, holiday, unknown"
+          description: "Type of absence when is_present is false. One of: sick, day_off, holiday, unknown, unavailable, free"
           enum:
             - sick
             - day_off
             - holiday
             - unknown
+            - unavailable
+            - free
           nullable: true
         creation_type:
           type: string
@@ -2661,11 +2832,69 @@ components:
           items:
             $ref: '#/components/schemas/EmployeeSummary'
           description: Per-employee summary across the planning period
+        employee_plans:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmployeeDailyPlan'
+          description: Per-employee daily plan covering every day in the planning period for every employee
         message:
           type: string
           nullable: true
           description: Optional message from the optimizer
           example: null
+
+    EmployeeDailyPlan:
+      type: object
+      required:
+        - employee_id
+        - employee_name
+        - daily_plan
+      properties:
+        employee_id:
+          type: string
+          description: Employee identifier
+        employee_name:
+          type: string
+          description: Employee name
+        daily_plan:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyPlanEntry'
+          description: One entry per day in the planning period
+
+    DailyPlanEntry:
+      type: object
+      required:
+        - date
+        - status
+      properties:
+        date:
+          type: string
+          description: Date of the entry (YYYY-MM-DD)
+          example: "2026-06-09"
+        status:
+          type: string
+          description: "Either 'assigned' (with shift + workstation details) or 'free' (no shift planned for that day)"
+          enum:
+            - assigned
+            - free
+          example: "assigned"
+        shift_id:
+          type: string
+          nullable: true
+          description: Shift identifier (only set when status is 'assigned')
+        shift_name:
+          type: string
+          nullable: true
+          description: Shift name (only set when status is 'assigned')
+        workstation_id:
+          type: string
+          nullable: true
+          description: Workstation identifier (only set when status is 'assigned')
+        workstation_name:
+          type: string
+          nullable: true
+          description: Workstation name (only set when status is 'assigned')
 
     PlanningPeriodResult:
       type: object
@@ -2875,6 +3104,72 @@ components:
           format: int64
           description: Number of employees planned for this workstation on this date
           example: 2
+
+    AuditLog:
+      type: object
+      required:
+        - id
+        - action
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the audit log event
+        actor:
+          type: string
+          description: Identity of the user who made the request (preferred_username, email, or sub from the OIDC token), if available
+          nullable: true
+          example: "jane.doe"
+        action:
+          type: string
+          description: "The event type, e.g. employee.create, employee.delete, shift.update, workstation.delete, capability.create, planner.optimize"
+          example: "employee.create"
+        entity_type:
+          type: string
+          description: "Type of entity affected, e.g. employee, shift, workstation, capability, planning_task"
+          nullable: true
+          example: "employee"
+        entity_id:
+          type: string
+          description: ID of the affected entity, if applicable
+          nullable: true
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        changes:
+          type: string
+          description: Freeform description of what changed, typically the JSON request body that triggered the event
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the event was recorded
+          example: "2026-06-12T19:00:00Z"
+
+    PaginatedAuditLogsResponse:
+      type: object
+      required:
+        - data
+        - total
+        - limit
+        - offset
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLog'
+          description: List of audit log events for the current page
+        total:
+          type: integer
+          description: Total number of matching audit log events
+          example: 128
+        limit:
+          type: integer
+          description: Maximum number of results returned
+          example: 50
+        offset:
+          type: integer
+          description: Number of results skipped
+          example: 0
 
   responses:
     BadRequest:

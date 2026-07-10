@@ -8,24 +8,29 @@ use uuid::Uuid;
 use crate::errors::AppError;
 use crate::repository::AppState;
 use crate::repository::domain::CapabilityRepository;
+use crate::services::audit_log::{self, AuditActor};
 use crate::services::employee::PaginationQuery;
+use crate::services::tenant::TenantContext;
 
 pub struct CapabilityService;
 
 impl CapabilityService {
     pub async fn list_capabilities(
+        tenant: TenantContext,
         Query(_q): Query<PaginationQuery>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         let capabilities = state
             .capability_repo
-            .list_capabilities()
+            .list_capabilities(&tenant.0)
             .await
             .map_err(|_| AppError::Internal)?;
         Ok(Json(serde_json::to_value(capabilities).unwrap()))
     }
 
     pub async fn create_capability(
+        tenant: TenantContext,
+        actor: AuditActor,
         State(state): State<AppState>,
         Json(body): Json<Value>,
     ) -> Result<Json<Value>, AppError> {
@@ -36,38 +41,62 @@ impl CapabilityService {
 
         let capability = state
             .capability_repo
-            .create_capability(name)
-            .await
-            .map_err(|e| match e.downcast_ref::<AppError>() {
-                Some(AppError::Duplicate) => AppError::Duplicate,
-                _ => AppError::Internal,
-            })?;
+            .create_capability(&tenant.0, name)
+            .await?;
+
+        audit_log::record(&state, &tenant.0, actor.0, "capability.create", "capability", Some(capability.id.to_string()), Some(body.to_string())).await;
 
         Ok(Json(serde_json::to_value(capability).unwrap()))
     }
 
     pub async fn get_capability_by_id(
+        tenant: TenantContext,
         Path(capability_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         let capability = state
             .capability_repo
-            .get_capability(capability_id)
+            .get_capability(&tenant.0, capability_id)
             .await
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
         Ok(Json(serde_json::to_value(capability).unwrap()))
     }
 
+    pub async fn update_capability(
+        tenant: TenantContext,
+        actor: AuditActor,
+        Path(capability_id): Path<Uuid>,
+        State(state): State<AppState>,
+        Json(body): Json<Value>,
+    ) -> Result<Json<Value>, AppError> {
+        let name = body
+            .get("name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| AppError::Validation("Missing 'name'".into()))?;
+
+        let capability = state
+            .capability_repo
+            .update_capability(&tenant.0, capability_id, name)
+            .await?;
+
+        audit_log::record(&state, &tenant.0, actor.0, "capability.update", "capability", Some(capability_id.to_string()), Some(body.to_string())).await;
+
+        Ok(Json(serde_json::to_value(capability).unwrap()))
+    }
+
     pub async fn delete_capability(
+        tenant: TenantContext,
+        actor: AuditActor,
         Path(capability_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         state
             .capability_repo
-            .delete_capability(capability_id)
+            .delete_capability(&tenant.0, capability_id)
             .await
             .map_err(|_| AppError::Internal)?;
+        audit_log::record(&state, &tenant.0, actor.0, "capability.delete", "capability", Some(capability_id.to_string()), None).await;
         Ok(Json(serde_json::json!({ "message": "Capability deleted successfully" })))
     }
 }

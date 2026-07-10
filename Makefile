@@ -37,14 +37,15 @@ run:
 	cargo run
 
 # Run your CLI serve command with optional args
-# Usage: make serve PORT=3000 LISTEN=0.0.0.0 VERBOSE=1 DEV=1
+# Usage: make serve PORT=3000 LISTEN=0.0.0.0 VERBOSE=1 DEV=1 TENANT_ID=0
 .PHONY: serve
 serve:
 	cargo run -- serve \
 		$(if $(PORT),--port $(PORT),) \
 		$(if $(LISTEN),--listen $(LISTEN),) \
 		$(if $(VERBOSE),--verbose,) \
-		$(if $(DEV),--dev,)
+		$(if $(DEV),--dev-mode,) \
+		$(if $(TENANT_ID),--tenant-id $(TENANT_ID),)
 
 .PHONY: ui-serve
 ui-serve:
@@ -86,7 +87,8 @@ dev-run:
 		$(if $(PORT),--port $(PORT),) \
 		$(if $(LISTEN),--listen $(LISTEN),) \
 		$(if $(VERBOSE),--verbose,) \
-		$(if $(DEV),--dev,) & sleep 2s && python3 seed_data_v2.py $(SEED_URL); wait
+		$(if $(DEV),--dev-mode,) \
+		$(if $(TENANT_ID),--tenant-id $(TENANT_ID),) & sleep 2s && python3 seed_data_v2.py $(SEED_URL); wait
 
 .PHONY: build-compose
 build-compose:

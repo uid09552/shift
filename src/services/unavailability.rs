@@ -10,6 +10,7 @@ use uuid::Uuid;
 use crate::errors::AppError;
 use crate::repository::AppState;
 use crate::repository::domain::{ConfirmedShiftPlan, ConfirmedShiftPlanRepository, Unavailability, UnavailabilityRepository};
+use crate::services::tenant::TenantContext;
 use chrono::Utc;
 
 #[derive(Deserialize)]
@@ -25,19 +26,20 @@ pub struct UnavailabilityService;
 
 impl UnavailabilityService {
     pub async fn list_unavailabilities(
+        tenant: TenantContext,
         Query(q): Query<ListUnavailabilitiesQuery>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         let unavailabilities = if let Some(employee_id) = q.employee_id {
             state
                 .unavailability_repo
-                .get_unavailabilities_for_employee(employee_id)
+                .get_unavailabilities_for_employee(&tenant.0, employee_id)
                 .await
                 .map_err(|_| AppError::Internal)?
         } else {
             state
                 .unavailability_repo
-                .list_unavailabilities()
+                .list_unavailabilities(&tenant.0)
                 .await
                 .map_err(|_| AppError::Internal)?
         };
@@ -60,6 +62,7 @@ impl UnavailabilityService {
     }
 
     pub async fn create_unavailability(
+        tenant: TenantContext,
         State(state): State<AppState>,
         Json(body): Json<Value>,
     ) -> Result<Json<Value>, AppError> {
@@ -94,7 +97,7 @@ impl UnavailabilityService {
 
         let created = state
             .unavailability_repo
-            .create_unavailability(unavailability)
+            .create_unavailability(&tenant.0, unavailability)
             .await
             .map_err(|_| AppError::Internal)?;
 
@@ -115,19 +118,20 @@ impl UnavailabilityService {
         };
         let _ = state
             .confirmed_shift_plan_repo
-            .create_confirmed_shift_plan(plan)
+            .create_confirmed_shift_plan(&tenant.0, plan)
             .await;  // best-effort; don't fail the main request if sync fails
 
         Ok(Json(serde_json::to_value(created).unwrap()))
     }
 
     pub async fn get_unavailability_by_id(
+        tenant: TenantContext,
         Path(unavailability_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         let unavailability = state
             .unavailability_repo
-            .get_unavailability(unavailability_id)
+            .get_unavailability(&tenant.0, unavailability_id)
             .await
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
@@ -135,20 +139,21 @@ impl UnavailabilityService {
     }
 
     pub async fn delete_unavailability(
+        tenant: TenantContext,
         Path(unavailability_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         // Fetch first so we can cascade-delete the mirrored confirmed plan entry.
         let unavailability = state
             .unavailability_repo
-            .get_unavailability(unavailability_id)
+            .get_unavailability(&tenant.0, unavailability_id)
             .await
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
 
         state
             .unavailability_repo
-            .delete_unavailability(unavailability_id)
+            .delete_unavailability(&tenant.0, unavailability_id)
             .await
             .map_err(|_| AppError::Internal)?;
 
@@ -156,6 +161,7 @@ impl UnavailabilityService {
         let _ = state
             .confirmed_shift_plan_repo
             .delete_confirmed_shift_plans_for_employee_date_type(
+                &tenant.0,
                 unavailability.employee_id,
                 unavailability.unavailable_date,
                 "unavailable",

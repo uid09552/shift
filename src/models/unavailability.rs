@@ -12,6 +12,7 @@ pub struct Unavailability {
     pub employee_id: Uuid,
     pub unavailable_date: NaiveDate,
     pub shift_id: Option<Uuid>,
+    pub tenant_id: String,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
@@ -20,4 +21,5 @@ pub struct NewUnavailability {
     pub employee_id: Uuid,
     pub unavailable_date: NaiveDate,
     pub shift_id: Option<Uuid>,
+    pub tenant_id: String,
 }

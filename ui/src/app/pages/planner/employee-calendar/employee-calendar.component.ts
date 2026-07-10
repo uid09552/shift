@@ -293,7 +293,7 @@ export class EmployeeCalendarComponent implements OnInit {
           source: 'unavailability',
         }));
         const absenceEntries: LeaveEntry[] = plans
-          .filter(p => !p.is_present && p.absence_type !== 'unavailable')
+          .filter(p => !p.is_present && p.absence_type !== 'unavailable' && p.absence_type !== 'free')
           .map(p => ({
             id: p.id,
             date: p.date,
@@ -770,6 +770,7 @@ export class EmployeeCalendarComponent implements OnInit {
         } else if (day.plan && !day.plan.is_present) {
           const absLabel = day.plan.absence_type === 'day_off' ? 'Vacation'
             : day.plan.absence_type === 'sick' ? 'Sick Leave'
+            : day.plan.absence_type === 'free' ? 'Free'
             : day.plan.absence_type ?? 'Absent';
           html += `<tr class="absent"><td>${dateStr}</td><td>${weekday}</td>
             <td>—</td><td>—</td><td>${absLabel}</td></tr>`;

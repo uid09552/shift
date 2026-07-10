@@ -12,6 +12,7 @@ pub struct EmployeeShiftAssignment {
     pub employee_id: Uuid,
     pub shift_id: Uuid,
     pub date: NaiveDate,
+    pub tenant_id: String,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
@@ -20,4 +21,5 @@ pub struct NewEmployeeShiftAssignment {
     pub employee_id: Uuid,
     pub shift_id: Uuid,
     pub date: NaiveDate,
+    pub tenant_id: String,
 }

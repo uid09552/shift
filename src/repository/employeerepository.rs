@@ -36,56 +36,61 @@ pub struct DieselEmployeeRepository {
 #[async_trait]
 impl EmployeeRepository for DieselEmployeeRepository {
     async fn create_employee(
-    &self,
-    name: &str,
-    email: &str,
-    monthly_working_hours: f64,
+        &self,
+        tenant_id: &str,
+        name: &str,
+        email: &str,
+        monthly_working_hours: f64,
     ) -> Result<Employee, AppError> {
-    let name = name.to_string();
-    let email = email.to_string();
-    let pool = Arc::clone(&self.pool);
+        let tenant_id = tenant_id.to_string();
+        let name = name.to_string();
+        let email = email.to_string();
+        let pool = Arc::clone(&self.pool);
 
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
 
-        let new_employee = NewEmployee { name: &name, email: &email, monthly_working_hours };
+            let new_employee = NewEmployee { name: &name, email: &email, monthly_working_hours, tenant_id: &tenant_id };
 
-        diesel::insert_into(employees::table)
-            .values(&new_employee)
-            .get_result::<models::Employee>(&mut conn)
+            diesel::insert_into(employees::table)
+                .values(&new_employee)
+                .get_result::<models::Employee>(&mut conn)
                 .map_err(|e| match e {
                     DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => AppError::Duplicate,
                     DieselError::NotFound => AppError::NotFound,
                     _ => AppError::DbError,
                 })
-            .map(|e| Employee {
-                id: e.id,
-                name: e.name,
-                email: e.email,
-                monthly_working_hours: e.monthly_working_hours,
-                available_shifts: vec![],
-                capabilities: vec![],
-            })
-    })
-    .await
-    .map_err(|_| AppError::Internal)?
-}
+                .map(|e| Employee {
+                    id: e.id,
+                    name: e.name,
+                    email: e.email,
+                    monthly_working_hours: e.monthly_working_hours,
+                    available_shifts: vec![],
+                    capabilities: vec![],
+                })
+        })
+        .await
+        .map_err(|_| AppError::Internal)?
+    }
 
-    async fn get_employee(&self, id: Uuid) -> Result<Option<Employee>, AppError> {
+    async fn get_employee(&self, tenant_id: &str, id: Uuid) -> Result<Option<Employee>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let employee = employees::table
-                .find(id)
+                .filter(employees::id.eq(id))
+                .filter(employees::tenant_id.eq(&tenant_id))
                 .first::<models::Employee>(&mut conn)
                 .optional()
-            .map_err(|_| AppError::DbError)?;
+                .map_err(|_| AppError::DbError)?;
 
             match employee {
                 Some(e) => {
                     // Load available shifts
                     let available_shifts = employee_available_shifts::table
                         .filter(employee_available_shifts::employee_id.eq(id))
+                        .filter(employee_available_shifts::tenant_id.eq(&tenant_id))
                         .inner_join(shifts::table)
                         .select(shifts::all_columns)
                         .load::<models::Shift>(&mut conn)
@@ -99,6 +104,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
                     // Load capabilities
                     let capabilities = employee_capabilities::table
                         .filter(employee_capabilities::employee_id.eq(id))
+                        .filter(employee_capabilities::tenant_id.eq(&tenant_id))
                         .inner_join(capabilities::table)
                         .select(capabilities::all_columns)
                         .load::<models::Capability>(&mut conn)
@@ -124,22 +130,25 @@ impl EmployeeRepository for DieselEmployeeRepository {
         .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn get_employee_by_email(&self, email: &str) -> Result<Option<Employee>, AppError> {
+    async fn get_employee_by_email(&self, tenant_id: &str, email: &str) -> Result<Option<Employee>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let email = email.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let employee = employees::table
                 .filter(employees::email.eq(&email))
+                .filter(employees::tenant_id.eq(&tenant_id))
                 .first::<models::Employee>(&mut conn)
                 .optional()
-            .map_err(|_| AppError::DbError)?;
+                .map_err(|_| AppError::DbError)?;
 
             match employee {
                 Some(e) => {
                     // Load available shifts
                     let available_shifts = employee_available_shifts::table
                         .filter(employee_available_shifts::employee_id.eq(e.id))
+                        .filter(employee_available_shifts::tenant_id.eq(&tenant_id))
                         .inner_join(shifts::table)
                         .select(shifts::all_columns)
                          .load::<models::Shift>(&mut conn)
@@ -153,6 +162,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
                     // Load capabilities
                     let capabilities = employee_capabilities::table
                         .filter(employee_capabilities::employee_id.eq(e.id))
+                        .filter(employee_capabilities::tenant_id.eq(&tenant_id))
                         .inner_join(capabilities::table)
                         .select(capabilities::all_columns)
                          .load::<models::Capability>(&mut conn)
@@ -178,11 +188,12 @@ impl EmployeeRepository for DieselEmployeeRepository {
         .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn list_employees(&self, limit: Option<i64>, offset: Option<i64>) -> Result<Vec<Employee>, AppError> {
+    async fn list_employees(&self, tenant_id: &str, limit: Option<i64>, offset: Option<i64>) -> Result<Vec<Employee>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
-            let mut query = employees::table.into_boxed();
+            let mut query = employees::table.filter(employees::tenant_id.eq(&tenant_id)).into_boxed();
 
             if let Some(l) = limit {
                 query = query.limit(l);
@@ -193,13 +204,14 @@ impl EmployeeRepository for DieselEmployeeRepository {
 
             let employees_list = query
                 .load::<models::Employee>(&mut conn)
-            .map_err(|_| AppError::DbError)?;
+                .map_err(|_| AppError::DbError)?;
 
             let mut result = vec![];
             for e in employees_list {
                 // Similar to get_employee, load shifts and capabilities
                 let available_shifts = employee_available_shifts::table
                     .filter(employee_available_shifts::employee_id.eq(e.id))
+                    .filter(employee_available_shifts::tenant_id.eq(&tenant_id))
                     .inner_join(shifts::table)
                     .select(shifts::all_columns)
                      .load::<models::Shift>(&mut conn)
@@ -212,6 +224,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
 
                 let capabilities = employee_capabilities::table
                     .filter(employee_capabilities::employee_id.eq(e.id))
+                    .filter(employee_capabilities::tenant_id.eq(&tenant_id))
                     .inner_join(capabilities::table)
                     .select(capabilities::all_columns)
                      .load::<models::Capability>(&mut conn)
@@ -236,7 +249,8 @@ impl EmployeeRepository for DieselEmployeeRepository {
         .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn list_employees_by_ids(&self, ids: &[Uuid]) -> Result<Vec<Employee>, AppError> {
+    async fn list_employees_by_ids(&self, tenant_id: &str, ids: &[Uuid]) -> Result<Vec<Employee>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         let ids = ids.to_vec();
         task::spawn_blocking(move || {
@@ -244,6 +258,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
 
             let employees_list = employees::table
                 .filter(employees::id.eq_any(&ids))
+                .filter(employees::tenant_id.eq(&tenant_id))
                 .load::<models::Employee>(&mut conn)
                 .map_err(|_| AppError::DbError)?;
 
@@ -252,6 +267,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
                 // Load available shifts
                 let available_shifts = employee_available_shifts::table
                     .filter(employee_available_shifts::employee_id.eq(e.id))
+                    .filter(employee_available_shifts::tenant_id.eq(&tenant_id))
                     .inner_join(shifts::table)
                     .select(shifts::all_columns)
                     .load::<models::Shift>(&mut conn)
@@ -265,6 +281,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
                 // Load capabilities
                 let capabilities = employee_capabilities::table
                     .filter(employee_capabilities::employee_id.eq(e.id))
+                    .filter(employee_capabilities::tenant_id.eq(&tenant_id))
                     .inner_join(capabilities::table)
                     .select(capabilities::all_columns)
                     .load::<models::Capability>(&mut conn)
@@ -289,11 +306,13 @@ impl EmployeeRepository for DieselEmployeeRepository {
         .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn count_employees(&self) -> Result<i64, AppError> {
+    async fn count_employees(&self, tenant_id: &str) -> Result<i64, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let count = employees::table
+                .filter(employees::tenant_id.eq(&tenant_id))
                 .count()
                 .get_result(&mut conn)
                 .map_err(|_| AppError::DbError)?;
@@ -302,13 +321,15 @@ impl EmployeeRepository for DieselEmployeeRepository {
         .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn get_employee_capabilities(&self, employee_id: Uuid) -> Result<Vec<Capability>, AppError> {
+    async fn get_employee_capabilities(&self, tenant_id: &str, employee_id: Uuid) -> Result<Vec<Capability>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
 
             let capabilities = employee_capabilities::table
                 .filter(employee_capabilities::employee_id.eq(employee_id))
+                .filter(employee_capabilities::tenant_id.eq(&tenant_id))
                 .inner_join(capabilities::table)
                 .select(capabilities::all_columns)
                 .load::<models::Capability>(&mut conn)
@@ -322,23 +343,24 @@ impl EmployeeRepository for DieselEmployeeRepository {
         .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn add_employee_capability(&self, employee_id: Uuid, capability_id: Uuid) -> Result<(), AppError> {
+    async fn add_employee_capability(&self, tenant_id: &str, employee_id: Uuid, capability_id: Uuid) -> Result<(), AppError> {
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
-        let new_employee_capability = NewEmployeeCapability { employee_id, capability_id };
+        let new_employee_capability = NewEmployeeCapability { employee_id, capability_id, tenant_id: tenant_id.to_string() };
 
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             diesel::insert_into(employee_capabilities::table)
                 .values(&new_employee_capability)
                 .execute(&mut conn)
-            .map_err(|_| AppError::DbError)?;
+                .map_err(|_| AppError::DbError)?;
             Ok(())
         })
         .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn update_employee(&self, employee: Employee) -> Result<(), AppError> {
+    async fn update_employee(&self, tenant_id: &str, employee: Employee) -> Result<(), AppError> {
         // Update employee fields (name, email, monthly_working_hours) in DB
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         let emp_id = employee.id;
         let emp_name = employee.name.clone();
@@ -346,11 +368,15 @@ impl EmployeeRepository for DieselEmployeeRepository {
         let emp_monthly_working_hours = employee.monthly_working_hours;
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
-            diesel::update(crate::schema::employees::table.find(emp_id))
+            diesel::update(
+                employees::table
+                    .filter(employees::id.eq(emp_id))
+                    .filter(employees::tenant_id.eq(&tenant_id)),
+            )
                 .set((
-                    crate::schema::employees::name.eq(emp_name),
-                    crate::schema::employees::email.eq(emp_email),
-                    crate::schema::employees::monthly_working_hours.eq(emp_monthly_working_hours),
+                    employees::name.eq(emp_name),
+                    employees::email.eq(emp_email),
+                    employees::monthly_working_hours.eq(emp_monthly_working_hours),
                 ))
                 .execute(&mut conn)
                 .map_err(|_| AppError::DbError)?;
@@ -359,11 +385,16 @@ impl EmployeeRepository for DieselEmployeeRepository {
         .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn delete_employee(&self, id: Uuid) -> Result<(), AppError> {
+    async fn delete_employee(&self, tenant_id: &str, id: Uuid) -> Result<(), AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
-            diesel::delete(employees::table.find(id))
+            diesel::delete(
+                employees::table
+                    .filter(employees::id.eq(id))
+                    .filter(employees::tenant_id.eq(&tenant_id)),
+            )
                 .execute(&mut conn)
                 .map_err(|_| AppError::DbError)?;
             Ok(())
@@ -371,13 +402,15 @@ impl EmployeeRepository for DieselEmployeeRepository {
         .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn get_employee_available_shifts(&self, employee_id: Uuid) -> Result<Vec<Shift>, AppError> {
+    async fn get_employee_available_shifts(&self, tenant_id: &str, employee_id: Uuid) -> Result<Vec<Shift>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
 
             let available_shifts = employee_available_shifts::table
                 .filter(employee_available_shifts::employee_id.eq(employee_id))
+                .filter(employee_available_shifts::tenant_id.eq(&tenant_id))
                 .inner_join(shifts::table)
                 .select(shifts::all_columns)
                 .load::<models::Shift>(&mut conn)
@@ -393,9 +426,9 @@ impl EmployeeRepository for DieselEmployeeRepository {
         .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn add_employee_available_shift(&self, employee_id: Uuid, shift_id: Uuid) -> Result<(), AppError> {
+    async fn add_employee_available_shift(&self, tenant_id: &str, employee_id: Uuid, shift_id: Uuid) -> Result<(), AppError> {
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
-        let new_entry = NewEmployeeAvailableShift { employee_id, shift_id };
+        let new_entry = NewEmployeeAvailableShift { employee_id, shift_id, tenant_id: tenant_id.to_string() };
 
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
@@ -418,66 +451,110 @@ pub struct DieselCapabilityRepository {
 
 #[async_trait]
 impl CapabilityRepository for DieselCapabilityRepository {
-    async fn create_capability(&self, name: &str) -> Result<Capability, Box<dyn std::error::Error + Send + Sync>> {
+    async fn create_capability(&self, tenant_id: &str, name: &str) -> Result<Capability, AppError> {
+        let tenant_id = tenant_id.to_string();
         let name = name.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
-            let new_capability = NewCapability { name: &name };
+            let new_capability = NewCapability { name: &name, tenant_id: &tenant_id };
             diesel::insert_into(capabilities::table)
                 .values(&new_capability)
                 .get_result::<models::Capability>(&mut conn)
                 .map(|c| Capability { id: c.id, name: c.name })
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                .map_err(|e| match e {
+                    DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => AppError::Duplicate,
+                    _ => AppError::DbError,
+                })
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn get_capability(&self, id: Uuid) -> Result<Option<Capability>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn get_capability(&self, tenant_id: &str, id: Uuid) -> Result<Option<Capability>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             capabilities::table
-                .find(id)
+                .filter(capabilities::id.eq(id))
+                .filter(capabilities::tenant_id.eq(&tenant_id))
                 .first::<models::Capability>(&mut conn)
                 .optional()
                 .map(|c: Option<models::Capability>| c.map(|c| Capability { id: c.id, name: c.name }))
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                .map_err(|_| AppError::DbError)
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn list_capabilities(&self) -> Result<Vec<Capability>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn list_capabilities(&self, tenant_id: &str) -> Result<Vec<Capability>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             capabilities::table
+                .filter(capabilities::tenant_id.eq(&tenant_id))
                 .load::<models::Capability>(&mut conn)
                 .map(|caps: Vec<models::Capability>| caps.into_iter().map(|c| Capability { id: c.id, name: c.name }).collect())
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                .map_err(|_| AppError::DbError)
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn delete_capability(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn update_capability(&self, tenant_id: &str, id: Uuid, name: &str) -> Result<Capability, AppError> {
+        let tenant_id = tenant_id.to_string();
+        let name = name.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            diesel::update(
+                capabilities::table
+                    .filter(capabilities::id.eq(id))
+                    .filter(capabilities::tenant_id.eq(&tenant_id)),
+            )
+                .set(capabilities::name.eq(&name))
+                .get_result::<models::Capability>(&mut conn)
+                .map(|c| Capability { id: c.id, name: c.name })
+                .map_err(|e| match e {
+                    DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => AppError::Duplicate,
+                    DieselError::NotFound => AppError::NotFound,
+                    _ => AppError::DbError,
+                })
+        })
+        .await.map_err(|_| AppError::Internal)?
+    }
+
+    async fn delete_capability(&self, tenant_id: &str, id: Uuid) -> Result<(), AppError> {
+        let tenant_id = tenant_id.to_string();
+        let pool: Arc<DbPool> = Arc::clone(&self.pool);
+        task::spawn_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             // First delete all references in employee_capabilities
-            diesel::delete(employee_capabilities::table.filter(employee_capabilities::capability_id.eq(id)))
+            diesel::delete(
+                employee_capabilities::table
+                    .filter(employee_capabilities::capability_id.eq(id))
+                    .filter(employee_capabilities::tenant_id.eq(&tenant_id)),
+            )
                 .execute(&mut conn)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|_| AppError::DbError)?;
             // Delete all references in workstation_required_capabilities
-            diesel::delete(workstation_required_capabilities::table.filter(workstation_required_capabilities::capability_id.eq(id)))
+            diesel::delete(
+                workstation_required_capabilities::table
+                    .filter(workstation_required_capabilities::capability_id.eq(id))
+                    .filter(workstation_required_capabilities::tenant_id.eq(&tenant_id)),
+            )
                 .execute(&mut conn)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|_| AppError::DbError)?;
             // Then delete the capability itself
-            diesel::delete(capabilities::table.find(id))
+            diesel::delete(
+                capabilities::table
+                    .filter(capabilities::id.eq(id))
+                    .filter(capabilities::tenant_id.eq(&tenant_id)),
+            )
                 .execute(&mut conn)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|_| AppError::DbError)?;
             Ok(())
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 }
 
@@ -488,15 +565,16 @@ pub struct DieselUnavailabilityRepository {
 
 #[async_trait]
 impl UnavailabilityRepository for DieselUnavailabilityRepository {
-    async fn create_unavailability(&self, unavailability: Unavailability) -> Result<Unavailability, Box<dyn std::error::Error + Send + Sync>> {
+    async fn create_unavailability(&self, tenant_id: &str, unavailability: Unavailability) -> Result<Unavailability, AppError> {
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         let new_unavailability = NewUnavailability {
             employee_id: unavailability.employee_id,
             unavailable_date: unavailability.unavailable_date,
             shift_id: unavailability.shift_id,
+            tenant_id: tenant_id.to_string(),
         };
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let created = diesel::insert_into(unavailabilities::table)
                 .values(&new_unavailability)
                 .get_result::<models::Unavailability>(&mut conn)
@@ -506,18 +584,23 @@ impl UnavailabilityRepository for DieselUnavailabilityRepository {
                     unavailable_date: u.unavailable_date,
                     shift_id: u.shift_id,
                 })
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|e| match e {
+                    DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => AppError::Duplicate,
+                    _ => AppError::DbError,
+                })?;
             Ok(created)
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn get_unavailability(&self, id: Uuid) -> Result<Option<Unavailability>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn get_unavailability(&self, tenant_id: &str, id: Uuid) -> Result<Option<Unavailability>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             unavailabilities::table
-                .find(id)
+                .filter(unavailabilities::id.eq(id))
+                .filter(unavailabilities::tenant_id.eq(&tenant_id))
                 .first::<models::Unavailability>(&mut conn)
                 .optional()
                 .map(|u: Option<models::Unavailability>| u.map(|u| Unavailability {
@@ -526,16 +609,18 @@ impl UnavailabilityRepository for DieselUnavailabilityRepository {
                     unavailable_date: u.unavailable_date,
                     shift_id: u.shift_id,
                 }))
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                .map_err(|_| AppError::DbError)
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn list_unavailabilities(&self) -> Result<Vec<Unavailability>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn list_unavailabilities(&self, tenant_id: &str) -> Result<Vec<Unavailability>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             unavailabilities::table
+                .filter(unavailabilities::tenant_id.eq(&tenant_id))
                 .load::<models::Unavailability>(&mut conn)
                 .map(|unavs: Vec<models::Unavailability>| unavs.into_iter().map(|u| Unavailability {
                     id: u.id,
@@ -543,17 +628,19 @@ impl UnavailabilityRepository for DieselUnavailabilityRepository {
                     unavailable_date: u.unavailable_date,
                     shift_id: u.shift_id,
                 }).collect())
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                .map_err(|_| AppError::DbError)
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn get_unavailabilities_for_employee(&self, employee_id: Uuid) -> Result<Vec<Unavailability>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn get_unavailabilities_for_employee(&self, tenant_id: &str, employee_id: Uuid) -> Result<Vec<Unavailability>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             unavailabilities::table
                 .filter(unavailabilities::employee_id.eq(employee_id))
+                .filter(unavailabilities::tenant_id.eq(&tenant_id))
                 .load::<models::Unavailability>(&mut conn)
                 .map(|unavs: Vec<models::Unavailability>| unavs.into_iter().map(|u| Unavailability {
                     id: u.id,
@@ -561,21 +648,26 @@ impl UnavailabilityRepository for DieselUnavailabilityRepository {
                     unavailable_date: u.unavailable_date,
                     shift_id: u.shift_id,
                 }).collect())
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                .map_err(|_| AppError::DbError)
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn delete_unavailability(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn delete_unavailability(&self, tenant_id: &str, id: Uuid) -> Result<(), AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
-            diesel::delete(unavailabilities::table.find(id))
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            diesel::delete(
+                unavailabilities::table
+                    .filter(unavailabilities::id.eq(id))
+                    .filter(unavailabilities::tenant_id.eq(&tenant_id)),
+            )
                 .execute(&mut conn)
                 .map_err(|_| AppError::DbError)?;
             Ok(())
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 }
 
@@ -586,13 +678,14 @@ pub struct DieselWorkstationRepository {
 
 #[async_trait]
 impl crate::repository::domain::WorkstationRepository for DieselWorkstationRepository {
-    async fn create_workstation(&self, name: &str, available: bool, active_shift_ids: Vec<Uuid>, priority: &str, min_employees: i16, max_employees: Option<i16>) -> Result<crate::repository::domain::Workstation, Box<dyn std::error::Error + Send + Sync>> {
+    async fn create_workstation(&self, tenant_id: &str, name: &str, available: bool, active_shift_ids: Vec<Uuid>, priority: &str, min_employees: i16, max_employees: Option<i16>) -> Result<crate::repository::domain::Workstation, AppError> {
+        let tenant_id = tenant_id.to_string();
         let name = name.to_string();
         let priority = priority.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
-            let new_workstation = NewWorkstation { name: &name, available, active_shift_ids, priority: &priority, min_employees, max_employees };
+            let new_workstation = NewWorkstation { name: &name, available, active_shift_ids, priority: &priority, min_employees, max_employees, tenant_id: &tenant_id };
             diesel::insert_into(workstations::table)
                 .values(&new_workstation)
                 .get_result::<models::Workstation>(&mut conn)
@@ -606,17 +699,19 @@ impl crate::repository::domain::WorkstationRepository for DieselWorkstationRepos
                     min_employees: ws.min_employees,
                     max_employees: ws.max_employees,
                 })
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                .map_err(|_| AppError::DbError)
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn get_workstation(&self, id: Uuid) -> Result<Option<crate::repository::domain::Workstation>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn get_workstation(&self, tenant_id: &str, id: Uuid) -> Result<Option<crate::repository::domain::Workstation>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let workstation = workstations::table
-                .find(id)
+                .filter(workstations::id.eq(id))
+                .filter(workstations::tenant_id.eq(&tenant_id))
                 .first::<models::Workstation>(&mut conn)
                 .optional()
                 .map_err(|_| AppError::DbError)?;
@@ -625,10 +720,11 @@ impl crate::repository::domain::WorkstationRepository for DieselWorkstationRepos
                 Some(ws) => {
                     let required_capabilities = workstation_required_capabilities::table
                         .filter(workstation_required_capabilities::workstation_id.eq(id))
+                        .filter(workstation_required_capabilities::tenant_id.eq(&tenant_id))
                         .inner_join(capabilities::table)
                         .select(capabilities::all_columns)
-                .load::<models::Capability>(&mut conn)
-                .map_err(|_| AppError::DbError)?;
+                        .load::<models::Capability>(&mut conn)
+                        .map_err(|_| AppError::DbError)?;
 
                     let required_capabilities = required_capabilities
                         .into_iter()
@@ -649,21 +745,24 @@ impl crate::repository::domain::WorkstationRepository for DieselWorkstationRepos
                 None => Ok(None),
             }
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn list_workstations(&self) -> Result<Vec<crate::repository::domain::Workstation>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn list_workstations(&self, tenant_id: &str) -> Result<Vec<crate::repository::domain::Workstation>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let workstations_list = workstations::table
+                .filter(workstations::tenant_id.eq(&tenant_id))
                 .load::<models::Workstation>(&mut conn)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|_| AppError::DbError)?;
 
             let mut result = vec![];
             for ws in workstations_list {
                 let required_capabilities = workstation_required_capabilities::table
                     .filter(workstation_required_capabilities::workstation_id.eq(ws.id))
+                    .filter(workstation_required_capabilities::tenant_id.eq(&tenant_id))
                     .inner_join(capabilities::table)
                     .select(capabilities::all_columns)
                     .load::<models::Capability>(&mut conn)
@@ -687,125 +786,158 @@ impl crate::repository::domain::WorkstationRepository for DieselWorkstationRepos
             }
             Ok(result)
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn set_workstation_availability(&self, id: Uuid, available: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set_workstation_availability(&self, tenant_id: &str, id: Uuid, available: bool) -> Result<(), AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
-            diesel::update(workstations::table.find(id))
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            diesel::update(
+                workstations::table
+                    .filter(workstations::id.eq(id))
+                    .filter(workstations::tenant_id.eq(&tenant_id)),
+            )
                 .set(workstations::available.eq(available))
                 .execute(&mut conn)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|_| AppError::DbError)?;
             Ok(())
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn set_workstation_active_shifts(&self, id: Uuid, active_shift_ids: Vec<Uuid>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set_workstation_active_shifts(&self, tenant_id: &str, id: Uuid, active_shift_ids: Vec<Uuid>) -> Result<(), AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
-            diesel::update(workstations::table.find(id))
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            diesel::update(
+                workstations::table
+                    .filter(workstations::id.eq(id))
+                    .filter(workstations::tenant_id.eq(&tenant_id)),
+            )
                 .set(workstations::active_shift_ids.eq(active_shift_ids))
                 .execute(&mut conn)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|_| AppError::DbError)?;
             Ok(())
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn set_workstation_priority(&self, id: Uuid, priority: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set_workstation_priority(&self, tenant_id: &str, id: Uuid, priority: &str) -> Result<(), AppError> {
+        let tenant_id = tenant_id.to_string();
         let priority = priority.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
-            diesel::update(workstations::table.find(id))
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            diesel::update(
+                workstations::table
+                    .filter(workstations::id.eq(id))
+                    .filter(workstations::tenant_id.eq(&tenant_id)),
+            )
                 .set(workstations::priority.eq(priority))
                 .execute(&mut conn)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|_| AppError::DbError)?;
             Ok(())
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn set_workstation_staffing(&self, id: Uuid, min_employees: i16, max_employees: Option<i16>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn set_workstation_staffing(&self, tenant_id: &str, id: Uuid, min_employees: i16, max_employees: Option<i16>) -> Result<(), AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
-            diesel::update(workstations::table.find(id))
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            diesel::update(
+                workstations::table
+                    .filter(workstations::id.eq(id))
+                    .filter(workstations::tenant_id.eq(&tenant_id)),
+            )
                 .set((
                     workstations::min_employees.eq(min_employees),
                     workstations::max_employees.eq(max_employees),
                 ))
                 .execute(&mut conn)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|_| AppError::DbError)?;
             Ok(())
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn add_required_capability(&self, workstation_id: Uuid, capability_id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn add_required_capability(&self, tenant_id: &str, workstation_id: Uuid, capability_id: Uuid) -> Result<(), AppError> {
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
+        let new_link = NewWorkstationRequiredCapability { workstation_id, capability_id, tenant_id: tenant_id.to_string() };
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
-            let new_link = NewWorkstationRequiredCapability { workstation_id, capability_id };
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             diesel::insert_into(workstation_required_capabilities::table)
                 .values(&new_link)
                 .execute(&mut conn)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|_| AppError::DbError)?;
             Ok(())
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn list_required_capabilities(&self, workstation_id: Uuid) -> Result<Vec<Capability>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn list_required_capabilities(&self, tenant_id: &str, workstation_id: Uuid) -> Result<Vec<Capability>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             workstation_required_capabilities::table
                 .filter(workstation_required_capabilities::workstation_id.eq(workstation_id))
+                .filter(workstation_required_capabilities::tenant_id.eq(&tenant_id))
                 .inner_join(capabilities::table)
                 .select(capabilities::all_columns)
                 .load::<models::Capability>(&mut conn)
                 .map(|caps: Vec<models::Capability>| caps.into_iter().map(|c| Capability { id: c.id, name: c.name }).collect())
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                .map_err(|_| AppError::DbError)
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn delete_workstation(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn delete_workstation(&self, tenant_id: &str, id: Uuid) -> Result<(), AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             // First delete all required capabilities for this workstation
-            diesel::delete(workstation_required_capabilities::table.filter(workstation_required_capabilities::workstation_id.eq(id)))
+            diesel::delete(
+                workstation_required_capabilities::table
+                    .filter(workstation_required_capabilities::workstation_id.eq(id))
+                    .filter(workstation_required_capabilities::tenant_id.eq(&tenant_id)),
+            )
                 .execute(&mut conn)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|_| AppError::DbError)?;
             // Then delete the workstation itself
-            diesel::delete(workstations::table.find(id))
+            diesel::delete(
+                workstations::table
+                    .filter(workstations::id.eq(id))
+                    .filter(workstations::tenant_id.eq(&tenant_id)),
+            )
                 .execute(&mut conn)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|_| AppError::DbError)?;
             Ok(())
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn remove_required_capability(&self, workstation_id: Uuid, capability_id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn remove_required_capability(&self, tenant_id: &str, workstation_id: Uuid, capability_id: Uuid) -> Result<(), AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             diesel::delete(
                 workstation_required_capabilities::table
                     .filter(workstation_required_capabilities::workstation_id.eq(workstation_id))
                     .filter(workstation_required_capabilities::capability_id.eq(capability_id))
+                    .filter(workstation_required_capabilities::tenant_id.eq(&tenant_id))
             )
             .execute(&mut conn)
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            .map_err(|_| AppError::DbError)?;
             Ok(())
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 }
 
@@ -816,15 +948,16 @@ pub struct DieselWorkstationUnavailabilityRepository {
 
 #[async_trait]
 impl crate::repository::domain::WorkstationUnavailabilityRepository for DieselWorkstationUnavailabilityRepository {
-    async fn create_workstation_unavailability(&self, unavailability: WorkstationUnavailability) -> Result<WorkstationUnavailability, Box<dyn std::error::Error + Send + Sync>> {
+    async fn create_workstation_unavailability(&self, tenant_id: &str, unavailability: WorkstationUnavailability) -> Result<WorkstationUnavailability, AppError> {
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         let new_unavailability = NewWorkstationUnavailability {
             workstation_id: unavailability.workstation_id,
             unavailable_from: unavailability.unavailable_from,
             unavailable_to: unavailability.unavailable_to,
+            tenant_id: tenant_id.to_string(),
         };
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             diesel::insert_into(workstation_unavailabilities::table)
                 .values(&new_unavailability)
                 .get_result::<models::WorkstationUnavailability>(&mut conn)
@@ -834,17 +967,22 @@ impl crate::repository::domain::WorkstationUnavailabilityRepository for DieselWo
                     unavailable_from: u.unavailable_from,
                     unavailable_to: u.unavailable_to,
                 })
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                .map_err(|e| match e {
+                    DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => AppError::Duplicate,
+                    _ => AppError::DbError,
+                })
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn get_workstation_unavailability(&self, id: Uuid) -> Result<Option<WorkstationUnavailability>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn get_workstation_unavailability(&self, tenant_id: &str, id: Uuid) -> Result<Option<WorkstationUnavailability>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             workstation_unavailabilities::table
-                .find(id)
+                .filter(workstation_unavailabilities::id.eq(id))
+                .filter(workstation_unavailabilities::tenant_id.eq(&tenant_id))
                 .first::<models::WorkstationUnavailability>(&mut conn)
                 .optional()
                 .map(|u: Option<models::WorkstationUnavailability>| u.map(|u| WorkstationUnavailability {
@@ -853,16 +991,18 @@ impl crate::repository::domain::WorkstationUnavailabilityRepository for DieselWo
                     unavailable_from: u.unavailable_from,
                     unavailable_to: u.unavailable_to,
                 }))
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                .map_err(|_| AppError::DbError)
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn list_workstation_unavailabilities(&self) -> Result<Vec<WorkstationUnavailability>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn list_workstation_unavailabilities(&self, tenant_id: &str) -> Result<Vec<WorkstationUnavailability>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             workstation_unavailabilities::table
+                .filter(workstation_unavailabilities::tenant_id.eq(&tenant_id))
                 .load::<models::WorkstationUnavailability>(&mut conn)
                 .map(|unavs: Vec<models::WorkstationUnavailability>| unavs.into_iter().map(|u| WorkstationUnavailability {
                     id: u.id,
@@ -870,17 +1010,19 @@ impl crate::repository::domain::WorkstationUnavailabilityRepository for DieselWo
                     unavailable_from: u.unavailable_from,
                     unavailable_to: u.unavailable_to,
                 }).collect())
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                .map_err(|_| AppError::DbError)
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn get_unavailabilities_for_workstation(&self, workstation_id: Uuid) -> Result<Vec<WorkstationUnavailability>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn get_unavailabilities_for_workstation(&self, tenant_id: &str, workstation_id: Uuid) -> Result<Vec<WorkstationUnavailability>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             workstation_unavailabilities::table
                 .filter(workstation_unavailabilities::workstation_id.eq(workstation_id))
+                .filter(workstation_unavailabilities::tenant_id.eq(&tenant_id))
                 .load::<models::WorkstationUnavailability>(&mut conn)
                 .map(|unavs: Vec<models::WorkstationUnavailability>| unavs.into_iter().map(|u| WorkstationUnavailability {
                     id: u.id,
@@ -888,20 +1030,25 @@ impl crate::repository::domain::WorkstationUnavailabilityRepository for DieselWo
                     unavailable_from: u.unavailable_from,
                     unavailable_to: u.unavailable_to,
                 }).collect())
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                .map_err(|_| AppError::DbError)
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn delete_workstation_unavailability(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn delete_workstation_unavailability(&self, tenant_id: &str, id: Uuid) -> Result<(), AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
-            diesel::delete(workstation_unavailabilities::table.find(id))
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            diesel::delete(
+                workstation_unavailabilities::table
+                    .filter(workstation_unavailabilities::id.eq(id))
+                    .filter(workstation_unavailabilities::tenant_id.eq(&tenant_id)),
+            )
                 .execute(&mut conn)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|_| AppError::DbError)?;
             Ok(())
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 }

@@ -63,6 +63,14 @@ enum Commands {
         /// Optimizer service URL
         #[arg(long)]
         optimizer_url: Option<String>,
+
+        /// Run in dev mode: resolve the tenant from --tenant-id instead of an auth token
+        #[arg(long, default_value_t = false)]
+        dev_mode: bool,
+
+        /// Default tenant id used in dev mode. Later this will come from the auth token.
+        #[arg(long)]
+        tenant_id: Option<String>,
     },
 }
 
@@ -84,6 +92,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             broker_host,
             broker_port,
             optimizer_url,
+            dev_mode,
+            tenant_id,
         } => {
             let cli_args = CliArgs {
                 port: Some(port),
@@ -98,6 +108,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 broker_host,
                 broker_port,
                 optimizer_url,
+                dev_mode,
+                tenant_id,
             };
 
             let config = config::Config::from_env_and_args(&cli_args)
@@ -109,6 +121,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             println!("Database: {}", mask_postgres_url(&config.database.url).unwrap_or_else(|_| "Failed to mask URL".into()));
             println!("Broker: {}:{}", config.broker.host, config.broker.port);
             println!("Optimizer: {}", config.optimizer.url);
+            println!("Tenant: dev_mode={} tenant_id={}", config.tenant.dev_mode, config.tenant.tenant_id);
 
             // Initialize database
             let pool = database::establish_connection_pool(&config.database);
@@ -118,7 +131,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let broker_conn = broker::connect(&config.broker).await?;
 
             // Start server
-            let state = AppState::with_nats(Arc::new(pool), broker_conn.client, broker_conn.jetstream_status, config.optimizer.url.clone());
+            let mut state = AppState::with_nats(Arc::new(pool), broker_conn.client, broker_conn.jetstream_status, config.optimizer.url.clone());
+            state.dev_mode = config.tenant.dev_mode;
+            state.default_tenant_id = config.tenant.tenant_id.clone();
             let addr = format!("{}:{}", config.server.listen, config.server.port).parse::<SocketAddr>()?;
             server::start_server(state, addr).await?;
         }

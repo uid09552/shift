@@ -69,6 +69,32 @@ routes:
         planner-ui:80: 1
 
   # ===========================================
+  # Echo — no auth. Local stand-in for postman-echo.com, reflects the full
+  # request (headers, body, query) back as JSON. Useful for verifying gateway
+  # routing/headers without depending on the internet.
+  # ===========================================
+
+  - uri: /echo/*
+    name: echo
+    priority: 50
+    plugins:
+      openid-connect:
+        client_id: shift-gateway
+        client_secret: shift-gateway-secret
+        discovery: http://keycloak:8080/auth/realms/shift/.well-known/openid-configuration
+        scope: "openid profile email shift-org"
+        bearer_only: false
+        redirect_uri: http://localhost/callback
+        post_logout_redirect_uri: http://localhost/
+        ssl_verify: false
+        session:
+          secret: geheimgeheimgeheimgeheim12345678
+    upstream:
+      type: roundrobin
+      nodes:
+        echo:8080: 1
+
+  # ===========================================
   # Logout — clears the APISIX session then redirects to Keycloak end_session_endpoint
   # ===========================================
 
@@ -130,7 +156,7 @@ routes:
         client_id: shift-gateway
         client_secret: shift-gateway-secret
         discovery: http://keycloak:8080/auth/realms/shift/.well-known/openid-configuration
-        scope: "openid profile email"
+        scope: "openid profile email shift-org"
         bearer_only: false
         redirect_uri: http://localhost/callback
         post_logout_redirect_uri: http://localhost/
@@ -156,7 +182,7 @@ routes:
         client_id: shift-gateway
         client_secret: shift-gateway-secret
         discovery: http://keycloak:8080/auth/realms/shift/.well-known/openid-configuration
-        scope: "openid profile email"
+        scope: "openid profile email shift-org"
         bearer_only: false
         unauth_action: deny
         ssl_verify: false

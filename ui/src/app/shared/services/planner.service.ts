@@ -31,7 +31,8 @@ export interface DaySchedule {
 
 export interface DailyPlanEntry {
   date: string;
-  status: 'assigned' | 'not_assigned';
+  /** 'unassigned' is a client-side edit state (no shift, not marked free) — the backend stores it as an opaque string. */
+  status: 'assigned' | 'free' | 'unassigned';
   shift_id?: string | null;
   shift_name?: string | null;
   workstation_id?: string | null;
@@ -97,6 +98,11 @@ export interface PlanningTaskItem {
 export interface PlanningTasksResponse {
   tasks: PlanningTaskItem[];
   count: number;
+}
+
+export interface TakeAsPlanResponse {
+  employee_count: number;
+  created: number;
 }
 
 @Injectable({
@@ -165,11 +171,31 @@ export class PlannerService {
   }
 
   /**
+   * PUT /planner/optimized-shifts/:result_id
+   * Overwrites the stored proposed schedule (used to persist manual edits made in the scheduler UI).
+   */
+  updateOptimizedShift(resultId: string, result: TaskResultDto): Observable<OptimizedShiftResultResponse> {
+    return this.http.put<OptimizedShiftResultResponse>(`${this.apiUrl}/optimized-shifts/${resultId}`, result);
+  }
+
+  /**
    * DELETE /planner/optimized-shifts/:result_id
    * Deletes a specific optimized shift result.
    */
   deleteOptimizedShift(resultId: string): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/optimized-shifts/${resultId}`);
+  }
+
+  /**
+   * POST /planner/optimized-shifts/:result_id/take-as-plan
+   * Overwrites the confirmed shift plans for the result's planning period (optionally scoped
+   * to a subset of employees) with this result's assignments/free days. Runs entirely
+   * server-side in one transaction — no per-employee/per-entry API calls needed from the UI.
+   */
+  takeAsPlan(resultId: string, employeeIds?: string[]): Observable<TakeAsPlanResponse> {
+    const body: { employee_ids?: string[] } = {};
+    if (employeeIds && employeeIds.length) body.employee_ids = employeeIds;
+    return this.http.post<TakeAsPlanResponse>(`${this.apiUrl}/optimized-shifts/${resultId}/take-as-plan`, body);
   }
 
   /**

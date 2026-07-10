@@ -7,12 +7,19 @@ export interface CalendarTableRow {
   available?: boolean;
 }
 
+export interface CalendarTableAssignment {
+  employeeId: string;
+  employeeName: string;
+}
+
 export interface CalendarTableGroup {
   shiftId: string;
   shiftName: string;
   shiftShortName?: string;
   shiftColor: string;
   employeeNames: string[];
+  /** Structured employee identity per assignment, parallel to employeeNames. Used for editing. */
+  assignments?: CalendarTableAssignment[];
 }
 
 export interface CalendarTableCellData {
@@ -33,6 +40,15 @@ export interface CalendarTableCellClickEvent {
   cell: CalendarTableCellData;
 }
 
+export interface CalendarTableCellContextMenuEvent extends CalendarTableCellClickEvent {
+  event: MouseEvent;
+}
+
+export interface CalendarTableRowContextMenuEvent {
+  row: CalendarTableRow;
+  event: MouseEvent;
+}
+
 @Component({
   selector: 'app-calendar-table',
   standalone: true,
@@ -47,7 +63,13 @@ export class CalendarTableComponent implements OnDestroy {
   @Input() rowIcon: 'workstation' | 'employee' = 'workstation';
   @Input() cellDisplayMode: 'count' | 'name' = 'count';
   @Input() rowColWidth = 220;
+  /** When true, shows a selection checkbox next to each row label (for mass operations). */
+  @Input() selectable = false;
+  @Input() selectedRowIds: Set<string> = new Set();
   @Output() cellClick = new EventEmitter<CalendarTableCellClickEvent>();
+  @Output() cellContextMenu = new EventEmitter<CalendarTableCellContextMenuEvent>();
+  @Output() rowContextMenu = new EventEmitter<CalendarTableRowContextMenuEvent>();
+  @Output() rowSelectionToggle = new EventEmitter<string>();
 
   private _resizing = false;
   private _resizeStartX = 0;
@@ -71,6 +93,24 @@ export class CalendarTableComponent implements OnDestroy {
     if (cell.groups.length > 0) {
       this.cellClick.emit({ row, day, cell });
     }
+  }
+
+  onCellContextMenu(row: CalendarTableRow, day: CalendarTableDay, event: MouseEvent): void {
+    const cell = this.getCell(row.id, day.date);
+    this.cellContextMenu.emit({ row, day, cell, event });
+  }
+
+  onRowContextMenu(row: CalendarTableRow, event: MouseEvent): void {
+    this.rowContextMenu.emit({ row, event });
+  }
+
+  toggleRowSelection(rowId: string, event: Event): void {
+    event.stopPropagation();
+    this.rowSelectionToggle.emit(rowId);
+  }
+
+  isRowSelected(rowId: string): boolean {
+    return this.selectedRowIds.has(rowId);
   }
 
   onResizeStart(event: MouseEvent): void {

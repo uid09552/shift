@@ -27,37 +27,43 @@ class PlanningPeriod(BaseModel):
         return v
 
 
-class Shift(BaseModel):
-    """Shift definition with time and operating days."""
+class ShiftWeekdayTime(BaseModel):
+    """Time and staffing configuration for a shift on one specific weekday."""
 
-    id: str = Field(..., min_length=1)
-    name: str = Field(..., min_length=1)
+    weekday: str
     start_time: time
     end_time: time
-    weekdays: List[str] = Field(..., min_length=1)
-    is_night_shift: bool = False
     min_employees: int = Field(default=1, ge=0)
     max_employees: Optional[int] = Field(default=None, ge=0)
     # Number of consecutive days an employee must be kept free/rest after
-    # working this shift (0-5, 0 = no forced recovery days for this shift).
+    # working this shift on this weekday (0-5, 0 = no forced recovery days).
     free_days_after_shift: int = Field(default=0, ge=0, le=5)
 
-    @field_validator("weekdays")
+    @field_validator("weekday")
     @classmethod
-    def valid_weekdays(cls, v):
-        """Validate that weekdays are valid day names."""
-        valid_days = {
-            "0",
-            "1",
-            "2",
-            "3",
-            "4",
-            "5",
-            "6",
-        }
-        for day in v:
-            if day not in valid_days:
-                raise ValueError(f"Invalid weekday: {day}. Must be one of {valid_days}")
+    def valid_weekday(cls, v):
+        """Validate that weekday is a valid day number."""
+        valid_days = {"0", "1", "2", "3", "4", "5", "6"}
+        if v not in valid_days:
+            raise ValueError(f"Invalid weekday: {v}. Must be one of {valid_days}")
+        return v
+
+
+class Shift(BaseModel):
+    """Shift definition with per-weekday time and staffing configuration."""
+
+    id: str = Field(..., min_length=1)
+    name: str = Field(..., min_length=1)
+    is_night_shift: bool = False
+    weekday_times: List[ShiftWeekdayTime] = Field(..., min_length=1)
+
+    @field_validator("weekday_times")
+    @classmethod
+    def unique_weekdays(cls, v):
+        """Validate that each weekday appears at most once."""
+        weekdays = [wt.weekday for wt in v]
+        if len(weekdays) != len(set(weekdays)):
+            raise ValueError("Duplicate weekday entries found in weekday_times")
         return v
 
 
@@ -110,7 +116,7 @@ class Employee(BaseModel):
     id: str = Field(..., min_length=1)
     name: str = Field(..., min_length=1)
     skills: List[str] = Field(default_factory=list)
-    available_shifts: List[str] = Field(..., min_length=1)
+    available_shifts: List[str] = Field(default_factory=list)
     unavailability: List[date] = Field(default_factory=list)
     monthly_working_hours: float = Field(default=0.0, ge=0)
 
@@ -217,7 +223,7 @@ class DailyPlanEntry(BaseModel):
     """One entry per day in the planning period for a given employee."""
 
     date: str
-    status: str  # "assigned", "free" (mandatory rest or contract hours met), or "not_assigned"
+    status: str  # "assigned" or "free" (no shift planned for this day)
     shift_id: Optional[str] = None
     shift_name: Optional[str] = None
     workstation_id: Optional[str] = None
@@ -277,7 +283,6 @@ def validate_output(output: dict, input_data: SchedulingInput) -> List[str]:
     ws_skills = {w.id: set(w.required_skills) for w in input_data.workstations}
     ws_shifts = {w.id: set(w.operating_shifts) for w in input_data.workstations}
     shift_night = {s.id: s.is_night_shift for s in input_data.shifts}
-    shift_wdays = {s.id: set(s.weekdays) for s in input_data.shifts}
 
     # Track per-employee data for cross-day checks
     emp_assignments: dict = {}  # (emp_id, date) -> list of (shift_id, ws_id)

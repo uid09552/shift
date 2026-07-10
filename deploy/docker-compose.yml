@@ -94,6 +94,23 @@ services:
     restart: unless-stopped
 
   # ==========================================================================
+  # Testing & Diagnostics
+  # ==========================================================================
+
+  # Self-hosted request echo (local stand-in for postman-echo.com), reachable
+  # through the gateway at /echo/* for verifying routing/headers without
+  # depending on the internet. Reflects the full request back as JSON.
+  echo:
+    image: mendhak/http-https-echo:31
+    container_name: shift_echo
+    environment:
+      - HTTP_PORT=8080
+    networks:
+      - backend
+      - dev_backend
+    restart: unless-stopped
+
+  # ==========================================================================
   # Gateway (APISIX)
   # ==========================================================================
 

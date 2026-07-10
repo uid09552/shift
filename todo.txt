@@ -1,3 +1,34 @@
-1) adjust planner algorithm, it should plan and consider every user. It should consider the value free day after the shift.
-2) if user is not planned, it should place "free" as planned shift in the planner algorithm. for this adjust the rest api in backend service for schedule optimizer and assgned shifts.
-3) beautifie the ui, style it improve ux.
+1) create middlewaare in axum router, the router should get access token (jwt) from headers (x-access-token)
+AppSate in Router contains default tenant, this need to be taken carefully that I don´t have tenant breach.
+
+token structure, read the teant array, get first hit as tenant
+ {
+  "exp": 1783718722,
+  "iat": 1783718422,
+  "auth_time": 1783718422,
+  "jti": "onrtac:82c8c330-ed7a-4c43-8224-84bbc2f39233",
+  "iss": "http://localhost/auth/realms/shift",
+  "sub": "3a9e23b8-4a00-478c-99b7-eb68df54bc40",
+  "typ": "Bearer",
+  "azp": "shift-gateway",
+  "sid": "7831094b-51c6-4d80-a33c-0c94d85518e3",
+  "acr": "1",
+  "allowed-origins": [
+    "http://localhost"
+  ],
+  "realm_access": {
+    "roles": [
+      "shift-planner"
+    ]
+  },
+  "scope": "openid profile shift-org email",
+  "email_verified": true,
+  "name": "Admin User",
+  "preferred_username": "admin",
+  "given_name": "Admin",
+  "family_name": "User",
+  "email": "admin@shift.local",
+  "tenant": [
+    "orga"
+  ]
+}

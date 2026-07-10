@@ -17,10 +17,12 @@ pub struct DieselShiftRepository {
 
 fn load_weekday_times_for_shifts(
     conn: &mut PgConnection,
+    tenant_id: &str,
     shift_ids: Vec<Uuid>,
 ) -> Result<std::collections::HashMap<Uuid, Vec<WeekdayTime>>, AppError> {
     let times = shift_weekday_times::table
         .filter(shift_weekday_times::shift_id.eq_any(shift_ids))
+        .filter(shift_weekday_times::tenant_id.eq(tenant_id))
         .load::<models::ShiftWeekdayTime>(conn)
         .map_err(|_| AppError::DbError)?;
 
@@ -42,14 +44,15 @@ fn load_weekday_times_for_shifts(
 
 #[async_trait]
 impl ShiftRepository for DieselShiftRepository {
-    async fn create_shift(&self, name: &str, short_name: &str, color: &str, order: i32) -> Result<Shift, AppError> {
+    async fn create_shift(&self, tenant_id: &str, name: &str, short_name: &str, color: &str, order: i32) -> Result<Shift, AppError> {
+        let tenant_id = tenant_id.to_string();
         let name = name.to_string();
         let short_name = short_name.to_string();
         let color = color.to_string();
         let pool = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
-            let new_shift = NewShift { name: &name, short_name: &short_name, color: &color, order };
+            let new_shift = NewShift { name: &name, short_name: &short_name, color: &color, order, tenant_id: &tenant_id };
             let shift = diesel::insert_into(shifts::table)
                 .values(&new_shift)
                 .get_result::<models::Shift>(&mut conn)
@@ -72,20 +75,21 @@ impl ShiftRepository for DieselShiftRepository {
         .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn get_shift(&self, id: Uuid) -> Result<Option<Shift>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn get_shift(&self, tenant_id: &str, id: Uuid) -> Result<Option<Shift>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let shift_opt = shifts::table
-                .find(id)
+                .filter(shifts::id.eq(id))
+                .filter(shifts::tenant_id.eq(&tenant_id))
                 .first::<models::Shift>(&mut conn)
                 .optional()
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|_| AppError::DbError)?;
 
             match shift_opt {
                 Some(shift) => {
-                    let wt_map = load_weekday_times_for_shifts(&mut conn, vec![shift.id])
-                        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                    let wt_map = load_weekday_times_for_shifts(&mut conn, &tenant_id, vec![shift.id])?;
                     Ok(Some(Shift {
                         id: shift.id,
                         name: shift.name,
@@ -98,17 +102,19 @@ impl ShiftRepository for DieselShiftRepository {
                 None => Ok(None),
             }
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn update_shift(&self, id: Uuid, name_opt: Option<String>, short_name_opt: Option<String>, color_opt: Option<String>, order_opt: Option<i32>) -> Result<Shift, AppError> {
+    async fn update_shift(&self, tenant_id: &str, id: Uuid, name_opt: Option<String>, short_name_opt: Option<String>, color_opt: Option<String>, order_opt: Option<i32>) -> Result<Shift, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
 
             // Verify shift exists and get current values
             let shift = shifts::table
-                .find(id)
+                .filter(shifts::id.eq(id))
+                .filter(shifts::tenant_id.eq(&tenant_id))
                 .first::<models::Shift>(&mut conn)
                 .map_err(|_| AppError::NotFound)?;
 
@@ -125,7 +131,11 @@ impl ShiftRepository for DieselShiftRepository {
             let final_color = color_opt.unwrap_or(shift.color);
             let final_order = order_opt.unwrap_or(shift.order);
 
-            let updated_shift = diesel::update(shifts::table.find(id))
+            let updated_shift = diesel::update(
+                shifts::table
+                    .filter(shifts::id.eq(id))
+                    .filter(shifts::tenant_id.eq(&tenant_id)),
+            )
                 .set((
                     shifts::name.eq(&final_name),
                     shifts::short_name.eq(&final_short_name),
@@ -153,18 +163,19 @@ impl ShiftRepository for DieselShiftRepository {
         .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn list_shifts(&self) -> Result<Vec<Shift>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn list_shifts(&self, tenant_id: &str) -> Result<Vec<Shift>, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
-            let mut conn = pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let shifts_list = shifts::table
+                .filter(shifts::tenant_id.eq(&tenant_id))
                 .order(shifts::order.asc())
                 .load::<models::Shift>(&mut conn)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                .map_err(|_| AppError::DbError)?;
 
             let shift_ids: Vec<Uuid> = shifts_list.iter().map(|s| s.id).collect();
-            let wt_map = load_weekday_times_for_shifts(&mut conn, shift_ids)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let wt_map = load_weekday_times_for_shifts(&mut conn, &tenant_id, shift_ids)?;
 
             let result = shifts_list.into_iter().map(|s| Shift {
                 id: s.id,
@@ -177,19 +188,28 @@ impl ShiftRepository for DieselShiftRepository {
 
             Ok(result)
         })
-        .await?
+        .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn delete_shift(&self, id: Uuid) -> Result<(), AppError> {
+    async fn delete_shift(&self, tenant_id: &str, id: Uuid) -> Result<(), AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             // First delete all weekday times for this shift
-            diesel::delete(shift_weekday_times::table.filter(shift_weekday_times::shift_id.eq(id)))
+            diesel::delete(
+                shift_weekday_times::table
+                    .filter(shift_weekday_times::shift_id.eq(id))
+                    .filter(shift_weekday_times::tenant_id.eq(&tenant_id)),
+            )
                 .execute(&mut conn)
                 .map_err(|_| AppError::DbError)?;
             // Then delete the shift itself
-            diesel::delete(shifts::table.find(id))
+            diesel::delete(
+                shifts::table
+                    .filter(shifts::id.eq(id))
+                    .filter(shifts::tenant_id.eq(&tenant_id)),
+            )
                 .execute(&mut conn)
                 .map_err(|_| AppError::DbError)?;
             Ok(())
@@ -202,6 +222,7 @@ impl ShiftRepository for DieselShiftRepository {
 impl DieselShiftRepository {
     pub async fn set_weekday_time(
         &self,
+        tenant_id: &str,
         shift_id: Uuid,
         weekday: i16,
         start_time: chrono::NaiveTime,
@@ -210,13 +231,15 @@ impl DieselShiftRepository {
         max_employees: Option<i16>,
         free_days_after_shift: i16,
     ) -> Result<WeekdayTime, AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
 
             // Verify shift exists
             shifts::table
-                .find(shift_id)
+                .filter(shifts::id.eq(shift_id))
+                .filter(shifts::tenant_id.eq(&tenant_id))
                 .first::<models::Shift>(&mut conn)
                 .map_err(|_| AppError::NotFound)?;
 
@@ -228,12 +251,13 @@ impl DieselShiftRepository {
                 min_employees,
                 max_employees,
                 free_days_after_shift,
+                tenant_id: tenant_id.clone(),
             };
 
-            // Upsert: insert or update if the (shift_id, weekday) pair already exists
+            // Upsert: insert or update if the (tenant_id, shift_id, weekday) pair already exists
             let wt = diesel::insert_into(shift_weekday_times::table)
                 .values(&new_wt)
-                .on_conflict((shift_weekday_times::shift_id, shift_weekday_times::weekday))
+                .on_conflict((shift_weekday_times::tenant_id, shift_weekday_times::shift_id, shift_weekday_times::weekday))
                 .do_update()
                 .set((
                     shift_weekday_times::start_time.eq(start_time),
@@ -259,16 +283,19 @@ impl DieselShiftRepository {
 
     pub async fn delete_weekday_time(
         &self,
+        tenant_id: &str,
         shift_id: Uuid,
         weekday: i16,
     ) -> Result<(), AppError> {
+        let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
         task::spawn_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             diesel::delete(
                 shift_weekday_times::table
                     .filter(shift_weekday_times::shift_id.eq(shift_id))
-                    .filter(shift_weekday_times::weekday.eq(weekday)),
+                    .filter(shift_weekday_times::weekday.eq(weekday))
+                    .filter(shift_weekday_times::tenant_id.eq(&tenant_id)),
             )
             .execute(&mut conn)
             .map_err(|_| AppError::DbError)?;

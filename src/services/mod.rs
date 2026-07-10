@@ -1,3 +1,4 @@
+pub mod audit_log;
 pub mod employee;
 pub mod shift;
 pub mod capability;
@@ -9,3 +10,4 @@ pub mod shift_assignment;
 pub mod confirmed_shift_plan;
 pub mod analysis;
 pub mod auth;
+pub mod tenant;

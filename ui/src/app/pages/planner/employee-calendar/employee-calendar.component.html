@@ -4,11 +4,20 @@
   class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
   (click)="onDocumentClick($event)"
 >
-  <!-- Header: Employee selector + Month navigation -->
+  <!-- Header: Month navigation + Employee selector -->
   <div
-    class="flex flex-col gap-4 border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:flex-row sm:items-center sm:justify-between sm:px-6"
+    class="flex flex-col gap-4 border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:flex-row sm:flex-wrap sm:items-center sm:px-6"
   >
-    <!-- Employee dropdown + mass actions -->
+    <!-- Month navigation (always left) -->
+    <app-calendar-nav
+      [label]="monthLabel"
+      periodType="month"
+      (prev)="prevMonth()"
+      (next)="nextMonth()"
+      (today)="goToday()"
+    />
+
+    <!-- Employee dropdown -->
     <div class="flex flex-wrap items-center gap-3">
       <label
         for="employee-select"
@@ -27,33 +36,23 @@
           <option [value]="emp.id">{{ emp.name }}</option>
         }
       </select>
-
     </div>
 
-    <!-- Month navigation + export -->
-    <div class="flex items-center gap-3">
-      <app-calendar-nav
-        [label]="monthLabel"
-        periodType="month"
-        (prev)="prevMonth()"
-        (next)="nextMonth()"
-        (today)="goToday()"
-      />
-      @if (selectedEmployeeId) {
-        <button
-          (click)="exportToExcel()"
-          class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
-          title="Export current month to Excel"
-        >
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          Export Excel
-        </button>
-      }
-    </div>
+    <!-- Export (pushed to the far right) -->
+    @if (selectedEmployeeId) {
+      <button
+        (click)="exportToExcel()"
+        class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05] sm:ml-auto"
+        title="Export current month to Excel"
+      >
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        Export Excel
+      </button>
+    }
   </div>
 
   <!-- Calendar grid -->
@@ -311,8 +310,9 @@
                       class="absence-chip"
                       [class.vacation-chip]="day.plan.absence_type === 'day_off'"
                       [class.sick-chip]="day.plan.absence_type === 'sick'"
+                      [class.free-chip]="day.plan.absence_type === 'free'"
                     >
-                      {{ day.plan.absence_type === 'day_off' ? 'Vacation' : day.plan.absence_type === 'sick' ? 'Sick' : day.plan.absence_type }}
+                      {{ day.plan.absence_type === 'day_off' ? 'Vacation' : day.plan.absence_type === 'sick' ? 'Sick' : day.plan.absence_type === 'free' ? 'Free' : day.plan.absence_type }}
                     </div>
                     <div class="cell-actions absolute -top-1 right-0 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/chip:opacity-100">
                       <button
@@ -452,6 +452,10 @@
         <div class="flex items-center gap-1.5">
           <div class="h-3 w-3 rounded-sm bg-gray-100 dark:bg-gray-800"></div>
           <span class="text-xs text-gray-600 dark:text-gray-400">Unavailable (optimizer)</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <div class="h-3 w-3 rounded-sm border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800"></div>
+          <span class="text-xs text-gray-600 dark:text-gray-400">Free (planner)</span>
         </div>
       </div>
     }
