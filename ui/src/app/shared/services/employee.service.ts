@@ -51,6 +51,12 @@ export interface AddAvailableShiftRequest {
   shift_id: string;
 }
 
+export interface ImportResult {
+  created: number;
+  skipped: number;
+  errors: { row: number; message: string }[];
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -107,5 +113,15 @@ export class EmployeeService {
 
   removeEmployeeAvailableShift(employeeId: string, shiftId: string): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/employees/${employeeId}/available-shifts/${shiftId}`);
+  }
+
+  downloadTemplate(): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/employees/template`, { responseType: 'blob' });
+  }
+
+  importFromFile(file: File): Observable<ImportResult> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<ImportResult>(`${this.apiUrl}/employees/import`, formData);
   }
 }

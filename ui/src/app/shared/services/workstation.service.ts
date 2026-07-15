@@ -39,6 +39,12 @@ export interface UpdateWorkstationRequest {
   max_employees?: number | null;
 }
 
+export interface ImportResult {
+  created: number;
+  skipped: number;
+  errors: { row: number; message: string }[];
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -94,5 +100,15 @@ export class WorkstationService {
 
   deleteWorkstation(workstationId: string): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/workstations/${workstationId}`);
+  }
+
+  downloadTemplate(): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/workstations/template`, { responseType: 'blob' });
+  }
+
+  importFromFile(file: File): Observable<ImportResult> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<ImportResult>(`${this.apiUrl}/workstations/import`, formData);
   }
 }

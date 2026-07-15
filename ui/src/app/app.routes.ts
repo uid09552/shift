@@ -12,6 +12,7 @@ import { UserProfilesComponent } from './pages/planner/user-profiles/user-profil
 import { ShiftsComponent } from './pages/configuration/shifts/shifts.component';
 import { WorkstationsComponent } from './pages/configuration/workstations/workstations.component';
 import { CapabilitiesComponent } from './pages/configuration/capabilities/capabilities.component';
+import { PlannerSettingsComponent } from './pages/configuration/planner-settings/planner-settings.component';
 
 export const routes: Routes = [
   {
@@ -27,7 +28,7 @@ export const routes: Routes = [
       {
         path:'kalender',
         component:KalenderComponent,
-        title:'ShiftPlanner - Weekly Schedule'
+        title:'ShiftPlanner - Schedule'
       },
       {
         path:'employee-calendar',
@@ -63,6 +64,11 @@ export const routes: Routes = [
         path:'workstation-calendar',
         component:WorkstationCalendarComponent,
         title:'ShiftPlanner - Workstation Calendar'
+      },
+      {
+        path:'planner-settings',
+        component:PlannerSettingsComponent,
+        title:'ShiftPlanner - Planner Settings'
       },
     ]
   },

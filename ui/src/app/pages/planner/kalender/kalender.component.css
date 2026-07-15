@@ -47,10 +47,29 @@
   min-width: 90px;
 }
 
+/* Monthly view: narrower day columns so a full month fits with less scrolling.
+   table-layout:fixed sizes columns from the header row, so width must be pinned
+   (not just min-width) or chip content overflows into neighboring cells.
+   Note: no overflow:hidden here — the shift/edit dropdown and delete-confirm
+   popovers are absolutely positioned children that must overflow this cell. */
+.day-col-compact {
+  width: 46px;
+  min-width: 46px;
+  max-width: 46px;
+}
+
 /* Shift chip styling */
 .shift-chip {
   min-width: 56px;
+  max-width: 100%;
+  overflow: hidden;
   cursor: default;
+}
+
+.day-col-compact .shift-chip,
+.day-col-compact .empty-cell,
+.day-col-compact .absence-cell {
+  min-width: 0;
 }
 
 /* Sticky left column shadow on scroll */

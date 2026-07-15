@@ -7,6 +7,7 @@ pub mod optimizedshiftresultrepository;
 pub mod planningtaskrepository;
 pub mod analysisrepository;
 pub mod auditlogrepository;
+pub mod plannersettingsrepository;
 
 use std::sync::Arc;
 use crate::database::DbPool;
@@ -25,6 +26,7 @@ use self::optimizedshiftresultrepository::DieselOptimizedShiftResultRepository;
 use self::planningtaskrepository::DieselPlanningTaskRepository;
 use self::analysisrepository::DieselAnalysisRepository;
 use self::auditlogrepository::DieselAuditLogRepository;
+use self::plannersettingsrepository::DieselPlannerSettingsRepository;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -40,6 +42,7 @@ pub struct AppState {
     pub planning_task_repo: DieselPlanningTaskRepository,
     pub analysis_repo: DieselAnalysisRepository,
     pub audit_log_repo: DieselAuditLogRepository,
+    pub planner_settings_repo: DieselPlannerSettingsRepository,
     pub pool: Arc<DbPool>,
     pub nats_client: Option<async_nats::Client>,
     pub jetstream_status: JetStreamStatus,
@@ -63,6 +66,7 @@ impl AppState {
             planning_task_repo: DieselPlanningTaskRepository { pool: Arc::clone(&pool) },
             analysis_repo: DieselAnalysisRepository { pool: Arc::clone(&pool) },
             audit_log_repo: DieselAuditLogRepository { pool: Arc::clone(&pool) },
+            planner_settings_repo: DieselPlannerSettingsRepository { pool: Arc::clone(&pool) },
             pool,
             nats_client: None,
             jetstream_status: JetStreamStatus::Unavailable,
@@ -86,6 +90,7 @@ impl AppState {
             planning_task_repo: DieselPlanningTaskRepository { pool: Arc::clone(&pool) },
             analysis_repo: DieselAnalysisRepository { pool: Arc::clone(&pool) },
             audit_log_repo: DieselAuditLogRepository { pool: Arc::clone(&pool) },
+            planner_settings_repo: DieselPlannerSettingsRepository { pool: Arc::clone(&pool) },
             pool,
             nats_client: Some(nats_client),
             jetstream_status,

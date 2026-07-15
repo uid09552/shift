@@ -1,15 +1,18 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Multipart, Path, Query, State},
+    response::Response,
     Json,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 use uuid::Uuid;
 use crate::errors::AppError;
 use crate::repository::AppState;
-use crate::repository::domain::EmployeeRepository;
+use crate::repository::domain::{CapabilityRepository, EmployeeRepository, ShiftRepository};
 use crate::services::audit_log::{self, AuditActor};
 use crate::services::tenant::TenantContext;
+use crate::services::xlsx_io::{self, ImportResult};
 
 #[derive(Deserialize)]
 pub struct PaginationQuery {
@@ -240,5 +243,120 @@ impl EmployeeService {
             .await?;
         audit_log::record(&state, &tenant.0, actor.0, "employee.delete", "employee", Some(employee_id.to_string()), None).await;
         Ok(Json(serde_json::json!({ "message": "Employee deleted successfully" })))
+    }
+
+    pub async fn download_template(_tenant: TenantContext) -> Result<Response, AppError> {
+        let bytes = xlsx_io::build_template(&[
+            "name",
+            "email",
+            "max_working_hours",
+            "capabilities",
+            "available_shifts",
+        ])?;
+        Ok(xlsx_io::xlsx_download_response(bytes, "employees_template.xlsx"))
+    }
+
+    pub async fn import_employees(
+        tenant: TenantContext,
+        actor: AuditActor,
+        State(state): State<AppState>,
+        multipart: Multipart,
+    ) -> Result<Json<Value>, AppError> {
+        let bytes = xlsx_io::extract_uploaded_file(multipart).await?;
+        let rows = xlsx_io::parse_rows(&bytes)?;
+
+        let cap_by_name: HashMap<String, Uuid> = state
+            .capability_repo
+            .list_capabilities(&tenant.0)
+            .await?
+            .into_iter()
+            .map(|c| (c.name.to_lowercase(), c.id))
+            .collect();
+        let shift_by_name: HashMap<String, Uuid> = state
+            .shift_repo
+            .list_shifts(&tenant.0)
+            .await?
+            .into_iter()
+            .map(|s| (s.name.to_lowercase(), s.id))
+            .collect();
+
+        let mut result = ImportResult::default();
+
+        for (idx, row) in rows.iter().enumerate() {
+            let row_num = idx + 2; // +1 for 0-index, +1 for header row
+            let name = row.first().map(String::as_str).unwrap_or("");
+            let email = row.get(1).map(String::as_str).unwrap_or("");
+            let hours_str = row.get(2).map(String::as_str).unwrap_or("");
+            let capabilities_str = row.get(3).map(String::as_str).unwrap_or("");
+            let shifts_str = row.get(4).map(String::as_str).unwrap_or("");
+
+            if name.is_empty() || email.is_empty() {
+                result.push_error(row_num, "Missing required 'name' or 'email'");
+                continue;
+            }
+
+            let monthly_working_hours: f64 = match hours_str.parse() {
+                Ok(v) => v,
+                Err(_) => {
+                    result.push_error(row_num, format!("Invalid 'max_working_hours' value: '{hours_str}'"));
+                    continue;
+                }
+            };
+
+            let employee = match state
+                .employee_repo
+                .create_employee(&tenant.0, name, email, monthly_working_hours)
+                .await
+            {
+                Ok(e) => e,
+                Err(AppError::Duplicate) => {
+                    result.push_error(row_num, format!("Employee with email '{email}' already exists"));
+                    continue;
+                }
+                Err(_) => {
+                    result.push_error(row_num, "Failed to create employee");
+                    continue;
+                }
+            };
+
+            let mut warnings = Vec::new();
+            for cap_name in xlsx_io::split_names(capabilities_str) {
+                match cap_by_name.get(&cap_name.to_lowercase()) {
+                    Some(id) => {
+                        let _ = state.employee_repo.add_employee_capability(&tenant.0, employee.id, *id).await;
+                    }
+                    None => warnings.push(format!("capability '{cap_name}' not found")),
+                }
+            }
+            for shift_name in xlsx_io::split_names(shifts_str) {
+                match shift_by_name.get(&shift_name.to_lowercase()) {
+                    Some(id) => {
+                        let _ = state.employee_repo.add_employee_available_shift(&tenant.0, employee.id, *id).await;
+                    }
+                    None => warnings.push(format!("shift '{shift_name}' not found")),
+                }
+            }
+
+            result.created += 1;
+            if !warnings.is_empty() {
+                result.errors.push(xlsx_io::ImportRowError {
+                    row: row_num,
+                    message: warnings.join("; "),
+                });
+            }
+        }
+
+        audit_log::record(
+            &state,
+            &tenant.0,
+            actor.0,
+            "employee.import",
+            "employee",
+            None,
+            Some(serde_json::json!({ "created": result.created, "skipped": result.skipped }).to_string()),
+        )
+        .await;
+
+        Ok(Json(serde_json::to_value(result).unwrap()))
     }
 }

@@ -1,0 +1,137 @@
+use axum::{extract::State, Json};
+use serde::{Deserialize, Serialize};
+
+use crate::errors::AppError;
+use crate::repository::domain::{PlannerSettingsDomain, PlannerSettingsRepository, UpdatePlannerSettings};
+use crate::repository::AppState;
+use crate::services::audit_log::{self, AuditActor};
+use crate::services::tenant::TenantContext;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PriorityWeights {
+    pub high: i32,
+    pub medium: i32,
+    pub low: i32,
+}
+
+#[derive(Serialize)]
+pub struct PlannerSettingsResponse {
+    pub night_shift_recovery_days: i16,
+    pub min_rest_hours: f64,
+    pub max_consecutive_days: i16,
+    pub max_working_days_per_week: i16,
+    pub equality_weight: i32,
+    pub priority_weights: PriorityWeights,
+    pub monthly_hours_target_weight: i32,
+    pub solver_time_limit_seconds: f64,
+    pub solver_num_workers: i16,
+    pub updated_at: chrono::NaiveDateTime,
+}
+
+impl From<PlannerSettingsDomain> for PlannerSettingsResponse {
+    fn from(s: PlannerSettingsDomain) -> Self {
+        Self {
+            night_shift_recovery_days: s.night_shift_recovery_days,
+            min_rest_hours: s.min_rest_hours,
+            max_consecutive_days: s.max_consecutive_days,
+            max_working_days_per_week: s.max_working_days_per_week,
+            equality_weight: s.equality_weight,
+            priority_weights: PriorityWeights {
+                high: s.priority_weight_high,
+                medium: s.priority_weight_medium,
+                low: s.priority_weight_low,
+            },
+            monthly_hours_target_weight: s.monthly_hours_target_weight,
+            solver_time_limit_seconds: s.solver_time_limit_seconds,
+            solver_num_workers: s.solver_num_workers,
+            updated_at: s.updated_at,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct UpdatePlannerSettingsRequest {
+    pub night_shift_recovery_days: i16,
+    pub min_rest_hours: f64,
+    pub max_consecutive_days: i16,
+    pub max_working_days_per_week: i16,
+    pub equality_weight: i32,
+    pub priority_weights: PriorityWeights,
+    pub monthly_hours_target_weight: i32,
+    pub solver_time_limit_seconds: f64,
+    pub solver_num_workers: i16,
+}
+
+pub struct PlannerSettingsService;
+
+impl PlannerSettingsService {
+    pub async fn get_planner_settings(
+        tenant: TenantContext,
+        State(state): State<AppState>,
+    ) -> Result<Json<PlannerSettingsResponse>, AppError> {
+        let settings = state.planner_settings_repo.get_or_create_planner_settings(&tenant.0).await?;
+        Ok(Json(settings.into()))
+    }
+
+    pub async fn update_planner_settings(
+        tenant: TenantContext,
+        actor: AuditActor,
+        State(state): State<AppState>,
+        Json(body): Json<UpdatePlannerSettingsRequest>,
+    ) -> Result<Json<PlannerSettingsResponse>, AppError> {
+        validate(&body)?;
+
+        let update = UpdatePlannerSettings {
+            night_shift_recovery_days: body.night_shift_recovery_days,
+            min_rest_hours: body.min_rest_hours,
+            max_consecutive_days: body.max_consecutive_days,
+            max_working_days_per_week: body.max_working_days_per_week,
+            equality_weight: body.equality_weight,
+            priority_weight_high: body.priority_weights.high,
+            priority_weight_medium: body.priority_weights.medium,
+            priority_weight_low: body.priority_weights.low,
+            monthly_hours_target_weight: body.monthly_hours_target_weight,
+            solver_time_limit_seconds: body.solver_time_limit_seconds,
+            solver_num_workers: body.solver_num_workers,
+        };
+
+        let settings = state.planner_settings_repo.update_planner_settings(&tenant.0, update).await?;
+        let response = PlannerSettingsResponse::from(settings);
+
+        let changes = serde_json::to_string(&response).unwrap_or_default();
+        audit_log::record(&state, &tenant.0, actor.0, "planner_settings.update", "planner_settings", Some(tenant.0.clone()), Some(changes)).await;
+
+        Ok(Json(response))
+    }
+}
+
+fn validate(body: &UpdatePlannerSettingsRequest) -> Result<(), AppError> {
+    if !(0..=7).contains(&body.night_shift_recovery_days) {
+        return Err(AppError::Validation("night_shift_recovery_days must be between 0 and 7".into()));
+    }
+    if !(0.0..=24.0).contains(&body.min_rest_hours) {
+        return Err(AppError::Validation("min_rest_hours must be between 0 and 24".into()));
+    }
+    if !(0..=14).contains(&body.max_consecutive_days) {
+        return Err(AppError::Validation("max_consecutive_days must be between 0 and 14".into()));
+    }
+    if !(0..=7).contains(&body.max_working_days_per_week) {
+        return Err(AppError::Validation("max_working_days_per_week must be between 0 and 7".into()));
+    }
+    if body.equality_weight < 0 {
+        return Err(AppError::Validation("equality_weight must be >= 0".into()));
+    }
+    if body.priority_weights.high < 0 || body.priority_weights.medium < 0 || body.priority_weights.low < 0 {
+        return Err(AppError::Validation("priority_weights must be >= 0".into()));
+    }
+    if body.monthly_hours_target_weight < 0 {
+        return Err(AppError::Validation("monthly_hours_target_weight must be >= 0".into()));
+    }
+    if body.solver_time_limit_seconds <= 0.0 {
+        return Err(AppError::Validation("solver_time_limit_seconds must be > 0".into()));
+    }
+    if !(1..=64).contains(&body.solver_num_workers) {
+        return Err(AppError::Validation("solver_num_workers must be between 1 and 64".into()));
+    }
+    Ok(())
+}

@@ -345,6 +345,44 @@ async fn handle_result_message(
 
 // ── HTTP handlers ─────────────────────────────────────────────────────────────
 
+/// Builds the optimizer's constraint payload from the tenant's stored planner
+/// settings, letting a per-request `monthly_hours_target_weight` override the
+/// stored value. Falls back to the optimizer's own built-in defaults (an empty
+/// `ConstraintTask`) if the settings can't be loaded.
+async fn build_constraints(
+    state: &AppState,
+    tenant_id: &str,
+    monthly_hours_target_weight_override: Option<u64>,
+) -> ConstraintTask {
+    match state.planner_settings_repo.get_or_create_planner_settings(tenant_id).await {
+        Ok(s) => {
+            let mut priority_weights = std::collections::HashMap::new();
+            priority_weights.insert("high".to_string(), s.priority_weight_high);
+            priority_weights.insert("medium".to_string(), s.priority_weight_medium);
+            priority_weights.insert("low".to_string(), s.priority_weight_low);
+            ConstraintTask {
+                monthly_hours_target_weight: monthly_hours_target_weight_override
+                    .or(Some(s.monthly_hours_target_weight as u64)),
+                night_shift_recovery_days: Some(s.night_shift_recovery_days),
+                min_rest_hours: Some(s.min_rest_hours),
+                max_consecutive_days: Some(s.max_consecutive_days),
+                max_working_days_per_week: Some(s.max_working_days_per_week),
+                equality_weight: Some(s.equality_weight),
+                priority_weights: Some(priority_weights),
+                solver_time_limit_seconds: Some(s.solver_time_limit_seconds),
+                solver_num_workers: Some(s.solver_num_workers),
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to load planner settings for tenant {}: {} — using optimizer defaults", tenant_id, e);
+            ConstraintTask {
+                monthly_hours_target_weight: monthly_hours_target_weight_override,
+                ..Default::default()
+            }
+        }
+    }
+}
+
 pub async fn trigger_plan(
     tenant: TenantContext,
     actor: AuditActor,
@@ -359,9 +397,7 @@ pub async fn trigger_plan(
     let employee_ids = request.employee_ids.clone();
     let start_date = request.start_date.clone();
     let end_date = request.end_date.clone();
-    let constraints = request.monthly_hours_target_weight.map(|w| ConstraintTask {
-        monthly_hours_target_weight: Some(w),
-    });
+    let constraints = Some(build_constraints(&state, &tenant.0, request.monthly_hours_target_weight).await);
 
     let svc = OptimizerService::new(state.clone());
     if let Err(e) = svc.schedule(
@@ -617,9 +653,7 @@ pub async fn prepare(
     Json(request): Json<PlanRequest>,
 ) -> Result<Json<TaskDTO>, AppError> {
     let employee_filter = request.employee_ids.as_deref();
-    let constraints = request.monthly_hours_target_weight.map(|w| ConstraintTask {
-        monthly_hours_target_weight: Some(w),
-    });
+    let constraints = Some(build_constraints(&state, &tenant.0, request.monthly_hours_target_weight).await);
     match OptimizerService::build_task_dto(&state, &tenant.0, employee_filter, request.start_date.as_deref(), request.end_date.as_deref(), constraints).await {
         Ok(task_dto) => Ok(Json(task_dto)),
         Err(e) => {

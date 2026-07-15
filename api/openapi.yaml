@@ -91,6 +91,55 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /employees/template:
+    get:
+      tags:
+        - Employees
+      summary: Download an empty Excel import template for employees
+      operationId: downloadEmployeeTemplate
+      responses:
+        '200':
+          description: .xlsx template with columns name, email, max_working_hours, capabilities, available_shifts
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  /employees/import:
+    post:
+      tags:
+        - Employees
+      summary: Bulk-create employees from an Excel file
+      description: |
+        Rows follow the columns from GET /employees/template. `capabilities` and
+        `available_shifts` are comma-separated lists of existing capability/shift
+        names; unmatched names are reported as warnings rather than failing the row.
+      operationId: importEmployees
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Import summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /employees/{employeeId}:
     get:
       tags:
@@ -351,6 +400,54 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /shifts/template:
+    get:
+      tags:
+        - Shifts
+      summary: Download an empty Excel import template for shifts
+      operationId: downloadShiftTemplate
+      responses:
+        '200':
+          description: .xlsx template with columns name, short_name, color, order
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  /shifts/import:
+    post:
+      tags:
+        - Shifts
+      summary: Bulk-create shifts from an Excel file
+      description: |
+        Rows follow the columns from GET /shifts/template. Per-weekday start/end
+        times are not part of the template and must be configured afterward.
+      operationId: importShifts
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Import summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /shifts/{shiftId}:
     get:
       tags:
@@ -497,6 +594,51 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /capabilities/template:
+    get:
+      tags:
+        - Capabilities
+      summary: Download an empty Excel import template for capabilities
+      operationId: downloadCapabilityTemplate
+      responses:
+        '200':
+          description: .xlsx template with a single name column
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  /capabilities/import:
+    post:
+      tags:
+        - Capabilities
+      summary: Bulk-create capabilities from an Excel file
+      operationId: importCapabilities
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Import summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /capabilities/{capabilityId}:
     get:
       tags:
@@ -576,6 +718,56 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Workstation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /workstations/template:
+    get:
+      tags:
+        - Workstations
+      summary: Download an empty Excel import template for workstations
+      operationId: downloadWorkstationTemplate
+      responses:
+        '200':
+          description: .xlsx template with columns name, priority, min_employees, max_employees, available, active_shifts, required_capabilities
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  /workstations/import:
+    post:
+      tags:
+        - Workstations
+      summary: Bulk-create workstations from an Excel file
+      description: |
+        Rows follow the columns from GET /workstations/template. `active_shifts`
+        and `required_capabilities` are comma-separated lists of existing
+        shift/capability names; unmatched names are reported as warnings rather
+        than failing the row.
+      operationId: importWorkstations
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Import summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResult'
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
@@ -1118,6 +1310,50 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TaskDTO'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /planner-settings:
+    get:
+      tags:
+        - Planner
+      summary: Get planner algorithm settings
+      description: Returns the current tenant's configurable optimizer (CP-SAT) settings, creating a row with default values on first access.
+      operationId: getPlannerSettings
+      responses:
+        '200':
+          description: Successfully retrieved planner settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlannerSettingsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags:
+        - Planner
+      summary: Update planner algorithm settings
+      description: Replaces the current tenant's optimizer settings. These are merged into every subsequent /planner/plan and /planner/prepare request as the default constraint configuration.
+      operationId: updatePlannerSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePlannerSettingsRequest'
+      responses:
+        '200':
+          description: Successfully updated planner settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlannerSettingsResponse'
+        '400':
+          description: Invalid settings value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -1888,6 +2124,143 @@ components:
           format: date-time
           description: Last status update timestamp
 
+    PriorityWeights:
+      type: object
+      required:
+        - high
+        - medium
+        - low
+      properties:
+        high:
+          type: integer
+          description: Objective weight for staffing high-priority workstations
+          example: 10000
+        medium:
+          type: integer
+          description: Objective weight for staffing medium-priority workstations
+          example: 1000
+        low:
+          type: integer
+          description: Objective weight for staffing low-priority workstations
+          example: 100
+
+    PlannerSettingsResponse:
+      type: object
+      required:
+        - night_shift_recovery_days
+        - min_rest_hours
+        - max_consecutive_days
+        - max_working_days_per_week
+        - equality_weight
+        - priority_weights
+        - monthly_hours_target_weight
+        - solver_time_limit_seconds
+        - solver_num_workers
+        - updated_at
+      properties:
+        night_shift_recovery_days:
+          type: integer
+          minimum: 0
+          maximum: 7
+          description: Number of days off required after a night shift (0 disables the constraint)
+          example: 2
+        min_rest_hours:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 24
+          description: Minimum rest hours required between shifts on consecutive days (0 disables the constraint)
+          example: 11.0
+        max_consecutive_days:
+          type: integer
+          minimum: 0
+          maximum: 14
+          description: Maximum consecutive working days (0 disables the constraint)
+          example: 6
+        max_working_days_per_week:
+          type: integer
+          minimum: 0
+          maximum: 7
+          description: Maximum working days per calendar week (0 disables the constraint)
+          example: 5
+        equality_weight:
+          type: integer
+          minimum: 0
+          description: Objective weight for balancing working hours fairly across employees
+          example: 50000
+        priority_weights:
+          $ref: '#/components/schemas/PriorityWeights'
+        monthly_hours_target_weight:
+          type: integer
+          minimum: 0
+          description: Objective weight for meeting each employee's monthly working-hours target
+          example: 1000
+        solver_time_limit_seconds:
+          type: number
+          format: double
+          exclusiveMinimum: true
+          minimum: 0
+          description: Maximum time the CP-SAT solver may run before returning its best solution
+          example: 120.0
+        solver_num_workers:
+          type: integer
+          minimum: 1
+          maximum: 64
+          description: Number of parallel solver worker threads
+          example: 8
+        updated_at:
+          type: string
+          format: date-time
+          description: When these settings were last updated
+
+    UpdatePlannerSettingsRequest:
+      type: object
+      required:
+        - night_shift_recovery_days
+        - min_rest_hours
+        - max_consecutive_days
+        - max_working_days_per_week
+        - equality_weight
+        - priority_weights
+        - monthly_hours_target_weight
+        - solver_time_limit_seconds
+        - solver_num_workers
+      properties:
+        night_shift_recovery_days:
+          type: integer
+          minimum: 0
+          maximum: 7
+        min_rest_hours:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 24
+        max_consecutive_days:
+          type: integer
+          minimum: 0
+          maximum: 14
+        max_working_days_per_week:
+          type: integer
+          minimum: 0
+          maximum: 7
+        equality_weight:
+          type: integer
+          minimum: 0
+        priority_weights:
+          $ref: '#/components/schemas/PriorityWeights'
+        monthly_hours_target_weight:
+          type: integer
+          minimum: 0
+        solver_time_limit_seconds:
+          type: number
+          format: double
+          exclusiveMinimum: true
+          minimum: 0
+        solver_num_workers:
+          type: integer
+          minimum: 1
+          maximum: 64
+
     ListTasksResponse:
       type: object
       required:
@@ -2535,6 +2908,37 @@ components:
         details:
           type: string
           description: Additional error details (optional)
+
+    ImportRowError:
+      type: object
+      required:
+        - row
+        - message
+      properties:
+        row:
+          type: integer
+          description: 1-indexed spreadsheet row number (including the header row)
+        message:
+          type: string
+          description: Why the row was skipped, or a warning about unmatched names
+
+    ImportResult:
+      type: object
+      required:
+        - created
+        - skipped
+        - errors
+      properties:
+        created:
+          type: integer
+          description: Number of rows successfully created
+        skipped:
+          type: integer
+          description: Number of rows skipped due to validation errors
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportRowError'
 
     EmployeeShiftAssignment:
       type: object

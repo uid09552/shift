@@ -114,6 +114,7 @@ export class EmployeeCalendarComponent implements OnInit {
   // ── Hours summary (per week / per month / per shift) ─────────────
   weeklyHoursSummaries: WeeklyHoursSummary[] = [];
   monthlyHours = 0;
+  overtimeHours = 0;
   shiftHoursSummaries: ShiftHoursSummary[] = [];
 
   // ── Unified leave & unavailability panel ─────────────────────────
@@ -444,6 +445,9 @@ export class EmployeeCalendarComponent implements OnInit {
     this.shiftHoursSummaries = Array.from(shiftTotals.values()).sort(
       (a, b) => b.hours - a.hours,
     );
+
+    const employee = this.employees.find((e) => e.id === this.selectedEmployeeId);
+    this.overtimeHours = monthly - (employee?.monthly_working_hours ?? 0);
   }
 
   /** Duration in hours of the given shift on the given date, based on that weekday's configured times. */

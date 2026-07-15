@@ -47,7 +47,8 @@ export class KalenderComponent implements OnInit, OnDestroy {
   shifts: Shift[] = [];
   workstations: Workstation[] = [];
 
-  weekStart: Date = this.getMonday(new Date());
+  viewMode: 'week' | 'month' = 'week';
+  anchorDate: Date = this.normalizeDate(new Date());
   days: DayInfo[] = [];
 
   // Map: employeeId -> dateString (YYYY-MM-DD) -> ConfirmedShiftPlan
@@ -83,6 +84,10 @@ export class KalenderComponent implements OnInit, OnDestroy {
     'Friday',
     'Saturday',
     'Sunday',
+  ];
+  readonly MONTH_NAMES_SHORT = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
 
   // Search subscription
@@ -121,7 +126,13 @@ export class KalenderComponent implements OnInit, OnDestroy {
     }
   }
 
-  // ── Week navigation ──────────────────────────────────────────────
+  // ── Week / month navigation ─────────────────────────────────────
+
+  normalizeDate(d: Date): Date {
+    const date = new Date(d);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }
 
   getMonday(d: Date): Date {
     const date = new Date(d);
@@ -134,76 +145,101 @@ export class KalenderComponent implements OnInit, OnDestroy {
   }
 
   computeDays(): void {
-    this.days = [];
+    this.days = this.viewMode === 'week' ? this.computeWeekDays() : this.computeMonthDays();
+  }
+
+  private computeWeekDays(): DayInfo[] {
+    const days: DayInfo[] = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const monday = this.getMonday(this.anchorDate);
     for (let i = 0; i < 7; i++) {
-      const d = new Date(this.weekStart);
+      const d = new Date(monday);
       d.setDate(d.getDate() + i);
-      this.days.push({
+      days.push({
         date: d,
         label: this.DAY_NAMES_FULL[d.getDay() === 0 ? 6 : d.getDay() - 1].substring(0, 3),
         dayNum: d.getDate(),
         isToday: d.getTime() === today.getTime(),
       });
     }
+    return days;
   }
 
-  prevWeek(): void {
-    const monday = this.getMonday(this.weekStart);
-    this.weekStart = new Date(
-      monday.getFullYear(),
-      monday.getMonth(),
-      monday.getDate() - 7,
-    );
+  private computeMonthDays(): DayInfo[] {
+    const days: DayInfo[] = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const year = this.anchorDate.getFullYear();
+    const month = this.anchorDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    for (let i = 1; i <= daysInMonth; i++) {
+      const d = new Date(year, month, i);
+      days.push({
+        date: d,
+        label: this.DAY_NAMES_FULL[d.getDay() === 0 ? 6 : d.getDay() - 1].substring(0, 3),
+        dayNum: d.getDate(),
+        isToday: d.getTime() === today.getTime(),
+      });
+    }
+    return days;
+  }
+
+  setViewMode(mode: 'week' | 'month'): void {
+    if (this.viewMode === mode) return;
+    this.viewMode = mode;
+    this.editingCell = null;
+    this.deletingCell = null;
     this.computeDays();
     this.loadPlans();
   }
 
-  nextWeek(): void {
-    const monday = this.getMonday(this.weekStart);
-    this.weekStart = new Date(
-      monday.getFullYear(),
-      monday.getMonth(),
-      monday.getDate() + 7,
-    );
+  prevPeriod(): void {
+    if (this.viewMode === 'week') {
+      const monday = this.getMonday(this.anchorDate);
+      this.anchorDate = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() - 7);
+    } else {
+      this.anchorDate = new Date(this.anchorDate.getFullYear(), this.anchorDate.getMonth() - 1, 1);
+    }
+    this.computeDays();
+    this.loadPlans();
+  }
+
+  nextPeriod(): void {
+    if (this.viewMode === 'week') {
+      const monday = this.getMonday(this.anchorDate);
+      this.anchorDate = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 7);
+    } else {
+      this.anchorDate = new Date(this.anchorDate.getFullYear(), this.anchorDate.getMonth() + 1, 1);
+    }
     this.computeDays();
     this.loadPlans();
   }
 
   goToday(): void {
-    this.weekStart = this.getMonday(new Date());
+    this.anchorDate = this.normalizeDate(new Date());
     this.computeDays();
     this.loadPlans();
   }
 
-  get weekEnd(): Date {
-    const d = new Date(this.weekStart);
-    d.setDate(d.getDate() + 6);
-    return d;
+  get periodStart(): Date {
+    return this.days[0]?.date ?? this.anchorDate;
   }
 
-  get weekLabel(): string {
-    const s = this.weekStart;
-    const e = this.weekEnd;
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    if (s.getMonth() === e.getMonth()) {
-      return `${months[s.getMonth()]} ${s.getDate()} – ${e.getDate()}, ${s.getFullYear()}`;
+  get periodEnd(): Date {
+    return this.days[this.days.length - 1]?.date ?? this.anchorDate;
+  }
+
+  get periodLabel(): string {
+    const s = this.periodStart;
+    const e = this.periodEnd;
+    if (this.viewMode === 'month') {
+      return `${this.MONTH_NAMES_SHORT[s.getMonth()]} ${s.getFullYear()}`;
     }
-    return `${months[s.getMonth()]} ${s.getDate()} – ${months[e.getMonth()]} ${e.getDate()}, ${s.getFullYear()}`;
+    if (s.getMonth() === e.getMonth()) {
+      return `${this.MONTH_NAMES_SHORT[s.getMonth()]} ${s.getDate()} – ${e.getDate()}, ${s.getFullYear()}`;
+    }
+    return `${this.MONTH_NAMES_SHORT[s.getMonth()]} ${s.getDate()} – ${this.MONTH_NAMES_SHORT[e.getMonth()]} ${e.getDate()}, ${s.getFullYear()}`;
   }
 
   // ── Data loading ─────────────────────────────────────────────────
@@ -233,11 +269,13 @@ export class KalenderComponent implements OnInit, OnDestroy {
 
   loadPlans(): void {
     this.loading = true;
-    const fromStr = this.formatDate(this.weekStart);
-    const toStr = this.formatDate(this.weekEnd);
+    const fromStr = this.formatDate(this.periodStart);
+    const toStr = this.formatDate(this.periodEnd);
+    // Month view can span far more employee×day cells than the week view's fixed 7 columns.
+    const limit = Math.max(500, this.employees.length * this.days.length);
 
     this.confirmedShiftPlanService
-      .getConfirmedShiftPlans(fromStr, toStr, 500, 0)
+      .getConfirmedShiftPlans(fromStr, toStr, limit, 0)
       .subscribe({
         next: (res) => {
           this.buildPlanMap(res.data);
@@ -548,7 +586,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `weekly-schedule-${this.formatDate(this.weekStart)}.xls`;
+    a.download = `schedule-${this.viewMode}-${this.formatDate(this.periodStart)}.xls`;
     a.click();
     URL.revokeObjectURL(url);
   }

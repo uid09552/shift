@@ -44,6 +44,12 @@ export interface SetWeekdayTimeRequest {
   free_days_after_shift?: number;
 }
 
+export interface ImportResult {
+  created: number;
+  skipped: number;
+  errors: { row: number; message: string }[];
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -80,5 +86,15 @@ export class ShiftService {
 
   deleteShift(shiftId: string): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/shifts/${shiftId}`);
+  }
+
+  downloadTemplate(): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/shifts/template`, { responseType: 'blob' });
+  }
+
+  importFromFile(file: File): Observable<ImportResult> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<ImportResult>(`${this.apiUrl}/shifts/import`, formData);
   }
 }

@@ -60,4 +60,139 @@
       </div>
     </div>
   </div>
+
+  <!-- Today's Coverage -->
+  <div class="col-span-12 lg:col-span-7">
+    <div class="h-full overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+      <div class="flex items-center justify-between px-5 py-4 sm:px-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">Today's Coverage</h3>
+          <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Confirmed shift plans for today</p>
+        </div>
+        <a routerLink="/kalender" class="text-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400">
+          Open schedule
+        </a>
+      </div>
+
+      <div class="border-t border-gray-100 px-5 py-5 dark:border-white/[0.05] sm:px-6">
+        @if (loadingCoverage) {
+          <p class="py-6 text-center text-sm text-gray-400 dark:text-gray-500">Loading coverage…</p>
+        } @else {
+          <div class="mb-5 grid grid-cols-2 gap-4">
+            <div class="rounded-xl bg-brand-50 px-4 py-3 dark:bg-brand-500/10">
+              <span class="block text-2xl font-bold text-brand-600 dark:text-brand-400">{{ todayWorkingCount }}</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">Working today</span>
+            </div>
+            <div class="rounded-xl bg-gray-50 px-4 py-3 dark:bg-white/[0.03]">
+              <span class="block text-2xl font-bold text-gray-700 dark:text-gray-300">{{ todayLeaveCount }}</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">On leave / sick</span>
+            </div>
+          </div>
+
+          @if (understaffedCount > 0) {
+            <div class="mb-4 rounded-lg border border-error-200 bg-error-50 px-3 py-2 text-xs font-medium text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
+              {{ understaffedCount }} workstation{{ understaffedCount > 1 ? 's are' : ' is' }} below minimum staffing today
+            </div>
+          }
+
+          @if (workstationCoverage.length === 0) {
+            <p class="text-sm text-gray-400 dark:text-gray-500">No active workstations configured.</p>
+          } @else {
+            <div class="space-y-1.5">
+              @for (ws of workstationCoverage; track ws.id) {
+                <div class="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2 dark:border-white/[0.05]">
+                  <span class="text-sm text-gray-700 dark:text-gray-300">{{ ws.name }}</span>
+                  <span
+                    class="rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums"
+                    [class.bg-error-50]="ws.understaffed"
+                    [class.text-error-600]="ws.understaffed"
+                    [class.dark:bg-error-500/10]="ws.understaffed"
+                    [class.dark:text-error-400]="ws.understaffed"
+                    [class.bg-success-50]="!ws.understaffed"
+                    [class.text-success-600]="!ws.understaffed"
+                    [class.dark:bg-success-500/10]="!ws.understaffed"
+                    [class.dark:text-success-400]="!ws.understaffed"
+                  >
+                    {{ ws.assigned }} / {{ ws.minEmployees || '–' }}
+                  </span>
+                </div>
+              }
+            </div>
+          }
+        }
+      </div>
+    </div>
+  </div>
+
+  <!-- Right column: latest optimization run + recent activity -->
+  <div class="col-span-12 flex flex-col gap-4 lg:col-span-5 md:gap-6">
+
+    <!-- Latest Optimization Run -->
+    <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+      <div class="px-5 py-4 sm:px-6">
+        <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">Latest Optimization Run</h3>
+      </div>
+      <div class="border-t border-gray-100 px-5 py-5 dark:border-white/[0.05] sm:px-6">
+        @if (loadingLatestTask) {
+          <p class="text-sm text-gray-400 dark:text-gray-500">Loading…</p>
+        } @else if (!latestTask) {
+          <p class="mb-3 text-sm text-gray-400 dark:text-gray-500">No optimization runs yet.</p>
+          <a routerLink="/scheduler" class="text-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400">
+            Run the optimizer →
+          </a>
+        } @else {
+          <div class="flex items-center justify-between">
+            <span
+              class="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+              [class.bg-success-50]="latestTask.status === 'done'"
+              [class.text-success-600]="latestTask.status === 'done'"
+              [class.dark:bg-success-500/10]="latestTask.status === 'done'"
+              [class.dark:text-success-400]="latestTask.status === 'done'"
+              [class.bg-error-50]="latestTask.status === 'error'"
+              [class.text-error-600]="latestTask.status === 'error'"
+              [class.dark:bg-error-500/10]="latestTask.status === 'error'"
+              [class.dark:text-error-400]="latestTask.status === 'error'"
+              [class.bg-amber-50]="latestTask.status === 'scheduled'"
+              [class.text-amber-700]="latestTask.status === 'scheduled'"
+              [class.dark:bg-amber-500/10]="latestTask.status === 'scheduled'"
+              [class.dark:text-amber-400]="latestTask.status === 'scheduled'"
+            >
+              {{ taskStatusLabel(latestTask.status) }}
+            </span>
+            <span class="text-xs text-gray-400 dark:text-gray-500">{{ relativeTime(latestTask.created_at) }}</span>
+          </div>
+          <a routerLink="/scheduler" class="mt-3 inline-block text-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400">
+            View in Scheduler →
+          </a>
+        }
+      </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="flex-1 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+      <div class="px-5 py-4 sm:px-6">
+        <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">Recent Activity</h3>
+      </div>
+      <div class="border-t border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
+        @if (loadingActivity) {
+          <p class="text-sm text-gray-400 dark:text-gray-500">Loading…</p>
+        } @else if (recentActivity.length === 0) {
+          <p class="text-sm text-gray-400 dark:text-gray-500">No recent activity.</p>
+        } @else {
+          <ul class="space-y-3">
+            @for (log of recentActivity; track log.id) {
+              <li class="flex items-start gap-2.5">
+                <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" [ngClass]="actionDotClass(log.action)"></span>
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm text-gray-700 dark:text-gray-300">{{ actionLabel(log.action) }}</p>
+                  <p class="text-xs text-gray-400 dark:text-gray-500">{{ relativeTime(log.created_at) }}</p>
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    </div>
+
+  </div>
 </div>

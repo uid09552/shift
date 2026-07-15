@@ -7,6 +7,7 @@ pub mod employee_available_shifts;
 pub mod employee_capabilities;
 pub mod employee_shift_assignment;
 pub mod optimized_shift_result;
+pub mod planner_settings;
 pub mod planning_task;
 pub mod shift;
 pub mod task_dto;
@@ -25,6 +26,7 @@ pub use employee_available_shifts::{EmployeeAvailableShift, NewEmployeeAvailable
 pub use employee_capabilities::{EmployeeCapability, NewEmployeeCapability};
 pub use employee_shift_assignment::{EmployeeShiftAssignment, NewEmployeeShiftAssignment};
 pub use optimized_shift_result::{OptimizedShiftResult, NewOptimizedShiftResult};
+pub use planner_settings::{PlannerSettings, NewPlannerSettings};
 pub use planning_task::{PlanningTask, NewPlanningTask};
 pub use shift::{Shift, NewShift, ShiftWeekdayTime, NewShiftWeekdayTime};
 pub use task_dto::{ConstraintTask, TaskDTO, PlanningPeriod, ShiftTask, ShiftWeekdayTimeTask, WorkstationTask, WorkstationUnavailabilityRange, EmployeeTask};

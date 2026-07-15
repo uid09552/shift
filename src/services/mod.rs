@@ -11,3 +11,5 @@ pub mod confirmed_shift_plan;
 pub mod analysis;
 pub mod auth;
 pub mod tenant;
+pub mod xlsx_io;
+pub mod planner_settings;

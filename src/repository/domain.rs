@@ -304,3 +304,43 @@ pub trait AuditLogRepository {
         to_date: Option<chrono::NaiveDateTime>,
     ) -> Result<i64, AppError>;
 }
+
+/// Per-tenant configuration for the optimizer (CP-SAT) algorithm.
+/// Mirrors `ConstraintConfig` in `planner/shift_planner/models.py`.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PlannerSettingsDomain {
+    pub night_shift_recovery_days: i16,
+    pub min_rest_hours: f64,
+    pub max_consecutive_days: i16,
+    pub max_working_days_per_week: i16,
+    pub equality_weight: i32,
+    pub priority_weight_high: i32,
+    pub priority_weight_medium: i32,
+    pub priority_weight_low: i32,
+    pub monthly_hours_target_weight: i32,
+    pub solver_time_limit_seconds: f64,
+    pub solver_num_workers: i16,
+    pub updated_at: chrono::NaiveDateTime,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct UpdatePlannerSettings {
+    pub night_shift_recovery_days: i16,
+    pub min_rest_hours: f64,
+    pub max_consecutive_days: i16,
+    pub max_working_days_per_week: i16,
+    pub equality_weight: i32,
+    pub priority_weight_high: i32,
+    pub priority_weight_medium: i32,
+    pub priority_weight_low: i32,
+    pub monthly_hours_target_weight: i32,
+    pub solver_time_limit_seconds: f64,
+    pub solver_num_workers: i16,
+}
+
+#[async_trait]
+pub trait PlannerSettingsRepository {
+    /// Returns the tenant's settings, creating a default row on first access.
+    async fn get_or_create_planner_settings(&self, tenant_id: &str) -> Result<PlannerSettingsDomain, AppError>;
+    async fn update_planner_settings(&self, tenant_id: &str, settings: UpdatePlannerSettings) -> Result<PlannerSettingsDomain, AppError>;
+}

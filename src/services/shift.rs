@@ -1,5 +1,6 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Multipart, Path, Query, State},
+    response::Response,
     Json,
 };
 use chrono::NaiveTime;
@@ -13,6 +14,7 @@ use crate::repository::domain::ShiftRepository;
 use crate::services::audit_log::{self, AuditActor};
 use crate::services::employee::PaginationQuery;
 use crate::services::tenant::TenantContext;
+use crate::services::xlsx_io::{self, ImportResult};
 
 #[derive(Deserialize)]
 pub struct SetWeekdayTimeRequest {
@@ -204,5 +206,75 @@ impl ShiftService {
             .await?;
         audit_log::record(&state, &tenant.0, actor.0, "shift.delete", "shift", Some(shift_id.to_string()), None).await;
         Ok(Json(serde_json::json!({ "message": "Shift deleted successfully" })))
+    }
+
+    pub async fn download_template(_tenant: TenantContext) -> Result<Response, AppError> {
+        let bytes = xlsx_io::build_template(&["name", "short_name", "color", "order"])?;
+        Ok(xlsx_io::xlsx_download_response(bytes, "shifts_template.xlsx"))
+    }
+
+    pub async fn import_shifts(
+        tenant: TenantContext,
+        actor: AuditActor,
+        State(state): State<AppState>,
+        multipart: Multipart,
+    ) -> Result<Json<Value>, AppError> {
+        let bytes = xlsx_io::extract_uploaded_file(multipart).await?;
+        let rows = xlsx_io::parse_rows(&bytes)?;
+
+        let mut result = ImportResult::default();
+
+        for (idx, row) in rows.iter().enumerate() {
+            let row_num = idx + 2;
+            let name = row.first().map(String::as_str).unwrap_or("");
+            let short_name = row.get(1).map(String::as_str).unwrap_or("");
+            let color = row.get(2).map(String::as_str).unwrap_or("");
+            let order_str = row.get(3).map(String::as_str).unwrap_or("");
+
+            if name.is_empty() || short_name.is_empty() || color.is_empty() {
+                result.push_error(row_num, "Missing required 'name', 'short_name' or 'color'");
+                continue;
+            }
+
+            if !color.starts_with('#') || color.len() != 7 || !color[1..].chars().all(|c| c.is_ascii_hexdigit()) {
+                result.push_error(row_num, format!("Invalid 'color' format '{color}', must be hex e.g. #3B82F6"));
+                continue;
+            }
+
+            let order: i32 = if order_str.is_empty() {
+                0
+            } else {
+                match order_str.parse() {
+                    Ok(v) => v,
+                    Err(_) => {
+                        result.push_error(row_num, format!("Invalid 'order' value: '{order_str}'"));
+                        continue;
+                    }
+                }
+            };
+
+            match state.shift_repo.create_shift(&tenant.0, name, short_name, color, order).await {
+                Ok(_) => result.created += 1,
+                Err(AppError::Duplicate) => {
+                    result.push_error(row_num, format!("Shift '{name}' already exists"));
+                }
+                Err(_) => {
+                    result.push_error(row_num, "Failed to create shift");
+                }
+            }
+        }
+
+        audit_log::record(
+            &state,
+            &tenant.0,
+            actor.0,
+            "shift.import",
+            "shift",
+            None,
+            Some(serde_json::json!({ "created": result.created, "skipped": result.skipped }).to_string()),
+        )
+        .await;
+
+        Ok(Json(serde_json::to_value(result).unwrap()))
     }
 }

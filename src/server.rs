@@ -1,4 +1,5 @@
 use axum::{
+    middleware,
     response::Json,
     routing::{delete, get, patch, post, put},
     Router,
@@ -20,8 +21,10 @@ use crate::services::{
     confirmed_shift_plan::ConfirmedShiftPlanService,
     employee::EmployeeService,
     optimizer,
+    planner_settings::PlannerSettingsService,
     shift::ShiftService,
     shift_assignment::ShiftAssignmentService,
+    tenant,
     unavailability::UnavailabilityService,
     workstation::WorkstationService,
     workstation_unavailability::WorkstationUnavailabilityService,
@@ -51,6 +54,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/self", get(auth::get_self))
         // Employees
         .route("/employees", get(EmployeeService::list_employees).post(EmployeeService::create_employee))
+        .route("/employees/template", get(EmployeeService::download_template))
+        .route("/employees/import", post(EmployeeService::import_employees))
         .route("/employees/:employee_id", get(EmployeeService::get_employee_by_id).put(EmployeeService::update_employee).delete(EmployeeService::delete_employee))
         .route("/employees/email/:email", get(EmployeeService::get_employee_by_email))
         .route(
@@ -63,14 +68,20 @@ pub fn create_router(state: AppState) -> Router {
         )
         // Shifts
         .route("/shifts", get(ShiftService::list_shifts).post(ShiftService::create_shift))
+        .route("/shifts/template", get(ShiftService::download_template))
+        .route("/shifts/import", post(ShiftService::import_shifts))
         .route("/shifts/:shift_id", get(ShiftService::get_shift_by_id).put(ShiftService::update_shift).delete(ShiftService::delete_shift))
         .route("/shifts/:shift_id/weekday-times", post(ShiftService::set_weekday_time))
         .route("/shifts/:shift_id/weekday-times/:weekday", delete(ShiftService::delete_weekday_time))
         // Capabilities
         .route("/capabilities", get(CapabilityService::list_capabilities).post(CapabilityService::create_capability))
+        .route("/capabilities/template", get(CapabilityService::download_template))
+        .route("/capabilities/import", post(CapabilityService::import_capabilities))
         .route("/capabilities/:capability_id", get(CapabilityService::get_capability_by_id).put(CapabilityService::update_capability).delete(CapabilityService::delete_capability))
         // Workstations
         .route("/workstations", get(WorkstationService::list_workstations).post(WorkstationService::create_workstation))
+        .route("/workstations/template", get(WorkstationService::download_template))
+        .route("/workstations/import", post(WorkstationService::import_workstations))
         .route(
             "/workstations/:workstation_id",
             get(WorkstationService::get_workstation_by_id).put(WorkstationService::update_workstation).delete(WorkstationService::delete_workstation),
@@ -114,6 +125,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/planner/optimized-shifts", get(optimizer::list_optimized_shifts))
         .route("/planner/optimized-shifts/:result_id", get(optimizer::get_optimized_shift).put(optimizer::update_optimized_shift).delete(optimizer::delete_optimized_shift))
         .route("/planner/optimized-shifts/:result_id/take-as-plan", post(optimizer::take_as_plan))
+        .route(
+            "/planner-settings",
+            get(PlannerSettingsService::get_planner_settings).put(PlannerSettingsService::update_planner_settings),
+        )
         // Shift Assignments
         .route(
             "/employees/:employee_id/shift-assignments",
@@ -146,7 +161,10 @@ pub fn create_router(state: AppState) -> Router {
             get(AnalysisService::get_planned_employees_per_day_per_workstation),
         )
         // Audit Logs
-        .route("/audit-logs", get(AuditLogService::list_audit_logs));
+        .route("/audit-logs", get(AuditLogService::list_audit_logs))
+        // Resolve the request's tenant from the x-access-token JWT (or the default
+        // tenant in dev mode) before any handler runs.
+        .layer(middleware::from_fn_with_state(state.clone(), tenant::resolve_tenant));
 
     Router::new()
         .route("/health", get(health_check))

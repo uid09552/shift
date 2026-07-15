@@ -4,6 +4,22 @@ use serde::{Deserialize, Serialize};
 pub struct ConstraintTask {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub monthly_hours_target_weight: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub night_shift_recovery_days: Option<i16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_rest_hours: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_consecutive_days: Option<i16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_working_days_per_week: Option<i16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub equality_weight: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub priority_weights: Option<std::collections::HashMap<String, i32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub solver_time_limit_seconds: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub solver_num_workers: Option<i16>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

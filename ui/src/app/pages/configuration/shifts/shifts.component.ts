@@ -6,7 +6,7 @@ import { PageBreadcrumbComponent } from '../../../shared/components/common/page-
 import { InputFieldComponent } from '../../../shared/components/form/input/input-field.component';
 import { LabelComponent } from '../../../shared/components/form/label/label.component';
 import { ButtonComponent } from '../../../shared/components/ui/button/button.component';
-import { ShiftService, Shift, WeekdayTime, SetWeekdayTimeRequest } from '../../../shared/services/shift.service';
+import { ShiftService, Shift, WeekdayTime, SetWeekdayTimeRequest, ImportResult } from '../../../shared/services/shift.service';
 import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
 import { ContextMenuService } from '../../../shared/components/ui/context-menu/context-menu.service';
 
@@ -200,15 +200,68 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
         <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
           Shift Overview
         </h3>
-        <app-button
-          size="sm"
-          variant="primary"
-          [startIcon]="plusIcon"
-          (btnClick)="openAddForm()"
-        >
-          Add Shift
-        </app-button>
+        <div class="flex items-center gap-2">
+          <app-button size="sm" variant="outline" (btnClick)="downloadTemplate()">
+            Download Template
+          </app-button>
+          <app-button size="sm" variant="outline" (btnClick)="importFileInput.click()" [disabled]="importing">
+            {{ importing ? 'Importing...' : 'Import' }}
+          </app-button>
+          <input
+            #importFileInput
+            type="file"
+            accept=".xlsx"
+            class="hidden"
+            (change)="onImportFileSelected($event)"
+          />
+          <app-button
+            size="sm"
+            variant="primary"
+            [startIcon]="plusIcon"
+            (btnClick)="openAddForm()"
+          >
+            Add Shift
+          </app-button>
+        </div>
       </div>
+
+      @if (importResult) {
+        <div
+          class="mx-5 mb-4 rounded-lg border px-4 py-3 text-sm sm:mx-6"
+          [class.border-success-200]="importResult.errors.length === 0"
+          [class.bg-success-50]="importResult.errors.length === 0"
+          [class.text-success-700]="importResult.errors.length === 0"
+          [class.dark:border-success-500]="importResult.errors.length === 0"
+          [class.dark:bg-success-500]="importResult.errors.length === 0"
+          [class.dark:bg-opacity-10]="importResult.errors.length === 0"
+          [class.dark:text-success-400]="importResult.errors.length === 0"
+          [class.border-amber-200]="importResult.errors.length > 0"
+          [class.bg-amber-50]="importResult.errors.length > 0"
+          [class.text-amber-700]="importResult.errors.length > 0"
+          [class.dark:border-amber-500]="importResult.errors.length > 0"
+          [class.dark:bg-amber-500]="importResult.errors.length > 0"
+          [class.dark:bg-opacity-10]="importResult.errors.length > 0"
+          [class.dark:text-amber-400]="importResult.errors.length > 0"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="font-medium">
+                Import finished: {{ importResult.created }} created, {{ importResult.skipped }} skipped.
+              </p>
+              @if (importResult.errors.length > 0) {
+                <ul class="mt-1.5 list-inside list-disc space-y-0.5">
+                  @for (err of importResult.errors; track err.row) {
+                    <li>Row {{ err.row }}: {{ err.message }}</li>
+                  }
+                </ul>
+              }
+            </div>
+            <button type="button" (click)="importResult = null" class="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+      }
 
       <div class="max-w-full overflow-x-auto">
         <table class="min-w-full">
@@ -331,6 +384,9 @@ export class ShiftsComponent implements OnInit {
 
   plusIcon = `<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.25C12.4142 3.25 12.75 3.58579 12.75 4V11.25H20C20.4142 11.25 20.75 11.5858 20.75 12C20.75 12.4142 20.4142 12.75 20 12.75H12.75V20C12.75 20.4142 12.4142 20.75 12 20.75C11.5858 20.75 11.25 20.4142 11.25 20V12.75H4C3.58579 12.75 3.25 12.4142 3.25 12C3.25 11.5858 3.58579 11.25 4 11.25H11.25V4C11.25 3.58579 11.5858 3.25 12 3.25Z" fill="currentColor"></path></svg>`;
 
+  importing = false;
+  importResult: ImportResult | null = null;
+
   constructor(
     private shiftService: ShiftService,
     private confirmDialog: ConfirmDialogService,
@@ -353,6 +409,41 @@ export class ShiftsComponent implements OnInit {
         this.loading = false;
       },
     });
+  }
+
+  downloadTemplate(): void {
+    this.shiftService.downloadTemplate().subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'shifts_template.xlsx';
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      error: (err) => console.error('Failed to download shift template', err),
+    });
+  }
+
+  onImportFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    this.importing = true;
+    this.importResult = null;
+    this.shiftService.importFromFile(file).subscribe({
+      next: (result) => {
+        this.importResult = result;
+        this.importing = false;
+        this.loadShifts();
+      },
+      error: (err) => {
+        console.error('Failed to import shifts', err);
+        this.importing = false;
+      },
+    });
+    input.value = '';
   }
 
   getWeekdayName(weekday: number): string {

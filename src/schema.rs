@@ -147,6 +147,25 @@ diesel::table! {
 }
 
 diesel::table! {
+    planner_settings (tenant_id) {
+        tenant_id -> Varchar,
+        night_shift_recovery_days -> Int2,
+        min_rest_hours -> Float8,
+        max_consecutive_days -> Int2,
+        max_working_days_per_week -> Int2,
+        equality_weight -> Int4,
+        priority_weight_high -> Int4,
+        priority_weight_medium -> Int4,
+        priority_weight_low -> Int4,
+        monthly_hours_target_weight -> Int4,
+        solver_time_limit_seconds -> Float8,
+        solver_num_workers -> Int2,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
     audit_logs (id) {
         id -> Uuid,
         tenant_id -> Varchar,
@@ -192,4 +211,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     planning_tasks,
     workstation_unavailabilities,
     audit_logs,
+    planner_settings,
 );

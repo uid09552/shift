@@ -11,6 +11,12 @@ export interface CreateCapabilityRequest {
   name: string;
 }
 
+export interface ImportResult {
+  created: number;
+  skipped: number;
+  errors: { row: number; message: string }[];
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -37,5 +43,15 @@ export class CapabilityService {
 
   deleteCapability(id: string): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/${id}`);
+  }
+
+  downloadTemplate(): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/template`, { responseType: 'blob' });
+  }
+
+  importFromFile(file: File): Observable<ImportResult> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<ImportResult>(`${this.apiUrl}/import`, formData);
   }
 }

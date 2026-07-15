@@ -1,25 +1,51 @@
-<app-page-breadcrumb pageTitle="Weekly Schedule" />
+<app-page-breadcrumb pageTitle="Schedule" />
 
 <div
   class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
   (click)="onDocumentClick($event)"
 >
-  <!-- Header with week navigation + export -->
+  <!-- Header with period navigation, view toggle + export -->
   <div
     class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6"
   >
-    <app-calendar-nav
-      [label]="weekLabel"
-      periodType="week"
-      (prev)="prevWeek()"
-      (next)="nextWeek()"
-      (today)="goToday()"
-    />
+    <div class="flex flex-wrap items-center gap-3">
+      <app-calendar-nav
+        [label]="periodLabel"
+        [periodType]="viewMode"
+        (prev)="prevPeriod()"
+        (next)="nextPeriod()"
+        (today)="goToday()"
+      />
+      <div class="inline-flex items-center rounded-lg border border-gray-200 p-0.5 dark:border-gray-700">
+        <button
+          type="button"
+          (click)="setViewMode('week')"
+          class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
+          [class.bg-brand-500]="viewMode === 'week'"
+          [class.text-white]="viewMode === 'week'"
+          [class.text-gray-600]="viewMode !== 'week'"
+          [class.dark:text-gray-400]="viewMode !== 'week'"
+        >
+          Weekly
+        </button>
+        <button
+          type="button"
+          (click)="setViewMode('month')"
+          class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
+          [class.bg-brand-500]="viewMode === 'month'"
+          [class.text-white]="viewMode === 'month'"
+          [class.text-gray-600]="viewMode !== 'month'"
+          [class.dark:text-gray-400]="viewMode !== 'month'"
+        >
+          Monthly
+        </button>
+      </div>
+    </div>
     <button
       (click)="exportToExcel()"
       [disabled]="loading || employees.length === 0"
       class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
-      title="Export current week to Excel"
+      [title]="'Export current ' + viewMode + ' to Excel'"
     >
       <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -99,7 +125,10 @@
             </th>
             @for (day of days; track day.date.getTime()) {
               <th
-                class="day-col border-r border-gray-100 px-2 py-3 text-center text-xs font-semibold uppercase last:border-r-0 dark:border-white/[0.05]"
+                class="day-col border-r border-gray-100 py-3 text-center text-xs font-semibold uppercase last:border-r-0 dark:border-white/[0.05]"
+                [class.day-col-compact]="viewMode === 'month'"
+                [class.px-2]="viewMode === 'week'"
+                [class.px-0.5]="viewMode === 'month'"
                 [class.bg-brand-50]="day.isToday"
                 [class.dark:bg-brand-500/10]="day.isToday"
               >
@@ -110,7 +139,9 @@
                   {{ day.label }}
                 </div>
                 <div
-                  class="mt-0.5 text-lg font-bold"
+                  class="mt-0.5 font-bold"
+                  [class.text-lg]="viewMode === 'week'"
+                  [class.text-sm]="viewMode === 'month'"
                   [class.text-brand-600]="day.isToday"
                   [class.dark:text-brand-400]="day.isToday"
                   [class.text-gray-800]="!day.isToday"
@@ -164,16 +195,24 @@
                 @let cell = getCell(employee.id, day);
                 @let dateStr = formatDate(day.date);
                 <td
-                  class="day-col cell-container relative border-r border-gray-100 px-2 py-1.5 last:border-r-0 dark:border-white/[0.05]"
+                  class="day-col cell-container relative border-r border-gray-100 py-1.5 last:border-r-0 dark:border-white/[0.05]"
+                  [class.day-col-compact]="viewMode === 'month'"
+                  [class.px-2]="viewMode === 'week'"
+                  [class.px-0.5]="viewMode === 'month'"
                   [class.bg-brand-50/40]="day.isToday"
                   [class.dark:bg-brand-500/5]="day.isToday"
                 >
                   @if (cell.plan && cell.isPresent) {
                     <!-- Cell with an assigned shift -->
                     <div
-                      class="shift-chip group/chip relative flex flex-col items-center gap-0.5 rounded-lg px-2 py-1.5 text-center transition-shadow hover:shadow-sm"
+                      class="shift-chip group/chip relative flex w-full flex-col items-center gap-0.5 rounded-lg text-center transition-shadow hover:shadow-sm"
+                      [class.px-2]="viewMode === 'week'"
+                      [class.py-1.5]="viewMode === 'week'"
+                      [class.px-1]="viewMode === 'month'"
+                      [class.py-1]="viewMode === 'month'"
                       [style.backgroundColor]="getShiftBg(cell.shift)"
                       [style.borderLeft]="'3px solid ' + getShiftColor(cell.shift)"
+                      [title]="viewMode === 'month' && cell.workstation ? getWorkstationName(cell.workstation) : null"
                     >
                       <span
                         class="text-xs font-bold leading-tight"
@@ -181,9 +220,9 @@
                       >
                         {{ getShiftShortName(cell.shift) }}
                       </span>
-                      @if (cell.workstation) {
+                      @if (cell.workstation && viewMode === 'week') {
                         <span
-                          class="truncate text-[10px] leading-tight text-gray-500 cursor-pointer hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
+                          class="w-full truncate text-[10px] leading-tight text-gray-500 cursor-pointer hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
                           [title]="getWorkstationName(cell.workstation) + ' (click to change)'"
                           (click)="startEdit(employee.id, day, $event)"
                         >
@@ -322,22 +361,81 @@
                       </div>
                     }
                   } @else if (cell.absenceType) {
-                    <div
-                      class="flex items-center justify-center rounded-lg px-2 py-1.5"
-                      [class.bg-red-50]="cell.absenceType !== 'free'"
-                      [class.dark:bg-red-500/10]="cell.absenceType !== 'free'"
-                      [class.bg-slate-50]="cell.absenceType === 'free'"
-                      [class.dark:bg-slate-800]="cell.absenceType === 'free'"
-                    >
-                      <span
-                        class="text-xs font-medium"
-                        [class.text-red-600]="cell.absenceType !== 'free'"
-                        [class.dark:text-red-400]="cell.absenceType !== 'free'"
-                        [class.text-slate-500]="cell.absenceType === 'free'"
-                        [class.dark:text-slate-400]="cell.absenceType === 'free'"
+                    <div class="group/chip relative">
+                      <div
+                        class="absence-cell flex w-full items-center justify-center overflow-hidden rounded-lg"
+                        [class.px-2]="viewMode === 'week'"
+                        [class.py-1.5]="viewMode === 'week'"
+                        [class.px-1]="viewMode === 'month'"
+                        [class.py-1]="viewMode === 'month'"
+                        [class.bg-red-50]="cell.absenceType !== 'free'"
+                        [class.dark:bg-red-500/10]="cell.absenceType !== 'free'"
+                        [class.bg-slate-50]="cell.absenceType === 'free'"
+                        [class.dark:bg-slate-800]="cell.absenceType === 'free'"
+                        [title]="viewMode === 'month' ? (cell.absenceType === 'free' ? 'Free' : cell.absenceType === 'day_off' ? 'Vacation' : cell.absenceType === 'sick' ? 'Sick' : cell.absenceType) : null"
                       >
-                        {{ cell.absenceType === 'free' ? 'Free' : cell.absenceType === 'day_off' ? 'Vacation' : cell.absenceType === 'sick' ? 'Sick' : cell.absenceType }}
-                      </span>
+                        <span
+                          class="w-full truncate text-center text-xs font-medium"
+                          [class.text-red-600]="cell.absenceType !== 'free'"
+                          [class.dark:text-red-400]="cell.absenceType !== 'free'"
+                          [class.text-slate-500]="cell.absenceType === 'free'"
+                          [class.dark:text-slate-400]="cell.absenceType === 'free'"
+                        >
+                          {{ cell.absenceType === 'free' ? 'Free' : cell.absenceType === 'day_off' ? 'Vacation' : cell.absenceType === 'sick' ? 'Sick' : cell.absenceType }}
+                        </span>
+                      </div>
+
+                      <!-- Action buttons (visible on hover) -->
+                      <div
+                        class="cell-actions absolute -top-1 right-0 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/chip:opacity-100"
+                        (click)="$event.stopPropagation()"
+                      >
+                        <button
+                          (click)="startDelete(employee.id, day, cell.plan!.id, $event)"
+                          class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 shadow-sm ring-1 ring-gray-200 transition hover:text-red-600 hover:ring-red-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-red-400 dark:hover:ring-red-600"
+                          title="Delete absence entry"
+                        >
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                          </svg>
+                        </button>
+                      </div>
+
+                      <!-- Delete confirmation -->
+                      @if (isDeleting(employee.id, dateStr)) {
+                        <div
+                          class="delete-confirm absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-red-200 bg-white p-2 shadow-lg dark:border-red-800 dark:bg-gray-800"
+                          (click)="$event.stopPropagation()"
+                        >
+                          <p class="mb-2 text-xs text-gray-600 dark:text-gray-300">
+                            Delete this absence entry?
+                          </p>
+                          <div class="flex items-center gap-2">
+                            <button
+                              (click)="confirmDelete()"
+                              class="flex-1 rounded-md bg-red-500 px-2 py-1 text-xs font-medium text-white transition hover:bg-red-600"
+                            >
+                              Delete
+                            </button>
+                            <button
+                              (click)="cancelDelete()"
+                              class="flex-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      }
+
+                      <!-- Processing spinner -->
+                      @if (isProcessing(employee.id, dateStr)) {
+                        <div class="absolute inset-0 z-20 flex items-center justify-center rounded-lg bg-white/60 dark:bg-gray-900/60">
+                          <svg class="h-4 w-4 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+                            <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
+                          </svg>
+                        </div>
+                      }
                     </div>
                   } @else {
                     <div
