@@ -23,6 +23,7 @@ import {
   UnavailabilityService,
   Unavailability,
 } from '../../../shared/services/unavailability.service';
+import { ThemeService } from '../../../shared/services/theme.service';
 
 interface LeaveEntry {
   id: string;
@@ -142,6 +143,12 @@ export class EmployeeCalendarComponent implements OnInit {
 
   readonly DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+  // Exposed to the template so the calendar grid's `.dark …` CSS (which lives
+  // in this component's encapsulated stylesheet) has a `.dark` ancestor
+  // within its own scope — Angular's emulated encapsulation can't match
+  // `.dark .calendar-cell` against the global `.dark` class on <html>.
+  theme$;
+
   constructor(
     private employeeService: EmployeeService,
     private shiftService: ShiftService,
@@ -149,10 +156,12 @@ export class EmployeeCalendarComponent implements OnInit {
     private confirmedShiftPlanService: ConfirmedShiftPlanService,
     private unavailabilityService: UnavailabilityService,
     private route: ActivatedRoute,
+    private themeService: ThemeService,
   ) {
     const now = new Date();
     this.currentYear = now.getFullYear();
     this.currentMonth = now.getMonth();
+    this.theme$ = this.themeService.theme$;
   }
 
   ngOnInit(): void {

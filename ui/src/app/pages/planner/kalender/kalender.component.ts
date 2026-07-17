@@ -335,6 +335,16 @@ export class KalenderComponent implements OnInit, OnDestroy {
     return shift?.short_name ?? '–';
   }
 
+  // Groups the various absence_type values into the three color treatments
+  // used in the grid and the Excel export: sick leave stays red (it needs to
+  // stand out for staffing/compliance), planned absences (vacation, holiday)
+  // get amber, and unscheduled "free" days stay neutral.
+  absenceCategory(type: string | null): 'sick' | 'planned' | 'free' {
+    if (type === 'sick') return 'sick';
+    if (type === 'free' || type === null) return 'free';
+    return 'planned';
+  }
+
   getWorkstationName(ws: Workstation | null): string {
     return ws?.name ?? '';
   }

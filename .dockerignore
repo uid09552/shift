@@ -4,3 +4,5 @@ target/
 api/
 dev/
 *.md
+node_modules/
+ui/dist/

@@ -57,7 +57,7 @@
   </div>
 
   <!-- Calendar grid -->
-  <div class="overflow-x-auto">
+  <div class="max-h-[calc(100vh-260px)] overflow-x-auto overflow-y-auto">
     @if (loading) {
       <div
         class="flex items-center justify-center py-20 text-gray-400 dark:text-gray-500"
@@ -109,7 +109,7 @@
             class="border-b border-gray-100 dark:border-white/[0.05]"
           >
             <th
-              class="employee-col relative sticky left-0 z-10 border-r border-gray-100 bg-white px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500 dark:border-white/[0.05] dark:bg-white/[0.03] dark:text-gray-400"
+              class="employee-col relative sticky left-0 top-0 z-20 border-r border-gray-100 bg-white px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500 dark:border-white/[0.05] dark:bg-white/[0.03] dark:text-gray-400"
               [style.width.px]="employeeColWidth"
               [style.minWidth.px]="employeeColWidth"
               [style.maxWidth.px]="employeeColWidth"
@@ -125,12 +125,14 @@
             </th>
             @for (day of days; track day.date.getTime()) {
               <th
-                class="day-col border-r border-gray-100 py-3 text-center text-xs font-semibold uppercase last:border-r-0 dark:border-white/[0.05]"
+                class="day-col sticky top-0 z-10 border-r border-gray-100 py-3 text-center text-xs font-semibold uppercase last:border-r-0 dark:border-white/[0.05]"
                 [class.day-col-compact]="viewMode === 'month'"
                 [class.px-2]="viewMode === 'week'"
                 [class.px-0.5]="viewMode === 'month'"
                 [class.bg-brand-50]="day.isToday"
                 [class.dark:bg-brand-500/10]="day.isToday"
+                [class.bg-white]="!day.isToday"
+                [class.dark:bg-white/5]="!day.isToday"
               >
                 <div
                   [class.text-brand-600]="day.isToday"
@@ -176,7 +178,7 @@
                   class="flex items-center gap-2.5"
                 >
                   <div
-                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-200"
                   >
                     {{ employee.name.charAt(0).toUpperCase() }}
                   </div>
@@ -368,18 +370,22 @@
                         [class.py-1.5]="viewMode === 'week'"
                         [class.px-1]="viewMode === 'month'"
                         [class.py-1]="viewMode === 'month'"
-                        [class.bg-red-50]="cell.absenceType !== 'free'"
-                        [class.dark:bg-red-500/10]="cell.absenceType !== 'free'"
-                        [class.bg-slate-50]="cell.absenceType === 'free'"
-                        [class.dark:bg-slate-800]="cell.absenceType === 'free'"
+                        [class.bg-red-50]="absenceCategory(cell.absenceType) === 'sick'"
+                        [class.dark:bg-red-500/10]="absenceCategory(cell.absenceType) === 'sick'"
+                        [class.bg-amber-50]="absenceCategory(cell.absenceType) === 'planned'"
+                        [class.dark:bg-amber-500/10]="absenceCategory(cell.absenceType) === 'planned'"
+                        [class.bg-slate-50]="absenceCategory(cell.absenceType) === 'free'"
+                        [class.dark:bg-slate-800]="absenceCategory(cell.absenceType) === 'free'"
                         [title]="viewMode === 'month' ? (cell.absenceType === 'free' ? 'Free' : cell.absenceType === 'day_off' ? 'Vacation' : cell.absenceType === 'sick' ? 'Sick' : cell.absenceType) : null"
                       >
                         <span
                           class="w-full truncate text-center text-xs font-medium"
-                          [class.text-red-600]="cell.absenceType !== 'free'"
-                          [class.dark:text-red-400]="cell.absenceType !== 'free'"
-                          [class.text-slate-500]="cell.absenceType === 'free'"
-                          [class.dark:text-slate-400]="cell.absenceType === 'free'"
+                          [class.text-red-600]="absenceCategory(cell.absenceType) === 'sick'"
+                          [class.dark:text-red-400]="absenceCategory(cell.absenceType) === 'sick'"
+                          [class.text-amber-600]="absenceCategory(cell.absenceType) === 'planned'"
+                          [class.dark:text-amber-400]="absenceCategory(cell.absenceType) === 'planned'"
+                          [class.text-slate-500]="absenceCategory(cell.absenceType) === 'free'"
+                          [class.dark:text-slate-400]="absenceCategory(cell.absenceType) === 'free'"
                         >
                           {{ cell.absenceType === 'free' ? 'Free' : cell.absenceType === 'day_off' ? 'Vacation' : cell.absenceType === 'sick' ? 'Sick' : cell.absenceType }}
                         </span>

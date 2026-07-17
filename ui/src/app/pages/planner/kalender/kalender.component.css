@@ -73,8 +73,8 @@
 }
 
 /* Sticky left column shadow on scroll */
-.kalender-table td.sticky,
-.kalender-table th.sticky {
+.kalender-table td.employee-col.sticky,
+.kalender-table th.employee-col.sticky {
   position: sticky;
   left: 0;
   z-index: 10;

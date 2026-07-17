@@ -1,2 +1,2 @@
 1) use openapi instead of antropic
-2) 
+2) spezialschicht wie wochenende, gesondert berücksichtigen. sprich gleichmäßig verteilen, als setting in ui um gesonderete schichten auszuwählen. mitarbeiter die der schicht zugeordnet sind, gleichmäßig verteilen. 
