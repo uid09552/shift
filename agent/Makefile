@@ -1,4 +1,4 @@
-.PHONY: install sync chat api clean help
+.PHONY: install sync chat api mcp clean help
 
 # Default target
 all: install
@@ -27,6 +27,14 @@ api-custom:
 # Start the REST API in debug mode
 api-debug:
 	uv run shift-agent api --debug
+
+# Start the MCP server (stdio transport, for Claude Code/Desktop etc.)
+mcp:
+	uv run shift-agent mcp
+
+# Start the MCP server over streamable HTTP instead of stdio
+mcp-http:
+	uv run shift-agent mcp --transport http --port 8900
 
 # Quick smoke test of the API
 test-api:
@@ -58,6 +66,8 @@ help:
 	@echo "  make api         Start REST API server (0.0.0.0:8899)"
 	@echo "  make api-custom  Start REST API on 127.0.0.1:8080"
 	@echo "  make api-debug   Start REST API in debug mode"
+	@echo "  make mcp         Start MCP server (stdio transport)"
+	@echo "  make mcp-http    Start MCP server (streamable HTTP, :8900)"
 	@echo "  make test-api    Smoke test the REST API"
 	@echo "  make clean       Remove .venv and build artifacts"
 	@echo "  make help        Show this help"

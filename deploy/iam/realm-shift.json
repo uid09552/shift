@@ -13,6 +13,49 @@
   "accessTokenLifespan": 300,
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 36000,
+  "organizationsEnabled": true,
+  "organizations": [
+    {
+      "name": "0",
+      "alias": "0",
+      "enabled": true,
+      "domains": [
+        { "name": "shift.local", "verified": false }
+      ],
+      "members": ["admin"]
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "shift-org",
+      "description": "Organization membership claim, requested by the gateway to scope sessions to a tenant",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "Organization Membership",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-organization-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "organization",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true",
+            "addOrganizationAttributes": "false",
+            "addOrganizationId": "false",
+            "addOrganizationDomain": "false"
+          }
+        }
+      ]
+    }
+  ],
   "clients": [
     {
       "clientId": "shift-web",
@@ -58,7 +101,16 @@
       ],
       "attributes": {
         "post.logout.redirect.uris": "http://localhost/*"
-      }
+      },
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "shift-org",
+        "roles",
+        "profile",
+        "basic",
+        "email"
+      ]
     }
   ],
   "roles": {

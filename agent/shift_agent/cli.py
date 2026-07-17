@@ -76,6 +76,20 @@ def api(host, port, debug):
     app.run(host=host, port=port, debug=debug)
 
 
+@cli.command()
+@click.option("--transport", default="stdio", type=click.Choice(["stdio", "http", "sse"]), help="MCP transport (default: stdio)")
+@click.option("--host", default="0.0.0.0", help="Host to bind to for http/sse transports (default: 0.0.0.0)")
+@click.option("--port", default=8900, type=int, help="Port to listen on for http/sse transports (default: 8900)")
+def mcp(transport, host, port):
+    """Start the MCP server generated from the backend's OpenAPI spec."""
+    from shift_agent.mcp_server import mcp as mcp_app
+
+    if transport == "stdio":
+        mcp_app.run(transport="stdio")
+    else:
+        mcp_app.run(transport=transport, host=host, port=port)
+
+
 def main():
     """CLI entry point."""
     try:

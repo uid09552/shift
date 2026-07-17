@@ -40,8 +40,14 @@ LangGraph agent (graph.py)          ┌── navigate            (picks a front
 - **`tools/backend_api.py`** — the "configure settings" tools. They call the
   Rust backend's REST API directly (see `../api/openapi.yaml`).
 - **`server.py`** — the HTTP surface the website talks to.
+- **`mcp_server.py`** — a separate MCP server, generated directly from
+  `../api/openapi.yaml` via FastMCP's `FastMCP.from_openapi()`. Unlike
+  `tools/backend_api.py`'s hand-picked tools for the chat agent, this exposes
+  the whole backend REST API as MCP tools (one per operation) for any MCP
+  client — Claude Code, Claude Desktop, etc.
 - **`cli.py`** — `shift-agent chat` for local testing without a browser,
-  `shift-agent api` to start the server.
+  `shift-agent api` to start the server, `shift-agent mcp` to start the MCP
+  server.
 
 ## Setup
 
@@ -59,7 +65,28 @@ token needed. See "Multi-tenant auth" below before deploying this for real.
 ```bash
 make chat   # talk to the agent in the terminal
 make api    # start the HTTP API on :8899
+make mcp    # start the MCP server (stdio transport)
 ```
+
+### MCP server
+
+`shift-agent mcp` starts an MCP server built straight from `../api/openapi.yaml`
+— every backend operation becomes an MCP tool automatically, so it stays in
+sync with the spec without hand-written wrappers. Point an MCP client at it:
+
+```bash
+uv run shift-agent mcp                              # stdio (default)
+uv run shift-agent mcp --transport http --port 8900  # streamable HTTP
+```
+
+To register it with Claude Code (stdio transport):
+
+```bash
+claude mcp add shift-backend -- uv --directory /path/to/backend/agent run shift-agent mcp
+```
+
+It uses the same `BACKEND_API_URL` / `BACKEND_ACCESS_TOKEN` env vars as the
+chat agent's tools (see `.env.example`).
 
 ```bash
 curl -X POST http://localhost:8899/api/v1/chat \

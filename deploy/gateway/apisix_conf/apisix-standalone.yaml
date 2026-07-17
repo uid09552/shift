@@ -114,6 +114,10 @@ routes:
         ssl_verify: false
         session:
           secret: geheimgeheimgeheimgeheim12345678
+      response-rewrite:
+        headers:
+          set:
+            Clear-Site-Data: '"cache", "cookies", "storage"'
     upstream:
       type: roundrobin
       nodes:
@@ -183,7 +187,7 @@ routes:
         client_secret: shift-gateway-secret
         discovery: http://keycloak:8080/auth/realms/shift/.well-known/openid-configuration
         scope: "openid profile email shift-org"
-        bearer_only: false
+        bearer_only: true
         unauth_action: deny
         ssl_verify: false
         session:
