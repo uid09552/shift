@@ -9,14 +9,12 @@ import json
 import httpx
 from langchain_core.tools import tool
 
+from shift_agent.auth import BackendTokenAuth
 from shift_agent.config import settings
 
 
 def _client() -> httpx.Client:
-    headers = {}
-    if settings.backend_access_token:
-        headers["x-access-token"] = settings.backend_access_token
-    return httpx.Client(base_url=settings.backend_api_url, headers=headers, timeout=10.0)
+    return httpx.Client(base_url=settings.backend_api_url, auth=BackendTokenAuth(), timeout=10.0)
 
 
 def _get(path: str) -> str:

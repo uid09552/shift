@@ -1,4 +1,4 @@
-.PHONY: install sync chat api mcp clean help
+.PHONY: install sync chat api mcp mcp-http mcp-token clean help
 
 # Default target
 all: install
@@ -36,6 +36,20 @@ mcp:
 mcp-http:
 	uv run shift-agent mcp --transport http --port 8900
 
+# Fetch an access token for the HTTP MCP server (client credentials grant,
+# using MCP_OAUTH_CLIENT_ID/SECRET from .env) — prints only the token, so
+# it's usable as: curl -H "Authorization: Bearer $(make -s mcp-token)" ...
+mcp-token:
+	@set -a && . ./.env && set +a && \
+	curl -s -X POST "$$KEYCLOAK_REALM_URL/protocol/openid-connect/token" \
+		-d "grant_type=client_credentials" \
+		-d "client_id=$$MCP_OAUTH_CLIENT_ID" \
+		-d "client_secret=$$MCP_OAUTH_CLIENT_SECRET" \
+	| python3 -c "\
+import json, sys; \
+d = json.load(sys.stdin); \
+sys.exit(json.dumps(d)) if 'access_token' not in d else print(d['access_token'])"
+
 # Quick smoke test of the API
 test-api:
 	@echo "Starting API server for testing..."
@@ -68,6 +82,7 @@ help:
 	@echo "  make api-debug   Start REST API in debug mode"
 	@echo "  make mcp         Start MCP server (stdio transport)"
 	@echo "  make mcp-http    Start MCP server (streamable HTTP, :8900)"
+	@echo "  make mcp-token   Fetch an access token for the HTTP MCP server"
 	@echo "  make test-api    Smoke test the REST API"
 	@echo "  make clean       Remove .venv and build artifacts"
 	@echo "  make help        Show this help"

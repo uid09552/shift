@@ -5,8 +5,8 @@ text. See README.md for how to extend this (add tools, add nodes, swap the
 checkpointer for a persistent store).
 """
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import SystemMessage
+from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -40,7 +40,7 @@ Rules:
 
 def build_graph():
     """Compile the agent graph. Call once per process; reuse the returned graph."""
-    llm = ChatAnthropic(model=settings.model, max_tokens=settings.max_tokens)
+    llm = ChatOpenAI(model=settings.model, max_tokens=settings.max_tokens)
     llm_with_tools = llm.bind_tools(ALL_TOOLS)
 
     def call_model(state: MessagesState):

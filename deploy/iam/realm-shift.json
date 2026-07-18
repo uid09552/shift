@@ -22,7 +22,7 @@
       "domains": [
         { "name": "shift.local", "verified": false }
       ],
-      "members": ["admin"]
+      "members": [{ "username": "admin" }]
     }
   ],
   "clientScopes": [
@@ -41,7 +41,7 @@
           "protocolMapper": "oidc-organization-membership-mapper",
           "consentRequired": false,
           "config": {
-            "claim.name": "organization",
+            "claim.name": "tenant",
             "jsonType.label": "String",
             "multivalued": "true",
             "id.token.claim": "true",
@@ -58,33 +58,9 @@
   ],
   "clients": [
     {
-      "clientId": "shift-web",
-      "name": "Shift Web",
-      "description": "Angular SPA — public PKCE client",
-      "enabled": true,
-      "protocol": "openid-connect",
-      "publicClient": true,
-      "standardFlowEnabled": true,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": false,
-      "redirectUris": [
-        "http://localhost/auth/callback",
-        "http://localhost:4200/auth/callback"
-      ],
-      "webOrigins": [
-        "http://localhost",
-        "http://localhost:4200"
-      ],
-      "attributes": {
-        "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost/*##http://localhost:4200/*"
-      }
-    },
-    {
       "clientId": "shift-gateway",
       "name": "Shift Gateway",
-      "description": "Confidential client for APISIX gateway (authorization code flow)",
+      "description": "Confidential client for APISIX gateway (authorization code flow), for service accounts (e.g. shift-agent's client-credentials fallback), and as the upstream client for shift-agent's MCP server OAuth proxy (see agent/shift_agent/mcp_server.py)",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
@@ -92,12 +68,14 @@
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": false,
+      "serviceAccountsEnabled": true,
       "redirectUris": [
-        "http://localhost/callback"
+        "http://localhost/callback",
+        "http://localhost:8900/auth/callback"
       ],
       "webOrigins": [
-        "http://localhost"
+        "http://localhost",
+        "http://localhost:8900"
       ],
       "attributes": {
         "post.logout.redirect.uris": "http://localhost/*"
@@ -144,7 +122,7 @@
           "temporary": false
         }
       ],
-      "realmRoles": ["shift-admin", "default-roles-shift"]
+      "realmRoles": ["shift-admin", "shift-planner"]
     }
   ]
 }

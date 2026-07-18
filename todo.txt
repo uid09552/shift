@@ -1,3 +1,2 @@
-1) use openapi instead of antropic in agent 
-2) spezialschicht wie wochenende, gesondert berücksichtigen. sprich gleichmäßig verteilen, als setting in ui um gesonderete schichten auszuwählen. mitarbeiter die der schicht zugeordnet sind, gleichmäßig verteilen. 
-3) agent mcp server should alternatively use authoriatzon grant flow to get the token, client-id, client-secret is provided as config env var. this is if token is not set.
+1) create deploy container for agent as same as for backend.
+2) to configure client_secret use .env file in deploy for compose

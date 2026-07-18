@@ -96,7 +96,7 @@ def main():
         cli()
     except Exception as e:
         logger.error("Fatal error: %s", e, exc_info=True)
-        sys.exit(1)
+        nsys.exit(1)
 
 
 if __name__ == "__main__":

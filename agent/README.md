@@ -20,7 +20,7 @@ Flask API (server.py)
         ▼
 LangGraph agent (graph.py)          ┌── navigate            (picks a frontend route)
    agent ⇄ tools loop  ────────────►├── list_shifts / list_workstations / ...
-   (ChatAnthropic + ToolNode)       └── get/update_planner_settings
+   (ChatOpenAI + ToolNode)          └── get/update_planner_settings
         │                                    │
         │                                    ▼
         │                          Rust backend REST API (../src)
@@ -85,8 +85,17 @@ To register it with Claude Code (stdio transport):
 claude mcp add shift-backend -- uv --directory /path/to/backend/agent run shift-agent mcp
 ```
 
-It uses the same `BACKEND_API_URL` / `BACKEND_ACCESS_TOKEN` env vars as the
-chat agent's tools (see `.env.example`).
+Over HTTP transport, the server is multi-tenant: each connecting MCP client
+authenticates against Keycloak itself (see "Multi-tenant auth" below), and
+its own token is what gets forwarded to the backend — set `MCP_OAUTH_CLIENT_ID`
+/ `MCP_OAUTH_CLIENT_SECRET` to turn this on; unset, the server runs with no
+auth of its own and falls back to the single-token behavior described below
+(fine for stdio / local use). See `.env.example`.
+
+```bash
+make mcp-http    # start the HTTP MCP server on :8900
+make mcp-token   # fetch an access token (client credentials grant) to curl it with
+```
 
 ```bash
 curl -X POST http://localhost:8899/api/v1/chat \
@@ -118,11 +127,28 @@ curl -X POST http://localhost:8899/api/v1/chat \
 
 ## Multi-tenant auth
 
-This skeleton's backend tools use a single, server-side `BACKEND_ACCESS_TOKEN`
-(or none, in dev mode) for every request — fine for local testing or a
-single-tenant deployment. For a real multi-tenant deployment, the website
-should forward the signed-in user's own access token with each `/chat`
-request (e.g. as an `Authorization` header), and `server.py` should thread it
-through to `tools/backend_api.py` per-request instead of reading one token
-from `Settings` at startup — that part is intentionally left as an exercise
-rather than guessed at here.
+Token resolution for every backend call lives in `shift_agent/auth.py`, in
+priority order:
+
+1. **The current request's own token**, as authenticated by `mcp_server.py`'s
+   `MultiAuth` — this is the real per-tenant path. Each MCP client goes
+   through Keycloak's OAuth2 authorization code grant + Dynamic Client
+   Registration (`OIDCProxy`, using `MCP_OAUTH_CLIENT_ID`/`SECRET` as the
+   upstream client), or presents an already-obtained Keycloak bearer token
+   directly (`JWTVerifier`, skipping the interactive flow — `make mcp-token`
+   fetches one via the client credentials grant). Either way, FastMCP exposes
+   that request's token via `get_access_token()`, and `auth.py` forwards it
+   as-is — nothing is cached, since FastMCP already scopes it per-request.
+   Only applies over HTTP transport with `MCP_OAUTH_CLIENT_ID`/`SECRET` set.
+2. **`BACKEND_ACCESS_TOKEN`** — a single static token, used when (1) doesn't
+   apply (stdio transport, or no server auth configured): fine for local
+   testing or a single-tenant deployment.
+
+The LangGraph chat agent's tools (`tools/backend_api.py`) go through the same
+`auth.py`, but since they're not driven by an authenticated MCP request, they
+only ever see (1) as empty and fall through to (2) — a single server-side
+identity (or none, in dev mode) for every chat user. Making the *chat* agent
+itself multi-tenant would mean the website forwarding the signed-in user's
+own token with each `/chat` request and `server.py` threading it through
+per-request instead of relying on `auth.py`'s fallback — intentionally left
+as an exercise rather than guessed at here.

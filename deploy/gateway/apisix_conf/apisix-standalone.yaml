@@ -165,6 +165,19 @@ routes:
         redirect_uri: http://localhost/callback
         post_logout_redirect_uri: http://localhost/
         ssl_verify: false
+        # A session cookie alone only proves the access token was valid *at
+        # login* — lua-resty-openidc checks the token's local exp claim on
+        # each request but never re-contacts Keycloak while it's still
+        # unexpired, so a token revoked server-side (or a session outliving a
+        # short access-token lifespan) stayed "logged in" without a redirect.
+        # refresh_session_interval forces a periodic round-trip to Keycloak's
+        # token endpoint to catch that; renew_access_token_on_expiry +
+        # access_token_expires_leeway make the redirect-to-login on actual
+        # expiry happen promptly and without a race at the expiry boundary.
+        renew_access_token_on_expiry: true
+        access_token_expires_leeway: 30
+        access_token_expires_in: 360
+        refresh_session_interval: 360
         session:
           secret: geheimgeheimgeheimgeheim12345678
     upstream:
@@ -190,6 +203,10 @@ routes:
         bearer_only: true
         unauth_action: deny
         ssl_verify: false
+        # Caches a successful introspection result for this many seconds so
+        # every API call doesn't round-trip to Keycloak — still re-validates
+        # often enough to catch a revoked token promptly.
+        introspection_interval: 60
         session:
           secret: geheimgeheimgeheimgeheim12345678
     upstream:
