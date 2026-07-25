@@ -120,6 +120,20 @@ still pointed at 2375 then fails to connect. For TLS instead, set all four of
 With a shell executor and a mounted Docker socket, drop `image:`, `services:`
 and both `DOCKER_HOST` / `DOCKER_TLS_CERTDIR` variables instead.
 
+### Container Registry must be enabled for the project
+
+`CI_REGISTRY_IMAGE` is only defined when the **project's** Container Registry is
+on (*Settings → General → Visibility, project features, permissions →
+Container registry*). `CI_REGISTRY` is defined whenever the *instance* has a
+registry — so `docker login` can succeed while `CI_REGISTRY_IMAGE` is still
+empty, which produces an invalid tag like `/planner:abc1234`.
+
+`.build` now derives the base from `$CI_REGISTRY/$CI_PROJECT_PATH` (lowercased,
+since Docker references must be) when `CI_REGISTRY_IMAGE` is missing, and fails
+with an explanatory message when neither is set. That keeps the tag valid, but
+**pushes still require the project feature to be enabled** — the registry
+rejects writes to a project that has it turned off.
+
 ### Build stage
 
 `.build` runs as a `parallel: matrix` over `backend`, `planner`, `ui`, `agent`.

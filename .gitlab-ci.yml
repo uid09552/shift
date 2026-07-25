@@ -66,9 +66,27 @@ workflow:
       done
     # Still down after ~60s: fail here, with the daemon's own diagnostics.
     - docker info >/dev/null
-    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    # --password-stdin keeps the token out of the process list and out of
+    # /root/.docker/config.json warnings.
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
-    - export IMAGE="$CI_REGISTRY_IMAGE/$COMPONENT"
+    # CI_REGISTRY_IMAGE is only defined when the *project's* Container Registry
+    # is enabled (Settings > General > Visibility). CI_REGISTRY is defined
+    # whenever the instance has one, so login can succeed while
+    # CI_REGISTRY_IMAGE is still empty — which silently produced the invalid
+    # tag "/$COMPONENT:$sha". Derive the base from CI_REGISTRY and the project
+    # path when it is missing, and refuse to build if neither is available.
+    - |
+      REGISTRY_BASE="${CI_REGISTRY_IMAGE:-${CI_REGISTRY:+$CI_REGISTRY/$CI_PROJECT_PATH}}"
+      # Docker references must be lowercase; CI_PROJECT_PATH need not be.
+      REGISTRY_BASE="$(echo "$REGISTRY_BASE" | tr '[:upper:]' '[:lower:]')"
+      if [ -z "$REGISTRY_BASE" ]; then
+        echo "Neither CI_REGISTRY_IMAGE nor CI_REGISTRY is set." >&2
+        echo "Enable the project's Container Registry under Settings > General > Visibility." >&2
+        exit 1
+      fi
+      export IMAGE="$REGISTRY_BASE/$COMPONENT"
+      echo "Target image: $IMAGE"
     # Warm the layer cache from the last published image; harmless if absent.
     - docker pull "$IMAGE:latest" || true
     # The Dockerfiles COPY from the repo root (e.g. `COPY ui/ .`), so the
