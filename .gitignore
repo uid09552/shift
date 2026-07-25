@@ -1,4 +1,10 @@
 /target
+
+# MkDocs build output (docs/ holds the sources; mkdocs.yml the config)
+/site
+/public
+.cache/
+
 iam/.venv
 iam/__pycache__/bootstrap.cpython-312.pyc
 

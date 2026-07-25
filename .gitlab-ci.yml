@@ -2,12 +2,22 @@
 # container registry ($CI_REGISTRY_IMAGE), matching the names the deploy
 # Makefile expects: <registry>/<component>:<tag>.
 #
-# Runs on runners tagged "shift". The build job uses Docker-in-Docker, so
-# that runner must be privileged. If it is instead a shell executor with a
-# Docker socket, drop the `image:` and `services:` keys from `.build`.
+# Runner requirements: jobs are untagged, so any available instance runner
+# picks them up. The build job uses Docker-in-Docker, which needs a runner
+# with `privileged = true` in its config.toml [runners.docker] section —
+# without it the dind service cannot start and `docker info` fails with
+# "Cannot connect to the Docker daemon".
+#
+# To pin these jobs back to a specific runner, tag that runner and add the
+# matching `tags:` to `.build` and `.mkdocs` below.
+#
+# If the runner is instead a shell executor with a mounted Docker socket,
+# drop the `image:`, `services:` and the DOCKER_HOST/DOCKER_TLS_CERTDIR
+# variables from `.build`.
 
 stages:
   - build
+  - pages
 
 workflow:
   rules:
@@ -21,17 +31,40 @@ workflow:
 
 .build:
   stage: build
-  tags:
-    - shift
   image: docker:28-cli
   services:
     - name: docker:28-dind
       alias: docker
   variables:
     DOCKER_DRIVER: overlay2
-    DOCKER_TLS_CERTDIR: "/certs"
     DOCKER_BUILDKIT: "1"
+    # The CLI and the dind service must agree on transport. Setting
+    # DOCKER_TLS_CERTDIR makes dind serve TLS on 2376 only, so a client
+    # pointed at plain tcp://docker:2375 gets "Cannot connect to the Docker
+    # daemon at tcp://docker:2375". Both are pinned to plain TCP here so the
+    # pair is self-consistent regardless of what the runner's config.toml
+    # sets. To use TLS instead, set DOCKER_TLS_CERTDIR: "/certs",
+    # DOCKER_HOST: tcp://docker:2376, DOCKER_TLS_VERIFY: 1 and
+    # DOCKER_CERT_PATH: /certs/client.
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_HOST: tcp://docker:2375
+  # The dind service is occasionally reaped mid-pipeline ("zombie container
+  # ... disconnected from network bridge"); let the runner retry those.
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
   before_script:
+    # dind takes a few seconds to accept connections — probing it immediately
+    # races startup, so wait rather than failing the job on the first attempt.
+    - |
+      for i in $(seq 1 30); do
+        docker info >/dev/null 2>&1 && break
+        echo "Waiting for the Docker daemon at $DOCKER_HOST ($i/30)..."
+        sleep 2
+      done
+    # Still down after ~60s: fail here, with the daemon's own diagnostics.
     - docker info >/dev/null
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
   script:
@@ -73,3 +106,51 @@ build:
           - planner
           - ui
           - agent
+
+# ---------------------------------------------------------------------------
+# Documentation (MkDocs -> GitLab Pages)
+#
+# Sources live in docs/, configured by mkdocs.yml. `--strict` turns broken
+# internal links and unknown config keys into build failures, so the MR job
+# below catches them before the default branch publishes anything.
+# ---------------------------------------------------------------------------
+
+.mkdocs:
+  stage: pages
+  image: python:3.12-slim
+  before_script:
+    - pip install --no-cache-dir -r docs/requirements.txt
+  cache:
+    key:
+      files:
+        - docs/requirements.txt
+    paths:
+      - .cache/pip
+  variables:
+    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+# Build-only check: a broken docs build fails review instead of the deploy.
+docs:build:
+  extends: .mkdocs
+  script:
+    - mkdocs build --strict --site-dir site
+  artifacts:
+    paths:
+      - site
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - docs/**/*
+        - mkdocs.yml
+
+# GitLab Pages expects a job named "pages" publishing a "public" artifact.
+pages:
+  extends: .mkdocs
+  script:
+    - mkdocs build --strict --site-dir public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

@@ -26,9 +26,22 @@ A Rust-based backend service for managing hospital shift scheduling and employee
    make serve
    ```
 
+## Documentation
+
+Full documentation — architecture, domain model, REST API, optimizer, agent,
+auth and deployment — lives in [docs/](docs/) and is published to GitLab Pages
+from the default branch.
+
+Build it locally:
+
+```bash
+pip install -r docs/requirements.txt
+mkdocs serve      # live reload on http://localhost:8000
+```
+
 ## API Documentation
 
-See [api/README.md](api/README.md) for the complete OpenAPI specification.
+See [api/openapi.yaml](api/openapi.yaml) for the complete OpenAPI specification.
 
 ## Database Setup
 
