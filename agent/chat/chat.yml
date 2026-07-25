@@ -1,0 +1,21 @@
+info:
+  name: chat
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: http://localhost:1111/api/v1/chat
+  body:
+    type: json
+    data: |-
+      {
+        "message": "hi"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

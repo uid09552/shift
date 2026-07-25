@@ -2,6 +2,7 @@ target/
 .git/
 .vscode/
 api/
+!api/openapi.yaml
 dev/
 *.md
 node_modules/

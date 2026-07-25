@@ -1,3 +1,16 @@
 /target
 iam/.venv
 iam/__pycache__/bootstrap.cpython-312.pyc
+
+# Environment files — these hold API keys and client secrets and must never
+# be committed. Only the .example templates are tracked.
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# SSH private keys (deploy/id_rsa is generated locally)
+id_rsa
+**/id_rsa

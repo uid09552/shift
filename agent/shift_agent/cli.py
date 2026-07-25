@@ -8,6 +8,9 @@ Usage:
     shift-agent api --host 0.0.0.0 --port 8899
 """
 
+from __future__ import annotations
+
+import asyncio
 import logging
 import sys
 
@@ -27,31 +30,41 @@ def chat():
     """Interactive terminal chat with the agent (for local testing)."""
     from langchain_core.messages import HumanMessage
 
-    from shift_agent.graph import build_graph
+    from shift_agent.agent.graph import build_graph, connect_mcp, disconnect_mcp
 
-    graph = build_graph()
-    config = {"configurable": {"thread_id": "cli"}}
+    async def run():
+        state = build_graph()
+        graph = await connect_mcp(state)
 
-    print("Shift Agent — type 'exit' to quit.\n")
-    while True:
-        try:
-            text = input("you> ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            break
-        if text.lower() in {"exit", "quit"}:
-            break
-        if not text:
-            continue
+        config = {"configurable": {"thread_id": "cli"}}
 
-        try:
-            result = graph.invoke({"messages": [HumanMessage(content=text)]}, config=config)
-        except Exception as e:
-            logger.error("Agent invocation failed: %s", e)
-            continue
+        print("Shift Agent — type 'exit' to quit.\n")
+        while True:
+            try:
+                text = input("you> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                break
+            if text.lower() in {"exit", "quit"}:
+                break
+            if not text:
+                continue
 
-        reply = result["messages"][-1].content
-        print(f"agent> {reply}\n")
+            try:
+                result = await graph.ainvoke(
+                    {"messages": [HumanMessage(content=text)]},
+                    config=config,
+                )
+            except Exception as e:
+                logger.error("Agent invocation failed: %s", e)
+                continue
+
+            reply = result["messages"][-1].content
+            print(f"agent> {reply}\n")
+
+        await disconnect_mcp(graph)
+
+    asyncio.run(run())
 
 
 @cli.command()
@@ -60,7 +73,7 @@ def chat():
 @click.option("--debug", is_flag=True, default=False, help="Enable Flask debug mode")
 def api(host, port, debug):
     """Start the agent's REST API server."""
-    from shift_agent.server import create_app
+    from shift_agent.agent.server import create_app
 
     print("Starting Shift Agent REST API")
     print(f"  Host  : {host}")
@@ -82,8 +95,9 @@ def api(host, port, debug):
 @click.option("--port", default=8900, type=int, help="Port to listen on for http/sse transports (default: 8900)")
 def mcp(transport, host, port):
     """Start the MCP server generated from the backend's OpenAPI spec."""
-    from shift_agent.mcp_server import mcp as mcp_app
+    from shift_agent.mcp.server import get_mcp
 
+    mcp_app = get_mcp()
     if transport == "stdio":
         mcp_app.run(transport="stdio")
     else:
@@ -96,7 +110,7 @@ def main():
         cli()
     except Exception as e:
         logger.error("Fatal error: %s", e, exc_info=True)
-        nsys.exit(1)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

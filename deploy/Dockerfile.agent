@@ -1,0 +1,42 @@
+# ---- Builder Stage ----
+FROM python:3.12-slim-bookworm AS builder
+
+WORKDIR /app
+
+# Install uv for fast dependency management
+RUN pip install uv
+
+# Copy project files
+COPY agent/pyproject.toml agent/uv.lock* agent/README.md ./
+COPY agent/shift_agent ./shift_agent
+
+# Install dependencies
+RUN uv sync --frozen --no-dev
+
+# ---- Runtime Stage ----
+FROM python:3.12-slim-bookworm
+
+WORKDIR /app
+
+# Copy virtual environment from builder
+COPY --from=builder /app/.venv /app/.venv
+
+# Copy application code
+COPY agent/shift_agent ./shift_agent
+
+# The MCP server exposes the Rust backend's OpenAPI spec as tools; it resolves
+# the spec path as three directories up from shift_agent/mcp/server.py, which
+# inside this image is the filesystem root (see OPENAPI_SPEC_PATH).
+COPY api/openapi.yaml /api/openapi.yaml
+
+# Ensure the virtual environment is in PATH
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Expose the REST API port (shift-agent api) and MCP HTTP port. Each
+# container built from this image runs exactly one of the two — the
+# "agent" and "mcp" services in docker-compose.yml override CMD.
+EXPOSE 8899
+EXPOSE 8900
+
+# Default: REST API server. The mcp service overrides this command.
+CMD ["shift-agent", "api", "--host", "0.0.0.0", "--port", "8899"]

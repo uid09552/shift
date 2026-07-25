@@ -31,7 +31,7 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
             {{ editingCapability ? 'Edit Capability' : 'New Capability' }}
           </h3>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {{ editingCapability ? 'Update the capability name.' : 'Enter a name for the new capability.' }}
+            {{ editingCapability ? 'Update the capability name and, optionally, its skill group/level.' : 'Enter a name for the new capability. Skill group/level are optional.' }}
           </p>
         </div>
 
@@ -47,6 +47,37 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
               [value]="formName"
               (valueChange)="onNameChange($event)"
             />
+          </div>
+
+          <!-- Skill level & group (optional, for the optimizer's skill-downgrade objective) -->
+          <div class="mb-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <div>
+              <app-label for="capabilitySkillGroup" className="mb-1.5">Skill group (optional)</app-label>
+              <app-input-field
+                id="capabilitySkillGroup"
+                name="capabilitySkillGroup"
+                type="text"
+                placeholder="e.g. nursing"
+                [value]="formSkillGroup"
+                (valueChange)="onSkillGroupChange($event)"
+              />
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                Capabilities sharing a group are substitutable skill tiers — a higher-level one may
+                cover a lower-level requirement at a penalty instead of a strict match.
+              </p>
+            </div>
+            <div>
+              <app-label for="capabilityLevel" className="mb-1.5">Skill level</app-label>
+              <app-input-field
+                id="capabilityLevel"
+                name="capabilityLevel"
+                type="number"
+                min="1"
+                [value]="formLevel"
+                (valueChange)="onLevelChange($event)"
+              />
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Higher = more advanced. Only used within a skill group.</p>
+            </div>
           </div>
 
           <!-- Actions -->
@@ -103,21 +134,10 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
 
       @if (importResult) {
         <div
-          class="mx-5 mb-4 rounded-lg border px-4 py-3 text-sm sm:mx-6"
-          [class.border-success-200]="importResult.errors.length === 0"
-          [class.bg-success-50]="importResult.errors.length === 0"
-          [class.text-success-700]="importResult.errors.length === 0"
-          [class.dark:border-success-500]="importResult.errors.length === 0"
-          [class.dark:bg-success-500]="importResult.errors.length === 0"
-          [class.dark:bg-opacity-10]="importResult.errors.length === 0"
-          [class.dark:text-success-400]="importResult.errors.length === 0"
-          [class.border-amber-200]="importResult.errors.length > 0"
-          [class.bg-amber-50]="importResult.errors.length > 0"
-          [class.text-amber-700]="importResult.errors.length > 0"
-          [class.dark:border-amber-500]="importResult.errors.length > 0"
-          [class.dark:bg-amber-500]="importResult.errors.length > 0"
-          [class.dark:bg-opacity-10]="importResult.errors.length > 0"
-          [class.dark:text-amber-400]="importResult.errors.length > 0"
+          class="mx-5 mb-4 rounded-lg border px-4 py-3 text-sm transition-colors sm:mx-6"
+          [class]="importResult.errors.length === 0
+            ? 'border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400'
+            : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400'"
         >
           <div class="flex items-start justify-between gap-3">
             <div>
@@ -132,7 +152,7 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
                 </ul>
               }
             </div>
-            <button type="button" (click)="importResult = null" class="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+            <button type="button" (click)="importResult = null" class="shrink-0 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-300">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>
@@ -144,6 +164,7 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
           <thead class="border-b border-gray-100 dark:border-white/[0.05]">
             <tr>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Name</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Skill Group / Level</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">ID</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Actions</th>
             </tr>
@@ -151,13 +172,13 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
           <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
             @if (loading) {
               <tr>
-                <td colspan="3" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
+                <td colspan="4" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
                   Loading capabilities...
                 </td>
               </tr>
             } @else if (capabilities.length === 0) {
               <tr>
-                <td colspan="3" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
+                <td colspan="4" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
                   <svg class="mx-auto mb-3 h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z"></path>
                     <path d="M8 12h8"></path>
@@ -175,6 +196,17 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
                     <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
                       {{ capability.name }}
                     </span>
+                  </td>
+                  <td class="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                    @if (capability.skill_group) {
+                      <span
+                        class="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/[0.15] dark:text-brand-400"
+                      >
+                        {{ capability.skill_group }} · L{{ capability.level }}
+                      </span>
+                    } @else {
+                      <span class="text-xs text-gray-400 dark:text-gray-500">—</span>
+                    }
                   </td>
                   <td class="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
                     <span
@@ -217,6 +249,8 @@ export class CapabilitiesComponent implements OnInit {
   showForm = false;
   editingCapability: Capability | null = null;
   formName = '';
+  formSkillGroup = '';
+  formLevel = 1;
 
   plusIcon = `<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.25C12.4142 3.25 12.75 3.58579 12.75 4V11.25H20C20.4142 11.25 20.75 11.5858 20.75 12C20.75 12.4142 20.4142 12.75 20 12.75H12.75V20C12.75 20.4142 12.4142 20.75 12 20.75C11.5858 20.75 11.25 20.4142 11.25 20V12.75H4C3.58579 12.75 3.25 12.4142 3.25 12C3.25 11.5858 3.58579 11.25 4 11.25H11.25V4C11.25 3.58579 11.5858 3.25 12 3.25Z" fill="currentColor"></path></svg>`;
 
@@ -250,12 +284,16 @@ export class CapabilitiesComponent implements OnInit {
   openAddForm(): void {
     this.editingCapability = null;
     this.formName = '';
+    this.formSkillGroup = '';
+    this.formLevel = 1;
     this.showForm = true;
   }
 
   openEditForm(capability: Capability): void {
     this.editingCapability = capability;
     this.formName = capability.name;
+    this.formSkillGroup = capability.skill_group ?? '';
+    this.formLevel = capability.level ?? 1;
     this.showForm = true;
   }
 
@@ -263,6 +301,8 @@ export class CapabilitiesComponent implements OnInit {
     this.showForm = false;
     this.editingCapability = null;
     this.formName = '';
+    this.formSkillGroup = '';
+    this.formLevel = 1;
   }
 
   downloadTemplate(): void {
@@ -311,13 +351,27 @@ export class CapabilitiesComponent implements OnInit {
     this.formName = String(value);
   }
 
+  onSkillGroupChange(value: string | number): void {
+    this.formSkillGroup = String(value);
+  }
+
+  onLevelChange(value: string | number): void {
+    this.formLevel = Number(value) || 1;
+  }
+
   saveCapability(): void {
     if (!this.formName || !this.formName.trim()) {
       return;
     }
 
+    const request = {
+      name: this.formName.trim(),
+      level: this.formLevel,
+      skill_group: this.formSkillGroup.trim() || null,
+    };
+
     if (this.editingCapability) {
-      this.capabilityService.updateCapability(this.editingCapability.id, { name: this.formName.trim() }).subscribe({
+      this.capabilityService.updateCapability(this.editingCapability.id, request).subscribe({
         next: () => {
           this.loadCapabilities();
           this.cancelForm();
@@ -325,7 +379,7 @@ export class CapabilitiesComponent implements OnInit {
         error: (err) => console.error('Failed to update capability', err),
       });
     } else {
-      this.capabilityService.createCapability({ name: this.formName.trim() }).subscribe({
+      this.capabilityService.createCapability(request).subscribe({
         next: (newCapability) => {
           this.capabilities = [...this.capabilities, newCapability];
           this.cancelForm();

@@ -1,2 +1,2 @@
-1) create deploy container for agent as same as for backend.
-2) to configure client_secret use .env file in deploy for compose
+1) create gitlab-ci to build and publish the containrs to registry of the project.  tag runner shift
+2) the chat window is not renedring markdown tables nicly, is this fixable

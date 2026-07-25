@@ -106,8 +106,12 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   showEmployeeDropdown = false;
 
   // Planning range
+  planningMode: 'weeks' | 'range' = 'weeks';
   planningWeeks = 4;
   readonly WEEK_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+  // Alternative to picking a week count: an explicit start/end date range.
+  customStartDate: string = this.formatDate(new Date());
+  customEndDate: string = this.formatDate(this.addDays(new Date(), 27));
 
   enableMonthlyHoursTarget = false;
   monthlyHoursTargetWeight = 1000;
@@ -470,17 +474,39 @@ export class SchedulerComponent implements OnInit, OnDestroy {
 
   // ── Planning ──────────────────────────────────────────────────────
 
+  private formatDate(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  private addDays(d: Date, days: number): Date {
+    const result = new Date(d);
+    result.setDate(result.getDate() + days);
+    return result;
+  }
+
   getPlanningDates(): { startDate: string; endDate: string } {
+    if (this.planningMode === 'range') {
+      return { startDate: this.customStartDate, endDate: this.customEndDate };
+    }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const end = new Date(today);
     end.setDate(end.getDate() + this.planningWeeks * 7 - 1);
-    const fmt = (d: Date) =>
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    return { startDate: fmt(today), endDate: fmt(end) };
+    return { startDate: this.formatDate(today), endDate: this.formatDate(end) };
   }
 
   triggerPlan(): void {
+    if (this.planningMode === 'range') {
+      if (!this.customStartDate || !this.customEndDate) {
+        this.error = 'Pick a start and end date for the planning range.';
+        return;
+      }
+      if (this.customEndDate < this.customStartDate) {
+        this.error = 'End date must be on or after the start date.';
+        return;
+      }
+    }
+
     this.isPlanning = true;
     this.planningTaskId = null;
     this.error = null;

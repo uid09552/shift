@@ -2212,6 +2212,56 @@ components:
           type: string
           format: date-time
           description: When these settings were last updated
+        weekly_min_hours:
+          type: number
+          format: double
+          nullable: true
+          minimum: 0
+          description: Soft minimum working hours per calendar week (null disables)
+          example: null
+        weekly_max_hours:
+          type: number
+          format: double
+          nullable: true
+          minimum: 0
+          description: Soft maximum working hours per calendar week (null disables)
+          example: null
+        weekly_hours_target_weight:
+          type: integer
+          minimum: 0
+          description: Objective weight for meeting the weekly hours band above
+          example: 1000
+        preference_weight:
+          type: integer
+          minimum: 0
+          description: Objective weight for respecting an employee's preferred_off days/shifts (soft; never blocks assignment)
+          example: 300
+        skill_downgrade_weight:
+          type: integer
+          minimum: 0
+          description: Objective weight penalizing covering a requirement with a higher-level capability from the same skill_group instead of an exact match
+          example: 200
+        fatigue_weight:
+          type: integer
+          minimum: 0
+          description: Objective weight on the worst-off employee's accumulated fatigue (ergonomic factor; minimax, not a sum)
+          example: 100
+        night_shift_fatigue_multiplier:
+          type: number
+          format: double
+          minimum: 1.0
+          description: Multiplier applied to a night shift's fatigue cost relative to a day shift of the same length
+          example: 2.0
+        shift_continuity_weight:
+          type: integer
+          minimum: 0
+          description: Reward for an employee working the same shift on consecutive days
+          example: 500
+        shift_continuity_week_bonus:
+          type: integer
+          minimum: 0
+          description: Additional bonus for a 7+ consecutive day streak on the same shift
+          example: 2000
 
     UpdatePlannerSettingsRequest:
       type: object
@@ -2260,6 +2310,45 @@ components:
           type: integer
           minimum: 1
           maximum: 64
+        weekly_min_hours:
+          type: number
+          format: double
+          nullable: true
+          minimum: 0
+        weekly_max_hours:
+          type: number
+          format: double
+          nullable: true
+          minimum: 0
+        weekly_hours_target_weight:
+          type: integer
+          minimum: 0
+          default: 1000
+        preference_weight:
+          type: integer
+          minimum: 0
+          default: 300
+        skill_downgrade_weight:
+          type: integer
+          minimum: 0
+          default: 200
+        fatigue_weight:
+          type: integer
+          minimum: 0
+          default: 100
+        night_shift_fatigue_multiplier:
+          type: number
+          format: double
+          minimum: 1.0
+          default: 2.0
+        shift_continuity_weight:
+          type: integer
+          minimum: 0
+          default: 500
+        shift_continuity_week_bonus:
+          type: integer
+          minimum: 0
+          default: 2000
 
     ListTasksResponse:
       type: object
@@ -2505,6 +2594,26 @@ components:
           type: string
           description: Capability name
           example: "MRT"
+        level:
+          type: integer
+          minimum: 1
+          default: 1
+          description: >
+            Ordinal skill level. Capabilities sharing the same skill_group are
+            treated as substitutable tiers of the same skill by the optimizer's
+            skill-downgrade objective (e.g. "Registered Nurse" level 3,
+            "Practical Nurse" level 2, "Assistant Nurse" level 1, all grouped
+            "nursing"). Unused for capabilities without a skill_group.
+          example: 1
+        skill_group:
+          type: string
+          nullable: true
+          description: >
+            Groups capabilities into substitutable skill tiers (see `level`).
+            Capabilities without a shared skill_group never substitute for one
+            another, so leaving this null keeps the original strict-match
+            behavior.
+          example: null
 
     CreateCapabilityRequest:
       type: object
@@ -2516,6 +2625,13 @@ components:
           minLength: 1
           maxLength: 255
           example: "MRT"
+        level:
+          type: integer
+          minimum: 1
+          default: 1
+        skill_group:
+          type: string
+          nullable: true
 
     Workstation:
       type: object
@@ -2701,6 +2817,13 @@ components:
           format: uuid
           nullable: true
           description: Optional specific shift ID. If null, entire day is unavailable
+        is_soft_preference:
+          type: boolean
+          default: false
+          description: >
+            When true, this is a soft preference (the optimizer may still assign
+            the employee here under pressure, at a penalty) rather than a hard
+            block. Defaults to false, i.e. a hard block as before.
 
     CreateUnavailabilityRequest:
       type: object
@@ -2720,6 +2843,13 @@ components:
           format: uuid
           nullable: true
           description: Optional specific shift ID. If omitted, entire day is unavailable
+        is_soft_preference:
+          type: boolean
+          default: false
+          description: >
+            When true, the optimizer treats this as a preference to avoid
+            (soft) instead of a hard block — it may still assign the
+            employee here under pressure, at a penalty.
 
     TaskDTO:
       type: object
@@ -2746,6 +2876,32 @@ components:
           items:
             $ref: '#/components/schemas/EmployeeTask'
           description: List of employees for the optimization request
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/CapabilityTask'
+          description: >
+            Capability catalog with skill-level metadata, used by the optimizer's
+            skill-downgrade objective. Empty/omitted means no skill-level
+            substitution is attempted (equivalent to today's plain match).
+        constraints:
+          $ref: '#/components/schemas/ConstraintTask'
+
+    CapabilityTask:
+      type: object
+      required:
+        - id
+        - level
+      properties:
+        id:
+          type: string
+          description: Capability name (matches the identifiers used in skills/required_skills)
+        level:
+          type: integer
+          minimum: 1
+        skill_group:
+          type: string
+          nullable: true
 
     PlanningPeriod:
       type: object
@@ -2892,6 +3048,94 @@ components:
           format: double
           description: Monthly working hours for the employee
           example: 160.0
+        preferred_off:
+          type: array
+          items:
+            $ref: '#/components/schemas/PreferredOffTask'
+          description: >
+            Days (optionally a specific shift) the employee would rather not
+            work. Soft — unlike unavailability, never blocks assignment.
+
+    PreferredOffTask:
+      type: object
+      required:
+        - date
+      properties:
+        date:
+          type: string
+          format: date
+        shift_id:
+          type: string
+          nullable: true
+          description: If omitted, the preference applies to the whole day
+
+    ConstraintTask:
+      type: object
+      description: >
+        Optimizer constraint/objective configuration. All fields are optional;
+        omitted fields fall back to the optimizer's built-in defaults (see
+        planner/shift_planner/models.py ConstraintConfig).
+      properties:
+        night_shift_recovery_days:
+          type: integer
+          minimum: 0
+          maximum: 7
+        min_rest_hours:
+          type: number
+          format: double
+        max_consecutive_days:
+          type: integer
+          minimum: 0
+        max_working_days_per_week:
+          type: integer
+          minimum: 0
+          maximum: 7
+        equality_weight:
+          type: integer
+          minimum: 0
+        priority_weights:
+          type: object
+          additionalProperties:
+            type: integer
+        monthly_hours_target_weight:
+          type: integer
+          minimum: 0
+        solver_time_limit_seconds:
+          type: number
+          format: double
+        solver_num_workers:
+          type: integer
+          minimum: 1
+        weekly_min_hours:
+          type: number
+          format: double
+          nullable: true
+        weekly_max_hours:
+          type: number
+          format: double
+          nullable: true
+        weekly_hours_target_weight:
+          type: integer
+          minimum: 0
+        preference_weight:
+          type: integer
+          minimum: 0
+        skill_downgrade_weight:
+          type: integer
+          minimum: 0
+        fatigue_weight:
+          type: integer
+          minimum: 0
+        night_shift_fatigue_multiplier:
+          type: number
+          format: double
+          minimum: 1.0
+        shift_continuity_weight:
+          type: integer
+          minimum: 0
+        shift_continuity_week_bonus:
+          type: integer
+          minimum: 0
 
     Error:
       type: object

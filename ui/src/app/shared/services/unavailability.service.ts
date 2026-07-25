@@ -7,12 +7,14 @@ export interface Unavailability {
   employee_id: string;
   unavailable_date: string;
   shift_id?: string;
+  is_soft_preference?: boolean;
 }
 
 export interface CreateUnavailabilityRequest {
   employee_id: string;
   unavailable_date: string;
   shift_id?: string;
+  is_soft_preference?: boolean;
 }
 
 @Injectable({

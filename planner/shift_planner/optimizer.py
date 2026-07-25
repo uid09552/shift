@@ -97,6 +97,13 @@ _DEFAULT_CONSTRAINTS = {
     "shift_continuity_weight": 500,  # Reward for same shift on consecutive days
     "shift_continuity_week_bonus": 2000,  # Bonus for 7+ day streaks on same shift
     "monthly_hours_target_weight": 1000,  # Penalty weight for deviation from monthly hours target
+    "weekly_min_hours": None,
+    "weekly_max_hours": None,
+    "weekly_hours_target_weight": 1000,
+    "preference_weight": 300,  # Penalty for violating an employee's preferred_off
+    "skill_downgrade_weight": 200,  # Penalty for covering a slot with a higher-level skill
+    "fatigue_weight": 100,  # Weight on worst-off employee's accumulated fatigue
+    "night_shift_fatigue_multiplier": 2.0,
     "solver_time_limit_seconds": 120.0,
     "solver_num_workers": 8,
 }
@@ -126,6 +133,7 @@ def solve(data: dict) -> dict:
     start = parse_date(data["planning_period"]["start_date"])
     end = parse_date(data["planning_period"]["end_date"])
     days = list(date_range(start, end))
+    day_index = {day: idx for idx, day in enumerate(days)}
 
     employees = data["employees"]
     shifts = data["shifts"]
@@ -147,6 +155,13 @@ def solve(data: dict) -> dict:
     shift_continuity_w = cfg["shift_continuity_weight"]
     shift_week_bonus = cfg["shift_continuity_week_bonus"]
     monthly_weight = cfg["monthly_hours_target_weight"]
+    weekly_min_hours_cfg = cfg["weekly_min_hours"]
+    weekly_max_hours_cfg = cfg["weekly_max_hours"]
+    weekly_hours_w = cfg["weekly_hours_target_weight"]
+    preference_w = cfg["preference_weight"]
+    skill_downgrade_w = cfg["skill_downgrade_weight"]
+    fatigue_w = cfg["fatigue_weight"]
+    night_fatigue_mult = cfg["night_shift_fatigue_multiplier"]
     time_limit = cfg["solver_time_limit_seconds"]
     num_workers = cfg["solver_num_workers"]
 
@@ -159,6 +174,14 @@ def solve(data: dict) -> dict:
     }
     emp_skills = {e["id"]: set(e["skills"]) for e in employees}
     emp_avail_shifts = {e["id"]: set(e["available_shifts"]) for e in employees}
+    emp_preferred_off = {e["id"]: e.get("preferred_off", []) for e in employees}
+
+    # Skill-level catalog (see CapabilityInfo): capabilities without a shared
+    # skill_group never substitute for one another, so tenants that don't set
+    # this up see identical behaviour to a plain required-skills subset match.
+    capability_catalog = data.get("capabilities", [])
+    cap_level = {c["id"]: c.get("level", 1) for c in capability_catalog}
+    cap_group = {c["id"]: c.get("skill_group") for c in capability_catalog}
 
     ws_req_skills = {w["id"]: set(w["required_skills"]) for w in workstations}
     ws_op_shifts = {w["id"]: set(w["operating_shifts"]) for w in workstations}
@@ -212,6 +235,43 @@ def solve(data: dict) -> dict:
     # ---- Build model -------------------------------------------------------
     model = cp_model.CpModel()
 
+    # Skill compatibility & downgrade gap, precomputed once per (employee,
+    # workstation) pair since it doesn't depend on day/shift. A pair is
+    # compatible if every skill the workstation requires is either held
+    # directly (gap 0) or covered by a higher-level capability in the same
+    # skill_group (gap = level difference, penalised via skill_downgrade_weight
+    # rather than blocked). Requirements with no matching skill_group must be
+    # held directly, same as before.
+    def _compat_gap(eid: str, wid: str):
+        total_gap = 0
+        for req_cap in ws_req_skills[wid]:
+            if req_cap in emp_skills[eid]:
+                continue
+            req_group = cap_group.get(req_cap)
+            if req_group is None:
+                return None
+            req_level = cap_level.get(req_cap, 1)
+            best_gap = None
+            for e_cap in emp_skills[eid]:
+                if cap_group.get(e_cap) != req_group:
+                    continue
+                e_level = cap_level.get(e_cap, 1)
+                if e_level >= req_level:
+                    gap = e_level - req_level
+                    if best_gap is None or gap < best_gap:
+                        best_gap = gap
+            if best_gap is None:
+                return None
+            total_gap += best_gap
+        return total_gap
+
+    compat_gap: dict = {}
+    for e_idx, emp in enumerate(employees):
+        for w_idx, ws in enumerate(workstations):
+            gap = _compat_gap(emp["id"], ws["id"])
+            if gap is not None:
+                compat_gap[e_idx, w_idx] = gap
+
     # Decision variable: x[e, d, s, w] = 1  ⇔  employee e works at
     # workstation w on day d during shift s.
     x = {}
@@ -231,7 +291,7 @@ def solve(data: dict) -> dict:
                     wid = ws["id"]
                     if sid not in ws_op_shifts[wid]:
                         continue
-                    if not ws_req_skills[wid].issubset(emp_skills[eid]):
+                    if (e_idx, w_idx) not in compat_gap:
                         continue
                     if _ws_unavailable_on(wid, day):
                         continue
@@ -491,6 +551,15 @@ def solve(data: dict) -> dict:
         weight = prio_weights.get(p, 100)
         obj_terms.append(weight * var)
 
+    # 1b) Skill downgrade: discourage (but allow) covering a requirement with a
+    # higher-level capability from the same skill_group instead of an exact match.
+    if skill_downgrade_w > 0:
+        for key, var in x.items():
+            e_idx, d_idx, s_idx, w_idx = key
+            gap = compat_gap.get((e_idx, w_idx), 0)
+            if gap > 0:
+                obj_terms.append(-skill_downgrade_w * gap * var)
+
     # 2) Equal treatment: minimise spread of working hours across employees
     # Keyed by e_idx (not a plain list) so lookups below stay aligned even when
     # some employees have no feasible hour terms at all.
@@ -556,6 +625,107 @@ def solve(data: dict) -> dict:
                 # Penalise deviation from target (symmetric penalty)
                 obj_terms.append(-monthly_weight * over_dev)
                 obj_terms.append(-monthly_weight * under_dev)
+
+    # 3b) Weekly hour band: soft min/max hours per calendar week (blocks of 7
+    # days from the planning period's start), distinct from the monthly target
+    # above and from the hard max_working_days_per_week day-count cap.
+    if weekly_hours_w > 0 and (weekly_min_hours_cfg or weekly_max_hours_cfg):
+        weekly_min_tenths = int((weekly_min_hours_cfg or 0) * 10)
+        weekly_max_tenths = int((weekly_max_hours_cfg or 24 * 7) * 10)
+        for e_idx in range(num_emp):
+            for week_start in range(0, num_days, 7):
+                week_end = min(week_start + 7, num_days)
+                week_terms = []
+                for d_idx in range(week_start, week_end):
+                    wday = weekday_num(days[d_idx])
+                    for s_idx, shift in enumerate(shifts):
+                        sid = shift["id"]
+                        if (sid, wday) not in shift_wt:
+                            continue
+                        dur = int(_shift_duration_hours(shift_wt[(sid, wday)]) * 10)
+                        for w_idx in range(num_ws):
+                            key = (e_idx, d_idx, s_idx, w_idx)
+                            if key in x:
+                                week_terms.append(dur * x[key])
+                if not week_terms:
+                    continue
+                week_total = model.NewIntVar(0, 7 * 24 * 10, f"week_hours_{e_idx}_{week_start}")
+                model.Add(week_total == sum(week_terms))
+                if weekly_min_hours_cfg:
+                    under = model.NewIntVar(0, 7 * 24 * 10, f"week_under_{e_idx}_{week_start}")
+                    model.Add(under >= weekly_min_tenths - week_total)
+                    obj_terms.append(-weekly_hours_w * under)
+                if weekly_max_hours_cfg:
+                    over = model.NewIntVar(0, 7 * 24 * 10, f"week_over_{e_idx}_{week_start}")
+                    model.Add(over >= week_total - weekly_max_tenths)
+                    obj_terms.append(-weekly_hours_w * over)
+
+    # 3c) Soft shift/day preferences: employees may mark days (optionally a
+    # specific shift) they'd rather not work. Unlike `unavailability` this never
+    # blocks assignment — it only costs `preference_weight` when violated.
+    if preference_w > 0:
+        for e_idx, emp in enumerate(employees):
+            for pref in emp_preferred_off.get(emp["id"], []):
+                pd = parse_date(pref["date"])
+                if pd not in day_index:
+                    continue
+                d_idx = day_index[pd]
+                pref_shift = pref.get("shift_id")
+                terms = [
+                    x[e_idx, d_idx, s_idx, w_idx]
+                    for s_idx, shift in enumerate(shifts)
+                    if pref_shift is None or shift["id"] == pref_shift
+                    for w_idx in range(num_ws)
+                    if (e_idx, d_idx, s_idx, w_idx) in x
+                ]
+                if not terms:
+                    continue
+                violated = model.NewBoolVar(
+                    f"pref_violation_{e_idx}_{d_idx}_{pref_shift or 'any'}"
+                )
+                # Safe as equality: "at most one shift per employee per day" (below)
+                # already guarantees sum(terms) is 0 or 1.
+                model.Add(sum(terms) == violated)
+                obj_terms.append(-preference_w * violated)
+
+    # 3d) Fatigue-aware objective (ergonomic factor, simplified from the
+    # paper's half-hour sinusoidal fatigue/rest model): each shift contributes
+    # a fatigue cost that grows faster than linearly with duration and is
+    # amplified for night shifts. The solver minimises the WORST-OFF employee's
+    # accumulated fatigue (minimax), a distinct goal from balancing total hours
+    # — nobody gets pushed to the brink even if hours stay even.
+    if fatigue_w > 0:
+        def _shift_fatigue_cost(sid: str, wday: str) -> int:
+            dur = _shift_duration_hours(shift_wt[(sid, wday)])
+            cost = dur * dur * 10  # tenths of a "fatigue point", quadratic in duration
+            if shift_is_night[sid]:
+                cost *= night_fatigue_mult
+            return int(cost)
+
+        fatigue_upper_bound = num_days * int(24 * 24 * 10 * max(night_fatigue_mult, 1.0)) + 1
+        emp_fatigue_totals: dict = {}
+        for e_idx in range(num_emp):
+            terms = []
+            for d_idx, day in enumerate(days):
+                wday = weekday_num(day)
+                for s_idx, shift in enumerate(shifts):
+                    sid = shift["id"]
+                    if (sid, wday) not in shift_wt:
+                        continue
+                    cost = _shift_fatigue_cost(sid, wday)
+                    for w_idx in range(num_ws):
+                        key = (e_idx, d_idx, s_idx, w_idx)
+                        if key in x:
+                            terms.append(cost * x[key])
+            if terms:
+                total_f = model.NewIntVar(0, fatigue_upper_bound, f"fatigue_{e_idx}")
+                model.Add(total_f == sum(terms))
+                emp_fatigue_totals[e_idx] = total_f
+
+        if emp_fatigue_totals:
+            max_fatigue = model.NewIntVar(0, fatigue_upper_bound, "max_fatigue")
+            model.AddMaxEquality(max_fatigue, list(emp_fatigue_totals.values()))
+            obj_terms.append(-fatigue_w * max_fatigue)
 
     # 4) Shift continuity: reward employees for keeping the same shift across consecutive days
     # This encourages the optimizer to assign the same shift to an employee for at least a week

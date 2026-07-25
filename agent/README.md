@@ -2,71 +2,153 @@
 
 A LangGraph-based conversational agent that helps signed-in users navigate the
 Shift Planner web app and change its configuration by talking to it, instead
-of clicking through menus. It is a **skeleton** — a small, real, runnable
-agent with a couple of working tools, meant to be extended.
+of clicking through menus.
 
-It is a separate service from the Rust backend (`../src`) and the Python
-optimizer (`../planner`): it calls the backend's REST API as a client, the
-same way the Angular frontend does.
+The agent has **no backend tools of its own**. It discovers and calls them on
+the **MCP server** over HTTP (`MCP_SERVER_URL`, default
+`http://mcp:8900/mcp` — the `mcp` service in `deploy/docker-compose.yml`),
+which is generated from the OpenAPI spec. Any operation added to the backend
+becomes available to the agent without a line of agent code.
 
 ## Architecture
+
+Two sub-packages, one process each, and only a token crossing between them:
 
 ```
 Website chat widget
         │  POST /api/v1/chat  { message, session_id }
+        │  Authorization: Bearer <keycloak-token>
+        │  X-Access-Token: <token>  (set by APISIX in front of this route)
         ▼
-Flask API (server.py)
-        │
-        ▼
-LangGraph agent (graph.py)          ┌── navigate            (picks a frontend route)
-   agent ⇄ tools loop  ────────────►├── list_shifts / list_workstations / ...
-   (ChatOpenAI + ToolNode)          └── get/update_planner_settings
-        │                                    │
-        │                                    ▼
-        │                          Rust backend REST API (../src)
+┌─ shift_agent/agent ─────────────────────────────────────────────┐
+│ Flask API (server.py) ─── Keycloak token verification (auth.py) │
+│        │  puts the request's token in a contextvar (auth.py)    │
+│        ▼                                                        │
+│ LangGraph agent (graph.py)                                      │
+│    agent ⇄ tools loop  ───────────► MCP client (client.py)      │
+│    (Ollama / OpenAI + ToolNode)              │                  │
+└──────────────────────────────────────────────┼──────────────────┘
+                                               │ streamable HTTP
+                                               │ Authorization: Bearer
+                                               │ <that same token>
+┌─ shift_agent/mcp ────────────────────────────▼──────────────────┐
+│ MCP server (server.py)  ─── token resolution (auth.py)          │
+└──────────────────────────────────────────────┼──────────────────┘
+        │                                      ▼
+        │                        Rust backend REST API (../src)
         ▼
    { reply, ui_action }
 ```
 
-- **`graph.py`** — the agent itself: a minimal ReAct loop (`agent` node calls
-  the model, `tools` node runs whatever it asked for, loop until the model
-  answers in plain text). Conversation history is kept in memory per
+### `shift_agent/agent` — the chat agent
+
+- **`graph.py`** — the agent itself: a ReAct loop (`agent` node calls the LLM,
+  `tools` node runs whatever it asked for via the MCP client, loop until the
+  model answers in plain text). Conversation history is kept in memory per
   `session_id` via LangGraph's `MemorySaver` checkpointer.
-- **`tools/navigation.py`** — the `navigate` tool doesn't call anything; it
-  resolves a page name to a frontend route (kept in sync with
-  `ui/src/app/app.routes.ts`). The Flask layer picks the result back out of
-  the tool-call history and returns it as `ui_action`, so the chat widget can
-  call `router.navigate(path)`.
-- **`tools/backend_api.py`** — the "configure settings" tools. They call the
-  Rust backend's REST API directly (see `../api/openapi.yaml`).
-- **`server.py`** — the HTTP surface the website talks to.
-- **`mcp_server.py`** — a separate MCP server, generated directly from
-  `../api/openapi.yaml` via FastMCP's `FastMCP.from_openapi()`. Unlike
-  `tools/backend_api.py`'s hand-picked tools for the chat agent, this exposes
-  the whole backend REST API as MCP tools (one per operation) for any MCP
-  client — Claude Code, Claude Desktop, etc.
-- **`cli.py`** — `shift-agent chat` for local testing without a browser,
-  `shift-agent api` to start the server, `shift-agent mcp` to start the MCP
-  server.
+
+- **`client.py`** — lists the MCP server's tools at startup and wraps them as
+  LangChain `StructuredTool` objects the agent can call. Each call opens its
+  own short-lived session carrying the current user's token; one long-lived
+  session can't work, since its headers are fixed at connect time while the
+  graph is a process-wide singleton shared by every user.
+
+- **`server.py`** — the HTTP surface the website talks to. Validates the
+  caller's token against Keycloak's JWKS endpoint, then puts it in `auth.py`'s
+  per-request contextvar for the duration of the agent call.
+
+- **`auth.py`** — Keycloak verification for `POST /api/v1/chat`, plus the
+  contextvar holding the token `client.py` presents to the MCP server.
+
+### `shift_agent/mcp` — the MCP server
+
+- **`server.py`** — generated directly from `../api/openapi.yaml` via FastMCP's
+  `FastMCP.from_openapi()`: the whole backend REST API as MCP tools, one per
+  operation, for the chat agent and external MCP clients (Claude Code, Claude
+  Desktop) alike. Plus `navigate`, the one tool with no REST equivalent — it
+  targets the browser, and `agent/server.py` turns it into a `ui_action`.
+
+- **`auth.py`** — decides which access token the server's backend calls carry:
+  whatever the caller presented, else `BACKEND_ACCESS_TOKEN`.
+
+### Shared
+
+- **`config.py`** — all configuration from environment variables, including
+  LLM provider selection (Ollama local, Ollama.com cloud, OpenAI).
+
+- **`cli.py`** — `shift-agent chat` for local testing, `shift-agent api` to
+  start the chat server, `shift-agent mcp` to start the MCP server.
+
+## LLM Providers
+
+The agent supports three LLM backends, configured via `SHIFT_AGENT_LLM_PROVIDER`:
+
+| Provider | Env Value | Model Examples | API Key |
+|----------|-----------|----------------|---------|
+| Ollama (local) | `ollama` | `llama3.2`, `qwen2.5`, `mistral` | Not needed |
+| Ollama.com | `ollama-com` | `llama3.2-70b`, `qwen2.5-72b-instruct` | `OLLAMA_COM_API_KEY` |
+| OpenAI | `openai` | `gpt-4o`, `gpt-4o-mini` | `OPENAI_API_KEY` |
 
 ## Setup
 
 ```bash
 make install          # installs uv if missing, then `uv sync`
-cp .env.example .env  # set ANTHROPIC_API_KEY at minimum
+cp .env.example .env  # configure your LLM provider and model
 ```
 
-By default the agent talks to a backend at `http://localhost:8080/api/v1`
-running in `--dev-mode` (see the main `Makefile`'s `make serve`) — no auth
-token needed. See "Multi-tenant auth" below before deploying this for real.
+### Quick start with local Ollama
+
+```bash
+# 1. Start Ollama (if not running)
+ollama serve
+
+# 2. Pull a model
+ollama pull llama3.2
+
+# 3. Configure .env
+#    SHIFT_AGENT_LLM_PROVIDER=ollama
+#    SHIFT_AGENT_MODEL=llama3.2
+#    OLLAMA_BASE_URL=http://localhost:11434
+
+# 4. Run the agent
+make chat
+```
+
+### Using ollama.com cloud
+
+```bash
+# Configure .env
+# SHIFT_AGENT_LLM_PROVIDER=ollama-com
+# SHIFT_AGENT_MODEL=llama3.2-70b
+# OLLAMA_COM_API_KEY=ollama_sk_...
+```
+
+### Using OpenAI
+
+```bash
+# Configure .env
+# SHIFT_AGENT_LLM_PROVIDER=openai
+# SHIFT_AGENT_MODEL=gpt-4o
+# OPENAI_API_KEY=sk-...
+```
 
 ## Running
 
 ```bash
-make chat   # talk to the agent in the terminal
-make api    # start the HTTP API on :8899
-make mcp    # start the MCP server (stdio transport)
+make mcp-http  # start the MCP server on :8900 — the agent needs it
+make chat      # talk to the agent in the terminal
+make api       # start the HTTP API on :8899
+make mcp       # start the MCP server on stdio instead (for Claude Code etc.)
 ```
+
+Running the agent outside Docker, point it at your local MCP server:
+`MCP_SERVER_URL=http://localhost:8900/mcp` (the default targets the `mcp`
+Docker service). If it isn't up, the first chat request answers 503 and the
+next one retries.
+
+`MCP_TOOLS` narrows what the model sees to a comma-separated allowlist of tool
+names — worth setting for small local models, which pick badly from all ~70
+backend operations. Unset means everything.
 
 ### MCP server
 
@@ -97,58 +179,73 @@ make mcp-http    # start the HTTP MCP server on :8900
 make mcp-token   # fetch an access token (client credentials grant) to curl it with
 ```
 
+### Chat API with Keycloak auth
+
+When `KEYCLOAK_JWKS_URL` (or `KEYCLOAK_REALM_URL`) is configured, every
+`POST /api/v1/chat` request must include a valid Keycloak bearer token:
+
 ```bash
+# Get a token from Keycloak
+TOKEN=$(curl -s -X POST "$KEYCLOAK_REALM_URL/protocol/openid-connect/token" \
+  -d "grant_type=client_credentials" \
+  -d "client_id=shift-agent" \
+  -d "client_secret=..." | python3 -c "import json,sys; print(json.load(sys.stdin)['access_token'])")
+
+# Chat with the agent
 curl -X POST http://localhost:8899/api/v1/chat \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"message": "take me to the planner settings page"}'
 # {"session_id": "default", "reply": "...", "ui_action": {"action": "navigate", "path": "/planner-settings"}}
 
 curl -X POST http://localhost:8899/api/v1/chat \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"message": "what are the current optimizer settings?"}'
 ```
 
+In dev mode (no Keycloak configured), the endpoint accepts requests without
+authentication.
+
 ## Extending
 
-- **New read/write tool**: add a `@tool`-decorated function to
-  `tools/backend_api.py` (or a new file under `tools/`), export it from
-  `tools/__init__.py`'s `ALL_TOOLS`, and mention it in `graph.py`'s
-  `SYSTEM_PROMPT` if it needs usage guidance. The backend's
-  `../api/openapi.yaml` is the source of truth for what's callable.
-- **New navigable page**: add it to `KNOWN_PAGES` in `tools/navigation.py`
-  and to `ui/src/app/app.routes.ts` if it isn't there yet.
-- **Persistent conversation history**: swap `MemorySaver` in `graph.py` for
-  `langgraph.checkpoint.sqlite.SqliteSaver` or
-  `langgraph.checkpoint.postgres.PostgresSaver` — the rest of the graph is
-  unchanged.
-- **Streaming replies**: `graph.stream(...)` / `graph.astream(...)` instead
-  of `graph.invoke(...)` in `server.py`, turned into a chunked or
+- **New backend endpoint**: add it to `../api/openapi.yaml` and the Rust
+  backend. The MCP server picks it up automatically via
+  `FastMCP.from_openapi()`, and the agent discovers it the next time it
+  connects. No agent code changes needed (add the name to `MCP_TOOLS` if
+  you've set an allowlist).
+- **New navigable page**: add it to `mcp/server.py`'s `KNOWN_PAGES` and to
+  `ui/src/app/app.routes.ts`.
+- **Persistent conversation history**: swap `MemorySaver` in `agent/graph.py`
+  for `langgraph.checkpoint.sqlite.SqliteSaver` or
+  `langgraph.checkpoint.postgres.PostgresSaver`.
+- **Streaming replies**: use `graph.astream(...)` instead of
+  `graph.ainvoke(...)` in `agent/server.py`, turned into a chunked or
   Server-Sent-Events HTTP response.
 
 ## Multi-tenant auth
 
-Token resolution for every backend call lives in `shift_agent/auth.py`, in
-priority order:
+One token travels the whole way: the user's. The chat request carries it in,
+the agent presents it to the MCP server, and the MCP server presents it to the
+backend — so every call runs as the signed-in user, not as the service.
 
-1. **The current request's own token**, as authenticated by `mcp_server.py`'s
-   `MultiAuth` — this is the real per-tenant path. Each MCP client goes
-   through Keycloak's OAuth2 authorization code grant + Dynamic Client
-   Registration (`OIDCProxy`, using `MCP_OAUTH_CLIENT_ID`/`SECRET` as the
-   upstream client), or presents an already-obtained Keycloak bearer token
-   directly (`JWTVerifier`, skipping the interactive flow — `make mcp-token`
-   fetches one via the client credentials grant). Either way, FastMCP exposes
-   that request's token via `get_access_token()`, and `auth.py` forwards it
-   as-is — nothing is cached, since FastMCP already scopes it per-request.
-   Only applies over HTTP transport with `MCP_OAUTH_CLIENT_ID`/`SECRET` set.
-2. **`BACKEND_ACCESS_TOKEN`** — a single static token, used when (1) doesn't
-   apply (stdio transport, or no server auth configured): fine for local
-   testing or a single-tenant deployment.
-
-The LangGraph chat agent's tools (`tools/backend_api.py`) go through the same
-`auth.py`, but since they're not driven by an authenticated MCP request, they
-only ever see (1) as empty and fall through to (2) — a single server-side
-identity (or none, in dev mode) for every chat user. Making the *chat* agent
-itself multi-tenant would mean the website forwarding the signed-in user's
-own token with each `/chat` request and `server.py` threading it through
-per-request instead of relying on `auth.py`'s fallback — intentionally left
-as an exercise rather than guessed at here.
+1. **Into the agent** — `agent/server.py` takes the token off the chat request
+   (`X-Access-Token`, set by APISIX's openid-connect plugin on the route in
+   front of `POST /api/v1/chat`; else the `Authorization` bearer token, for
+   local testing), verifies it against Keycloak's JWKS, and puts it in a
+   contextvar for the duration of that `graph.invoke()` call.
+2. **Agent → MCP server** — `agent/client.py` reads it back out on every tool
+   call and sends it as `Authorization: Bearer`.
+3. **MCP server → backend** — `mcp/auth.py` resolves the token the caller
+   presented and attaches it to the backend call. With
+   `MCP_OAUTH_CLIENT_ID`/`SECRET` set, `MultiAuth` verifies it first: external
+   MCP clients can go through Keycloak's OAuth2 authorization code grant +
+   Dynamic Client Registration (`OIDCProxy`), or present an already-obtained
+   Keycloak bearer token directly (`JWTVerifier` — `make mcp-token` fetches one
+   via the client credentials grant). Unset (as in `deploy/docker-compose.yml`,
+   which needs HTTPS for the OIDC issuer), the server verifies nothing itself
+   and forwards the caller's header as-is — APISIX and the backend still
+   validate it.
+4. **`BACKEND_ACCESS_TOKEN`** — a single static token, used wherever no
+   per-request token is available: `shift-agent chat` in the terminal, stdio
+   transport, single-tenant deployments.

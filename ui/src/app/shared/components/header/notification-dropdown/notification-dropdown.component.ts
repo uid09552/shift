@@ -1,14 +1,11 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component } from '@angular/core';
 import { RouterModule } from '@angular/router';
-import { Subscription, interval } from 'rxjs';
-import { startWith, switchMap, tap } from 'rxjs/operators';
 import { DropdownComponent } from '../../ui/dropdown/dropdown.component';
 import { DropdownItemComponent } from '../../ui/dropdown/dropdown-item/dropdown-item.component';
 import { ModalComponent } from '../../ui/modal/modal.component';
 import { AuditLog, AuditLogService } from '../../../services/audit-log.service';
 
-const POLL_INTERVAL_MS = 10000;
 const MAX_NOTIFICATIONS = 10;
 
 @Component({
@@ -16,57 +13,39 @@ const MAX_NOTIFICATIONS = 10;
   templateUrl: './notification-dropdown.component.html',
   imports: [CommonModule, RouterModule, DropdownComponent, DropdownItemComponent, ModalComponent],
 })
-export class NotificationDropdownComponent implements OnInit, OnDestroy {
+export class NotificationDropdownComponent {
   isOpen = false;
-  notifying = false;
 
   logs: AuditLog[] = [];
   loading = false;
+  loaded = false;
 
   showDetail = false;
   selectedLog: AuditLog | null = null;
 
-  /** ID of the newest log at the time the dropdown was last opened (or first load). */
-  private lastSeenId: string | null = null;
-  private pollSub: Subscription | null = null;
-
   constructor(private auditLogService: AuditLogService) {}
 
-  ngOnInit(): void {
-    this.pollSub = interval(POLL_INTERVAL_MS).pipe(
-      startWith(0),
-      tap(() => { this.loading = true; }),
-      switchMap(() => this.auditLogService.listAuditLogs({ limit: MAX_NOTIFICATIONS })),
-    ).subscribe({
+  /** Notifications are only fetched once the user opens the dropdown — no background polling. */
+  toggleDropdown(): void {
+    this.isOpen = !this.isOpen;
+    if (this.isOpen) {
+      this.loadLogs();
+    }
+  }
+
+  private loadLogs(): void {
+    this.loading = true;
+    this.auditLogService.listAuditLogs({ limit: MAX_NOTIFICATIONS }).subscribe({
       next: (r) => {
         this.logs = r.data.slice(0, MAX_NOTIFICATIONS);
         this.loading = false;
-
-        const newestId = this.logs[0]?.id ?? null;
-        if (this.lastSeenId === null) {
-          // First load: don't flag pre-existing history as "new".
-          this.lastSeenId = newestId;
-        } else if (!this.isOpen && newestId && newestId !== this.lastSeenId) {
-          this.notifying = true;
-        }
+        this.loaded = true;
       },
       error: (e) => {
         console.error('Failed to load audit log notifications:', e);
         this.loading = false;
       },
     });
-  }
-
-  ngOnDestroy(): void {
-    this.pollSub?.unsubscribe();
-  }
-
-  toggleDropdown(): void {
-    this.isOpen = !this.isOpen;
-    if (this.isOpen) {
-      this.notifying = false;
-      this.lastSeenId = this.logs[0]?.id ?? this.lastSeenId;
-    }
   }
 
   closeDropdown(): void {

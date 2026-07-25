@@ -88,11 +88,20 @@ impl UnavailabilityService {
             .transpose()
             .map_err(|_| AppError::Validation("Invalid 'shift_id' UUID".into()))?;
 
+        // Soft preferences (e.g. "would rather not work this day") never block
+        // assignment; the optimizer may still use the day/shift under pressure,
+        // at a penalty. Defaults to false, i.e. a hard block as before.
+        let is_soft_preference = body
+            .get("is_soft_preference")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
         let unavailability = Unavailability {
             id: Uuid::new_v4(), // Will be replaced by DB-generated ID
             employee_id,
             unavailable_date,
             shift_id,
+            is_soft_preference,
         };
 
         let created = state
@@ -102,24 +111,28 @@ impl UnavailabilityService {
             .map_err(|_| AppError::Internal)?;
 
         // Mirror the unavailability as a confirmed shift plan with absence_type = 'unavailable'
-        // so that planner calendar UIs display the blocked day automatically.
-        let now = Utc::now().naive_utc();
-        let plan = ConfirmedShiftPlan {
-            id: Uuid::new_v4(),
-            employee_id,
-            shift_id,  // propagate shift-specific flag if present
-            workstation_id: None,
-            date: unavailable_date,
-            is_present: false,
-            absence_type: Some("unavailable".to_string()),
-            creation_type: "manual".to_string(),
-            created_at: now,
-            updated_at: now,
-        };
-        let _ = state
-            .confirmed_shift_plan_repo
-            .create_confirmed_shift_plan(&tenant.0, plan)
-            .await;  // best-effort; don't fail the main request if sync fails
+        // so that planner calendar UIs display the blocked day automatically. Soft
+        // preferences aren't a real absence (the optimizer may still schedule them),
+        // so they're skipped here — only hard unavailability blocks the calendar.
+        if !is_soft_preference {
+            let now = Utc::now().naive_utc();
+            let plan = ConfirmedShiftPlan {
+                id: Uuid::new_v4(),
+                employee_id,
+                shift_id,  // propagate shift-specific flag if present
+                workstation_id: None,
+                date: unavailable_date,
+                is_present: false,
+                absence_type: Some("unavailable".to_string()),
+                creation_type: "manual".to_string(),
+                created_at: now,
+                updated_at: now,
+            };
+            let _ = state
+                .confirmed_shift_plan_repo
+                .create_confirmed_shift_plan(&tenant.0, plan)
+                .await;  // best-effort; don't fail the main request if sync fails
+        }
 
         Ok(Json(serde_json::to_value(created).unwrap()))
     }

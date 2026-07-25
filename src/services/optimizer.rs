@@ -8,7 +8,7 @@ use axum::{
 use chrono::{Local, NaiveDate, Utc};
 use crate::broker::JetStreamStatus;
 use crate::errors::AppError;
-use crate::models::{ConstraintTask, PlanningPeriod, ShiftTask, ShiftWeekdayTimeTask, TaskDTO, TaskResultDto, EmployeeTask, WorkstationTask, WorkstationUnavailabilityRange};
+use crate::models::{ConstraintTask, PlanningPeriod, ShiftTask, ShiftWeekdayTimeTask, TaskDTO, TaskResultDto, EmployeeTask, WorkstationTask, WorkstationUnavailabilityRange, CapabilityTask, PreferredOffTask};
 use crate::repository::{AppState, domain::*};
 use crate::services::audit_log::{self, AuditActor};
 use crate::services::tenant::TenantContext;
@@ -129,9 +129,26 @@ impl OptimizerService {
 
         let all_unavailabilities = state.unavailability_repo.list_unavailabilities(tenant_id).await?;
         let mut unavail_map: std::collections::HashMap<Uuid, Vec<String>> = std::collections::HashMap::new();
+        let mut preferred_off_map: std::collections::HashMap<Uuid, Vec<PreferredOffTask>> = std::collections::HashMap::new();
         for u in all_unavailabilities {
-            unavail_map.entry(u.employee_id).or_default().push(u.unavailable_date.to_string());
+            if u.is_soft_preference {
+                preferred_off_map.entry(u.employee_id).or_default().push(PreferredOffTask {
+                    date: u.unavailable_date.to_string(),
+                    shift_id: u.shift_id.map(|id| id.to_string()),
+                });
+            } else {
+                unavail_map.entry(u.employee_id).or_default().push(u.unavailable_date.to_string());
+            }
         }
+
+        // NOTE: employee skills / workstation required_skills are matched by
+        // capability *name* (see employee_tasks/workstation_tasks below), not
+        // UUID — so the catalog entry's `id` here must also be the name for the
+        // optimizer's skill-downgrade lookup to line up with those lists.
+        let capability_tasks: Vec<CapabilityTask> = state.capability_repo.list_capabilities(tenant_id).await?
+            .into_iter()
+            .map(|c| CapabilityTask { id: c.name, level: c.level, skill_group: c.skill_group })
+            .collect();
 
         let all_ws_unavailabilities = state.workstation_unavailability_repo.list_workstation_unavailabilities(tenant_id).await?;
         let mut ws_unavail_map: std::collections::HashMap<Uuid, Vec<WorkstationUnavailabilityRange>> = std::collections::HashMap::new();
@@ -164,6 +181,7 @@ impl OptimizerService {
         let employee_tasks: Vec<EmployeeTask> = employees.into_iter()
             .map(|emp| {
                 let unavailability = unavail_map.get(&emp.id).cloned().unwrap_or_default();
+                let preferred_off = preferred_off_map.get(&emp.id).cloned().unwrap_or_default();
                 EmployeeTask {
                     id: emp.id.to_string(),
                     name: emp.name,
@@ -171,6 +189,7 @@ impl OptimizerService {
                     available_shifts: emp.available_shifts.iter().map(|s| s.id.to_string()).collect(),
                     unavailability,
                     monthly_working_hours: emp.monthly_working_hours,
+                    preferred_off,
                 }
             }).collect();
 
@@ -208,6 +227,7 @@ impl OptimizerService {
             shifts: shift_tasks,
             workstations: workstation_tasks,
             employees: employee_tasks,
+            capabilities: capability_tasks,
             constraints,
         })
     }
@@ -371,6 +391,15 @@ async fn build_constraints(
                 priority_weights: Some(priority_weights),
                 solver_time_limit_seconds: Some(s.solver_time_limit_seconds),
                 solver_num_workers: Some(s.solver_num_workers),
+                weekly_min_hours: s.weekly_min_hours,
+                weekly_max_hours: s.weekly_max_hours,
+                weekly_hours_target_weight: Some(s.weekly_hours_target_weight),
+                preference_weight: Some(s.preference_weight),
+                skill_downgrade_weight: Some(s.skill_downgrade_weight),
+                fatigue_weight: Some(s.fatigue_weight),
+                night_shift_fatigue_multiplier: Some(s.night_shift_fatigue_multiplier),
+                shift_continuity_weight: Some(s.shift_continuity_weight),
+                shift_continuity_week_bonus: Some(s.shift_continuity_week_bonus),
             }
         }
         Err(e) => {

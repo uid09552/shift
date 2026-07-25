@@ -3,6 +3,8 @@ diesel::table! {
         id -> Uuid,
         name -> Varchar,
         tenant_id -> Varchar,
+        level -> Int2,
+        skill_group -> Nullable<Varchar>,
     }
 }
 
@@ -95,6 +97,7 @@ diesel::table! {
         unavailable_date -> Date,
         shift_id -> Nullable<Uuid>,
         tenant_id -> Varchar,
+        is_soft_preference -> Bool,
     }
 }
 
@@ -162,6 +165,15 @@ diesel::table! {
         solver_num_workers -> Int2,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
+        weekly_min_hours -> Nullable<Float8>,
+        weekly_max_hours -> Nullable<Float8>,
+        weekly_hours_target_weight -> Int4,
+        preference_weight -> Int4,
+        skill_downgrade_weight -> Int4,
+        fatigue_weight -> Int4,
+        night_shift_fatigue_multiplier -> Float8,
+        shift_continuity_weight -> Int4,
+        shift_continuity_week_bonus -> Int4,
     }
 }
 

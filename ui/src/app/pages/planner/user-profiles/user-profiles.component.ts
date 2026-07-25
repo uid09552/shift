@@ -20,6 +20,7 @@ interface LeaveEntry {
   date: string;
   type: 'unavailable' | 'day_off' | 'sick';
   source: 'unavailability' | 'plan';
+  is_soft_preference?: boolean;
 }
 
 @Component({
@@ -177,6 +178,18 @@ interface LeaveEntry {
                     >Sick Leave</button>
                   </div>
 
+                  @if (leaveType === 'unavailable') {
+                    <label class="mb-3 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                      <input
+                        type="checkbox"
+                        class="h-3.5 w-3.5 rounded border-gray-300 text-brand-500 focus:ring-brand-500 dark:border-gray-600"
+                        [(ngModel)]="preferSoft"
+                        [ngModelOptions]="{ standalone: true }"
+                      />
+                      Soft preference — the optimizer may still schedule this if needed
+                    </label>
+                  }
+
                   <!-- Calendar range picker -->
                   <app-date-range-picker
                     [markedDays]="markedDays"
@@ -229,6 +242,12 @@ interface LeaveEntry {
                               [class.dark:bg-red-900]="entry.type === 'sick'"
                               [class.dark:text-red-300]="entry.type === 'sick'"
                             >{{ leaveTypeLabel(entry.type) }}</span>
+                            @if (entry.is_soft_preference) {
+                              <span
+                                class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-white/[0.08] dark:text-gray-400"
+                                title="Soft preference — the optimizer may still schedule this if needed"
+                              >soft</span>
+                            }
                           </div>
                           <button
                             type="button"
@@ -303,21 +322,10 @@ interface LeaveEntry {
 
       @if (importResult) {
         <div
-          class="mx-5 mb-4 rounded-lg border px-4 py-3 text-sm sm:mx-6"
-          [class.border-success-200]="importResult.errors.length === 0"
-          [class.bg-success-50]="importResult.errors.length === 0"
-          [class.text-success-700]="importResult.errors.length === 0"
-          [class.dark:border-success-500]="importResult.errors.length === 0"
-          [class.dark:bg-success-500]="importResult.errors.length === 0"
-          [class.dark:bg-opacity-10]="importResult.errors.length === 0"
-          [class.dark:text-success-400]="importResult.errors.length === 0"
-          [class.border-amber-200]="importResult.errors.length > 0"
-          [class.bg-amber-50]="importResult.errors.length > 0"
-          [class.text-amber-700]="importResult.errors.length > 0"
-          [class.dark:border-amber-500]="importResult.errors.length > 0"
-          [class.dark:bg-amber-500]="importResult.errors.length > 0"
-          [class.dark:bg-opacity-10]="importResult.errors.length > 0"
-          [class.dark:text-amber-400]="importResult.errors.length > 0"
+          class="mx-5 mb-4 rounded-lg border px-4 py-3 text-sm transition-colors sm:mx-6"
+          [class]="importResult.errors.length === 0
+            ? 'border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400'
+            : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400'"
         >
           <div class="flex items-start justify-between gap-3">
             <div>
@@ -332,7 +340,7 @@ interface LeaveEntry {
                 </ul>
               }
             </div>
-            <button type="button" (click)="importResult = null" class="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+            <button type="button" (click)="importResult = null" class="shrink-0 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-300">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>
@@ -535,6 +543,10 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
   // Unified leave & unavailability
   leaveEntries: LeaveEntry[] = [];
   leaveType: 'unavailable' | 'day_off' | 'sick' = 'unavailable';
+  // Soft preference: the optimizer may still schedule these days/shifts under
+  // pressure (at a penalty) instead of hard-blocking them like a normal
+  // unavailability entry.
+  preferSoft = false;
   pickerRange: { start: string; end: string } | null = null;
   pickerResetKey = 0;
   leaveProcessing = false;
@@ -646,6 +658,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
           date: u.unavailable_date,
           type: 'unavailable',
           source: 'unavailability',
+          is_soft_preference: u.is_soft_preference,
         }));
         const absenceEntries: LeaveEntry[] = absences
           .filter(p => !p.is_present && p.absence_type !== 'unavailable')
@@ -828,6 +841,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
           this.unavailabilityService.createUnavailability({
             employee_id: this.editingEmployee!.id,
             unavailable_date: date,
+            is_soft_preference: this.preferSoft,
           })
         )
       : dates.map(date =>
@@ -846,6 +860,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
           date: dates[i],
           type: this.leaveType,
           source: this.leaveType === 'unavailable' ? 'unavailability' : 'plan',
+          is_soft_preference: this.leaveType === 'unavailable' ? this.preferSoft : undefined,
         }));
         this.leaveEntries = [...this.leaveEntries, ...newEntries]
           .sort((a, b) => a.date.localeCompare(b.date));

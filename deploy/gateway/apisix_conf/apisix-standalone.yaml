@@ -200,7 +200,7 @@ routes:
         client_secret: shift-gateway-secret
         discovery: http://keycloak:8080/auth/realms/shift/.well-known/openid-configuration
         scope: "openid profile email shift-org"
-        bearer_only: true
+        bearer_only: false
         unauth_action: deny
         ssl_verify: false
         # Caches a successful introspection result for this many seconds so
@@ -213,5 +213,36 @@ routes:
       type: roundrobin
       nodes:
         backend:8080: 1
+
+  # ===========================================
+  # Protected chat agent route (JWT bearer via Keycloak)
+  # Same auth as /api/* — the openid-connect plugin sets X-Access-Token on
+  # the upstream request, which the agent forwards to its own MCP tool calls
+  # (see agent/shift_agent/server.py + auth.py). proxy-rewrite strips the
+  # /agent prefix so the agent (which only knows about /api/v1/*) sees the
+  # same paths it would locally, e.g. /agent/chat -> /api/v1/chat.
+  # ===========================================
+
+  - uri: /agent/*
+    name: agent-chat
+    priority: 10
+    plugins:
+      openid-connect:
+        client_id: shift-gateway
+        client_secret: shift-gateway-secret
+        discovery: http://keycloak:8080/auth/realms/shift/.well-known/openid-configuration
+        scope: "openid profile email shift-org"
+        bearer_only: false
+        unauth_action: deny
+        ssl_verify: false
+        introspection_interval: 60
+        session:
+          secret: geheimgeheimgeheimgeheim12345678
+      proxy-rewrite:
+        regex_uri: ["^/agent/(.*)", "/api/v1/$1"]
+    upstream:
+      type: roundrobin
+      nodes:
+        agent:8899: 1
 
 #END

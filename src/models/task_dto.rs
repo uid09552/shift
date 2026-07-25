@@ -20,6 +20,24 @@ pub struct ConstraintTask {
     pub solver_time_limit_seconds: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub solver_num_workers: Option<i16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub weekly_min_hours: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub weekly_max_hours: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub weekly_hours_target_weight: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preference_weight: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skill_downgrade_weight: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fatigue_weight: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub night_shift_fatigue_multiplier: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shift_continuity_weight: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shift_continuity_week_bonus: Option<i32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -28,8 +46,22 @@ pub struct TaskDTO {
     pub shifts: Vec<ShiftTask>,
     pub workstations: Vec<WorkstationTask>,
     pub employees: Vec<EmployeeTask>,
+    // Capability catalog with skill-level metadata (see CapabilityTask), used
+    // by the optimizer's skill-downgrade objective. Capabilities without a
+    // shared skill_group never substitute for one another, so tenants that
+    // don't set skill_group see no change from a plain required-skills match.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub capabilities: Vec<CapabilityTask>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub constraints: Option<ConstraintTask>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CapabilityTask {
+    pub id: String,
+    pub level: i16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skill_group: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -76,6 +108,13 @@ pub struct WorkstationTask {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PreferredOffTask {
+    pub date: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shift_id: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EmployeeTask {
     pub id: String,
     pub name: String,
@@ -83,4 +122,8 @@ pub struct EmployeeTask {
     pub available_shifts: Vec<String>,
     pub unavailability: Vec<String>,
     pub monthly_working_hours: f64,
+    // Days/shifts the employee would rather not work (soft — see
+    // Unavailability.is_soft_preference). Never blocks assignment.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub preferred_off: Vec<PreferredOffTask>,
 }

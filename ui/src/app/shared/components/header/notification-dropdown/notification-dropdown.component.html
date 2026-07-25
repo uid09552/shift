@@ -3,12 +3,6 @@
     class="relative flex items-center justify-center text-gray-500 transition-colors bg-white border border-gray-200 rounded-full dropdown-toggle hover:text-gray-700 h-11 w-11 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
     (click)="toggleDropdown()"
   >
-    <span
-      class="absolute right-0 top-0.5 z-10 h-2 w-2 rounded-full bg-orange-400"
-      [ngClass]="{ 'hidden': !notifying, 'flex': notifying }"
-    >
-      <span class="absolute inline-flex w-full h-full bg-orange-400 rounded-full opacity-75 animate-ping"></span>
-    </span>
     <svg
       class="fill-current"
       width="20"
@@ -54,7 +48,9 @@
       </button>
     </div>
     <ul class="flex flex-col h-auto overflow-y-auto custom-scrollbar">
-      @if (!loading && logs.length === 0) {
+      @if (loading) {
+        <li class="px-4 py-6 text-center text-sm text-gray-400">Loading...</li>
+      } @else if (loaded && logs.length === 0) {
         <li class="px-4 py-6 text-center text-sm text-gray-400">No audit log events yet.</li>
       }
       @for (log of logs; track log.id) {

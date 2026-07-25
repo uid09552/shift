@@ -110,6 +110,17 @@ class Workstation(BaseModel):
         return v
 
 
+class PreferredOff(BaseModel):
+    """A day (optionally one specific shift) an employee would rather not work.
+
+    Unlike `unavailability`, this is a soft signal: the solver may still assign
+    the employee here under pressure, at a penalty (`preference_weight`).
+    """
+
+    date: date
+    shift_id: Optional[str] = None
+
+
 class Employee(BaseModel):
     """Employee definition with skills and availability."""
 
@@ -119,6 +130,25 @@ class Employee(BaseModel):
     available_shifts: List[str] = Field(default_factory=list)
     unavailability: List[date] = Field(default_factory=list)
     monthly_working_hours: float = Field(default=0.0, ge=0)
+    preferred_off: List[PreferredOff] = Field(default_factory=list)
+
+
+class CapabilityInfo(BaseModel):
+    """Capability catalog entry carrying skill-level metadata.
+
+    Powers the skill-downgrade objective: capabilities that share a
+    `skill_group` are treated as substitutable tiers of the same skill (e.g.
+    "Registered Nurse" level 3, "Practical Nurse" level 2, "Assistant Nurse"
+    level 1 all in group "nursing"). A higher-level capability may cover a
+    lower-level requirement in the same group at a penalty; capabilities
+    without a shared group never substitute for one another, so tenants that
+    don't set `skill_group` see no change from a plain requires-this-exact-tag
+    match.
+    """
+
+    id: str = Field(..., min_length=1)
+    level: int = Field(default=1, ge=1)
+    skill_group: Optional[str] = None
 
 
 class ConstraintConfig(BaseModel):
@@ -163,6 +193,29 @@ class ConstraintConfig(BaseModel):
     # set to 0 to disable.
     monthly_hours_target_weight: int = Field(default=1000, ge=0)
 
+    # Soft weekly working-hours band, distinct from the monthly target above and
+    # from the hard max_working_days_per_week day-count cap. None/0 = disabled.
+    weekly_min_hours: Optional[float] = Field(default=None, ge=0)
+    weekly_max_hours: Optional[float] = Field(default=None, ge=0)
+    weekly_hours_target_weight: int = Field(default=1000, ge=0)
+
+    # Penalty for assigning an employee to a day/shift they marked as
+    # `preferred_off` on their profile. Soft — never blocks the assignment.
+    preference_weight: int = Field(default=300, ge=0)
+
+    # Penalty for covering a workstation's required skill with a higher-level
+    # capability from the same skill_group instead of the exact match (see
+    # CapabilityInfo). 0 disables skill-downgrade tracking entirely.
+    skill_downgrade_weight: int = Field(default=200, ge=0)
+
+    # Fatigue-aware scheduling (ergonomic factor). Each shift contributes a
+    # fatigue cost that grows faster than linearly with duration; night shifts
+    # are amplified by night_shift_fatigue_multiplier. The solver minimises the
+    # worst-off employee's accumulated fatigue (minimax), which is a distinct
+    # goal from balancing total hours. 0 disables fatigue tracking.
+    fatigue_weight: int = Field(default=100, ge=0)
+    night_shift_fatigue_multiplier: float = Field(default=2.0, ge=1.0)
+
     # Solver time limit in seconds
     solver_time_limit_seconds: float = Field(default=120.0, gt=0)
 
@@ -177,6 +230,7 @@ class SchedulingInput(BaseModel):
     shifts: List[Shift] = Field(..., min_length=1)
     workstations: List[Workstation] = Field(..., min_length=1)
     employees: List[Employee] = Field(..., min_length=1)
+    capabilities: List[CapabilityInfo] = Field(default_factory=list)
     constraints: ConstraintConfig = Field(default_factory=ConstraintConfig)
 
     @field_validator("shifts", "workstations", "employees")

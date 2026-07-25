@@ -55,8 +55,11 @@ services:
       KC_FEATURES: organization
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
+      MCP_OAUTH_CLIENT_SECRET: ${MCP_OAUTH_CLIENT_SECRET:-shift-gateway-secret}
     volumes:
-      - ./realm-shift.json:/opt/keycloak/data/import/realm-shift.json:ro
+      - ./realm-shift.json.tpl:/opt/keycloak/data/import/realm-shift.json.tpl:ro
+      - ./docker-entrypoint.sh:/docker-entrypoint-wrapper.sh:ro
+    entrypoint: ["/bin/sh", "/docker-entrypoint-wrapper.sh"]
     ports:
       - "8080:8080"
       - "9000:9000"

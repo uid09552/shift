@@ -1,6 +1,6 @@
 [project]
 name = "shift-agent"
-version = "0.1.0"
+version = "0.2.0"
 description = "LangGraph-based conversational agent that helps users navigate and configure the Shift Planner web app"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -14,6 +14,9 @@ dependencies = [
     "python-dotenv>=1.0",
     "fastmcp>=2.3",
     "pyyaml>=6.0",
+    "mcp>=1.0",
+    "pyjwt>=2.8",
+    "cryptography>=41.0",
 ]
 
 [project.scripts]

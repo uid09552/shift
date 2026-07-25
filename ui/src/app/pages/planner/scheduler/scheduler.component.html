@@ -49,14 +49,55 @@
           </div>
         }
 
-        <!-- Planning weeks -->
+        <!-- Planning range -->
         <div class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 dark:border-gray-700">
-          <span class="text-xs text-gray-500 dark:text-gray-400">Plan</span>
-          <select [(ngModel)]="planningWeeks" class="border-0 bg-transparent py-0 text-sm font-medium text-gray-700 focus:ring-0 dark:text-gray-300">
-            @for (w of WEEK_OPTIONS; track w) {
-              <option [value]="w">{{ w }}w</option>
-            }
-          </select>
+          <div class="flex items-center rounded-md border border-gray-200 p-0.5 dark:border-gray-700">
+            <button
+              type="button"
+              (click)="planningMode = 'weeks'"
+              class="rounded px-2 py-0.5 text-xs font-medium transition-colors"
+              [class.bg-gray-100]="planningMode === 'weeks'"
+              [class.dark:bg-gray-700]="planningMode === 'weeks'"
+              [class.text-gray-800]="planningMode === 'weeks'"
+              [class.dark:text-white]="planningMode === 'weeks'"
+              [class.text-gray-500]="planningMode !== 'weeks'"
+              [class.dark:text-gray-400]="planningMode !== 'weeks'"
+            >Weeks</button>
+            <button
+              type="button"
+              (click)="planningMode = 'range'"
+              class="rounded px-2 py-0.5 text-xs font-medium transition-colors"
+              [class.bg-gray-100]="planningMode === 'range'"
+              [class.dark:bg-gray-700]="planningMode === 'range'"
+              [class.text-gray-800]="planningMode === 'range'"
+              [class.dark:text-white]="planningMode === 'range'"
+              [class.text-gray-500]="planningMode !== 'range'"
+              [class.dark:text-gray-400]="planningMode !== 'range'"
+            >Date range</button>
+          </div>
+
+          @if (planningMode === 'weeks') {
+            <span class="text-xs text-gray-500 dark:text-gray-400">Plan</span>
+            <select [(ngModel)]="planningWeeks" class="border-0 bg-transparent py-0 text-sm font-medium text-gray-700 focus:ring-0 dark:text-gray-300">
+              @for (w of WEEK_OPTIONS; track w) {
+                <option [value]="w">{{ w }}w</option>
+              }
+            </select>
+          } @else {
+            <input
+              type="date"
+              [(ngModel)]="customStartDate"
+              [max]="customEndDate"
+              class="border-0 bg-transparent py-0 text-sm font-medium text-gray-700 focus:ring-0 dark:text-gray-300 dark:[color-scheme:dark]"
+            />
+            <span class="text-xs text-gray-400 dark:text-gray-500">to</span>
+            <input
+              type="date"
+              [(ngModel)]="customEndDate"
+              [min]="customStartDate"
+              class="border-0 bg-transparent py-0 text-sm font-medium text-gray-700 focus:ring-0 dark:text-gray-300 dark:[color-scheme:dark]"
+            />
+          }
         </div>
 
         <!-- Monthly hours toggle -->

@@ -28,6 +28,15 @@ fn to_domain(s: PlannerSettings) -> PlannerSettingsDomain {
         solver_time_limit_seconds: s.solver_time_limit_seconds,
         solver_num_workers: s.solver_num_workers,
         updated_at: s.updated_at,
+        weekly_min_hours: s.weekly_min_hours,
+        weekly_max_hours: s.weekly_max_hours,
+        weekly_hours_target_weight: s.weekly_hours_target_weight,
+        preference_weight: s.preference_weight,
+        skill_downgrade_weight: s.skill_downgrade_weight,
+        fatigue_weight: s.fatigue_weight,
+        night_shift_fatigue_multiplier: s.night_shift_fatigue_multiplier,
+        shift_continuity_weight: s.shift_continuity_weight,
+        shift_continuity_week_bonus: s.shift_continuity_week_bonus,
     }
 }
 
@@ -78,6 +87,15 @@ impl PlannerSettingsRepository for DieselPlannerSettingsRepository {
                 monthly_hours_target_weight: settings.monthly_hours_target_weight,
                 solver_time_limit_seconds: settings.solver_time_limit_seconds,
                 solver_num_workers: settings.solver_num_workers,
+                weekly_min_hours: settings.weekly_min_hours,
+                weekly_max_hours: settings.weekly_max_hours,
+                weekly_hours_target_weight: settings.weekly_hours_target_weight,
+                preference_weight: settings.preference_weight,
+                skill_downgrade_weight: settings.skill_downgrade_weight,
+                fatigue_weight: settings.fatigue_weight,
+                night_shift_fatigue_multiplier: settings.night_shift_fatigue_multiplier,
+                shift_continuity_weight: settings.shift_continuity_weight,
+                shift_continuity_week_bonus: settings.shift_continuity_week_bonus,
             };
             let updated: PlannerSettings = diesel::insert_into(planner_settings::table)
                 .values(&new_settings)

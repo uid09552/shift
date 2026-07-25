@@ -40,10 +40,15 @@ impl CapabilityService {
             .get("name")
             .and_then(|v| v.as_str())
             .ok_or_else(|| AppError::Validation("Missing 'name'".into()))?;
+        // Ordinal skill level (see Capability) and optional skill_group used by the
+        // optimizer's skill-downgrade objective. Defaults keep behaviour unchanged
+        // for tenants that don't set these.
+        let level = body.get("level").and_then(|v| v.as_i64()).unwrap_or(1) as i16;
+        let skill_group = body.get("skill_group").and_then(|v| v.as_str());
 
         let capability = state
             .capability_repo
-            .create_capability(&tenant.0, name)
+            .create_capability(&tenant.0, name, level, skill_group)
             .await?;
 
         audit_log::record(&state, &tenant.0, actor.0, "capability.create", "capability", Some(capability.id.to_string()), Some(body.to_string())).await;
@@ -77,9 +82,28 @@ impl CapabilityService {
             .and_then(|v| v.as_str())
             .ok_or_else(|| AppError::Validation("Missing 'name'".into()))?;
 
+        // Fall back to the existing level/skill_group when the request doesn't
+        // include them, so a plain rename doesn't silently reset them.
+        let existing = state
+            .capability_repo
+            .get_capability(&tenant.0, capability_id)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::NotFound)?;
+        let level = body
+            .get("level")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i16)
+            .unwrap_or(existing.level);
+        let skill_group_owned = body
+            .get("skill_group")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or(existing.skill_group);
+
         let capability = state
             .capability_repo
-            .update_capability(&tenant.0, capability_id, name)
+            .update_capability(&tenant.0, capability_id, name, level, skill_group_owned.as_deref())
             .await?;
 
         audit_log::record(&state, &tenant.0, actor.0, "capability.update", "capability", Some(capability_id.to_string()), Some(body.to_string())).await;
@@ -127,7 +151,7 @@ impl CapabilityService {
                 continue;
             }
 
-            match state.capability_repo.create_capability(&tenant.0, name).await {
+            match state.capability_repo.create_capability(&tenant.0, name, 1, None).await {
                 Ok(_) => result.created += 1,
                 Err(AppError::Duplicate) => {
                     result.push_error(row_num, format!("Capability '{name}' already exists"));

@@ -1,4 +1,4 @@
-.PHONY: install sync chat api mcp mcp-http mcp-token clean help
+.PHONY: install sync chat api api-custom api-debug mcp mcp-http mcp-token test-api clean help
 
 # Default target
 all: install
@@ -38,7 +38,7 @@ mcp-http:
 
 # Fetch an access token for the HTTP MCP server (client credentials grant,
 # using MCP_OAUTH_CLIENT_ID/SECRET from .env) — prints only the token, so
-# it's usable as: curl -H "Authorization: Bearer $(make -s mcp-token)" ...
+# it's usable as: curl -H "Authorization: Bearer $$(make -s mcp-token)" ...
 mcp-token:
 	@set -a && . ./.env && set +a && \
 	curl -s -X POST "$$KEYCLOAK_REALM_URL/protocol/openid-connect/token" \
@@ -50,7 +50,7 @@ import json, sys; \
 d = json.load(sys.stdin); \
 sys.exit(json.dumps(d)) if 'access_token' not in d else print(d['access_token'])"
 
-# Quick smoke test of the API
+# Quick smoke test of the API (no auth)
 test-api:
 	@echo "Starting API server for testing..."
 	@uv run shift-agent api --port 5199 &
@@ -58,9 +58,24 @@ test-api:
 	@echo "--- Health check ---"
 	@curl -s http://localhost:5199/api/v1/health | python3 -m json.tool
 	@echo ""
-	@echo "--- Chat request ---"
+	@echo "--- Chat request (no auth) ---"
 	@curl -s -X POST http://localhost:5199/api/v1/chat -H "Content-Type: application/json" \
 		-d '{"message": "What pages are available?"}' | python3 -m json.tool
+	@echo ""
+	@echo "Stopping test server..."
+	@kill %1 2>/dev/null || true
+
+# Smoke test with Keycloak auth (requires KEYCLOAK_JWKS_URL and a valid token)
+test-api-auth:
+	@echo "Starting API server for testing..."
+	@uv run shift-agent api --port 5199 &
+	@sleep 3
+	@echo "--- Health check ---"
+	@curl -s http://localhost:5199/api/v1/health | python3 -m json.tool
+	@echo ""
+	@echo "--- Chat request without token (should fail) ---"
+	@curl -s -X POST http://localhost:5199/api/v1/chat -H "Content-Type: application/json" \
+		-d '{"message": "hello"}' | python3 -m json.tool
 	@echo ""
 	@echo "Stopping test server..."
 	@kill %1 2>/dev/null || true
@@ -83,6 +98,7 @@ help:
 	@echo "  make mcp         Start MCP server (stdio transport)"
 	@echo "  make mcp-http    Start MCP server (streamable HTTP, :8900)"
 	@echo "  make mcp-token   Fetch an access token for the HTTP MCP server"
-	@echo "  make test-api    Smoke test the REST API"
+	@echo "  make test-api    Smoke test the REST API (no auth)"
+	@echo "  make test-api-auth  Smoke test with Keycloak auth"
 	@echo "  make clean       Remove .venv and build artifacts"
 	@echo "  make help        Show this help"

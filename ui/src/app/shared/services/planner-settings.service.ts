@@ -19,6 +19,15 @@ export interface PlannerSettings {
   solver_time_limit_seconds: number;
   solver_num_workers: number;
   updated_at: string;
+  weekly_min_hours: number | null;
+  weekly_max_hours: number | null;
+  weekly_hours_target_weight: number;
+  preference_weight: number;
+  skill_downgrade_weight: number;
+  fatigue_weight: number;
+  night_shift_fatigue_multiplier: number;
+  shift_continuity_weight: number;
+  shift_continuity_week_bonus: number;
 }
 
 export type UpdatePlannerSettingsRequest = Omit<PlannerSettings, 'updated_at'>;

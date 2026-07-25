@@ -5,10 +5,14 @@ import { Observable } from 'rxjs';
 export interface Capability {
   id: string;
   name: string;
+  level: number;
+  skill_group: string | null;
 }
 
 export interface CreateCapabilityRequest {
   name: string;
+  level?: number;
+  skill_group?: string | null;
 }
 
 export interface ImportResult {

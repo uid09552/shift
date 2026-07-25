@@ -22,6 +22,15 @@ pub struct PlannerSettings {
     pub solver_num_workers: i16,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    pub weekly_min_hours: Option<f64>,
+    pub weekly_max_hours: Option<f64>,
+    pub weekly_hours_target_weight: i32,
+    pub preference_weight: i32,
+    pub skill_downgrade_weight: i32,
+    pub fatigue_weight: i32,
+    pub night_shift_fatigue_multiplier: f64,
+    pub shift_continuity_weight: i32,
+    pub shift_continuity_week_bonus: i32,
 }
 
 #[derive(Insertable, AsChangeset, Debug, Clone)]
@@ -39,6 +48,15 @@ pub struct NewPlannerSettings {
     pub monthly_hours_target_weight: i32,
     pub solver_time_limit_seconds: f64,
     pub solver_num_workers: i16,
+    pub weekly_min_hours: Option<f64>,
+    pub weekly_max_hours: Option<f64>,
+    pub weekly_hours_target_weight: i32,
+    pub preference_weight: i32,
+    pub skill_downgrade_weight: i32,
+    pub fatigue_weight: i32,
+    pub night_shift_fatigue_multiplier: f64,
+    pub shift_continuity_weight: i32,
+    pub shift_continuity_week_bonus: i32,
 }
 
 impl NewPlannerSettings {
@@ -57,6 +75,15 @@ impl NewPlannerSettings {
             monthly_hours_target_weight: 1000,
             solver_time_limit_seconds: 120.0,
             solver_num_workers: 8,
+            weekly_min_hours: None,
+            weekly_max_hours: None,
+            weekly_hours_target_weight: 1000,
+            preference_weight: 300,
+            skill_downgrade_weight: 200,
+            fatigue_weight: 100,
+            night_shift_fatigue_multiplier: 2.0,
+            shift_continuity_weight: 500,
+            shift_continuity_week_bonus: 2000,
         }
     }
 }

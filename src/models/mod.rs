@@ -29,7 +29,7 @@ pub use optimized_shift_result::{OptimizedShiftResult, NewOptimizedShiftResult};
 pub use planner_settings::{PlannerSettings, NewPlannerSettings};
 pub use planning_task::{PlanningTask, NewPlanningTask};
 pub use shift::{Shift, NewShift, ShiftWeekdayTime, NewShiftWeekdayTime};
-pub use task_dto::{ConstraintTask, TaskDTO, PlanningPeriod, ShiftTask, ShiftWeekdayTimeTask, WorkstationTask, WorkstationUnavailabilityRange, EmployeeTask};
+pub use task_dto::{ConstraintTask, TaskDTO, PlanningPeriod, ShiftTask, ShiftWeekdayTimeTask, WorkstationTask, WorkstationUnavailabilityRange, EmployeeTask, CapabilityTask, PreferredOffTask};
 pub use task_result_dto::{TaskResultDto, PlanningPeriodResult, DaySchedule, ShiftSchedule, ShiftAssignment, EmployeeSummary, EmployeeShiftSummary, EmployeeDailyPlan, DailyPlanEntry};
 pub use unavailability::{NewUnavailability, Unavailability};
 pub use workstation::{NewWorkstation, Workstation};

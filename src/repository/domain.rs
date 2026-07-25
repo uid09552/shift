@@ -38,6 +38,23 @@ pub struct Shift {
 pub struct Capability {
     pub id: Uuid,
     pub name: String,
+    // Ordinal skill level (1 = base) and optional skill_group; see
+    // models::Capability. Defaulted so callers that don't care about
+    // skill-downgrade tracking can keep constructing `Capability { id, name }`.
+    #[serde(default = "default_capability_level")]
+    pub level: i16,
+    #[serde(default)]
+    pub skill_group: Option<String>,
+}
+
+fn default_capability_level() -> i16 {
+    1
+}
+
+impl Default for Capability {
+    fn default() -> Self {
+        Self { id: Uuid::nil(), name: String::new(), level: 1, skill_group: None }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -58,6 +75,10 @@ pub struct Unavailability {
     pub employee_id: Uuid,
     pub unavailable_date: NaiveDate,
     pub shift_id: Option<Uuid>,
+    // Soft when true: the optimizer may still assign this day/shift under
+    // pressure, at a penalty, instead of hard-blocking it.
+    #[serde(default)]
+    pub is_soft_preference: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -127,10 +148,10 @@ use async_trait::async_trait;
 
 #[async_trait]
 pub trait CapabilityRepository {
-    async fn create_capability(&self, tenant_id: &str, name: &str) -> Result<Capability, AppError>;
+    async fn create_capability(&self, tenant_id: &str, name: &str, level: i16, skill_group: Option<&str>) -> Result<Capability, AppError>;
     async fn get_capability(&self, tenant_id: &str, id: Uuid) -> Result<Option<Capability>, AppError>;
     async fn list_capabilities(&self, tenant_id: &str) -> Result<Vec<Capability>, AppError>;
-    async fn update_capability(&self, tenant_id: &str, id: Uuid, name: &str) -> Result<Capability, AppError>;
+    async fn update_capability(&self, tenant_id: &str, id: Uuid, name: &str, level: i16, skill_group: Option<&str>) -> Result<Capability, AppError>;
     async fn delete_capability(&self, tenant_id: &str, id: Uuid) -> Result<(), AppError>;
 }
 
@@ -321,6 +342,15 @@ pub struct PlannerSettingsDomain {
     pub solver_time_limit_seconds: f64,
     pub solver_num_workers: i16,
     pub updated_at: chrono::NaiveDateTime,
+    pub weekly_min_hours: Option<f64>,
+    pub weekly_max_hours: Option<f64>,
+    pub weekly_hours_target_weight: i32,
+    pub preference_weight: i32,
+    pub skill_downgrade_weight: i32,
+    pub fatigue_weight: i32,
+    pub night_shift_fatigue_multiplier: f64,
+    pub shift_continuity_weight: i32,
+    pub shift_continuity_week_bonus: i32,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -336,7 +366,33 @@ pub struct UpdatePlannerSettings {
     pub monthly_hours_target_weight: i32,
     pub solver_time_limit_seconds: f64,
     pub solver_num_workers: i16,
+    #[serde(default)]
+    pub weekly_min_hours: Option<f64>,
+    #[serde(default)]
+    pub weekly_max_hours: Option<f64>,
+    #[serde(default = "default_weekly_hours_target_weight")]
+    pub weekly_hours_target_weight: i32,
+    #[serde(default = "default_preference_weight")]
+    pub preference_weight: i32,
+    #[serde(default = "default_skill_downgrade_weight")]
+    pub skill_downgrade_weight: i32,
+    #[serde(default = "default_fatigue_weight")]
+    pub fatigue_weight: i32,
+    #[serde(default = "default_night_shift_fatigue_multiplier")]
+    pub night_shift_fatigue_multiplier: f64,
+    #[serde(default = "default_shift_continuity_weight")]
+    pub shift_continuity_weight: i32,
+    #[serde(default = "default_shift_continuity_week_bonus")]
+    pub shift_continuity_week_bonus: i32,
 }
+
+fn default_weekly_hours_target_weight() -> i32 { 1000 }
+fn default_preference_weight() -> i32 { 300 }
+fn default_skill_downgrade_weight() -> i32 { 200 }
+fn default_fatigue_weight() -> i32 { 100 }
+fn default_night_shift_fatigue_multiplier() -> f64 { 2.0 }
+fn default_shift_continuity_weight() -> i32 { 500 }
+fn default_shift_continuity_week_bonus() -> i32 { 2000 }
 
 #[async_trait]
 pub trait PlannerSettingsRepository {

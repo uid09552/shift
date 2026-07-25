@@ -227,21 +227,10 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
 
       @if (importResult) {
         <div
-          class="mx-5 mb-4 rounded-lg border px-4 py-3 text-sm sm:mx-6"
-          [class.border-success-200]="importResult.errors.length === 0"
-          [class.bg-success-50]="importResult.errors.length === 0"
-          [class.text-success-700]="importResult.errors.length === 0"
-          [class.dark:border-success-500]="importResult.errors.length === 0"
-          [class.dark:bg-success-500]="importResult.errors.length === 0"
-          [class.dark:bg-opacity-10]="importResult.errors.length === 0"
-          [class.dark:text-success-400]="importResult.errors.length === 0"
-          [class.border-amber-200]="importResult.errors.length > 0"
-          [class.bg-amber-50]="importResult.errors.length > 0"
-          [class.text-amber-700]="importResult.errors.length > 0"
-          [class.dark:border-amber-500]="importResult.errors.length > 0"
-          [class.dark:bg-amber-500]="importResult.errors.length > 0"
-          [class.dark:bg-opacity-10]="importResult.errors.length > 0"
-          [class.dark:text-amber-400]="importResult.errors.length > 0"
+          class="mx-5 mb-4 rounded-lg border px-4 py-3 text-sm transition-colors sm:mx-6"
+          [class]="importResult.errors.length === 0
+            ? 'border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400'
+            : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400'"
         >
           <div class="flex items-start justify-between gap-3">
             <div>
@@ -256,7 +245,7 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
                 </ul>
               }
             </div>
-            <button type="button" (click)="importResult = null" class="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+            <button type="button" (click)="importResult = null" class="shrink-0 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-300">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>

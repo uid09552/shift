@@ -26,6 +26,15 @@ pub struct PlannerSettingsResponse {
     pub solver_time_limit_seconds: f64,
     pub solver_num_workers: i16,
     pub updated_at: chrono::NaiveDateTime,
+    pub weekly_min_hours: Option<f64>,
+    pub weekly_max_hours: Option<f64>,
+    pub weekly_hours_target_weight: i32,
+    pub preference_weight: i32,
+    pub skill_downgrade_weight: i32,
+    pub fatigue_weight: i32,
+    pub night_shift_fatigue_multiplier: f64,
+    pub shift_continuity_weight: i32,
+    pub shift_continuity_week_bonus: i32,
 }
 
 impl From<PlannerSettingsDomain> for PlannerSettingsResponse {
@@ -45,6 +54,15 @@ impl From<PlannerSettingsDomain> for PlannerSettingsResponse {
             solver_time_limit_seconds: s.solver_time_limit_seconds,
             solver_num_workers: s.solver_num_workers,
             updated_at: s.updated_at,
+            weekly_min_hours: s.weekly_min_hours,
+            weekly_max_hours: s.weekly_max_hours,
+            weekly_hours_target_weight: s.weekly_hours_target_weight,
+            preference_weight: s.preference_weight,
+            skill_downgrade_weight: s.skill_downgrade_weight,
+            fatigue_weight: s.fatigue_weight,
+            night_shift_fatigue_multiplier: s.night_shift_fatigue_multiplier,
+            shift_continuity_weight: s.shift_continuity_weight,
+            shift_continuity_week_bonus: s.shift_continuity_week_bonus,
         }
     }
 }
@@ -60,7 +78,33 @@ pub struct UpdatePlannerSettingsRequest {
     pub monthly_hours_target_weight: i32,
     pub solver_time_limit_seconds: f64,
     pub solver_num_workers: i16,
+    #[serde(default)]
+    pub weekly_min_hours: Option<f64>,
+    #[serde(default)]
+    pub weekly_max_hours: Option<f64>,
+    #[serde(default = "default_weekly_hours_target_weight")]
+    pub weekly_hours_target_weight: i32,
+    #[serde(default = "default_preference_weight")]
+    pub preference_weight: i32,
+    #[serde(default = "default_skill_downgrade_weight")]
+    pub skill_downgrade_weight: i32,
+    #[serde(default = "default_fatigue_weight")]
+    pub fatigue_weight: i32,
+    #[serde(default = "default_night_shift_fatigue_multiplier")]
+    pub night_shift_fatigue_multiplier: f64,
+    #[serde(default = "default_shift_continuity_weight")]
+    pub shift_continuity_weight: i32,
+    #[serde(default = "default_shift_continuity_week_bonus")]
+    pub shift_continuity_week_bonus: i32,
 }
+
+fn default_weekly_hours_target_weight() -> i32 { 1000 }
+fn default_preference_weight() -> i32 { 300 }
+fn default_skill_downgrade_weight() -> i32 { 200 }
+fn default_fatigue_weight() -> i32 { 100 }
+fn default_night_shift_fatigue_multiplier() -> f64 { 2.0 }
+fn default_shift_continuity_weight() -> i32 { 500 }
+fn default_shift_continuity_week_bonus() -> i32 { 2000 }
 
 pub struct PlannerSettingsService;
 
@@ -93,6 +137,15 @@ impl PlannerSettingsService {
             monthly_hours_target_weight: body.monthly_hours_target_weight,
             solver_time_limit_seconds: body.solver_time_limit_seconds,
             solver_num_workers: body.solver_num_workers,
+            weekly_min_hours: body.weekly_min_hours,
+            weekly_max_hours: body.weekly_max_hours,
+            weekly_hours_target_weight: body.weekly_hours_target_weight,
+            preference_weight: body.preference_weight,
+            skill_downgrade_weight: body.skill_downgrade_weight,
+            fatigue_weight: body.fatigue_weight,
+            night_shift_fatigue_multiplier: body.night_shift_fatigue_multiplier,
+            shift_continuity_weight: body.shift_continuity_weight,
+            shift_continuity_week_bonus: body.shift_continuity_week_bonus,
         };
 
         let settings = state.planner_settings_repo.update_planner_settings(&tenant.0, update).await?;
@@ -132,6 +185,35 @@ fn validate(body: &UpdatePlannerSettingsRequest) -> Result<(), AppError> {
     }
     if !(1..=64).contains(&body.solver_num_workers) {
         return Err(AppError::Validation("solver_num_workers must be between 1 and 64".into()));
+    }
+    if let (Some(min_h), Some(max_h)) = (body.weekly_min_hours, body.weekly_max_hours) {
+        if min_h > max_h {
+            return Err(AppError::Validation("weekly_min_hours must be <= weekly_max_hours".into()));
+        }
+    }
+    if body.weekly_min_hours.is_some_and(|v| v < 0.0) || body.weekly_max_hours.is_some_and(|v| v < 0.0) {
+        return Err(AppError::Validation("weekly_min_hours/weekly_max_hours must be >= 0".into()));
+    }
+    if body.weekly_hours_target_weight < 0 {
+        return Err(AppError::Validation("weekly_hours_target_weight must be >= 0".into()));
+    }
+    if body.preference_weight < 0 {
+        return Err(AppError::Validation("preference_weight must be >= 0".into()));
+    }
+    if body.skill_downgrade_weight < 0 {
+        return Err(AppError::Validation("skill_downgrade_weight must be >= 0".into()));
+    }
+    if body.fatigue_weight < 0 {
+        return Err(AppError::Validation("fatigue_weight must be >= 0".into()));
+    }
+    if body.night_shift_fatigue_multiplier < 1.0 {
+        return Err(AppError::Validation("night_shift_fatigue_multiplier must be >= 1.0".into()));
+    }
+    if body.shift_continuity_weight < 0 {
+        return Err(AppError::Validation("shift_continuity_weight must be >= 0".into()));
+    }
+    if body.shift_continuity_week_bonus < 0 {
+        return Err(AppError::Validation("shift_continuity_week_bonus must be >= 0".into()));
     }
     Ok(())
 }

@@ -13,6 +13,9 @@ pub struct Unavailability {
     pub unavailable_date: NaiveDate,
     pub shift_id: Option<Uuid>,
     pub tenant_id: String,
+    // Soft when true: the optimizer may still assign this day/shift under
+    // pressure, at a penalty (`preference_weight`), instead of hard-blocking it.
+    pub is_soft_preference: bool,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
@@ -22,4 +25,5 @@ pub struct NewUnavailability {
     pub unavailable_date: NaiveDate,
     pub shift_id: Option<Uuid>,
     pub tenant_id: String,
+    pub is_soft_preference: bool,
 }

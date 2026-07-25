@@ -1,5 +1,5 @@
 # Shift Backend - Complete deployment configuration
-# Includes: Backend API, Planner, UI, Gateway (APISIX)
+# Includes: Backend API, Planner, Agent, UI, Gateway (APISIX)
 #
 # Usage:
 #   docker-compose up -d
@@ -52,6 +52,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.backend
+    image: shift-backend:local
     container_name: shift_deploy_backend
     ports:
       - "8081:8080"
@@ -69,6 +70,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.planner
+    image: shift-planner:local
     container_name: shift_deploy_planner
     depends_on:
       - nats
@@ -81,6 +83,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.ui
+    image: shift-ui:local
     container_name: shift_planner_ui
     ports:
       - "8888:80"
@@ -88,6 +91,93 @@ services:
       - backend
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - backend
+      - dev_backend
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Agent Service
+  # ==========================================================================
+
+  agent:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.agent
+    image: shift-agent:local
+    container_name: shift_deploy_agent
+    command: ["shift-agent", "api", "--host", "0.0.0.0", "--port", "8899"]
+    # All settings (OPENAI_API_KEY, BACKEND_API_URL, KEYCLOAK_REALM_URL,
+    # MCP_OAUTH_CLIENT_ID/SECRET, SHIFT_AGENT_MODEL, MCP_TOOLS, ...) come from
+    # .env — see .env.example for the full list and docs.
+    env_file:
+      - .env
+    environment:
+      # The agent has no backend tools of its own: it discovers and calls them
+      # on the "mcp" service below over streamable HTTP, forwarding the chat
+      # request's access token so each call runs as the signed-in user.
+      # Pinned here rather than left to .env because the hostname is this
+      # compose file's own service name.
+      MCP_SERVER_URL: http://mcp:8900/mcp
+    ports:
+      - "8899:8899"
+    depends_on:
+      - backend
+      - mcp
+    networks:
+      - backend
+      - dev_backend
+    restart: unless-stopped
+
+  mcp:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.agent
+    # Same Dockerfile/context as "agent" — same image content, just a
+    # different CMD override below. Reuses the "agent" image name/tag rather
+    # than publishing a separate one under the registry.
+    image: shift-agent:local
+    container_name: shift_deploy_mcp
+    command: ["shift-agent", "mcp", "--transport", "http", "--port", "8900"]
+    env_file:
+      - .env
+    environment:
+      # OAuth2 client credentials for the standalone MCP server's own
+      # incoming-client auth — overridden to empty here (unlike .env's real
+      # values, used by "agent"): the OIDC library requires an HTTPS issuer
+      # URL, which MCP_BASE_URL isn't (see shift_agent/mcp/server.py's
+      # _build_auth). Set both and put mcp behind HTTPS to re-enable.
+      MCP_OAUTH_CLIENT_ID: ""
+      MCP_OAUTH_CLIENT_SECRET: ""
+    ports:
+      - "8900:8900"
+    depends_on:
+      - backend
+    networks:
+      - backend
+      - dev_backend
+    restart: unless-stopped
+
+  # ==========================================================================
+  # n8n - Workflow automation (replaces Flowise)
+  # ==========================================================================
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: shift_n8n
+    environment:
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      N8N_HOST: localhost
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-change-me-please}
+      N8N_USER_FOLDER: /home/node/.n8n
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: "168"
+      WEBHOOK_URL: http://localhost:5678/
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
     networks:
       - backend
       - dev_backend
@@ -145,3 +235,4 @@ networks:
     name: dev_backend
 volumes:
   postgres_data:
+  n8n_data:
