@@ -1,0 +1,75 @@
+# Builds the four service images and publishes them to this project's
+# container registry ($CI_REGISTRY_IMAGE), matching the names the deploy
+# Makefile expects: <registry>/<component>:<tag>.
+#
+# Runs on runners tagged "shift". The build job uses Docker-in-Docker, so
+# that runner must be privileged. If it is instead a shell executor with a
+# Docker socket, drop the `image:` and `services:` keys from `.build`.
+
+stages:
+  - build
+
+workflow:
+  rules:
+    # Merge request pipelines...
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # ...but no duplicate branch pipeline while an MR is open for it.
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+.build:
+  stage: build
+  tags:
+    - shift
+  image: docker:28-cli
+  services:
+    - name: docker:28-dind
+      alias: docker
+  variables:
+    DOCKER_DRIVER: overlay2
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_BUILDKIT: "1"
+  before_script:
+    - docker info >/dev/null
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  script:
+    - export IMAGE="$CI_REGISTRY_IMAGE/$COMPONENT"
+    # Warm the layer cache from the last published image; harmless if absent.
+    - docker pull "$IMAGE:latest" || true
+    # The Dockerfiles COPY from the repo root (e.g. `COPY ui/ .`), so the
+    # build context is the root, not deploy/.
+    - |
+      docker build \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        --cache-from "$IMAGE:latest" \
+        -f "deploy/Dockerfile.$COMPONENT" \
+        -t "$IMAGE:$CI_COMMIT_SHORT_SHA" \
+        .
+    - |
+      if [ -n "$CI_MERGE_REQUEST_IID" ]; then
+        echo "Merge request pipeline — image built but not published."
+        exit 0
+      fi
+      docker push "$IMAGE:$CI_COMMIT_SHORT_SHA"
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag "$IMAGE:$CI_COMMIT_SHORT_SHA" "$IMAGE:$CI_COMMIT_TAG"
+        docker push "$IMAGE:$CI_COMMIT_TAG"
+      fi
+      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ] || [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag "$IMAGE:$CI_COMMIT_SHORT_SHA" "$IMAGE:latest"
+        docker push "$IMAGE:latest"
+      fi
+
+build:
+  extends: .build
+  parallel:
+    matrix:
+      # "mcp" deliberately absent: it runs the agent image with a different
+      # command (see deploy/docker-compose.yml).
+      - COMPONENT:
+          - backend
+          - planner
+          - ui
+          - agent
