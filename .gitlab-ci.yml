@@ -85,6 +85,13 @@ workflow:
         echo "Enable the project's Container Registry under Settings > General > Visibility." >&2
         exit 1
       fi
+      if [ -z "$CI_REGISTRY_IMAGE" ]; then
+        echo "WARNING: CI_REGISTRY_IMAGE is unset — using the derived path below." >&2
+        echo "WARNING: this almost always means the project's Container Registry" >&2
+        echo "WARNING: is disabled, in which case the push will be rejected with" >&2
+        echo "WARNING: 'insufficient_scope: authorization failed'." >&2
+        echo "WARNING: Fix: Settings > General > Visibility > Container registry." >&2
+      fi
       export IMAGE="$REGISTRY_BASE/$COMPONENT"
       echo "Target image: $IMAGE"
     # Warm the layer cache from the last published image; harmless if absent.
