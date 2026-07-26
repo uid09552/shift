@@ -31,11 +31,12 @@ def _incoming_token() -> str | None:
     through to the backend.
 
     Preferred source is FastMCP's authenticated access token (server.py's
-    MultiAuth). When server-level auth is off — MCP_OAUTH_CLIENT_ID/SECRET
-    unset, as in deploy/docker-compose.yml's `mcp` service — nothing is
-    verified here, but the caller's header is still the right token to forward:
-    the backend behind APISIX validates it either way. So fall back to the raw
-    header rather than silently dropping to the static token.
+    MultiAuth, which verifies it against Keycloak whether or not
+    MCP_OAUTH_CLIENT_ID/SECRET are set). When server-level auth is off
+    entirely — Keycloak unreachable — nothing is verified here, but the
+    caller's header is still the right token to forward: the backend behind
+    APISIX validates it either way. So fall back to the raw header rather than
+    silently dropping to the static token.
 
     None outside of an HTTP request context (e.g. stdio transport).
     """

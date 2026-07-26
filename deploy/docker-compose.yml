@@ -35,7 +35,12 @@ services:
   nats:
     image: nats:2
     container_name: shift_nats
-    command: ["-js"]
+    # JetStream and the 10MB max_payload come from the config file — the
+    # 1MB default made larger planner payloads fail with "maximum payload
+    # exceeded".
+    command: ["-c", "/etc/nats/nats.conf"]
+    volumes:
+      - ./nats/nats.conf:/etc/nats/nats.conf:ro
     ports:
       - "4222:4222"
       - "8222:8222"
@@ -146,7 +151,10 @@ services:
       # incoming-client auth — overridden to empty here (unlike .env's real
       # values, used by "agent"): the OIDC library requires an HTTPS issuer
       # URL, which MCP_BASE_URL isn't (see shift_agent/mcp/server.py's
-      # _build_auth). Set both and put mcp behind HTTPS to re-enable.
+      # _build_auth). Empty does NOT mean unauthenticated: the server still
+      # verifies presented bearer tokens against Keycloak, it just cannot
+      # issue them via the interactive flow. Set both and put mcp behind
+      # HTTPS to offer that flow too.
       MCP_OAUTH_CLIENT_ID: ""
       MCP_OAUTH_CLIENT_SECRET: ""
     ports:

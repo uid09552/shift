@@ -1,0 +1,111 @@
+# =============================================================================
+# Shift IAM — Keycloak (deployed separately from the main release stack)
+# =============================================================================
+# Deliberately its own compose project: the application stack
+# (../docker-compose.yml) can be torn down and redeployed without touching the
+# realm, users and sessions living here.
+#
+# Usage (from this directory):
+#   cp .env.example .env
+#   docker compose up -d
+#
+# It joins the same EXTERNAL networks as the application stack, so the gateway
+# can resolve this container as "keycloak":
+#   docker network create backend
+#   docker network create dev_backend
+#
+# On first start (empty keycloak_db_data volume) the entrypoint renders
+# realm-shift.json.tpl and Keycloak imports it, creating:
+#   Realm:  shift  (+ the "shift-org" organization membership client scope)
+#   Client: shift-gateway — confidential client used by APISIX and the MCP server
+#   Roles:  shift-admin, shift-planner, shift-viewer
+#   User:   ${KEYCLOAK_REALM_ADMIN_USER} / ${KEYCLOAK_REALM_ADMIN_PASSWORD}
+# =============================================================================
+
+services:
+
+  keycloak-db:
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    container_name: shift_keycloak_db
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: ${KEYCLOAK_DB_USER:-keycloak}
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak}
+    volumes:
+      - keycloak_db_data:/var/lib/postgresql/data
+    networks:
+      - backend
+      - dev_backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${KEYCLOAK_DB_USER:-keycloak} -d keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  keycloak:
+    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.2}
+    container_name: shift_keycloak
+    command: start-dev --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USER:-keycloak}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak}
+      # Public issuer URL — must be how browsers reach Keycloak (through the
+      # gateway's /auth/* route), since it ends up in the OIDC discovery
+      # document. Keep it equal to PUBLIC_URL in the main stack's .env.
+      KC_HOSTNAME: "${PUBLIC_URL:-http://localhost}/auth"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KC_LOG_LEVEL: ${KEYCLOAK_LOG_LEVEL:-info}
+      KC_FEATURES: organization
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      # Consumed by the realm import template (realm-shift.json.tpl).
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost}
+      MCP_OAUTH_CLIENT_SECRET: ${MCP_OAUTH_CLIENT_SECRET:-shift-gateway-secret}
+      KEYCLOAK_REALM_ADMIN_USER: ${KEYCLOAK_REALM_ADMIN_USER:-admin}
+      KEYCLOAK_REALM_ADMIN_PASSWORD: ${KEYCLOAK_REALM_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./realm-shift.json.tpl:/opt/keycloak/data/import/realm-shift.json.tpl:ro
+      - ./docker-entrypoint.sh:/docker-entrypoint-wrapper.sh:ro
+    entrypoint: ["/bin/bash", "/docker-entrypoint-wrapper.sh"]
+    # Direct access to the admin console without going through the gateway.
+    # Comment out to keep Keycloak internal-only.
+    ports:
+      - "${KEYCLOAK_HTTP_PORT:-8080}:8080"
+    networks:
+      - backend
+      - dev_backend
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      # Health is served on the management port (9000), unaffected by
+      # KC_HTTP_RELATIVE_PATH.
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/health/ready || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
+
+networks:
+  # The same external networks the application stack uses
+  # (../docker-compose.yml), so the gateway can resolve this container as
+  # "keycloak".
+  backend:
+    driver: bridge
+    external:
+      true
+  dev_backend:
+    external: true
+    name: dev_backend
+
+volumes:
+  keycloak_db_data:

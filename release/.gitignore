@@ -1,0 +1,8 @@
+# Local configuration — holds credentials and API keys. Only the .example
+# templates are tracked.
+.env
+agent.env
+iam/.env
+!.env.example
+!agent.env.example
+!iam/.env.example

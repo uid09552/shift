@@ -53,20 +53,24 @@ def _client() -> httpx.AsyncClient:
 
 
 def _build_auth() -> MultiAuth | None:
-    """Authenticate incoming MCP clients against Keycloak, if configured.
+    """Authenticate incoming MCP clients against Keycloak, if it is reachable.
 
-    Returns None (no server-level auth) unless MCP_OAUTH_CLIENT_ID/SECRET are
-    set — keeps `shift-agent mcp` working with zero Keycloak/OAuth setup,
-    matching every other optional-auth fallback in this project (see mcp/auth.py).
+    Both modes below verify presented tokens with the same JWTVerifier; they
+    differ only in whether a client can *obtain* a token from this server:
 
-    If Keycloak is unreachable (e.g. during local development), falls back to
-    no auth rather than crashing the server.
+      - MCP_OAUTH_CLIENT_ID/SECRET set — full OIDCProxy, so a client arriving
+        without a token can run the authorization code + DCR flow itself.
+      - unset — verifiers only: no OAuth routes and no interactive flow, but a
+        caller that already holds a Keycloak-issued token (the chat agent
+        forwarding the signed-in user's, or a client credentials grant) is
+        still verified rather than waved through. This is what the `mcp`
+        service in deploy/docker-compose.yml runs, where OIDCProxy is not an
+        option because MCP_BASE_URL is not an HTTPS URL.
+
+    Returns None — no server-level auth at all — only when Keycloak itself is
+    unreachable (e.g. during local development), so the server starts instead
+    of crashing.
     """
-    client_id = settings.mcp_oauth_client_id
-    client_secret = settings.mcp_oauth_client_secret
-    if not (client_id and client_secret):
-        return None
-
     realm_url = settings.keycloak_realm_url
     config_url = f"{realm_url}/.well-known/openid-configuration"
     jwks_uri = f"{realm_url}/protocol/openid-connect/certs"
@@ -79,10 +83,22 @@ def _build_auth() -> MultiAuth | None:
     except Exception:
         logger.warning(
             "Keycloak unreachable at %s — MCP server auth disabled. "
-            "Set MCP_OAUTH_CLIENT_ID/SECRET and ensure Keycloak is running.",
+            "Ensure Keycloak is running to enable token verification.",
             config_url,
         )
         return None
+
+    verifier = JWTVerifier(jwks_uri=jwks_uri, issuer=realm_url)
+
+    client_id = settings.mcp_oauth_client_id
+    client_secret = settings.mcp_oauth_client_secret
+    if not (client_id and client_secret):
+        logger.info(
+            "MCP_OAUTH_CLIENT_ID/SECRET unset — verifying bearer tokens against "
+            "%s, but not offering the interactive OAuth flow.",
+            realm_url,
+        )
+        return MultiAuth(verifiers=[verifier])
 
     return MultiAuth(
         server=OIDCProxy(
@@ -92,12 +108,7 @@ def _build_auth() -> MultiAuth | None:
             base_url=settings.mcp_base_url,
             required_scopes=["openid", "profile", "email"],
         ),
-        verifiers=[
-            JWTVerifier(
-                jwks_uri=jwks_uri,
-                issuer=realm_url,
-            )
-        ],
+        verifiers=[verifier],
     )
 
 

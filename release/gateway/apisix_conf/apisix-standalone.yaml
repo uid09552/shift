@@ -1,0 +1,232 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# APISIX standalone route table for the release stack.
+#
+# IAM: Keycloak (Quarkus) — realm: shift  subpath: /auth
+# Keycloak service name: keycloak  port: 8080  KC_HTTP_RELATIVE_PATH=/auth
+#
+# Gateway client credentials match the "shift-gateway" confidential client
+# created by the realm import in iam/realm-shift.json.tpl.
+#
+# !! Values that are NOT read from .env — edit them here for production !!
+#   client_secret:            must equal MCP_OAUTH_CLIENT_SECRET in .env
+#   redirect_uri /
+#   post_logout_redirect_uri: must be under PUBLIC_URL from .env
+#   session.secret:           change it; it signs the gateway session cookies
+# APISIX's standalone YAML has no environment-variable interpolation, so these
+# stay literals.
+#
+# `discovery` is required by APISIX 3.16. lua-resty-openidc always uses the
+# endpoints from the fetched discovery document (explicit endpoint fields are
+# ignored for token/userinfo calls). The discovery document advertises
+# ${PUBLIC_URL}/auth/... URLs (KC_HOSTNAME). APISIX is configured to ALSO
+# listen on port 80 (loopback, see config-standalone.yaml), so with the
+# default PUBLIC_URL=http://localhost those calls from within the container
+# reach APISIX itself, which proxies /auth/* to keycloak:8080. If PUBLIC_URL
+# uses a different port, add that port to node_listen as well.
+
+routes:
+  # ===========================================
+  # Root redirect
+  # ===========================================
+
+  - uri: /
+    name: root-redirect
+    priority: 5
+    plugins:
+      redirect:
+        http_status: 302
+        uri: /planner/
+
+  # ===========================================
+  # Keycloak IAM routes — no auth enforcement
+  # KC_HTTP_RELATIVE_PATH=/auth means all Keycloak endpoints are under /auth.
+  # A single wildcard route covers realms, admin console, resources, and JS adapter.
+  # ===========================================
+
+  - uri: /auth/*
+    name: keycloak
+    priority: 100
+    upstream:
+      type: roundrobin
+      nodes:
+        keycloak:8080: 1
+
+  # ===========================================
+  # Static assets — no auth, served directly from UI container
+  # ===========================================
+
+  - uri: /images/*
+    name: static-images
+    priority: 50
+    upstream:
+      type: roundrobin
+      nodes:
+        planner-ui:80: 1
+
+  # ===========================================
+  # Logout — clears the APISIX session then redirects to Keycloak end_session_endpoint
+  # ===========================================
+
+  - uri: /logout
+    name: logout
+    priority: 20
+    plugins:
+      openid-connect:
+        client_id: shift-gateway
+        client_secret: shift-gateway-secret
+        discovery: http://keycloak:8080/auth/realms/shift/.well-known/openid-configuration
+        scope: "openid profile email"
+        bearer_only: false
+        redirect_uri: http://localhost/callback
+        post_logout_redirect_uri: http://localhost/
+        logout_path: /logout
+        ssl_verify: false
+        session:
+          secret: geheimgeheimgeheimgeheim12345678
+      response-rewrite:
+        headers:
+          set:
+            Clear-Site-Data: '"cache", "cookies", "storage"'
+    upstream:
+      type: roundrobin
+      nodes:
+        planner-ui:80: 1
+
+  # ===========================================
+  # OIDC callback — exchanges the auth code for tokens and sets the session
+  # cookie, then redirects the browser to the original destination.
+  # ===========================================
+
+  - uri: /callback
+    name: oidc-callback
+    priority: 20
+    plugins:
+      openid-connect:
+        client_id: shift-gateway
+        client_secret: shift-gateway-secret
+        discovery: http://keycloak:8080/auth/realms/shift/.well-known/openid-configuration
+        scope: "openid profile email"
+        bearer_only: false
+        redirect_uri: http://localhost/callback
+        post_logout_redirect_uri: http://localhost/
+        ssl_verify: false
+        session:
+          secret: geheimgeheimgeheimgeheim12345678
+    upstream:
+      type: roundrobin
+      nodes:
+        planner-ui:80: 1
+
+  # ===========================================
+  # Protected UI routes (full OIDC via Keycloak)
+  # ===========================================
+
+  - uri: /planner/*
+    name: planner-ui-oidc
+    priority: 10
+    plugins:
+      openid-connect:
+        client_id: shift-gateway
+        client_secret: shift-gateway-secret
+        discovery: http://keycloak:8080/auth/realms/shift/.well-known/openid-configuration
+        scope: "openid profile email shift-org"
+        bearer_only: false
+        redirect_uri: http://localhost/callback
+        post_logout_redirect_uri: http://localhost/
+        ssl_verify: false
+        # A session cookie alone only proves the access token was valid *at
+        # login* — lua-resty-openidc checks the token's local exp claim on
+        # each request but never re-contacts Keycloak while it's still
+        # unexpired, so a token revoked server-side (or a session outliving a
+        # short access-token lifespan) stayed "logged in" without a redirect.
+        # refresh_session_interval forces a periodic round-trip to Keycloak's
+        # token endpoint to catch that; renew_access_token_on_expiry +
+        # access_token_expires_leeway make the redirect-to-login on actual
+        # expiry happen promptly and without a race at the expiry boundary.
+        renew_access_token_on_expiry: true
+        access_token_expires_leeway: 30
+        access_token_expires_in: 360
+        refresh_session_interval: 360
+        session:
+          secret: geheimgeheimgeheimgeheim12345678
+    upstream:
+      type: roundrobin
+      nodes:
+        planner-ui:80: 1
+
+  # ===========================================
+  # Protected API routes (JWT bearer via Keycloak)
+  # The Angular SPA handles the OIDC flow itself and sends Bearer tokens;
+  # the gateway only validates the JWT — no redirect needed.
+  # ===========================================
+
+  - uri: /api/*
+    name: api-session
+    priority: 10
+    plugins:
+      openid-connect:
+        client_id: shift-gateway
+        client_secret: shift-gateway-secret
+        discovery: http://keycloak:8080/auth/realms/shift/.well-known/openid-configuration
+        scope: "openid profile email shift-org"
+        bearer_only: false
+        unauth_action: deny
+        ssl_verify: false
+        # Caches a successful introspection result for this many seconds so
+        # every API call doesn't round-trip to Keycloak — still re-validates
+        # often enough to catch a revoked token promptly.
+        introspection_interval: 60
+        session:
+          secret: geheimgeheimgeheimgeheim12345678
+    upstream:
+      type: roundrobin
+      nodes:
+        backend:8080: 1
+
+  # ===========================================
+  # Protected chat agent route (JWT bearer via Keycloak)
+  # Same auth as /api/* — the openid-connect plugin sets X-Access-Token on
+  # the upstream request, which the agent forwards to its own MCP tool calls
+  # (see agent/shift_agent/server.py + auth.py). proxy-rewrite strips the
+  # /agent prefix so the agent (which only knows about /api/v1/*) sees the
+  # same paths it would locally, e.g. /agent/chat -> /api/v1/chat.
+  # ===========================================
+
+  - uri: /agent/*
+    name: agent-chat
+    priority: 10
+    plugins:
+      openid-connect:
+        client_id: shift-gateway
+        client_secret: shift-gateway-secret
+        discovery: http://keycloak:8080/auth/realms/shift/.well-known/openid-configuration
+        scope: "openid profile email shift-org"
+        bearer_only: false
+        unauth_action: deny
+        ssl_verify: false
+        introspection_interval: 60
+        session:
+          secret: geheimgeheimgeheimgeheim12345678
+      proxy-rewrite:
+        regex_uri: ["^/agent/(.*)", "/api/v1/$1"]
+    upstream:
+      type: roundrobin
+      nodes:
+        agent:8899: 1
+
+#END
