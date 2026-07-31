@@ -8,8 +8,10 @@ edit_uri: -/edit/main/docs/
 docs_dir: docs
 
 # The CI toolchain pin lives beside the sources but is not a page.
+# docs/knowledge/ is the OKF bundle: consumed as files by agents, not rendered.
 exclude_docs: |
   requirements.txt
+  knowledge/
 
 theme:
   name: material
