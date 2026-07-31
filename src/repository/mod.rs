@@ -1,6 +1,7 @@
 pub mod domain;
 pub mod employeerepository;
 pub mod shiftrepository;
+pub mod shiftwishrepository;
 pub mod shiftassignmentrepository;
 pub mod confirmedshiftplanrepository;
 pub mod optimizedshiftresultrepository;
@@ -20,6 +21,7 @@ use self::employeerepository::{
     DieselWorkstationUnavailabilityRepository,
 };
 use self::shiftrepository::DieselShiftRepository;
+use self::shiftwishrepository::DieselShiftWishRepository;
 use self::shiftassignmentrepository::DieselEmployeeShiftAssignmentRepository;
 use self::confirmedshiftplanrepository::DieselConfirmedShiftPlanRepository;
 use self::optimizedshiftresultrepository::DieselOptimizedShiftResultRepository;
@@ -35,6 +37,7 @@ pub struct AppState {
     pub capability_repo: DieselCapabilityRepository,
     pub workstation_repo: DieselWorkstationRepository,
     pub unavailability_repo: DieselUnavailabilityRepository,
+    pub shift_wish_repo: DieselShiftWishRepository,
     pub workstation_unavailability_repo: DieselWorkstationUnavailabilityRepository,
     pub shift_assignment_repo: DieselEmployeeShiftAssignmentRepository,
     pub confirmed_shift_plan_repo: DieselConfirmedShiftPlanRepository,
@@ -59,6 +62,7 @@ impl AppState {
             capability_repo: DieselCapabilityRepository { pool: Arc::clone(&pool) },
             workstation_repo: DieselWorkstationRepository { pool: Arc::clone(&pool) },
             unavailability_repo: DieselUnavailabilityRepository { pool: Arc::clone(&pool) },
+            shift_wish_repo: DieselShiftWishRepository { pool: Arc::clone(&pool) },
             workstation_unavailability_repo: DieselWorkstationUnavailabilityRepository { pool: Arc::clone(&pool) },
             shift_assignment_repo: DieselEmployeeShiftAssignmentRepository { pool: Arc::clone(&pool) },
             confirmed_shift_plan_repo: DieselConfirmedShiftPlanRepository { pool: Arc::clone(&pool) },
@@ -83,6 +87,7 @@ impl AppState {
             capability_repo: DieselCapabilityRepository { pool: Arc::clone(&pool) },
             workstation_repo: DieselWorkstationRepository { pool: Arc::clone(&pool) },
             unavailability_repo: DieselUnavailabilityRepository { pool: Arc::clone(&pool) },
+            shift_wish_repo: DieselShiftWishRepository { pool: Arc::clone(&pool) },
             workstation_unavailability_repo: DieselWorkstationUnavailabilityRepository { pool: Arc::clone(&pool) },
             shift_assignment_repo: DieselEmployeeShiftAssignmentRepository { pool: Arc::clone(&pool) },
             confirmed_shift_plan_repo: DieselConfirmedShiftPlanRepository { pool: Arc::clone(&pool) },

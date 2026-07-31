@@ -24,6 +24,7 @@ use crate::services::{
     planner_settings::PlannerSettingsService,
     shift::ShiftService,
     shift_assignment::ShiftAssignmentService,
+    shift_wish::ShiftWishService,
     tenant,
     unavailability::UnavailabilityService,
     workstation::WorkstationService,
@@ -115,6 +116,12 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/unavailabilities/:unavailability_id",
             get(UnavailabilityService::get_unavailability_by_id).delete(UnavailabilityService::delete_unavailability),
+        )
+        // Shift Wishes
+        .route("/shift-wishes", get(ShiftWishService::list_shift_wishes).post(ShiftWishService::create_shift_wish))
+        .route(
+            "/shift-wishes/:wish_id",
+            get(ShiftWishService::get_shift_wish_by_id).delete(ShiftWishService::delete_shift_wish),
         )
         // Planner
         .route("/planner/plan", post(optimizer::trigger_plan))

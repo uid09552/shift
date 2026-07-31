@@ -23,6 +23,10 @@ import {
   UnavailabilityService,
   Unavailability,
 } from '../../../shared/services/unavailability.service';
+import {
+  ShiftWishService,
+  ShiftWish,
+} from '../../../shared/services/shift-wish.service';
 import { ThemeService } from '../../../shared/services/theme.service';
 
 interface LeaveEntry {
@@ -43,6 +47,9 @@ interface CalendarDay {
   shiftColor: string | null;
   workstationName: string | null;
   isUnavailable: boolean;
+  wish: ShiftWish | null;
+  wishShiftName: string | null;
+  wishShiftColor: string | null;
 }
 
 interface CalendarWeek {
@@ -112,6 +119,13 @@ export class EmployeeCalendarComponent implements OnInit {
   unavailabilities: Unavailability[] = [];
   loadingUnavailabilities = false;
 
+  // ── Shift wishes (requested shift + date, considered by the optimizer) ─
+  wishes: ShiftWish[] = [];
+  private wishMap = new Map<string, ShiftWish>(); // dateStr -> wish
+
+  // Delete confirmation state for a wish chip
+  deletingWish: { dateStr: string; wishId: string } | null = null;
+
   // ── Hours summary (per week / per month / per shift) ─────────────
   weeklyHoursSummaries: WeeklyHoursSummary[] = [];
   monthlyHours = 0;
@@ -155,6 +169,7 @@ export class EmployeeCalendarComponent implements OnInit {
     private workstationService: WorkstationService,
     private confirmedShiftPlanService: ConfirmedShiftPlanService,
     private unavailabilityService: UnavailabilityService,
+    private shiftWishService: ShiftWishService,
     private route: ActivatedRoute,
     private themeService: ThemeService,
   ) {
@@ -218,6 +233,8 @@ export class EmployeeCalendarComponent implements OnInit {
     this.leaveEntries = [];
     this.pickerRange = null;
     this.leaveError = null;
+    this.wishes = [];
+    this.wishMap.clear();
     this.loadPlansForMonth();
     this.loadLeaveEntries();
   }
@@ -291,8 +308,12 @@ export class EmployeeCalendarComponent implements OnInit {
     forkJoin({
       unavails: this.unavailabilityService.getUnavailabilities(this.selectedEmployeeId),
       plans: this.confirmedShiftPlanService.getEmployeeConfirmedShiftPlans(this.selectedEmployeeId),
+      wishes: this.shiftWishService.getShiftWishes(this.selectedEmployeeId),
     }).subscribe({
-      next: ({ unavails, plans }) => {
+      next: ({ unavails, plans, wishes }) => {
+        this.wishes = wishes;
+        this.wishMap.clear();
+        wishes.forEach((w) => this.wishMap.set(w.wish_date, w));
         this.unavailabilities = unavails.sort((a, b) =>
           a.unavailable_date.localeCompare(b.unavailable_date));
 
@@ -362,6 +383,9 @@ export class EmployeeCalendarComponent implements OnInit {
           shiftColor: null,
           workstationName: null,
           isUnavailable,
+          wish: null,
+          wishShiftName: null,
+          wishShiftColor: null,
         });
 
         current.setDate(current.getDate() + 1);
@@ -398,6 +422,17 @@ export class EmployeeCalendarComponent implements OnInit {
           day.shiftName = null;
           day.shiftColor = null;
           day.workstationName = null;
+        }
+
+        const wish = this.wishMap.get(dateStr) || null;
+        day.wish = wish;
+        if (wish) {
+          const wishShift = this.shiftMap.get(wish.shift_id);
+          day.wishShiftName = wishShift ? wishShift.name : null;
+          day.wishShiftColor = wishShift ? wishShift.color : null;
+        } else {
+          day.wishShiftName = null;
+          day.wishShiftColor = null;
         }
       }
     }
@@ -518,6 +553,7 @@ export class EmployeeCalendarComponent implements OnInit {
   startEdit(dateStr: string, event: Event): void {
     event.stopPropagation();
     this.deletingCell = null;
+    this.deletingWish = null;
     this.pendingWorkstationId = null;
     this.editingCell = { dateStr };
   }
@@ -621,6 +657,71 @@ export class EmployeeCalendarComponent implements OnInit {
           this.processingCell = null;
         },
       });
+  }
+
+  // ── Shift wish helpers ───────────────────────────────────────────
+
+  isDeletingWish(dateStr: string): boolean {
+    return this.deletingWish?.dateStr === dateStr;
+  }
+
+  onWishSelect(dateStr: string, shiftId: string): void {
+    if (!this.selectedEmployeeId) return;
+
+    this.processingCell = { dateStr };
+    this.editingCell = null;
+    this.pendingWorkstationId = null;
+
+    this.shiftWishService
+      .createShiftWish({
+        employee_id: this.selectedEmployeeId,
+        shift_id: shiftId,
+        wish_date: dateStr,
+      })
+      .subscribe({
+        next: (created) => {
+          this.wishes = [...this.wishes, created];
+          this.wishMap.set(dateStr, created);
+          this.applyPlansToCalendar();
+          this.processingCell = null;
+        },
+        error: (err) => {
+          console.error('Failed to create shift wish', err);
+          this.processingCell = null;
+        },
+      });
+  }
+
+  startDeleteWish(dateStr: string, wishId: string, event: Event): void {
+    event.stopPropagation();
+    this.editingCell = null;
+    this.deletingCell = null;
+    this.deletingWish = { dateStr, wishId };
+  }
+
+  cancelDeleteWish(): void {
+    this.deletingWish = null;
+  }
+
+  confirmDeleteWish(): void {
+    if (!this.deletingWish) return;
+
+    const { dateStr, wishId } = this.deletingWish;
+    this.processingCell = { dateStr };
+    this.deletingWish = null;
+
+    this.shiftWishService.deleteShiftWish(wishId).subscribe({
+      next: () => {
+        this.wishes = this.wishes.filter((w) => w.id !== wishId);
+        this.wishMap.delete(dateStr);
+        this.applyPlansToCalendar();
+        this.processingCell = null;
+      },
+      error: (err) => {
+        console.error('Failed to delete shift wish', err);
+        this.processingCell = null;
+      },
+    });
   }
 
   confirmDelete(): void {
@@ -790,6 +891,9 @@ export class EmployeeCalendarComponent implements OnInit {
         } else if (day.isUnavailable) {
           html += `<tr class="unavail"><td>${dateStr}</td><td>${weekday}</td>
             <td>—</td><td>—</td><td>Unavailable</td></tr>`;
+        } else if (day.wish) {
+          html += `<tr><td>${dateStr}</td><td>${weekday}</td>
+            <td>—</td><td>—</td><td>Wish: ${day.wishShiftName ?? 'Shift'}</td></tr>`;
         } else {
           html += `<tr><td>${dateStr}</td><td>${weekday}</td>
             <td>—</td><td>—</td><td>—</td></tr>`;
@@ -819,6 +923,7 @@ export class EmployeeCalendarComponent implements OnInit {
     ) {
       this.editingCell = null;
       this.deletingCell = null;
+      this.deletingWish = null;
     }
   }
 }

@@ -8,7 +8,7 @@ use axum::{
 use chrono::{Local, NaiveDate, Utc};
 use crate::broker::JetStreamStatus;
 use crate::errors::AppError;
-use crate::models::{ConstraintTask, PlanningPeriod, ShiftTask, ShiftWeekdayTimeTask, TaskDTO, TaskResultDto, EmployeeTask, WorkstationTask, WorkstationUnavailabilityRange, CapabilityTask, PreferredOffTask};
+use crate::models::{ConstraintTask, PlanningPeriod, ShiftTask, ShiftWeekdayTimeTask, TaskDTO, TaskResultDto, EmployeeTask, WorkstationTask, WorkstationUnavailabilityRange, CapabilityTask, PreferredOffTask, ShiftWishTask};
 use crate::repository::{AppState, domain::*};
 use crate::services::audit_log::{self, AuditActor};
 use crate::services::tenant::TenantContext;
@@ -141,6 +141,15 @@ impl OptimizerService {
             }
         }
 
+        let all_wishes = state.shift_wish_repo.list_shift_wishes(tenant_id).await?;
+        let mut wish_map: std::collections::HashMap<Uuid, Vec<ShiftWishTask>> = std::collections::HashMap::new();
+        for w in all_wishes {
+            wish_map.entry(w.employee_id).or_default().push(ShiftWishTask {
+                date: w.wish_date.to_string(),
+                shift_id: w.shift_id.to_string(),
+            });
+        }
+
         // NOTE: employee skills / workstation required_skills are matched by
         // capability *name* (see employee_tasks/workstation_tasks below), not
         // UUID — so the catalog entry's `id` here must also be the name for the
@@ -182,6 +191,7 @@ impl OptimizerService {
             .map(|emp| {
                 let unavailability = unavail_map.get(&emp.id).cloned().unwrap_or_default();
                 let preferred_off = preferred_off_map.get(&emp.id).cloned().unwrap_or_default();
+                let wishes = wish_map.get(&emp.id).cloned().unwrap_or_default();
                 EmployeeTask {
                     id: emp.id.to_string(),
                     name: emp.name,
@@ -190,6 +200,7 @@ impl OptimizerService {
                     unavailability,
                     monthly_working_hours: emp.monthly_working_hours,
                     preferred_off,
+                    wishes,
                 }
             }).collect();
 
@@ -400,6 +411,8 @@ async fn build_constraints(
                 night_shift_fatigue_multiplier: Some(s.night_shift_fatigue_multiplier),
                 shift_continuity_weight: Some(s.shift_continuity_weight),
                 shift_continuity_week_bonus: Some(s.shift_continuity_week_bonus),
+                // No stored setting yet — omit so the optimizer's built-in default applies.
+                wish_weight: None,
             }
         }
         Err(e) => {

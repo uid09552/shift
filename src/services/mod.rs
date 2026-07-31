@@ -13,3 +13,4 @@ pub mod auth;
 pub mod tenant;
 pub mod xlsx_io;
 pub mod planner_settings;
+pub mod shift_wish;

@@ -81,6 +81,17 @@ pub struct Unavailability {
     pub is_soft_preference: bool,
 }
 
+// An employee's wish to work a specific shift on a specific date. Stored
+// separately from confirmed plans — the optimizer treats wishes as a soft
+// reward (wish_weight) and the calendar marks them specially.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ShiftWish {
+    pub id: Uuid,
+    pub employee_id: Uuid,
+    pub shift_id: Uuid,
+    pub wish_date: NaiveDate,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorkstationUnavailability {
     pub id: Uuid,
@@ -162,6 +173,15 @@ pub trait UnavailabilityRepository {
     async fn list_unavailabilities(&self, tenant_id: &str) -> Result<Vec<Unavailability>, AppError>;
     async fn get_unavailabilities_for_employee(&self, tenant_id: &str, employee_id: Uuid) -> Result<Vec<Unavailability>, AppError>;
     async fn delete_unavailability(&self, tenant_id: &str, id: Uuid) -> Result<(), AppError>;
+}
+
+#[async_trait]
+pub trait ShiftWishRepository {
+    async fn create_shift_wish(&self, tenant_id: &str, wish: ShiftWish) -> Result<ShiftWish, AppError>;
+    async fn get_shift_wish(&self, tenant_id: &str, id: Uuid) -> Result<Option<ShiftWish>, AppError>;
+    async fn list_shift_wishes(&self, tenant_id: &str) -> Result<Vec<ShiftWish>, AppError>;
+    async fn get_shift_wishes_for_employee(&self, tenant_id: &str, employee_id: Uuid) -> Result<Vec<ShiftWish>, AppError>;
+    async fn delete_shift_wish(&self, tenant_id: &str, id: Uuid) -> Result<(), AppError>;
 }
 
 #[async_trait]

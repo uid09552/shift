@@ -160,6 +160,49 @@
                   </div>
                 }
 
+                <!-- Shift wish (soft request — considered by the optimizer, not confirmed) -->
+                @if (day.isCurrentMonth && day.wish) {
+                  <div class="group/wish relative">
+                    <div
+                      class="wish-chip flex items-center justify-center gap-1"
+                      [style.borderColor]="day.wishShiftColor || '#9CA3AF'"
+                      [style.color]="day.wishShiftColor || '#6B7280'"
+                      [title]="'Wished shift: ' + (day.wishShiftName || 'Unknown') + ' (considered by the optimizer)'"
+                    >
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" class="shrink-0">
+                        <path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                      </svg>
+                      {{ day.wishShiftName || 'Wish' }}
+                    </div>
+                    <div
+                      class="cell-actions absolute -top-1 right-0 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/wish:opacity-100"
+                      (click)="$event.stopPropagation()"
+                    >
+                      <button
+                        (click)="startDeleteWish(formatDate(day.date), day.wish!.id, $event)"
+                        class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 shadow-sm ring-1 ring-gray-200 transition hover:text-red-600 hover:ring-red-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-red-400 dark:hover:ring-red-600"
+                        title="Delete shift wish"
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                        </svg>
+                      </button>
+                    </div>
+                    @if (isDeletingWish(formatDate(day.date))) {
+                      <div
+                        class="delete-confirm absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-red-200 bg-white p-2 shadow-lg dark:border-red-800 dark:bg-gray-800"
+                        (click)="$event.stopPropagation()"
+                      >
+                        <p class="mb-2 text-xs text-gray-600 dark:text-gray-300">Delete this shift wish?</p>
+                        <div class="flex items-center gap-2">
+                          <button (click)="confirmDeleteWish()" class="flex-1 rounded-md bg-red-500 px-2 py-1 text-xs font-medium text-white transition hover:bg-red-600">Delete</button>
+                          <button (click)="cancelDeleteWish()" class="flex-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700">Cancel</button>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                }
+
                 @if (day.isCurrentMonth && day.plan && day.plan.is_present) {
                   <div
                     class="shift-chip group/chip relative flex flex-col items-center gap-0.5 rounded-lg px-2 py-1.5 text-center transition-shadow hover:shadow-sm"
@@ -386,6 +429,27 @@
                           <span class="text-gray-500 dark:text-gray-400">{{ shift.name }}</span>
                         </button>
                       }
+                      @if (!day.wish) {
+                        <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
+                        <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+                          Wish shift (optimizer)
+                        </div>
+                        @for (shift of shifts; track shift.id) {
+                          <button
+                            (click)="onWishSelect(formatDate(day.date), shift.id)"
+                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke-width="1.5" [style.color]="shift.color" stroke="currentColor" class="shrink-0">
+                              <path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                            </svg>
+                            <span class="font-medium">
+                              {{ shift.short_name }}
+                            </span>
+                            <span class="text-gray-400 dark:text-gray-500">–</span>
+                            <span class="text-gray-500 dark:text-gray-400">{{ shift.name }}</span>
+                          </button>
+                        }
+                      }
                       <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
                       <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
                         Workstation
@@ -467,6 +531,10 @@
         <div class="flex items-center gap-1.5">
           <div class="h-3 w-3 rounded-sm border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800"></div>
           <span class="text-xs text-gray-600 dark:text-gray-400">Free (planner)</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <div class="h-3 w-3 rounded-sm border border-dashed border-gray-400 dark:border-gray-500"></div>
+          <span class="text-xs text-gray-600 dark:text-gray-400">Shift wish (optimizer)</span>
         </div>
       </div>
     }

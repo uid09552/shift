@@ -180,6 +180,22 @@
   border-color: #e2e8f0;
 }
 
+/* Shift wish chip: dashed outline + star to set it apart from confirmed
+   plans — a wish is only a soft request considered by the optimizer. */
+.wish-chip {
+  font-size: 0.6rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: transparent;
+  border: 1px dashed #9ca3af;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
 .dark .free-chip {
   background-color: rgba(100, 116, 139, 0.1);
   color: #94a3b8;

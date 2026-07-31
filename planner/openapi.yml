@@ -193,6 +193,44 @@ components:
           items:
             $ref: "#/components/schemas/Date"
           default: []
+        preferred_off:
+          type: array
+          items:
+            $ref: "#/components/schemas/PreferredOff"
+          default: []
+          description: >
+            Days (optionally one specific shift) the employee would rather not
+            work.  Soft — unlike `unavailability`, never blocks assignment
+            (penalised via `preference_weight`).
+        wishes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShiftWish"
+          default: []
+          description: >
+            Shifts the employee wishes to work on specific dates.  Soft — the
+            solver is rewarded (`wish_weight`) for fulfilling a wish but never
+            forced to.
+
+    PreferredOff:
+      type: object
+      required: [date]
+      properties:
+        date:
+          $ref: "#/components/schemas/Date"
+        shift_id:
+          $ref: "#/components/schemas/Uuid"
+          description: If omitted, the preference applies to the whole day.
+
+    ShiftWish:
+      type: object
+      required: [date, shift_id]
+      properties:
+        date:
+          $ref: "#/components/schemas/Date"
+        shift_id:
+          $ref: "#/components/schemas/Uuid"
+          description: The shift the employee wishes to work on this date.
 
     ConstraintConfig:
       type: object
@@ -252,6 +290,20 @@ components:
               type: integer
               minimum: 0
           description: Coverage reward per workstation priority level.
+        preference_weight:
+          type: integer
+          minimum: 0
+          default: 300
+          description: >
+            Penalty for assigning an employee to a day/shift they marked as
+            `preferred_off`.  Soft — never blocks the assignment.
+        wish_weight:
+          type: integer
+          minimum: 0
+          default: 800
+          description: >
+            Reward for fulfilling an employee's shift wish (see
+            `Employee.wishes`).  0 disables wish handling.
         solver_time_limit_seconds:
           type: number
           minimum: 1

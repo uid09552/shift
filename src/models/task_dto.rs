@@ -38,6 +38,8 @@ pub struct ConstraintTask {
     pub shift_continuity_weight: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shift_continuity_week_bonus: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wish_weight: Option<i32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -115,6 +117,12 @@ pub struct PreferredOffTask {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ShiftWishTask {
+    pub date: String,
+    pub shift_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EmployeeTask {
     pub id: String,
     pub name: String,
@@ -126,4 +134,8 @@ pub struct EmployeeTask {
     // Unavailability.is_soft_preference). Never blocks assignment.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub preferred_off: Vec<PreferredOffTask>,
+    // Shifts the employee wishes to work on specific dates (soft — the
+    // optimizer rewards fulfilling them via wish_weight, never forces them).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub wishes: Vec<ShiftWishTask>,
 }

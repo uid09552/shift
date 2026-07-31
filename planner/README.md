@@ -11,6 +11,7 @@ Given a JSON input describing employees, workstations, shifts, skills, unavailab
 - **Skill-based assignment** — employees are only assigned to workstations matching their skills
 - **Shift availability** — employees can only work shifts they are available for
 - **Unavailability** — respects employee date-specific unavailability
+- **Shift wishes** — rewards fulfilling an employee's wish to work a specific shift on a specific date (`wish_weight`, soft)
 - **Night shift recovery** — employees get 2 days off after a night shift
 - **Workstation priority** — high-priority workstations are staffed first
 - **Workload balancing** — penalises uneven shift distribution across employees

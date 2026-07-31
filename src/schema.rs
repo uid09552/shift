@@ -102,6 +102,17 @@ diesel::table! {
 }
 
 diesel::table! {
+    shift_wishes (id) {
+        id -> Uuid,
+        employee_id -> Uuid,
+        shift_id -> Uuid,
+        wish_date -> Date,
+        tenant_id -> Varchar,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
     employee_shift_assignments (id) {
         id -> Uuid,
         employee_id -> Uuid,
@@ -199,6 +210,8 @@ diesel::joinable!(workstation_required_capabilities -> capabilities (capability_
 diesel::joinable!(workstation_required_capabilities -> workstations (workstation_id));
 diesel::joinable!(unavailabilities -> employees (employee_id));
 diesel::joinable!(unavailabilities -> shifts (shift_id));
+diesel::joinable!(shift_wishes -> employees (employee_id));
+diesel::joinable!(shift_wishes -> shifts (shift_id));
 diesel::joinable!(shift_weekday_times -> shifts (shift_id));
 diesel::joinable!(workstation_unavailabilities -> workstations (workstation_id));
 diesel::joinable!(employee_shift_assignments -> employees (employee_id));
@@ -217,6 +230,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     workstations,
     workstation_required_capabilities,
     unavailabilities,
+    shift_wishes,
     employee_shift_assignments,
     confirmed_shift_plans,
     optimized_shift_results,

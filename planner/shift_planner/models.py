@@ -121,6 +121,18 @@ class PreferredOff(BaseModel):
     shift_id: Optional[str] = None
 
 
+class ShiftWish(BaseModel):
+    """A shift the employee wishes to work on a specific date.
+
+    The positive counterpart of `PreferredOff`: a soft signal that rewards the
+    solver (`wish_weight`) for assigning the employee this shift on this date.
+    It never forces the assignment.
+    """
+
+    date: date
+    shift_id: str = Field(..., min_length=1)
+
+
 class Employee(BaseModel):
     """Employee definition with skills and availability."""
 
@@ -131,6 +143,7 @@ class Employee(BaseModel):
     unavailability: List[date] = Field(default_factory=list)
     monthly_working_hours: float = Field(default=0.0, ge=0)
     preferred_off: List[PreferredOff] = Field(default_factory=list)
+    wishes: List[ShiftWish] = Field(default_factory=list)
 
 
 class CapabilityInfo(BaseModel):
@@ -202,6 +215,10 @@ class ConstraintConfig(BaseModel):
     # Penalty for assigning an employee to a day/shift they marked as
     # `preferred_off` on their profile. Soft — never blocks the assignment.
     preference_weight: int = Field(default=300, ge=0)
+
+    # Reward for fulfilling an employee's shift wish (see Employee.wishes).
+    # Soft — never forces the assignment. 0 disables wish handling.
+    wish_weight: int = Field(default=800, ge=0)
 
     # Penalty for covering a workstation's required skill with a higher-level
     # capability from the same skill_group instead of the exact match (see

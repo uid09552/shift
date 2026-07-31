@@ -23,6 +23,8 @@ tags:
     description: Workstation management endpoints
   - name: Unavailability
     description: Employee unavailability management endpoints
+  - name: Shift Wishes
+    description: Employee shift wish management endpoints (requested shift + date, considered by the optimizer)
   - name: Planner
     description: Shift scheduling planner endpoints
   - name: Shift Assignments
@@ -1231,6 +1233,117 @@ paths:
       responses:
         '204':
           description: Unavailability deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /shift-wishes:
+    get:
+      tags:
+        - Shift Wishes
+      summary: List all shift wishes
+      description: >
+        Shift wishes are employee requests to work a specific shift on a specific
+        date. They are stored separately from confirmed shift plans and treated
+        as a soft reward by the schedule optimizer.
+      operationId: listShiftWishes
+      parameters:
+        - name: employee_id
+          in: query
+          description: Filter by employee ID
+          schema:
+            type: string
+            format: uuid
+        - name: from_date
+          in: query
+          description: Start date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          description: End date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: List of shift wishes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ShiftWish'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Shift Wishes
+      summary: Create a new shift wish
+      operationId: createShiftWish
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateShiftWishRequest'
+      responses:
+        '201':
+          description: Shift wish created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftWish'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: A wish already exists for this employee and date
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /shift-wishes/{wishId}:
+    get:
+      tags:
+        - Shift Wishes
+      summary: Get a shift wish by ID
+      operationId: getShiftWishById
+      parameters:
+        - name: wishId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Shift wish details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftWish'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Shift Wishes
+      summary: Delete a shift wish
+      operationId: deleteShiftWish
+      parameters:
+        - name: wishId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Shift wish deleted successfully
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -2851,6 +2964,49 @@ components:
             (soft) instead of a hard block — it may still assign the
             employee here under pressure, at a penalty.
 
+    ShiftWish:
+      type: object
+      required:
+        - id
+        - employee_id
+        - shift_id
+        - wish_date
+      properties:
+        id:
+          type: string
+          format: uuid
+        employee_id:
+          type: string
+          format: uuid
+          description: ID of the employee who made the wish
+        shift_id:
+          type: string
+          format: uuid
+          description: ID of the shift the employee wishes to work
+        wish_date:
+          type: string
+          format: date
+          description: Date the employee wishes to work the shift (YYYY-MM-DD)
+
+    CreateShiftWishRequest:
+      type: object
+      required:
+        - employee_id
+        - shift_id
+        - wish_date
+      properties:
+        employee_id:
+          type: string
+          format: uuid
+        shift_id:
+          type: string
+          format: uuid
+          description: ID of the shift the employee wishes to work
+        wish_date:
+          type: string
+          format: date
+          description: Date the employee wishes to work the shift (YYYY-MM-DD)
+
     TaskDTO:
       type: object
       required:
@@ -3055,6 +3211,26 @@ components:
           description: >
             Days (optionally a specific shift) the employee would rather not
             work. Soft — unlike unavailability, never blocks assignment.
+        wishes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShiftWishTask'
+          description: >
+            Shifts the employee wishes to work on specific dates. Soft — the
+            optimizer rewards fulfilling them (wish_weight), never forces them.
+
+    ShiftWishTask:
+      type: object
+      required:
+        - date
+        - shift_id
+      properties:
+        date:
+          type: string
+          format: date
+        shift_id:
+          type: string
+          description: The shift the employee wishes to work on this date
 
     PreferredOffTask:
       type: object
@@ -3136,6 +3312,10 @@ components:
         shift_continuity_week_bonus:
           type: integer
           minimum: 0
+        wish_weight:
+          type: integer
+          minimum: 0
+          description: Reward for fulfilling an employee's shift wish (0 disables wish handling)
 
     Error:
       type: object

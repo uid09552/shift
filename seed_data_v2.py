@@ -11,6 +11,7 @@ Generates realistic test data via REST API:
     primary workstation so the CP-SAT optimizer can create valid assignments.
   - Shift availability: group-appropriate (e.g. ICU staff can work nights).
   - Vacation blocks + sick-day unavailabilities (future)
+  - Random shift wishes (future dates, considered by the optimizer)
   - Confirmed shift plans covering the past 3 months
 
 Usage:
@@ -115,6 +116,7 @@ print(f"  ✓ Deleted {csp_deleted} confirmed shift plans")
 
 delete_all("/shift-assignments", "/shift-assignments/{id}", "shift assignments")
 delete_all("/unavailabilities",  "/unavailabilities/{id}",  "unavailabilities")
+delete_all("/shift-wishes",      "/shift-wishes/{id}",      "shift wishes")
 
 for emp in existing_employees:
     delete(f"/employees/{emp['id']}")
@@ -532,6 +534,33 @@ for emp in employees:
 
 print(f"  ✓ {unav_created} future unavailability entries")
 
+# ─── Shift wishes (future) ────────────────────────────────────────────────────
+# Each employee wishes to work a few specific shifts on future dates. The
+# optimizer treats these as a soft reward (wish_weight); the employee calendar
+# shows them with a dashed "wish" chip.
+print("\n--- Shift wishes (future) ---")
+
+wishes_created = 0
+
+for emp in employees:
+    eid = emp["id"]
+    wish_shift_ids = [shift_ids[n] for n in emp["avail_shift_names"] if n in shift_ids]
+    if not wish_shift_ids:
+        continue
+
+    wish_dates = random.sample(range(1, 45), random.randint(2, 5))
+    for offset in wish_dates:
+        wish_day = TODAY + timedelta(days=offset)
+        resp = post("/shift-wishes", {
+            "employee_id": eid,
+            "shift_id": random.choice(wish_shift_ids),
+            "wish_date": wish_day.isoformat(),
+        })
+        if resp:
+            wishes_created += 1
+
+print(f"  ✓ {wishes_created} shift wishes")
+
 # ─── Confirmed Shift Plans — past 3 months ────────────────────────────────────
 print("\n--- Confirmed shift plans (past 3 months) ---")
 
@@ -630,6 +659,7 @@ print(f"  Workstations:          {len(ws_ids)}")
 print(f"  Capability links:      {total_cap_links}")
 print(f"  Available-shift links: {total_shift_links}")
 print(f"  Unavailabilities:      {unav_created}  (future only)")
+print(f"  Shift wishes:          {wishes_created}  (future only)")
 print(f"  Confirmed shift plans: {csp_created}   ({PERIOD_START} → {PERIOD_END})")
 print()
 print("  Employee groups:")
