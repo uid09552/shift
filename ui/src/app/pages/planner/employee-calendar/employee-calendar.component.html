@@ -147,7 +147,7 @@
                 [class.other-month]="!day.isCurrentMonth"
                 [class.today]="day.isToday"
                 [class.weekend]="day.isWeekend"
-                [class.cell-editing]="isEditing(formatDate(day.date)) || isDeleting(formatDate(day.date))"
+                [class.cell-editing]="isEditing(formatDate(day.date)) || isDeleting(formatDate(day.date)) || isDeletingWish(formatDate(day.date))"
               >
                 <div class="day-number">{{ day.dayNum }}</div>
 

@@ -19,7 +19,7 @@ sequenceDiagram
     G-->>B: session cookie
     B->>G: GET /api/v1/employees (cookie)
     G->>BE: + X-Access-Token, X-Userinfo
-    BE->>BE: resolve_tenant reads the `tenant` claim
+    BE->>BE: authenticate reads the `tenant` and `realm_access.roles` claims
     BE-->>G: rows for that tenant only
 ```
 
@@ -41,13 +41,13 @@ mode and terminates OIDC against Keycloak for every protected route:
 
 The `openid-connect` plugin sets two headers on the upstream request:
 
-- **`X-Access-Token`** — the raw JWT. The backend reads its `tenant` claim; the
-  agent forwards it to its own MCP tool calls.
+- **`X-Access-Token`** — the raw JWT. The backend reads its `tenant` and
+  `realm_access.roles` claims; the agent forwards it to its own MCP tool calls.
 - **`X-Userinfo`** — base64 JSON, decoded by `GET /api/v1/self`.
 
 ## Tenant resolution
 
-`resolve_tenant` in
+`authenticate` in
 [`src/services/tenant.rs`](https://gitlab.com/uid09552/shift/-/blob/main/src/services/tenant.rs)
 wraps the entire `/api/v1` subtree:
 
@@ -62,10 +62,35 @@ somehow reached a handler without resolution fails rather than operating on
 someone else's data.
 
 !!! note "The backend does not verify the signature"
-    `tenant_from_token` decodes the JWT payload only. Signature and expiry are
+    The middleware decodes the JWT payload only. Signature and expiry are
     verified by APISIX before the request ever arrives. **The backend must
     therefore never be exposed directly** — anything that can reach it can
     forge a `tenant` claim. Publish it only through the gateway.
+
+## Roles
+
+The same middleware reads the realm roles from the token:
+
+```json
+"realm_access": { "roles": ["shift-planner"] }
+```
+
+| Role | May do |
+|---|---|
+| `shift-planner` | Every method — `GET`, `POST`, `PUT`, `PATCH`, `DELETE` |
+| `shift-viewer` | `GET`/`HEAD` only |
+
+Anything else in `realm_access.roles` is ignored. A method the caller's roles do
+not cover is rejected with **403** before the handler runs, so read-only access
+is enforced in one place rather than per route. A token with neither role can do
+nothing at all — not even read.
+
+In dev mode there is no token, so every request is treated as a planner.
+
+Handlers that need the roles themselves take the `RoleContext` extractor
+(`can_read()` / `can_write()`); most do not, because the middleware has already
+decided. The roles are defined in the realm
+(`deploy/iam/realm-shift.json`) and assigned to users there.
 
 ## Isolation in the data layer
 

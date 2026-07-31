@@ -26,7 +26,7 @@ src/
 ```mermaid
 flowchart LR
     R[Request] --> C[CorsLayer]
-    C --> T[resolve_tenant]
+    C --> T[authenticate]
     T --> H[Service handler]
     H --> E[TenantContext extractor]
     H --> RP[Repository trait]
@@ -34,14 +34,17 @@ flowchart LR
     H --> A[audit_log::record]
 ```
 
-`resolve_tenant` runs on the whole `/api/v1` subtree, so no handler can be
-reached without a tenant having been established. `/health` sits outside that
-nest and needs no auth.
+`authenticate` runs on the whole `/api/v1` subtree, so no handler can be
+reached without a tenant having been established. It also enforces the caller's
+realm roles against the request method — `shift-viewer` may only `GET`,
+`shift-planner` may do everything — and answers **403** otherwise. `/health`
+sits outside that nest and needs no auth. See [Auth](auth.md).
 
 Handlers take a `TenantContext` extractor, which reads what the middleware put
 in the request extensions. It deliberately has **no fallback** to the default
 tenant: a request that somehow skipped resolution fails with 401 rather than
-quietly operating on someone else's data.
+quietly operating on someone else's data. `RoleContext` works the same way for
+handlers that need to vary their behaviour by role.
 
 ## Services
 

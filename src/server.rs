@@ -169,9 +169,10 @@ pub fn create_router(state: AppState) -> Router {
         )
         // Audit Logs
         .route("/audit-logs", get(AuditLogService::list_audit_logs))
-        // Resolve the request's tenant from the x-access-token JWT (or the default
-        // tenant in dev mode) before any handler runs.
-        .layer(middleware::from_fn_with_state(state.clone(), tenant::resolve_tenant));
+        // Resolve the request's tenant and roles from the x-access-token JWT (or the
+        // default tenant and full access in dev mode) before any handler runs, and
+        // reject methods the caller's roles do not cover.
+        .layer(middleware::from_fn_with_state(state.clone(), tenant::authenticate));
 
     Router::new()
         .route("/health", get(health_check))

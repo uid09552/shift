@@ -1,8 +1,0 @@
-1) implememt use case:
-- users should be able to put their wishes into the schedule in employee calender
-- the users should be able to add the shift and the date.
-- the wishes should be considered in schedule optimizer calculation
-- the wishes should be marked special in the employee calender, but not set to confirmed shift. instead create new table and store it there.
-- adjust api specs, ui and backend services
-- adjust the planner optimizer to consider it, adjust input for planner optimizer, planner optimizer api spec for input
-- adjust seed v2 to create some random wishes.
