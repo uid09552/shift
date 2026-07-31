@@ -122,7 +122,7 @@
           "temporary": false
         }
       ],
-      "realmRoles": ["shift-admin", "shift-planner"]
+      "realmRoles": ["default-roles-shift", "shift-admin", "shift-planner"]
     }
   ]
 }

@@ -37,8 +37,16 @@ flowchart LR
 
 ## Where to go next
 
+!!! tip "Using the software rather than building it?"
+    Start with the **[User Guide](guide/index.md)** — a non-technical,
+    illustrated walkthrough of every screen, written for ward managers and
+    staffing coordinators. Everything below is documentation for developers
+    and administrators.
+
 <div class="grid cards" markdown>
 
+- **[User Guide](guide/index.md)** — what the software is for and how to run a
+  ward with it, screen by screen.
 - **[Architecture](architecture.md)** — how the pieces fit together and how a
   plan flows through them.
 - **[Getting Started](getting-started.md)** — run the whole stack locally.

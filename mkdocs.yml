@@ -45,6 +45,17 @@ theme:
 
 nav:
   - Home: index.md
+  - User Guide:
+      - guide/index.md
+      - First Steps: guide/first-steps.md
+      - Setting Up Your Ward: guide/setup.md
+      - Managing Your Staff: guide/people.md
+      - Creating a Schedule: guide/creating-a-plan.md
+      - Reading the Schedule: guide/calendars.md
+      - How Planning Works: guide/how-planning-works.md
+      - The Assistant: guide/assistant.md
+      - Troubleshooting: guide/troubleshooting.md
+      - Glossary: guide/glossary.md
   - Architecture: architecture.md
   - Getting Started: getting-started.md
   - Domain Model: domain-model.md

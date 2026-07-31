@@ -92,6 +92,19 @@ Handlers that need the roles themselves take the `RoleContext` extractor
 decided. The roles are defined in the realm
 (`deploy/iam/realm-shift.json`) and assigned to users there.
 
+### `default-roles-<realm>` on imported users
+
+Users listed in the realm import must include `default-roles-shift` in their
+`realmRoles` alongside the app roles. Keycloak adds users from a realm import
+*without* the realm's default role (unlike users created through the admin
+console or registration), and `default-roles-shift` is what composites in the
+`account` client's `view-profile` / `manage-account`. Leave it out and the user
+can sign in to the app normally but gets **403** from Keycloak's own account
+console — the "Profile" link in the user dropdown
+(`/auth/realms/shift/account/`). Existing users are unaffected by editing the
+template; grant them the role in the admin console (Users → Role mapping) or
+with `kcadm.sh add-roles -r shift --uusername <user> --rolename default-roles-shift`.
+
 ## Isolation in the data layer
 
 Every table carries `tenant_id`, and every repository method takes it as its
