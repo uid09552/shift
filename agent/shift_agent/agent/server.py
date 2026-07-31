@@ -156,27 +156,32 @@ def create_app() -> Flask:
         if not message or not isinstance(message, str):
             return jsonify({"error": "Missing 'message' (string)"}), 400
 
-        # Build and connect the graph on first request
-        try:
-            graph = _get_or_create_graph()
-        except Exception:
-            logger.exception("Graph build / MCP connection failed")
-            return jsonify({"error": "Agent backend unavailable"}), 503
-
-        config = {"configurable": {"thread_id": session_id}}
-
         # Forward this request's own access token (the same one require_auth
-        # verified) into auth.py's contextvar, so client.py can present it
-        # to the MCP server as Authorization: Bearer for every tool call.
+        # verified) into auth.py's contextvar, so client.py can present it to
+        # the MCP server as Authorization: Bearer. This has to wrap the graph
+        # build too, not just the invoke: on the first request _get_or_create_graph()
+        # opens a tool-discovery session against the MCP server, and that
+        # session needs a token like any other — the MCP server verifies bearer
+        # tokens against Keycloak and answers 401 without one.
         reset_token = set_forwarded_token(_request_token())
         try:
-            result = graph.invoke(
-                {"messages": [HumanMessage(content=message)]},
-                config=config,
-            )
-        except Exception:
-            logger.exception("Agent invocation failed")
-            return jsonify({"error": "Agent failed to respond"}), 500
+            # Build and connect the graph on first request
+            try:
+                graph = _get_or_create_graph()
+            except Exception:
+                logger.exception("Graph build / MCP connection failed")
+                return jsonify({"error": "Agent backend unavailable"}), 503
+
+            config = {"configurable": {"thread_id": session_id}}
+
+            try:
+                result = graph.invoke(
+                    {"messages": [HumanMessage(content=message)]},
+                    config=config,
+                )
+            except Exception:
+                logger.exception("Agent invocation failed")
+                return jsonify({"error": "Agent failed to respond"}), 500
         finally:
             reset_forwarded_token(reset_token)
 
