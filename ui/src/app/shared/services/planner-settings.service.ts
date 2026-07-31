@@ -23,6 +23,7 @@ export interface PlannerSettings {
   weekly_max_hours: number | null;
   weekly_hours_target_weight: number;
   preference_weight: number;
+  wish_weight: number;
   skill_downgrade_weight: number;
   fatigue_weight: number;
   night_shift_fatigue_multiplier: number;

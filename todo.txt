@@ -1,0 +1,1 @@
+1) the employee whishes are not considered in optimizer. I tried to schedule, but the wishes have been not taken. Try to consider them with high prio. also create a new setting to weight the user wish.

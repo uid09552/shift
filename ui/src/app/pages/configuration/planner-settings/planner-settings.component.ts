@@ -290,9 +290,23 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <div class="px-5 py-4 sm:px-6">
             <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">Preferences, Skill Matching &amp; Fatigue</h3>
-            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Soft goals: respecting employee preferences, discouraging skill downgrades, and spreading fatigue evenly.</p>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Soft goals: respecting employee wishes and preferences, discouraging skill downgrades, and spreading fatigue evenly.</p>
           </div>
           <div class="grid grid-cols-1 gap-5 border-t border-gray-100 px-5 py-5 dark:border-white/[0.05] sm:grid-cols-2 lg:grid-cols-4 sm:px-6">
+            <div>
+              <app-label for="wishWeight" className="mb-1.5">
+                Shift wish weight
+                <app-info-tooltip text="Reward for giving an employee a shift they requested in their calendar. Higher values make wishes win more often against fairness and coverage — raise it towards the fairness weight to make wishes near-mandatory. 0 ignores wishes entirely." />
+              </app-label>
+              <app-input-field
+                id="wishWeight"
+                type="number"
+                min="0"
+                [value]="form.wish_weight"
+                (valueChange)="onFieldChange('wish_weight', $event)"
+              />
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Reward for fulfilling a requested shift. 0 ignores wishes.</p>
+            </div>
             <div>
               <app-label for="preferenceWeight" className="mb-1.5">
                 Preference weight
@@ -427,6 +441,7 @@ export class PlannerSettingsComponent implements OnInit {
     weekly_max_hours: null,
     weekly_hours_target_weight: 1000,
     preference_weight: 300,
+    wish_weight: 20000,
     skill_downgrade_weight: 200,
     fatigue_weight: 100,
     night_shift_fatigue_multiplier: 2,

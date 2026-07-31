@@ -290,6 +290,7 @@ The system integrates with a Python-based optimization service for shift schedul
 - `max_working_days_per_week`: int (default 5, 0=disabled)
 - `equality_weight`: int (default 50000)
 - `priority_weights`: dict (default {"high":10000,"medium":1000,"low":100})
+- `wish_weight`: int (default 20000, 0=disabled) — reward for fulfilling an employee shift wish
 - `solver_time_limit_seconds`: float (default 120.0)
 - `solver_num_workers`: int (default 8)
 

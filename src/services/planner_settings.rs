@@ -35,6 +35,7 @@ pub struct PlannerSettingsResponse {
     pub night_shift_fatigue_multiplier: f64,
     pub shift_continuity_weight: i32,
     pub shift_continuity_week_bonus: i32,
+    pub wish_weight: i32,
 }
 
 impl From<PlannerSettingsDomain> for PlannerSettingsResponse {
@@ -63,6 +64,7 @@ impl From<PlannerSettingsDomain> for PlannerSettingsResponse {
             night_shift_fatigue_multiplier: s.night_shift_fatigue_multiplier,
             shift_continuity_weight: s.shift_continuity_weight,
             shift_continuity_week_bonus: s.shift_continuity_week_bonus,
+            wish_weight: s.wish_weight,
         }
     }
 }
@@ -96,6 +98,8 @@ pub struct UpdatePlannerSettingsRequest {
     pub shift_continuity_weight: i32,
     #[serde(default = "default_shift_continuity_week_bonus")]
     pub shift_continuity_week_bonus: i32,
+    #[serde(default = "default_wish_weight")]
+    pub wish_weight: i32,
 }
 
 fn default_weekly_hours_target_weight() -> i32 { 1000 }
@@ -105,6 +109,7 @@ fn default_fatigue_weight() -> i32 { 100 }
 fn default_night_shift_fatigue_multiplier() -> f64 { 2.0 }
 fn default_shift_continuity_weight() -> i32 { 500 }
 fn default_shift_continuity_week_bonus() -> i32 { 2000 }
+fn default_wish_weight() -> i32 { 20000 }
 
 pub struct PlannerSettingsService;
 
@@ -146,6 +151,7 @@ impl PlannerSettingsService {
             night_shift_fatigue_multiplier: body.night_shift_fatigue_multiplier,
             shift_continuity_weight: body.shift_continuity_weight,
             shift_continuity_week_bonus: body.shift_continuity_week_bonus,
+            wish_weight: body.wish_weight,
         };
 
         let settings = state.planner_settings_repo.update_planner_settings(&tenant.0, update).await?;
@@ -214,6 +220,9 @@ fn validate(body: &UpdatePlannerSettingsRequest) -> Result<(), AppError> {
     }
     if body.shift_continuity_week_bonus < 0 {
         return Err(AppError::Validation("shift_continuity_week_bonus must be >= 0".into()));
+    }
+    if body.wish_weight < 0 {
+        return Err(AppError::Validation("wish_weight must be >= 0".into()));
     }
     Ok(())
 }

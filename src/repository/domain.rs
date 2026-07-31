@@ -371,6 +371,7 @@ pub struct PlannerSettingsDomain {
     pub night_shift_fatigue_multiplier: f64,
     pub shift_continuity_weight: i32,
     pub shift_continuity_week_bonus: i32,
+    pub wish_weight: i32,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -404,6 +405,8 @@ pub struct UpdatePlannerSettings {
     pub shift_continuity_weight: i32,
     #[serde(default = "default_shift_continuity_week_bonus")]
     pub shift_continuity_week_bonus: i32,
+    #[serde(default = "default_wish_weight")]
+    pub wish_weight: i32,
 }
 
 fn default_weekly_hours_target_weight() -> i32 { 1000 }
@@ -413,6 +416,7 @@ fn default_fatigue_weight() -> i32 { 100 }
 fn default_night_shift_fatigue_multiplier() -> f64 { 2.0 }
 fn default_shift_continuity_weight() -> i32 { 500 }
 fn default_shift_continuity_week_bonus() -> i32 { 2000 }
+fn default_wish_weight() -> i32 { 20000 }
 
 #[async_trait]
 pub trait PlannerSettingsRepository {

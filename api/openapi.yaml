@@ -2349,6 +2349,14 @@ components:
           minimum: 0
           description: Objective weight for respecting an employee's preferred_off days/shifts (soft; never blocks assignment)
           example: 300
+        wish_weight:
+          type: integer
+          minimum: 0
+          description: >
+            Objective reward for fulfilling an employee's shift wish (soft;
+            never forces the assignment). 0 ignores wishes entirely; raising it
+            towards equality_weight makes wishes near-mandatory.
+          example: 20000
         skill_downgrade_weight:
           type: integer
           minimum: 0
@@ -2441,6 +2449,10 @@ components:
           type: integer
           minimum: 0
           default: 300
+        wish_weight:
+          type: integer
+          minimum: 0
+          default: 20000
         skill_downgrade_weight:
           type: integer
           minimum: 0

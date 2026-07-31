@@ -105,7 +105,7 @@ _DEFAULT_CONSTRAINTS = {
     "weekly_max_hours": None,
     "weekly_hours_target_weight": 1000,
     "preference_weight": 300,  # Penalty for violating an employee's preferred_off
-    "wish_weight": 800,  # Reward for fulfilling an employee's shift wish
+    "wish_weight": 20000,  # Reward for fulfilling an employee's shift wish
     "skill_downgrade_weight": 200,  # Penalty for covering a slot with a higher-level skill
     "fatigue_weight": 100,  # Weight on worst-off employee's accumulated fatigue
     "night_shift_fatigue_multiplier": 2.0,
@@ -729,22 +729,54 @@ class ShiftPlanner:
     def _reward_wishes(self) -> None:
         """3c-bis) Shift wishes: employees may wish to work a specific shift on
         a specific date. The positive counterpart of preferred_off — fulfilling
-        a wish earns `wish_weight`, but the wish never forces the assignment."""
+        a wish earns `wish_weight`, but the wish never forces the assignment.
+
+        Wishes that no decision variable can satisfy (wrong period, employee not
+        available for that shift, no compatible workstation open that day, …)
+        are logged rather than silently dropped: an unschedulable wish is the
+        usual reason a plan comes back "ignoring" what an employee asked for."""
         if self.wish_w <= 0:
+            logger.info("Wish handling disabled (wish_weight=0)")
             return
         shift_index = {shift["id"]: s_idx for s_idx, shift in enumerate(self.shifts)}
+        considered = 0
+        unschedulable: list[str] = []
         for e_idx, emp in enumerate(self.employees):
             for wish in self.emp_wishes.get(emp["id"], []):
                 wd = parse_date(wish["date"])
+                sid = wish["shift_id"]
+
+                def _skip(reason: str) -> None:
+                    unschedulable.append(f"{emp['name']} {wd} shift {sid}: {reason}")
+
                 if wd not in self.day_index:
+                    _skip("date outside the planning period")
                     continue
                 d_idx = self.day_index[wd]
-                s_idx = shift_index.get(wish["shift_id"])
+                s_idx = shift_index.get(sid)
                 if s_idx is None:
+                    _skip("unknown shift")
                     continue
                 fulfilled = self._works_var(e_idx, d_idx, s_idx)
-                if fulfilled is not None:
-                    self.obj_terms.append(self.wish_w * fulfilled)
+                if fulfilled is None:
+                    if wd in self.emp_unavail[emp["id"]]:
+                        _skip("employee is marked unavailable that day")
+                    elif sid not in self.emp_avail_shifts[emp["id"]]:
+                        _skip("shift is not among the employee's available shifts")
+                    elif self.day_wd[d_idx] not in self.shift_weekdays[sid]:
+                        _skip("shift does not run on that weekday")
+                    else:
+                        _skip("no compatible workstation runs that shift that day")
+                    continue
+                self.obj_terms.append(self.wish_w * fulfilled)
+                considered += 1
+
+        logger.info(
+            "Shift wishes: %d schedulable (weight %d each), %d unschedulable",
+            considered, self.wish_w, len(unschedulable),
+        )
+        for line in unschedulable:
+            logger.warning("Wish cannot be fulfilled — %s", line)
 
     def _penalize_fatigue(self) -> None:
         """3d) Fatigue-aware objective (ergonomic factor, simplified from the

@@ -1,0 +1,11 @@
+-- Per-tenant weight for employee shift wishes (see shift_wishes, added in
+-- migration 23). The optimizer already rewarded wishes via its built-in
+-- default, but the backend had no stored setting to send — so wishes were
+-- effectively drowned out by fairness (equality_weight) and coverage
+-- (priority_weight_*), which are an order of magnitude larger.
+--
+-- Default 20000 = 2x the high-priority coverage weight, so fulfilling a wish
+-- outweighs the coverage value of an ordinary assignment while staying below
+-- the understaffing penalty. Raise it towards equality_weight to make wishes
+-- near-mandatory; 0 disables wish handling entirely.
+ALTER TABLE planner_settings ADD COLUMN wish_weight INTEGER NOT NULL DEFAULT 20000;

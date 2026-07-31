@@ -218,7 +218,13 @@ class ConstraintConfig(BaseModel):
 
     # Reward for fulfilling an employee's shift wish (see Employee.wishes).
     # Soft — never forces the assignment. 0 disables wish handling.
-    wish_weight: int = Field(default=800, ge=0)
+    # Deliberately large relative to coverage (priority_weights) so a wish is
+    # not drowned out by the ordinary value of an assignment: at the default it
+    # is worth 2x a high-priority coverage slot, but still less than leaving a
+    # workstation understaffed or than a full hour of unfairness
+    # (equality_weight). Raise it towards equality_weight to make wishes
+    # near-mandatory.
+    wish_weight: int = Field(default=20000, ge=0)
 
     # Penalty for covering a workstation's required skill with a higher-level
     # capability from the same skill_group instead of the exact match (see

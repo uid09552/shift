@@ -37,6 +37,7 @@ fn to_domain(s: PlannerSettings) -> PlannerSettingsDomain {
         night_shift_fatigue_multiplier: s.night_shift_fatigue_multiplier,
         shift_continuity_weight: s.shift_continuity_weight,
         shift_continuity_week_bonus: s.shift_continuity_week_bonus,
+        wish_weight: s.wish_weight,
     }
 }
 
@@ -96,6 +97,7 @@ impl PlannerSettingsRepository for DieselPlannerSettingsRepository {
                 night_shift_fatigue_multiplier: settings.night_shift_fatigue_multiplier,
                 shift_continuity_weight: settings.shift_continuity_weight,
                 shift_continuity_week_bonus: settings.shift_continuity_week_bonus,
+                wish_weight: settings.wish_weight,
             };
             let updated: PlannerSettings = diesel::insert_into(planner_settings::table)
                 .values(&new_settings)

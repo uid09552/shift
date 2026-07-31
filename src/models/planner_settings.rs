@@ -31,6 +31,7 @@ pub struct PlannerSettings {
     pub night_shift_fatigue_multiplier: f64,
     pub shift_continuity_weight: i32,
     pub shift_continuity_week_bonus: i32,
+    pub wish_weight: i32,
 }
 
 #[derive(Insertable, AsChangeset, Debug, Clone)]
@@ -57,6 +58,7 @@ pub struct NewPlannerSettings {
     pub night_shift_fatigue_multiplier: f64,
     pub shift_continuity_weight: i32,
     pub shift_continuity_week_bonus: i32,
+    pub wish_weight: i32,
 }
 
 impl NewPlannerSettings {
@@ -84,6 +86,7 @@ impl NewPlannerSettings {
             night_shift_fatigue_multiplier: 2.0,
             shift_continuity_weight: 500,
             shift_continuity_week_bonus: 2000,
+            wish_weight: 20000,
         }
     }
 }

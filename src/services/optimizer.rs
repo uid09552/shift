@@ -411,8 +411,7 @@ async fn build_constraints(
                 night_shift_fatigue_multiplier: Some(s.night_shift_fatigue_multiplier),
                 shift_continuity_weight: Some(s.shift_continuity_weight),
                 shift_continuity_week_bonus: Some(s.shift_continuity_week_bonus),
-                // No stored setting yet — omit so the optimizer's built-in default applies.
-                wish_weight: None,
+                wish_weight: Some(s.wish_weight),
             }
         }
         Err(e) => {
