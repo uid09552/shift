@@ -155,6 +155,69 @@ Each job pulls `:latest` to warm the layer cache, builds with
 The `workflow:` rules run merge request pipelines, branch pipelines, and tag
 pipelines — but suppress the duplicate branch pipeline while an MR is open.
 
+### Image scanning and SBOMs (Trivy)
+
+Every image is scanned by [Trivy](https://trivy.dev), pinned to `TRIVY_VERSION`
+in the pipeline's global `variables:`. Each build job produces, in `security/`:
+
+| File | Contents |
+|---|---|
+| `gl-container-scanning-report.json` | Vulnerabilities in GitLab's container-scanning schema (rendered by `contrib/gitlab.tpl` from the Trivy release) |
+| `gl-sbom-image-<component>.cdx.json` | CycloneDX SBOM of the image — OS packages and any language manifests present in the runtime stage |
+
+The scan runs **inside the build job**, not in a separate one, because merge
+request pipelines never push: the image exists only in that job's dind daemon,
+and handing it to another job would mean a `docker save` tarball artifact of a
+few hundred MB per component. `--image-src docker` pins Trivy to that daemon
+(it reads `DOCKER_HOST`) so a lookup failure cannot silently fall through to
+scanning whatever the registry already holds.
+
+The steps run **before** the push, so an enabled gate keeps a failing image out
+of the registry.
+
+### Source SBOMs
+
+The multi-stage Dockerfiles discard the builder stage, so the backend's crates
+and the UI's npm tree never appear in an image SBOM. The `sbom:source` jobs
+close that gap by scanning the committed lockfiles — `Cargo.lock`,
+`ui/package-lock.json`, `planner/uv.lock`, `agent/uv.lock` — one job per
+component, writing `security/gl-sbom-source-<component>.cdx.json`. They declare
+`needs: []`, so they start immediately rather than waiting on the build stage.
+
+Both jobs attach their output as `artifacts:reports:cyclonedx` (feeding the
+Dependency List) and `artifacts:reports:container_scanning`. Those widgets are
+GitLab Ultimate features; on other tiers the files are still downloadable as
+ordinary job artifacts, kept for one month.
+
+### The scan gate
+
+Findings are reported but do **not** fail the pipeline by default:
+
+| Variable | Default | Effect |
+|---|---|---|
+| `SCAN_SEVERITY` | `HIGH,CRITICAL` | Severities the gate considers. The report and SBOM always cover all severities. |
+| `SCAN_EXIT_CODE` | `0` | `0` reports only; set to `1` to fail the job on a matching finding. |
+| `TRIVY_VERSION` | `0.72.0` | Scanner version; bumping it invalidates the cached binary. |
+
+To enforce, set `SCAN_EXIT_CODE` to `1` in the file or as a project CI variable
+(*Settings → CI/CD → Variables*). The image gate adds `--ignore-unfixed`, so it
+only fires on findings a base-image bump can actually resolve.
+
+These are deliberately **not** named `TRIVY_SEVERITY` / `TRIVY_EXIT_CODE`:
+Trivy reads those from the environment on its own, which would silently apply
+the gate's severity filter to the full report and the SBOM as well.
+
+Two caches keep the jobs off external rate limits: the Trivy binary (keyed by
+`TRIVY_VERSION`) and the ~50 MB vulnerability database it otherwise pulls from
+`ghcr.io` on every run.
+
+Reproduce a job locally:
+
+```bash
+trivy image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed shift/backend:latest
+trivy fs --format cyclonedx --output sbom.cdx.json --skip-dirs ui,planner,agent,target .
+```
+
 ### Pages stage
 
 The `pages` job builds this documentation with MkDocs and publishes it to

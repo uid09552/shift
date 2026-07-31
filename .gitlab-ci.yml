@@ -14,10 +14,28 @@
 # If the runner is instead a shell executor with a mounted Docker socket,
 # drop the `image:`, `services:` and the DOCKER_HOST/DOCKER_TLS_CERTDIR
 # variables from `.build`.
+#
+# Security scanning: Trivy scans each image inside its build job, and the
+# `sbom:source` jobs scan the committed lockfiles. Both emit CycloneDX SBOMs.
 
 stages:
   - build
+  - scan
   - pages
+
+variables:
+  # Bumping this invalidates the cached binary (the cache key includes it).
+  TRIVY_VERSION: "0.72.0"
+  # Severities that count towards the gate below. The machine-readable report
+  # and the SBOM always cover *all* severities regardless of this.
+  SCAN_SEVERITY: "HIGH,CRITICAL"
+  # 0 = report only; set to 1 (here or as a project CI variable) to make a
+  # finding at SCAN_SEVERITY fail the job — for `build`, that means failing
+  # before the image is pushed.
+  SCAN_EXIT_CODE: "0"
+  # Deliberately *not* named TRIVY_SEVERITY / TRIVY_EXIT_CODE: Trivy reads
+  # those from the environment automatically, which would silently apply the
+  # gate's severity filter to the full report and SBOM as well.
 
 workflow:
   rules:
@@ -35,6 +53,16 @@ workflow:
   services:
     - name: docker:28-dind
       alias: docker
+  cache:
+    # Two entries: the binary (invalidated by version bumps) and the
+    # vulnerability database (~50 MB, pulled from ghcr.io otherwise — caching
+    # it keeps the matrix jobs off the registry's rate limit).
+    - key: "trivy-bin-$TRIVY_VERSION"
+      paths:
+        - .cache/trivy-bin
+    - key: trivy-db
+      paths:
+        - .cache/trivy/db
   variables:
     DOCKER_DRIVER: overlay2
     DOCKER_BUILDKIT: "1"
@@ -69,6 +97,27 @@ workflow:
     # --password-stdin keeps the token out of the process list and out of
     # /root/.docker/config.json warnings.
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    # Install the pinned Trivy release into the cached directory. docker:28-cli
+    # is Alpine and ships no scanner, and the job image is already taken by the
+    # Docker CLI, so the aquasec/trivy image cannot be used here.
+    - |
+      export TRIVY_BIN_DIR="$CI_PROJECT_DIR/.cache/trivy-bin"
+      if [ ! -x "$TRIVY_BIN_DIR/trivy" ] || ! grep -qx "$TRIVY_VERSION" "$TRIVY_BIN_DIR/.version" 2>/dev/null; then
+        echo "Installing Trivy $TRIVY_VERSION..."
+        rm -rf "$TRIVY_BIN_DIR"
+        mkdir -p "$TRIVY_BIN_DIR"
+        # Downloaded to a file rather than piped into tar, so a failed fetch
+        # reports itself instead of surfacing as "tar: empty archive".
+        wget -q -O /tmp/trivy.tar.gz \
+          "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+        tar -xzf /tmp/trivy.tar.gz -C "$TRIVY_BIN_DIR"
+        rm -f /tmp/trivy.tar.gz
+        echo "$TRIVY_VERSION" > "$TRIVY_BIN_DIR/.version"
+      fi
+      # before_script and script share one shell, so this PATH reaches the
+      # scan steps below.
+      export PATH="$TRIVY_BIN_DIR:$PATH"
+      trivy --version
   script:
     # CI_REGISTRY_IMAGE is only defined when the *project's* Container Registry
     # is enabled (Settings > General > Visibility). CI_REGISTRY is defined
@@ -105,6 +154,53 @@ workflow:
         -f "deploy/Dockerfile.$COMPONENT" \
         -t "$IMAGE:$CI_COMMIT_SHORT_SHA" \
         .
+    # ---- Trivy: scan and SBOM -------------------------------------------
+    # This runs inside the build job rather than a separate `scan` job on
+    # purpose: merge request pipelines never push, so the image exists only in
+    # this job's dind daemon. Shipping it to another job would mean a
+    # `docker save` tarball artifact of a few hundred MB per component.
+    # It runs *before* the push so an enabled gate (SCAN_EXIT_CODE=1) keeps a
+    # failing image out of the registry.
+    - mkdir -p security
+    # Full report, all severities, in GitLab's container-scanning schema.
+    # gitlab.tpl ships in the release tarball. `--image-src docker` pins Trivy
+    # to the dind daemon (it reads DOCKER_HOST) — without it, a daemon lookup
+    # failure falls through to `remote` and scans whatever the registry holds.
+    - |
+      trivy image \
+        --scanners vuln \
+        --cache-dir "$CI_PROJECT_DIR/.cache/trivy" \
+        --no-progress \
+        --image-src docker \
+        --format template \
+        --template "@$TRIVY_BIN_DIR/contrib/gitlab.tpl" \
+        --output "security/gl-container-scanning-report.json" \
+        "$IMAGE:$CI_COMMIT_SHORT_SHA"
+    # CycloneDX SBOM of the image: OS packages plus whatever language
+    # manifests survive into the runtime stage. The Rust backend's crates are
+    # *not* among them (the final stage holds only the compiled binary) — the
+    # sbom:source jobs cover dependencies from the lockfiles instead.
+    - |
+      trivy image \
+        --cache-dir "$CI_PROJECT_DIR/.cache/trivy" \
+        --no-progress \
+        --image-src docker \
+        --format cyclonedx \
+        --output "security/gl-sbom-image-$COMPONENT.cdx.json" \
+        "$IMAGE:$CI_COMMIT_SHORT_SHA"
+    # Human-readable summary, and the gate. --ignore-unfixed keeps the gate on
+    # findings that a base-image bump can actually resolve.
+    - |
+      trivy image \
+        --scanners vuln \
+        --cache-dir "$CI_PROJECT_DIR/.cache/trivy" \
+        --no-progress \
+        --image-src docker \
+        --severity "$SCAN_SEVERITY" \
+        --ignore-unfixed \
+        --exit-code "$SCAN_EXIT_CODE" \
+        "$IMAGE:$CI_COMMIT_SHORT_SHA"
+    # ---------------------------------------------------------------------
     - |
       if [ -n "$CI_MERGE_REQUEST_IID" ]; then
         echo "Merge request pipeline — image built but not published."
@@ -119,6 +215,17 @@ workflow:
         docker tag "$IMAGE:$CI_COMMIT_SHORT_SHA" "$IMAGE:latest"
         docker push "$IMAGE:latest"
       fi
+  artifacts:
+    # `when: always` so a failing gate still publishes the evidence.
+    when: always
+    expire_in: 1 month
+    paths:
+      - security/
+    reports:
+      # Rendered in the MR security widget and the vulnerability report
+      # (GitLab Ultimate); on other tiers the files remain as plain artifacts.
+      container_scanning: security/gl-container-scanning-report.json
+      cyclonedx: security/gl-sbom-*.cdx.json
 
 build:
   extends: .build
@@ -131,6 +238,74 @@ build:
           - planner
           - ui
           - agent
+
+# ---------------------------------------------------------------------------
+# Source SBOM + dependency scan
+#
+# Complements the image SBOM produced by `build`: this reads the committed
+# lockfiles (Cargo.lock, ui/package-lock.json, planner/uv.lock, agent/uv.lock),
+# which is the only place the backend's crates and the UI's npm tree appear —
+# the multi-stage Dockerfiles leave them behind in the builder stage.
+#
+# `needs: []` starts these immediately instead of waiting for the build stage;
+# they do not use the built images.
+# ---------------------------------------------------------------------------
+
+sbom:source:
+  stage: scan
+  needs: []
+  image:
+    name: "aquasec/trivy:$TRIVY_VERSION"
+    # The image's ENTRYPOINT is trivy itself, which GitLab would use to run
+    # the shell — clear it so `script:` executes normally.
+    entrypoint: [""]
+  cache:
+    - key: trivy-db
+      paths:
+        - .cache/trivy/db
+  parallel:
+    matrix:
+      # The backend is the repo root, so it has to exclude the other three.
+      - COMPONENT: backend
+        SOURCE_PATH: "."
+        SKIP_DIRS: "ui,planner,agent,target,site,public,.cache,deploy"
+      - COMPONENT: ui
+        SOURCE_PATH: "ui"
+        SKIP_DIRS: "node_modules,dist"
+      - COMPONENT: planner
+        SOURCE_PATH: "planner"
+        SKIP_DIRS: ".venv"
+      - COMPONENT: agent
+        SOURCE_PATH: "agent"
+        SKIP_DIRS: ".venv"
+  script:
+    - mkdir -p security
+    - |
+      trivy fs \
+        --cache-dir "$CI_PROJECT_DIR/.cache/trivy" \
+        --no-progress \
+        --skip-dirs "$SKIP_DIRS" \
+        --format cyclonedx \
+        --output "security/gl-sbom-source-$COMPONENT.cdx.json" \
+        "$SOURCE_PATH"
+    # Vulnerabilities in those same dependencies. Shares SCAN_EXIT_CODE with
+    # the image gate: 0 reports, 1 fails the job.
+    - |
+      trivy fs \
+        --scanners vuln \
+        --cache-dir "$CI_PROJECT_DIR/.cache/trivy" \
+        --no-progress \
+        --skip-dirs "$SKIP_DIRS" \
+        --severity "$SCAN_SEVERITY" \
+        --exit-code "$SCAN_EXIT_CODE" \
+        "$SOURCE_PATH"
+  artifacts:
+    when: always
+    expire_in: 1 month
+    paths:
+      - security/
+    reports:
+      cyclonedx: security/gl-sbom-*.cdx.json
 
 # ---------------------------------------------------------------------------
 # Documentation (MkDocs -> GitLab Pages)

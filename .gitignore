@@ -5,6 +5,9 @@
 /public
 .cache/
 
+# Trivy reports and SBOMs (CI artifacts; also left behind by a local run)
+/security
+
 iam/.venv
 iam/__pycache__/bootstrap.cpython-312.pyc
 
