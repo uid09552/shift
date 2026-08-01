@@ -10,9 +10,9 @@ unset, the providers are never installed and the instrumentation is inert.
 One variable enables the whole stack:
 
 ```bash
-export OTEL_EXPORTER_OTLP_ENDPOINT=https://2215171.otel.gitlab-o11y.com:14317
-export OTEL_EXPORTER_OTLP_PROTOCOL=grpc                # or http/protobuf
-export OTEL_EXPORTER_OTLP_HEADERS='PRIVATE-TOKEN=<token>'
+export OTEL_EXPORTER_OTLP_ENDPOINT=https://2215171.otel.gitlab-o11y.com:14318
+export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf       # or grpc, on port 14317
+export OTEL_EXPORTER_OTLP_HEADERS='PRIVATE-TOKEN=<token>'   # if the collector wants one
 ```
 
 For the compose stack, put those in `deploy/.env` (see `deploy/.env.example`);
@@ -31,6 +31,15 @@ For the compose stack, put those in `deploy/.env` (see `deploy/.env.example`);
     the protocol have to agree — a gRPC exporter pointed at `:14318` fails to
     export, silently apart from a log line. For OTLP/HTTP the services append
     `/v1/traces` and `/v1/metrics` themselves.
+
+!!! warning "GitLab's gRPC endpoint is currently not serving"
+    `https://2215171.otel.gitlab-o11y.com:14317` answers **HTTP 464** (and
+    `502` on a plain request) from the `awselb/2.0` load balancer in front of
+    it — its gRPC backend is unhealthy, for any client, `curl` included. The
+    exporter surfaces this as `gRPC code: Unknown — grpc-status header
+    missing, mapped from HTTP status code 464`. Nothing to fix on this side:
+    use `http/protobuf` against `:14318`, which is verified working, and
+    revisit gRPC once GitLab's listener is healthy.
 
 ### Resource attributes
 
@@ -138,6 +147,13 @@ Telemetry: https://2215171.otel.gitlab-o11y.com:14317 (grpc)
 or `disabled (no OTLP endpoint configured)`. A bad endpoint does not stop a
 service from starting: export failures are logged and the service keeps
 serving.
+
+Export failures are logged at `ERROR` with a one-line summary; the underlying
+cause is a `DEBUG` record from the exporter, so raise the level to see it:
+
+```bash
+RUST_LOG=info,opentelemetry=debug   # backend — HttpClient.NetworkError et al.
+```
 
 To try it without a collector, run one locally and point the stack at it:
 

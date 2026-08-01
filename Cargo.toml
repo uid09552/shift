@@ -28,8 +28,12 @@ r2d2 = "0.8"
 # Message broker
 async-nats = "0.38"
 
-# HTTP client
-reqwest = { version = "0.12", features = ["json"] }
+# HTTP client. Kept on the same version as opentelemetry-otlp's own client
+# (0.13) and with TLS enabled deliberately: otlp pulls reqwest in with
+# default-features off and only "blocking", i.e. *no* TLS backend, so an https
+# OTLP endpoint fails instantly with "error sending request". Cargo unions the
+# features, so declaring them here is what gives that exporter working TLS.
+reqwest = { version = "0.13", default-features = false, features = ["json", "blocking", "rustls", "http2"] }
 base64 = "0.22"
 futures-util = "0.3.32"
 rust_xlsxwriter = "0.96.0"
@@ -40,7 +44,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 tracing-opentelemetry = "0.33"
 opentelemetry = { version = "0.32", features = ["metrics", "trace"] }
 opentelemetry_sdk = { version = "0.32", features = ["trace", "metrics"] }
-opentelemetry-otlp = { version = "0.32", default-features = false, features = ["grpc-tonic", "tls", "tls-roots", "http-proto", "reqwest-blocking-client", "trace", "metrics", "internal-logs"] }
+opentelemetry-otlp = { version = "0.32", default-features = false, features = ["grpc-tonic", "tls", "tls-roots", "tls-webpki-roots", "http-proto", "reqwest-blocking-client", "trace", "metrics", "internal-logs"] }
 opentelemetry-semantic-conventions = "0.32"
 opentelemetry-http = "0.32"
 

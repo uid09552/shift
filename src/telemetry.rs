@@ -37,7 +37,8 @@ use opentelemetry::{
     Context, KeyValue,
 };
 use opentelemetry_otlp::{
-    tonic_types::metadata::MetadataMap, Protocol, WithExportConfig, WithHttpConfig, WithTonicConfig,
+    tonic_types::{metadata::MetadataMap, transport::ClientTlsConfig},
+    Protocol, WithExportConfig, WithHttpConfig, WithTonicConfig,
 };
 use opentelemetry_sdk::{
     metrics::{PeriodicReader, SdkMeterProvider},
@@ -215,20 +216,35 @@ fn build_providers(
 
     let (span_exporter, metric_exporter) = if grpc {
         let metadata = grpc_metadata(&headers);
-        (
-            opentelemetry_otlp::SpanExporter::builder()
-                .with_tonic()
-                .with_endpoint(&endpoint)
-                .with_metadata(metadata.clone())
-                .with_timeout(Duration::from_secs(10))
-                .build()?,
-            opentelemetry_otlp::MetricExporter::builder()
-                .with_tonic()
-                .with_endpoint(&endpoint)
-                .with_metadata(metadata)
-                .with_timeout(Duration::from_secs(10))
-                .build()?,
-        )
+        // An https endpoint needs the trust roots spelled out. Left to itself
+        // the exporter builds a bare `ClientTlsConfig::new()`, which since
+        // tonic 0.13 carries *no* trust anchors — every export then fails with
+        // "invalid peer certificate: UnknownIssuer", however well-stocked the
+        // system CA bundle is. `with_enabled_roots` takes both the platform
+        // store and the bundled webpki roots.
+        let tls = endpoint
+            .to_ascii_lowercase()
+            .starts_with("https://")
+            .then(|| ClientTlsConfig::new().with_enabled_roots());
+
+        let mut span_builder = opentelemetry_otlp::SpanExporter::builder()
+            .with_tonic()
+            .with_endpoint(&endpoint)
+            .with_metadata(metadata.clone())
+            .with_timeout(Duration::from_secs(10));
+        let mut metric_builder = opentelemetry_otlp::MetricExporter::builder()
+            .with_tonic()
+            .with_endpoint(&endpoint)
+            .with_metadata(metadata)
+            .with_timeout(Duration::from_secs(10));
+        // Only for https: handing a TLS config to a plaintext endpoint would
+        // make the exporter speak TLS to a collector that isn't listening for it.
+        if let Some(tls) = tls {
+            span_builder = span_builder.with_tls_config(tls.clone());
+            metric_builder = metric_builder.with_tls_config(tls);
+        }
+
+        (span_builder.build()?, metric_builder.build()?)
     } else {
         (
             opentelemetry_otlp::SpanExporter::builder()

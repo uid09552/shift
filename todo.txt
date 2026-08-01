@@ -1,1 +1,2 @@
-1) the employee whishes are not considered in optimizer. I tried to schedule, but the wishes have been not taken. Try to consider them with high prio. also create a new setting to weight the user wish.
+1) adjust agent, add tool datetime, so that agent can answer e.g. how many people work today or who is in shift xyz today.
+2) conider prompt lenght, which is max 131072, make it configurable default as provided. remove old message from context if too long.
