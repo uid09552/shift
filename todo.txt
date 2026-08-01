@@ -1,6 +1,9 @@
-[DONE] 3) create my day view in Dashboard. the my day should show relevant data for me for the current day.
-- which workstation
-- which shift
-- today central and bolded, visualized in foreground or other to show manly the today
-- the week with shifts should be also show
-- who is else assigned to the workstations, where I am alos in, to anser the question who else is working with me.
+
+
+2) add security headers to apisix to planner-ui and apis. e.g. csp header and for keycloak make sure those headers are set: Host
+X-Forwarded-Proto
+X-Forwarded-Host
+X-Forwarded-Port
+3) add web origin to account-console in keycloak to domain url and *
+4) make the my day in overview switchable per user hide the button behind some icon I can click to select the user
+5) days in my day overview should be also selectable, make the tiles selectable, selected tile is always centered, show always 9 days in the row, so if selected date is centered next days are fetched and showed.

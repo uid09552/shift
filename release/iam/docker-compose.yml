@@ -58,6 +58,10 @@ services:
       KC_HOSTNAME: "${PUBLIC_URL:-http://localhost}/auth"
       KC_HOSTNAME_STRICT: "false"
       KC_HOSTNAME_STRICT_HTTPS: "false"
+      # Keycloak only trusts X-Forwarded-Proto/-Host/-Port when told to. The
+      # gateway sets (never appends) them on /auth/*, so they cannot be spoofed
+      # by a client — see gateway/apisix_conf/apisix-standalone.yaml.
+      KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
       KC_HTTP_RELATIVE_PATH: /auth
       KC_HEALTH_ENABLED: "true"

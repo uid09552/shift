@@ -89,6 +89,60 @@
         "basic",
         "email"
       ]
+    },
+    {
+      "clientId": "account-console",
+      "name": "${client_account-console}",
+      "description": "Keycloak's built-in account console. Redefined here only to widen webOrigins - reached through the gateway at http://localhost/auth, so its CORS origin is the public URL, not Keycloak's own host. Everything else matches the client Keycloak would create by default.",
+      "rootUrl": "http://localhost/auth",
+      "baseUrl": "/realms/shift/account/",
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "redirectUris": [
+        "/realms/shift/account/*"
+      ],
+      "webOrigins": [
+        "http://localhost",
+        "*"
+      ],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": true,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "post.logout.redirect.uris": "+",
+        "pkce.code.challenge.method": "S256"
+      },
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "audience resolve",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-resolve-mapper",
+          "consentRequired": false,
+          "config": {}
+        }
+      ],
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "roles",
+        "profile",
+        "basic",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
     }
   ],
   "roles": {

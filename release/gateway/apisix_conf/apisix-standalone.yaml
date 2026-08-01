@@ -38,6 +38,21 @@
 # default PUBLIC_URL=http://localhost those calls from within the container
 # reach APISIX itself, which proxies /auth/* to keycloak:8080. If PUBLIC_URL
 # uses a different port, add that port to node_listen as well.
+#
+# Security headers are set by the gateway (response-rewrite) rather than by the
+# UI's nginx or the backend, so every upstream is covered by one policy. Two
+# profiles are used:
+#   browser  — /planner/*, /callback, /logout, /images/*: full CSP for the
+#              Angular app. The app loads Google Fonts (see ui/src/index.html
+#              and ui/src/styles.css), hence the fonts.googleapis.com /
+#              fonts.gstatic.com entries; drop them if the fonts are ever
+#              self-hosted. 'unsafe-inline' in style-src is required by
+#              Angular's style bindings and the chart libraries.
+#   api      — /api/*, /agent/*: JSON/SSE that must never be rendered,
+#              embedded or cached, so the CSP is default-src 'none'.
+# Strict-Transport-Security is ignored by browsers over plain HTTP, so it is
+# safe to send on the default http://localhost deployment and takes effect as
+# soon as the stack is fronted by TLS.
 
 routes:
   # ===========================================
@@ -56,13 +71,42 @@ routes:
   # Keycloak IAM routes — no auth enforcement
   # KC_HTTP_RELATIVE_PATH=/auth means all Keycloak endpoints are under /auth.
   # A single wildcard route covers realms, admin console, resources, and JS adapter.
+  #
+  # Keycloak sits behind this gateway, so it only learns the browser-facing
+  # scheme/host/port from the forwarded headers below. They are *set*, not
+  # appended, so a client cannot spoof them. Keycloak ignores them unless
+  # KC_PROXY_HEADERS=xforwarded is set (see iam/docker-compose.yml).
+  #   Host             — passed through unchanged (upstream.pass_host: pass)
+  #   X-Forwarded-Proto — $scheme, the scheme APISIX was reached with
+  #   X-Forwarded-Host  — $http_host, i.e. host[:port] as the browser sent it
+  #   X-Forwarded-Port  — the PUBLISHED port, which is not APISIX's own listen
+  #                       port ($server_port is 9080/9443 inside the container
+  #                       while compose publishes HTTP_PORT/HTTPS_PORT). Change
+  #                       this literal when HTTP_PORT/PUBLIC_URL is not :80.
+  # Keycloak's own CSP and X-Frame-Options are left alone; only the transport
+  # and sniffing headers are added on top.
   # ===========================================
 
   - uri: /auth/*
     name: keycloak
     priority: 100
+    plugins:
+      proxy-rewrite:
+        headers:
+          set:
+            X-Forwarded-Proto: "$scheme"
+            X-Forwarded-Host: "$http_host"
+            X-Forwarded-Port: "80"
+      response-rewrite:
+        headers:
+          set:
+            X-Content-Type-Options: nosniff
+            Referrer-Policy: strict-origin-when-cross-origin
+            Strict-Transport-Security: "max-age=31536000; includeSubDomains"
     upstream:
       type: roundrobin
+      # Forward the browser's Host header so Keycloak sees the public hostname.
+      pass_host: pass
       nodes:
         keycloak:8080: 1
 
@@ -73,6 +117,14 @@ routes:
   - uri: /images/*
     name: static-images
     priority: 50
+    plugins:
+      response-rewrite:
+        headers:
+          set:
+            Content-Security-Policy: "default-src 'none'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'"
+            X-Content-Type-Options: nosniff
+            Referrer-Policy: strict-origin-when-cross-origin
+            Strict-Transport-Security: "max-age=31536000; includeSubDomains"
     upstream:
       type: roundrobin
       nodes:
@@ -102,6 +154,12 @@ routes:
         headers:
           set:
             Clear-Site-Data: '"cache", "cookies", "storage"'
+            Content-Security-Policy: "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; frame-src 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'"
+            X-Content-Type-Options: nosniff
+            X-Frame-Options: DENY
+            Referrer-Policy: strict-origin-when-cross-origin
+            Permissions-Policy: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+            Strict-Transport-Security: "max-age=31536000; includeSubDomains"
     upstream:
       type: roundrobin
       nodes:
@@ -127,6 +185,15 @@ routes:
         ssl_verify: false
         session:
           secret: geheimgeheimgeheimgeheim12345678
+      response-rewrite:
+        headers:
+          set:
+            Content-Security-Policy: "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; frame-src 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'"
+            X-Content-Type-Options: nosniff
+            X-Frame-Options: DENY
+            Referrer-Policy: strict-origin-when-cross-origin
+            Permissions-Policy: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+            Strict-Transport-Security: "max-age=31536000; includeSubDomains"
     upstream:
       type: roundrobin
       nodes:
@@ -164,6 +231,15 @@ routes:
         refresh_session_interval: 360
         session:
           secret: geheimgeheimgeheimgeheim12345678
+      response-rewrite:
+        headers:
+          set:
+            Content-Security-Policy: "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; frame-src 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'"
+            X-Content-Type-Options: nosniff
+            X-Frame-Options: DENY
+            Referrer-Policy: strict-origin-when-cross-origin
+            Permissions-Policy: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+            Strict-Transport-Security: "max-age=31536000; includeSubDomains"
     upstream:
       type: roundrobin
       nodes:
@@ -193,6 +269,15 @@ routes:
         introspection_interval: 60
         session:
           secret: geheimgeheimgeheimgeheim12345678
+      response-rewrite:
+        headers:
+          set:
+            Content-Security-Policy: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+            X-Content-Type-Options: nosniff
+            X-Frame-Options: DENY
+            Referrer-Policy: no-referrer
+            Cache-Control: "no-store"
+            Strict-Transport-Security: "max-age=31536000; includeSubDomains"
     upstream:
       type: roundrobin
       nodes:
@@ -224,6 +309,16 @@ routes:
           secret: geheimgeheimgeheimgeheim12345678
       proxy-rewrite:
         regex_uri: ["^/agent/(.*)", "/api/v1/$1"]
+      # Header-only rewriting, so the SSE chat stream is not buffered.
+      response-rewrite:
+        headers:
+          set:
+            Content-Security-Policy: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+            X-Content-Type-Options: nosniff
+            X-Frame-Options: DENY
+            Referrer-Policy: no-referrer
+            Cache-Control: "no-store"
+            Strict-Transport-Security: "max-age=31536000; includeSubDomains"
     upstream:
       type: roundrobin
       nodes:
