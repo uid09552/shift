@@ -31,12 +31,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from functools import wraps
 from typing import Any, Callable
 
 from flask import Flask, jsonify, request
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
+from shift_agent import telemetry
 from shift_agent.agent.auth import (
     reset_forwarded_token,
     set_forwarded_token,
@@ -145,6 +147,9 @@ def create_app(knowledge_path: str | None = None) -> Flask:
     _knowledge_path = knowledge_path
 
     app = Flask(__name__)
+    # One server span per request, named after the route. No-op unless an OTLP
+    # endpoint is configured (see telemetry.init_telemetry, called at startup).
+    telemetry.instrument_flask(app)
 
     # ---- Health check (no auth) ----
     @app.route("/api/v1/health", methods=["GET"])
@@ -180,24 +185,38 @@ def create_app(knowledge_path: str | None = None) -> Flask:
         # session needs a token like any other — the MCP server verifies bearer
         # tokens against Keycloak and answers 401 without one.
         reset_token = set_forwarded_token(_request_token())
+        started = time.perf_counter()
         try:
-            # Build and connect the graph on first request
-            try:
-                graph = _get_or_create_graph()
-            except Exception:
-                logger.exception("Graph build / MCP connection failed")
-                return jsonify({"error": "Agent backend unavailable"}), 503
+            # One span over the whole turn: the LLM calls and MCP tool calls it
+            # makes hang under it (see telemetry's httpx instrumentation).
+            with telemetry.span(
+                "agent.chat",
+                **{"agent.session_id": session_id, "agent.message.length": len(message)},
+            ) as chat_span:
+                # Build and connect the graph on first request
+                try:
+                    graph = _get_or_create_graph()
+                except Exception:
+                    logger.exception("Graph build / MCP connection failed")
+                    telemetry.record_chat(time.perf_counter() - started, "unavailable")
+                    return jsonify({"error": "Agent backend unavailable"}), 503
 
-            config = {"configurable": {"thread_id": session_id}}
+                config = {"configurable": {"thread_id": session_id}}
 
-            try:
-                result = graph.invoke(
-                    {"messages": [HumanMessage(content=message)]},
-                    config=config,
+                try:
+                    result = graph.invoke(
+                        {"messages": [HumanMessage(content=message)]},
+                        config=config,
+                    )
+                except Exception:
+                    logger.exception("Agent invocation failed")
+                    telemetry.record_chat(time.perf_counter() - started, "error")
+                    return jsonify({"error": "Agent failed to respond"}), 500
+
+                telemetry.set_attributes(
+                    chat_span, **{"agent.messages": len(result["messages"])}
                 )
-            except Exception:
-                logger.exception("Agent invocation failed")
-                return jsonify({"error": "Agent failed to respond"}), 500
+                telemetry.record_chat(time.perf_counter() - started, "ok")
         finally:
             reset_forwarded_token(reset_token)
 

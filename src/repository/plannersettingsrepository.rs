@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use async_trait::async_trait;
 use diesel::prelude::*;
-use tokio::task;
 
+use crate::telemetry;
 use crate::database::DbPool;
 use crate::errors::AppError;
 use crate::models::{NewPlannerSettings, PlannerSettings};
@@ -46,7 +46,7 @@ impl PlannerSettingsRepository for DieselPlannerSettingsRepository {
     async fn get_or_create_planner_settings(&self, tenant_id: &str) -> Result<PlannerSettingsDomain, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let existing = planner_settings::table
                 .filter(planner_settings::tenant_id.eq(&tenant_id))
@@ -73,7 +73,7 @@ impl PlannerSettingsRepository for DieselPlannerSettingsRepository {
     async fn update_planner_settings(&self, tenant_id: &str, settings: UpdatePlannerSettings) -> Result<PlannerSettingsDomain, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let new_settings = NewPlannerSettings {
                 tenant_id: tenant_id.clone(),

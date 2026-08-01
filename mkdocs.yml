@@ -70,6 +70,7 @@ nav:
   - Agent & MCP: agent.md
   - Frontend: frontend.md
   - Auth & Multi-Tenancy: auth.md
+  - Observability: observability.md
   - Deployment: deployment.md
 
 markdown_extensions:

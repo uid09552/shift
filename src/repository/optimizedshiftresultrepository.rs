@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use diesel::prelude::*;
 use std::sync::Arc;
-use tokio::task;
 use uuid::Uuid;
+use crate::telemetry;
 use crate::errors::AppError;
 
 use crate::database::DbPool;
@@ -29,7 +29,7 @@ impl OptimizedShiftResultRepository for DieselOptimizedShiftResultRepository {
             result,
             tenant_id: tenant_id.to_string(),
         };
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             diesel::insert_into(optimized_shift_results::table)
                 .values(&new_result)
@@ -51,7 +51,7 @@ impl OptimizedShiftResultRepository for DieselOptimizedShiftResultRepository {
     ) -> Result<Option<OptimizedShiftResultDomain>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             optimized_shift_results::table
                 .filter(optimized_shift_results::id.eq(id))
@@ -74,7 +74,7 @@ impl OptimizedShiftResultRepository for DieselOptimizedShiftResultRepository {
     ) -> Result<Option<OptimizedShiftResultDomain>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             optimized_shift_results::table
                 .filter(optimized_shift_results::tenant_id.eq(&tenant_id))
@@ -99,7 +99,7 @@ impl OptimizedShiftResultRepository for DieselOptimizedShiftResultRepository {
     ) -> Result<Vec<OptimizedShiftResultDomain>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let mut query = optimized_shift_results::table
                 .filter(optimized_shift_results::tenant_id.eq(tenant_id))
@@ -134,7 +134,7 @@ impl OptimizedShiftResultRepository for DieselOptimizedShiftResultRepository {
     ) -> Result<i64, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             optimized_shift_results::table
                 .filter(optimized_shift_results::tenant_id.eq(tenant_id))
@@ -153,7 +153,7 @@ impl OptimizedShiftResultRepository for DieselOptimizedShiftResultRepository {
     ) -> Result<OptimizedShiftResultDomain, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             diesel::update(
                 optimized_shift_results::table
@@ -181,7 +181,7 @@ impl OptimizedShiftResultRepository for DieselOptimizedShiftResultRepository {
     ) -> Result<(), AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             conn.transaction::<_, AppError, _>(|conn| {
                 // Detach any planning tasks that reference this result before deleting

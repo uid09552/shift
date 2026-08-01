@@ -9,6 +9,7 @@ import logging
 import nats
 from pydantic import ValidationError
 
+from shift_planner import telemetry
 from shift_planner.models import SchedulingInput
 from shift_planner.optimizer import solve
 
@@ -19,7 +20,13 @@ RESULTS_SUBJECT = "scheduling.results"
 
 
 async def handle_request(msg, nc):
-    """Handle incoming scheduling requests from NATS JetStream queue."""
+    """Handle incoming scheduling requests from NATS JetStream queue.
+
+    The whole job runs inside a consumer span continuing the trace the backend
+    started (it puts a ``traceparent`` in the payload, since NATS carries no
+    headers), and the result is published with this planner's own traceparent
+    so the backend can attach storing the result to the same trace.
+    """
     job_id = None
     try:
         data = json.loads(msg.data.decode())
@@ -31,30 +38,43 @@ async def handle_request(msg, nc):
             await msg.ack()
             return
 
-        # Validate input data
-        try:
-            validated_input = SchedulingInput(**data)
-            data = validated_input.model_dump()
-        except ValidationError as e:
-            logger.warning(f"Input validation failed: {e}")
-            error_response = {
-                "job_id": job_id,
-                "status": "validation_error",
-                "message": f"Invalid input: {e.json()}",
-            }
-            await nc.publish(RESULTS_SUBJECT, json.dumps(error_response).encode())
+        subject = getattr(msg, "subject", "scheduling")
+        with telemetry.consumer_span(
+            f"process {subject}",
+            data.get("traceparent"),
+            **{
+                "messaging.operation.name": "process",
+                "messaging.destination.name": subject,
+                "messaging.message.id": job_id,
+            },
+        ) as span:
+            # Validate input data
+            try:
+                validated_input = SchedulingInput(**data)
+                data = validated_input.model_dump()
+            except ValidationError as e:
+                logger.warning(f"Input validation failed: {e}")
+                telemetry.set_attributes(span, **{"planner.status": "validation_error"})
+                error_response = {
+                    "job_id": job_id,
+                    "status": "validation_error",
+                    "message": f"Invalid input: {e.json()}",
+                    "traceparent": telemetry.current_traceparent(),
+                }
+                await nc.publish(RESULTS_SUBJECT, json.dumps(error_response).encode())
+                await msg.ack()
+                return
+
+            result = solve(data)
+            logger.info(f"Solved scheduling request (job_id={job_id}) - status: {result.status}")
+
+            result_payload = result.model_dump()
+            result_payload["job_id"] = job_id
+            result_payload["traceparent"] = telemetry.current_traceparent()
+            await nc.publish(RESULTS_SUBJECT, json.dumps(result_payload, default=str).encode())
+            logger.info(f"Published result for job_id={job_id} to '{RESULTS_SUBJECT}'")
+
             await msg.ack()
-            return
-
-        result = solve(data)
-        logger.info(f"Solved scheduling request (job_id={job_id}) - status: {result.status}")
-
-        result_payload = result.model_dump()
-        result_payload["job_id"] = job_id
-        await nc.publish(RESULTS_SUBJECT, json.dumps(result_payload, default=str).encode())
-        logger.info(f"Published result for job_id={job_id} to '{RESULTS_SUBJECT}'")
-
-        await msg.ack()
     except Exception as e:
         logger.error(f"Error processing scheduling request (job_id={job_id}): {e}", exc_info=True)
         error_response = {

@@ -12,3 +12,19 @@ broker:
 
 optimizer:
   url: "http://localhost:8888"
+
+# OpenTelemetry export. Off while `endpoint` is empty and
+# OTEL_EXPORTER_OTLP_ENDPOINT is unset; every field below falls back to its
+# standard OTEL_* (or GitLab CI_*) environment variable.
+otel:
+  # gRPC: https://<project>.otel.gitlab-o11y.com:14317
+  # HTTP: https://<project>.otel.gitlab-o11y.com:14318
+  endpoint: ""
+  protocol: "grpc"      # grpc | http
+  headers: ""           # "key=value,key2=value2" — e.g. the collector's auth token
+  service_name: "shift-backend"
+  service_version: ""   # CI_COMMIT_SHA
+  environment: ""       # CI_ENVIRONMENT_NAME
+  gitlab_project_id: "" # CI_PROJECT_ID
+  gitlab_project_name: "" # CI_PROJECT_NAME
+  sample_ratio: 1.0

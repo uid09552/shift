@@ -263,6 +263,16 @@ impl OptimizerService {
     }
 
     /// Build task DTO, store it in the DB, publish to NATS, return the task_id.
+    #[tracing::instrument(
+        name = "publish scheduling",
+        skip_all,
+        fields(
+            otel.kind = "producer",
+            messaging.system = "nats",
+            messaging.destination.name = NATS_SCHEDULING_SUBJECT,
+            messaging.message.id = %task_id,
+        )
+    )]
     pub async fn schedule(
         &self,
         tenant_id: &str,
@@ -281,6 +291,12 @@ impl OptimizerService {
         let mut payload_value = serde_json::to_value(&task_dto)?;
         if let serde_json::Value::Object(ref mut map) = payload_value {
             map.insert("job_id".to_string(), serde_json::Value::String(task_id.to_string()));
+            // NATS carries no headers here, so the trace context rides along in
+            // the payload: the planner picks it up and its solve shows up under
+            // the request that asked for the plan.
+            if let Some(traceparent) = crate::telemetry::current_traceparent() {
+                map.insert("traceparent".to_string(), serde_json::Value::String(traceparent));
+            }
         }
         let payload_bytes = serde_json::to_vec(&payload_value)?;
 
@@ -300,6 +316,13 @@ impl OptimizerService {
                 println!("Published task {} to NATS (plain)", task_id);
             }
         }
+        crate::telemetry::metrics().messaging_published.add(
+            1,
+            &[opentelemetry::KeyValue::new(
+                "messaging.destination.name",
+                NATS_SCHEDULING_SUBJECT,
+            )],
+        );
 
         Ok(())
     }
@@ -338,11 +361,37 @@ pub fn start_result_subscriber(state: AppState) {
     });
 }
 
+#[tracing::instrument(
+    name = "consume scheduling.results",
+    skip_all,
+    fields(
+        otel.kind = "consumer",
+        messaging.system = "nats",
+        messaging.destination.name = NATS_RESULTS_SUBJECT,
+    )
+)]
 async fn handle_result_message(
     state: AppState,
     payload: &[u8],
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let raw: serde_json::Value = serde_json::from_slice(payload)?;
+
+    // Continue the trace the planner ran the solve in, so storing the result
+    // shows up under the plan request rather than as a trace of its own.
+    {
+        use tracing_opentelemetry::OpenTelemetrySpanExt;
+        // Fails only when telemetry is off and the OTel layer isn't installed.
+        let _ = tracing::Span::current().set_parent(crate::telemetry::context_from_traceparent(
+            raw.get("traceparent").and_then(|v| v.as_str()),
+        ));
+    }
+    crate::telemetry::metrics().messaging_consumed.add(
+        1,
+        &[opentelemetry::KeyValue::new(
+            "messaging.destination.name",
+            NATS_RESULTS_SUBJECT,
+        )],
+    );
 
     // job_id may be absent on old/legacy messages — skip silently
     let Some(job_id_str) = raw.get("job_id").and_then(|v| v.as_str()) else {

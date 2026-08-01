@@ -19,6 +19,7 @@ import sys
 import click
 from pydantic import ValidationError
 
+from shift_planner import telemetry
 from shift_planner.models import load_and_validate, validate_output, SchedulingOutput
 from shift_planner.optimizer import solve
 
@@ -124,10 +125,13 @@ def nats(queue_name, stream_name, broker_url):
     """Start scheduler server in NATS JetStream subscriber mode."""
     from shift_planner.nats_handler import start_server
 
+    telemetry.init_telemetry()
+
     print("Starting scheduler server (NATS)")
     print(f"  Broker URL : {broker_url}")
     print(f"  Stream name: {stream_name}")
     print(f"  Subject    : {queue_name}")
+    print(f"  Telemetry  : {telemetry.endpoint() or 'disabled'}")
     print()
 
     try:
@@ -137,6 +141,8 @@ def nats(queue_name, stream_name, broker_url):
     except Exception as e:
         logger.error(f"Fatal error: {e}", exc_info=True)
         sys.exit(1)
+    finally:
+        telemetry.shutdown()
 
 
 @cli.command()
@@ -161,10 +167,13 @@ def api(host, port, debug):
     """Start scheduler server in REST API mode."""
     from shift_planner.server import create_app
 
+    telemetry.init_telemetry()
+
     print("Starting Shift Planner REST API")
-    print(f"  Host  : {host}")
-    print(f"  Port  : {port}")
-    print(f"  Debug : {debug}")
+    print(f"  Host      : {host}")
+    print(f"  Port      : {port}")
+    print(f"  Debug     : {debug}")
+    print(f"  Telemetry : {telemetry.endpoint() or 'disabled'}")
     print()
     print("Endpoints:")
     print(f"  POST http://{host}:{port}/api/v1/optimize  — Submit scheduling request")
@@ -172,7 +181,10 @@ def api(host, port, debug):
     print()
 
     app = create_app()
-    app.run(host=host, port=port, debug=debug)
+    try:
+        app.run(host=host, port=port, debug=debug)
+    finally:
+        telemetry.shutdown()
 
 
 # ---------------------------------------------------------------------------

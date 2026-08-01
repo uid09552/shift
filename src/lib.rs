@@ -7,3 +7,4 @@ pub mod repository;
 pub mod schema;
 pub mod server;
 pub mod services;
+pub mod telemetry;

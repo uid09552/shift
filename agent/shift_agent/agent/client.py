@@ -30,6 +30,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -37,6 +38,7 @@ from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 from langchain_core.tools import StructuredTool
 
+from shift_agent import telemetry
 from shift_agent.agent.auth import get_outgoing_token
 from shift_agent.config import settings
 
@@ -134,7 +136,8 @@ class MCPClient:
 
         The access token is resolved here, on the caller's stack, and passed
         down explicitly — the sync path hops threads/event loops, which the
-        contextvar it comes from would not survive.
+        contextvar it comes from would not survive. The trace context is
+        carried the same way, and for the same reason.
         """
         tool_name: str = mcp_tool.name
         tool_description: str = mcp_tool.description or ""
@@ -144,17 +147,23 @@ class MCPClient:
             return await self._call_tool(tool_name, kwargs, get_outgoing_token())
 
         def sync_call(**kwargs: Any) -> str:
-            coro = self._call_tool(tool_name, kwargs, get_outgoing_token())
+            token = get_outgoing_token()
+            trace_context = telemetry.current_context()
+
+            async def run() -> str:
+                with telemetry.use_context(trace_context):
+                    return await self._call_tool(tool_name, kwargs, token)
+
             try:
                 asyncio.get_running_loop()
             except RuntimeError:
                 # No running loop (the usual case — a Flask request thread).
-                return asyncio.run(coro)
+                return asyncio.run(run())
 
             # Called from inside a running loop: asyncio.run() would fail, so
             # run it to completion on a worker thread of its own instead.
             with ThreadPoolExecutor(max_workers=1) as pool:
-                return pool.submit(asyncio.run, coro).result()
+                return pool.submit(asyncio.run, run()).result()
 
         return StructuredTool(
             name=tool_name,
@@ -172,22 +181,30 @@ class MCPClient:
     ) -> str:
         """Call a tool on the MCP server as ``token`` and return its text
         result."""
-        try:
-            async with self._session(token) as session:
-                result = await session.call_tool(name, arguments, raise_on_error=False)
-        except Exception as exc:
-            logger.exception("MCP tool '%s' call failed", name)
-            return json.dumps({"error": f"MCP call failed: {exc}"})
+        started = time.perf_counter()
+        with telemetry.tool_span(name, **{"server.address": self._url}) as span:
+            try:
+                async with self._session(token) as session:
+                    result = await session.call_tool(name, arguments, raise_on_error=False)
+            except Exception as exc:
+                logger.exception("MCP tool '%s' call failed", name)
+                telemetry.set_attributes(span, **{"error.type": type(exc).__name__})
+                telemetry.record_tool_call(time.perf_counter() - started, name, "unreachable")
+                return json.dumps({"error": f"MCP call failed: {exc}"})
 
-        if result.is_error:
-            error_text = (
-                result.content[0].text
-                if result.content
-                else "Unknown MCP error"
-            )
-            return json.dumps({"error": error_text})
+            outcome = "error" if result.is_error else "ok"
+            telemetry.set_attributes(span, **{"mcp.tool.is_error": result.is_error})
+            telemetry.record_tool_call(time.perf_counter() - started, name, outcome)
 
-        if result.content:
-            return _as_json(result.content[0].text)
+            if result.is_error:
+                error_text = (
+                    result.content[0].text
+                    if result.content
+                    else "Unknown MCP error"
+                )
+                return json.dumps({"error": error_text})
 
-        return json.dumps({"result": "ok"})
+            if result.content:
+                return _as_json(result.content[0].text)
+
+            return json.dumps({"result": "ok"})

@@ -3,8 +3,8 @@ use chrono::NaiveDate;
 use chrono::Utc;
 use diesel::prelude::*;
 use std::sync::Arc;
-use tokio::task;
 use uuid::Uuid;
+use crate::telemetry;
 use crate::errors::AppError;
 use diesel::pg::upsert::excluded;
 
@@ -40,7 +40,7 @@ impl ConfirmedShiftPlanRepository for DieselConfirmedShiftPlanRepository {
             creation_type: plan.creation_type.clone(),
             tenant_id: tenant_id.to_string(),
         };
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             // Upsert: if a plan already exists for (tenant_id, employee_id, date), update it
             // so that marking a day as leave never conflicts with an existing entry.
@@ -82,7 +82,7 @@ impl ConfirmedShiftPlanRepository for DieselConfirmedShiftPlanRepository {
     ) -> Result<Vec<ConfirmedShiftPlan>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             confirmed_shift_plans::table
                 .filter(confirmed_shift_plans::employee_id.eq(employee_id))
@@ -120,7 +120,7 @@ impl ConfirmedShiftPlanRepository for DieselConfirmedShiftPlanRepository {
     ) -> Result<Vec<ConfirmedShiftPlan>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             confirmed_shift_plans::table
                 .filter(confirmed_shift_plans::employee_id.eq(employee_id))
@@ -158,7 +158,7 @@ impl ConfirmedShiftPlanRepository for DieselConfirmedShiftPlanRepository {
     ) -> Result<Option<ConfirmedShiftPlan>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             confirmed_shift_plans::table
                 .filter(confirmed_shift_plans::id.eq(id))
@@ -194,7 +194,7 @@ impl ConfirmedShiftPlanRepository for DieselConfirmedShiftPlanRepository {
     ) -> Result<ConfirmedShiftPlan, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let update = UpdateConfirmedShiftPlan {
                 shift_id,
@@ -236,7 +236,7 @@ impl ConfirmedShiftPlanRepository for DieselConfirmedShiftPlanRepository {
     ) -> Result<(), AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let count = diesel::delete(
                 confirmed_shift_plans::table
@@ -263,7 +263,7 @@ impl ConfirmedShiftPlanRepository for DieselConfirmedShiftPlanRepository {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
         let absence_type = absence_type.to_owned();
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             diesel::delete(
                 confirmed_shift_plans::table
@@ -287,7 +287,7 @@ impl ConfirmedShiftPlanRepository for DieselConfirmedShiftPlanRepository {
     ) -> Result<Vec<ConfirmedShiftPlan>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let mut query = confirmed_shift_plans::table
                 .filter(confirmed_shift_plans::tenant_id.eq(tenant_id))
@@ -329,7 +329,7 @@ impl ConfirmedShiftPlanRepository for DieselConfirmedShiftPlanRepository {
     ) -> Result<i64, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             confirmed_shift_plans::table
                 .filter(confirmed_shift_plans::tenant_id.eq(tenant_id))
@@ -350,7 +350,7 @@ impl ConfirmedShiftPlanRepository for DieselConfirmedShiftPlanRepository {
     ) -> Result<Vec<ConfirmedShiftPlan>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let mut query = confirmed_shift_plans::table
                 .filter(confirmed_shift_plans::tenant_id.eq(tenant_id))
@@ -396,7 +396,7 @@ impl ConfirmedShiftPlanRepository for DieselConfirmedShiftPlanRepository {
     ) -> Result<i64, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             confirmed_shift_plans::table
                 .filter(confirmed_shift_plans::tenant_id.eq(tenant_id))
@@ -434,7 +434,7 @@ impl ConfirmedShiftPlanRepository for DieselConfirmedShiftPlanRepository {
             })
             .collect();
 
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             conn.transaction::<_, AppError, _>(|conn| {
                 diesel::delete(

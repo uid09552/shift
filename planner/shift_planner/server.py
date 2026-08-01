@@ -12,6 +12,7 @@ import logging
 from flask import Flask, jsonify, request
 from pydantic import ValidationError
 
+from shift_planner import telemetry
 from shift_planner.models import SchedulingInput
 from shift_planner.optimizer import solve
 
@@ -26,6 +27,9 @@ logger = logging.getLogger(__name__)
 def create_app() -> Flask:
     """Create and configure the Flask application."""
     app = Flask(__name__)
+    # One server span per request, named after the route. No-op unless an OTLP
+    # endpoint is configured (see telemetry.init_telemetry, called at startup).
+    telemetry.instrument_flask(app)
 
     @app.route("/api/v1/optimize", methods=["POST"])
     def schedule():

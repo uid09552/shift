@@ -4,9 +4,9 @@ use chrono::NaiveDate;
 use diesel::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::task;
 use uuid::Uuid;
 
+use crate::telemetry;
 use crate::database::DbPool;
 use crate::errors::AppError;
 use crate::models as models;
@@ -31,7 +31,7 @@ impl AnalysisRepository for DieselAnalysisRepository {
     ) -> Result<Vec<WorkstationDailyHoursDomain>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::Internal)?;
 
             // Fetch confirmed shift plans in range where employee is present and workstation is assigned
@@ -124,7 +124,7 @@ impl AnalysisRepository for DieselAnalysisRepository {
     ) -> Result<Vec<WorkstationDailyEmployeesDomain>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::Internal)?;
 
             // Fetch confirmed shift plans in range where employee is present and workstation is assigned

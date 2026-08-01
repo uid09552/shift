@@ -59,6 +59,18 @@ services:
       dockerfile: deploy/Dockerfile.backend
     image: shift-backend:local
     container_name: shift_deploy_backend
+    environment:
+      # OpenTelemetry. Set OTEL_EXPORTER_OTLP_ENDPOINT in deploy/.env to turn
+      # tracing and metrics on; leaving it empty keeps them off. See
+      # docs/observability.md.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+      OTEL_SERVICE_NAME: shift-backend
+      CI_PROJECT_ID: ${CI_PROJECT_ID:-}
+      CI_PROJECT_NAME: ${CI_PROJECT_NAME:-shift}
+      CI_COMMIT_SHA: ${CI_COMMIT_SHA:-}
+      CI_ENVIRONMENT_NAME: ${CI_ENVIRONMENT_NAME:-}
     ports:
       - "8081:8080"
     depends_on:
@@ -77,6 +89,18 @@ services:
       dockerfile: deploy/Dockerfile.planner
     image: shift-planner:local
     container_name: shift_deploy_planner
+    environment:
+      # Same OTLP endpoint as the backend; the traceparent the backend puts in
+      # the NATS payload makes a solve show up under the request that asked
+      # for it. See docs/observability.md.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+      OTEL_SERVICE_NAME: shift-planner
+      CI_PROJECT_ID: ${CI_PROJECT_ID:-}
+      CI_PROJECT_NAME: ${CI_PROJECT_NAME:-shift}
+      CI_COMMIT_SHA: ${CI_COMMIT_SHA:-}
+      CI_ENVIRONMENT_NAME: ${CI_ENVIRONMENT_NAME:-}
     depends_on:
       - nats
     networks:
@@ -128,6 +152,9 @@ services:
       # how-to questions from, copied into the image by Dockerfile.agent.
       # Pinned for the same reason: it's an in-image path, not a host one.
       SHIFT_AGENT_KNOWLEDGE_PATH: /docs/knowledge
+      # OTLP endpoint and headers come from .env with everything else; only
+      # the service name is per-service. See docs/observability.md.
+      OTEL_SERVICE_NAME: shift-agent
     ports:
       - "8899:8899"
     depends_on:
@@ -161,6 +188,9 @@ services:
       # HTTPS to offer that flow too.
       MCP_OAUTH_CLIENT_ID: ""
       MCP_OAUTH_CLIENT_SECRET: ""
+      # Reported separately from the agent so the two show up as distinct
+      # services in the trace. See docs/observability.md.
+      OTEL_SERVICE_NAME: shift-mcp
     ports:
       - "8900:8900"
     depends_on:

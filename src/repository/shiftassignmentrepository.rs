@@ -2,8 +2,8 @@ use async_trait::async_trait;
 use chrono::NaiveDate;
 use diesel::prelude::*;
 use std::sync::Arc;
-use tokio::task;
 use uuid::Uuid;
+use crate::telemetry;
 use crate::errors::AppError;
 use diesel::result::{Error as DieselError, DatabaseErrorKind};
 
@@ -34,7 +34,7 @@ impl EmployeeShiftAssignmentRepository for DieselEmployeeShiftAssignmentReposito
             date: assignment.date,
             tenant_id: tenant_id.to_string(),
         };
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let created = diesel::insert_into(employee_shift_assignments::table)
                 .values(&new_assignment)
@@ -61,7 +61,7 @@ impl EmployeeShiftAssignmentRepository for DieselEmployeeShiftAssignmentReposito
     ) -> Result<Vec<EmployeeShiftAssignment>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             employee_shift_assignments::table
                 .filter(employee_shift_assignments::employee_id.eq(employee_id))
@@ -93,7 +93,7 @@ impl EmployeeShiftAssignmentRepository for DieselEmployeeShiftAssignmentReposito
     ) -> Result<Vec<EmployeeShiftAssignment>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             employee_shift_assignments::table
                 .filter(employee_shift_assignments::employee_id.eq(employee_id))
@@ -125,7 +125,7 @@ impl EmployeeShiftAssignmentRepository for DieselEmployeeShiftAssignmentReposito
     ) -> Result<(), AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let count = diesel::delete(
                 employee_shift_assignments::table

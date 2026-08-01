@@ -6,13 +6,12 @@ use axum::{
     extract::{ State},
     http::StatusCode,
 };
-use tokio::task;
-
 use serde_json::json;
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 
 use crate::repository::{AppState, domain::PlanningTaskRepository};
+use crate::telemetry;
 use crate::services::{
     analysis::AnalysisService,
     audit_log::AuditLogService,
@@ -36,7 +35,7 @@ pub async fn health_check(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let pool = state.pool.clone();
 
-    let result = task::spawn_blocking(move || {
+    let result = telemetry::db_blocking(move || {
         pool.get().is_ok()
     })
     .await
@@ -178,6 +177,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/health", get(health_check))
         .nest("/api/v1", api_v1)
         .layer(CorsLayer::permissive())
+        // Applied last, so it wraps CORS and auth and sees every request and
+        // its final status. No-op unless an OTLP endpoint is configured.
+        .layer(middleware::from_fn(telemetry::http_trace_layer))
         .with_state(state)
 }
 

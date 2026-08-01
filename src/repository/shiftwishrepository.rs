@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use diesel::prelude::*;
 use std::sync::Arc;
-use tokio::task;
 use uuid::Uuid;
+use crate::telemetry;
 use crate::errors::AppError;
 use diesel::result::{Error as DieselError, DatabaseErrorKind};
 
@@ -36,7 +36,7 @@ impl ShiftWishRepository for DieselShiftWishRepository {
             wish_date: wish.wish_date,
             tenant_id: tenant_id.to_string(),
         };
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             diesel::insert_into(shift_wishes::table)
                 .values(&new_wish)
@@ -53,7 +53,7 @@ impl ShiftWishRepository for DieselShiftWishRepository {
     async fn get_shift_wish(&self, tenant_id: &str, id: Uuid) -> Result<Option<ShiftWish>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             shift_wishes::table
                 .filter(shift_wishes::id.eq(id))
@@ -69,7 +69,7 @@ impl ShiftWishRepository for DieselShiftWishRepository {
     async fn list_shift_wishes(&self, tenant_id: &str) -> Result<Vec<ShiftWish>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             shift_wishes::table
                 .filter(shift_wishes::tenant_id.eq(&tenant_id))
@@ -83,7 +83,7 @@ impl ShiftWishRepository for DieselShiftWishRepository {
     async fn get_shift_wishes_for_employee(&self, tenant_id: &str, employee_id: Uuid) -> Result<Vec<ShiftWish>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             shift_wishes::table
                 .filter(shift_wishes::employee_id.eq(employee_id))
@@ -98,7 +98,7 @@ impl ShiftWishRepository for DieselShiftWishRepository {
     async fn delete_shift_wish(&self, tenant_id: &str, id: Uuid) -> Result<(), AppError> {
         let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             diesel::delete(
                 shift_wishes::table

@@ -27,7 +27,9 @@ import yaml
 from fastmcp import FastMCP
 from fastmcp.server.auth import JWTVerifier, MultiAuth
 from fastmcp.server.auth.oidc_proxy import OIDCProxy
+from fastmcp.server.middleware import Middleware, MiddlewareContext
 
+from shift_agent import telemetry
 from shift_agent.config import settings
 from shift_agent.mcp.auth import BackendTokenAuth
 
@@ -152,6 +154,24 @@ def _register_navigation(mcp: FastMCP) -> None:
         return json.dumps({"action": "navigate", "path": path})
 
 
+class TracingMiddleware(Middleware):
+    """One span per tool call, named after the tool.
+
+    The ASGI layer (see telemetry.asgi_middleware) already opens a server span
+    for the HTTP request carrying the call and continues the agent's trace;
+    this adds the tool name, which the transport can't know. The backend call
+    the tool makes lands underneath, via httpx instrumentation.
+    """
+
+    async def on_call_tool(self, context: MiddlewareContext, call_next):
+        tool_name = getattr(context.message, "name", "unknown")
+        with telemetry.span(
+            f"mcp.tool {tool_name}",
+            **{"mcp.tool.name": tool_name, "mcp.method.name": "tools/call"},
+        ):
+            return await call_next(context)
+
+
 def build_mcp_server() -> FastMCP:
     mcp = FastMCP.from_openapi(
         openapi_spec=_load_openapi_spec(),
@@ -160,6 +180,8 @@ def build_mcp_server() -> FastMCP:
         auth=_build_auth(),
     )
     _register_navigation(mcp)
+    if telemetry.enabled():
+        mcp.add_middleware(TracingMiddleware())
     return mcp
 
 

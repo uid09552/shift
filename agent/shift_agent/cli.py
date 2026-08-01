@@ -16,6 +16,8 @@ import sys
 
 import click
 
+from shift_agent import telemetry
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -39,6 +41,8 @@ def chat(knowledge_path):
     from langchain_core.messages import HumanMessage
 
     from shift_agent.agent.graph import build_graph, connect_mcp, disconnect_mcp
+
+    telemetry.init_telemetry("shift-agent-cli")
 
     async def run():
         state = build_graph(knowledge_path=knowledge_path)
@@ -72,7 +76,10 @@ def chat(knowledge_path):
 
         await disconnect_mcp(graph)
 
-    asyncio.run(run())
+    try:
+        asyncio.run(run())
+    finally:
+        telemetry.shutdown()
 
 
 @cli.command()
@@ -92,11 +99,15 @@ def api(host, port, debug, knowledge_path):
     from shift_agent.agent.server import create_app
     from shift_agent.config import settings
 
+    # Before create_app: the Flask app is instrumented as it is built.
+    telemetry.init_telemetry("shift-agent")
+
     print("Starting Shift Agent REST API")
     print(f"  Host      : {host}")
     print(f"  Port      : {port}")
     print(f"  Debug     : {debug}")
     print(f"  Knowledge : {knowledge_path or settings.knowledge_path}")
+    print(f"  Telemetry : {telemetry.endpoint() or 'disabled'}")
     print()
     print("Endpoints:")
     print(f"  POST http://{host}:{port}/api/v1/chat")
@@ -104,7 +115,10 @@ def api(host, port, debug, knowledge_path):
     print()
 
     app = create_app(knowledge_path=knowledge_path)
-    app.run(host=host, port=port, debug=debug)
+    try:
+        app.run(host=host, port=port, debug=debug)
+    finally:
+        telemetry.shutdown()
 
 
 @cli.command()
@@ -156,11 +170,25 @@ def mcp(transport, host, port):
     """Start the MCP server generated from the backend's OpenAPI spec."""
     from shift_agent.mcp.server import get_mcp
 
+    # Before get_mcp(): the server picks up its tracing middleware at build
+    # time, and the backend httpx client is instrumented as it is created.
+    telemetry.init_telemetry("shift-mcp")
+
     mcp_app = get_mcp()
-    if transport == "stdio":
-        mcp_app.run(transport="stdio")
-    else:
-        mcp_app.run(transport=transport, host=host, port=port)
+    try:
+        if transport == "stdio":
+            # No HTTP layer here, so no ASGI middleware and nothing to continue
+            # a trace from: a stdio client sends no traceparent.
+            mcp_app.run(transport="stdio")
+        else:
+            mcp_app.run(
+                transport=transport,
+                host=host,
+                port=port,
+                middleware=telemetry.asgi_middleware(),
+            )
+    finally:
+        telemetry.shutdown()
 
 
 def main():

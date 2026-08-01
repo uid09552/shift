@@ -10,6 +10,11 @@ dependencies = [
     "nats-py>=2.2.0",
     "pydantic>=2.0",
     "flask>=3.0",
+    # Observability — inert unless OTEL_EXPORTER_OTLP_ENDPOINT is set.
+    # Both exporters ship so the endpoint can be gRPC or HTTP without a rebuild.
+    "opentelemetry-sdk>=1.30",
+    "opentelemetry-exporter-otlp>=1.30",
+    "opentelemetry-instrumentation-flask>=0.51b0",
 ]
 
 [project.scripts]

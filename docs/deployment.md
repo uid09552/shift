@@ -71,6 +71,12 @@ pinned in the Compose file itself because they depend on it:
 
 `.env` files are gitignored; only the `.example` templates are tracked.
 
+Telemetry is wired the same way: set `OTEL_EXPORTER_OTLP_ENDPOINT` (plus
+headers and the `CI_*` resource attributes) in `deploy/.env` and every service
+starts exporting traces and metrics; leave it empty and none of them do. Each
+service's `OTEL_SERVICE_NAME` is pinned in the Compose file. See
+[Observability](observability.md).
+
 ## Identity provider
 
 `deploy/iam/docker-compose.yml` runs Keycloak 26.2 with its own PostgreSQL,

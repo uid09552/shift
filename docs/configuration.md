@@ -74,6 +74,20 @@ fails — there is nowhere to publish the job.
 | `dev_mode` | `false` | Pin every request to `tenant_id` instead of reading a JWT |
 | `tenant_id` | `"0"` | The tenant used in dev mode |
 
+### `otel`
+
+OpenTelemetry export, off while `endpoint` is empty. Every key falls back to
+its standard `OTEL_*` (or GitLab `CI_*`) environment variable — see
+[Observability](observability.md).
+
+| Key | Default | Meaning |
+|---|---|---|
+| `endpoint` | `""` | OTLP collector URL. Empty = telemetry disabled |
+| `protocol` | `grpc` | `grpc` or `http` |
+| `headers` | `""` | `key=value,key2=value2` sent with every export |
+| `service_name` | `shift-backend` | `service.name` on exported telemetry |
+| `sample_ratio` | `1.0` | Head sampling for traces this service starts |
+
 !!! danger "Dev mode disables tenant isolation"
     With `dev_mode: true`, every unauthenticated request operates on the
     configured tenant. It exists so the API is usable without a gateway during
@@ -118,6 +132,9 @@ cargo run -- serve --help
 | `--optimizer-url` | `optimizer.url` |
 | `--dev-mode` | `tenant.dev_mode` |
 | `--tenant-id` | `tenant.tenant_id` |
+| `--otel-endpoint` | `otel.endpoint` |
+| `--otel-protocol` | `otel.protocol` |
+| `--otel-service-name` | `otel.service_name` |
 
 The `serve` Makefile target wraps these:
 

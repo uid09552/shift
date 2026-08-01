@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use shift::{broker, config::{self, CliArgs}, database, repository::AppState, server};
+use shift::{broker, config::{self, CliArgs}, database, repository::AppState, server, telemetry};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use url::Url;
@@ -71,6 +71,19 @@ enum Commands {
         /// Default tenant id used in dev mode. Later this will come from the auth token.
         #[arg(long)]
         tenant_id: Option<String>,
+
+        /// OTLP endpoint to export traces and metrics to. Unset (and no
+        /// OTEL_EXPORTER_OTLP_ENDPOINT) means no telemetry is exported.
+        #[arg(long)]
+        otel_endpoint: Option<String>,
+
+        /// OTLP protocol: grpc (default) or http
+        #[arg(long)]
+        otel_protocol: Option<String>,
+
+        /// service.name reported on exported telemetry (default: shift-backend)
+        #[arg(long)]
+        otel_service_name: Option<String>,
     },
 }
 
@@ -94,6 +107,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             optimizer_url,
             dev_mode,
             tenant_id,
+            otel_endpoint,
+            otel_protocol,
+            otel_service_name,
         } => {
             let cli_args = CliArgs {
                 port: Some(port),
@@ -110,10 +126,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 optimizer_url,
                 dev_mode,
                 tenant_id,
+                otel_endpoint,
+                otel_protocol,
+                otel_service_name,
             };
 
             let config = config::Config::from_env_and_args(&cli_args)
                 .expect("Failed to load configuration");
+
+            // Before anything else: logging goes through the tracing subscriber
+            // this installs, and the database instrumentation it registers has
+            // to be in place before the pool opens its first connection.
+            let telemetry = telemetry::init(&config.otel, config.server.verbose);
 
             println!("Starting server...");
             println!("Listen: {}:{}", config.server.listen, config.server.port);
@@ -122,6 +146,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             println!("Broker: {}:{}", config.broker.host, config.broker.port);
             println!("Optimizer: {}", config.optimizer.url);
             println!("Tenant: dev_mode={} tenant_id={}", config.tenant.dev_mode, config.tenant.tenant_id);
+            println!(
+                "Telemetry: {}",
+                if telemetry.enabled() {
+                    format!("{} ({})", config.otel.endpoint, config.otel.protocol)
+                } else {
+                    "disabled (no OTLP endpoint configured)".to_string()
+                }
+            );
 
             // Initialize database
             let pool = database::establish_connection_pool(&config.database);
@@ -136,6 +168,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             state.default_tenant_id = config.tenant.tenant_id.clone();
             let addr = format!("{}:{}", config.server.listen, config.server.port).parse::<SocketAddr>()?;
             server::start_server(state, addr).await?;
+
+            // Flush whatever is still batched before the process goes away.
+            telemetry.shutdown();
         }
     }
 

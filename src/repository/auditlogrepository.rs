@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use diesel::prelude::*;
 use diesel::result::Error as DieselError;
 use std::sync::Arc;
-use tokio::task;
+use crate::telemetry;
 use crate::errors::AppError;
 
 use crate::database::DbPool;
@@ -53,7 +53,7 @@ impl AuditLogRepository for DieselAuditLogRepository {
             changes,
         };
         let tenant_id_for_trim = tenant_id.to_string();
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             conn.transaction(|conn| {
                 let inserted = diesel::insert_into(audit_logs::table)
@@ -96,7 +96,7 @@ impl AuditLogRepository for DieselAuditLogRepository {
         let action = action.map(|s| s.to_string());
         let entity_type = entity_type.map(|s| s.to_string());
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let mut query = audit_logs::table
                 .filter(audit_logs::tenant_id.eq(tenant_id))
@@ -140,7 +140,7 @@ impl AuditLogRepository for DieselAuditLogRepository {
         let action = action.map(|s| s.to_string());
         let entity_type = entity_type.map(|s| s.to_string());
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let mut query = audit_logs::table
                 .filter(audit_logs::tenant_id.eq(tenant_id))

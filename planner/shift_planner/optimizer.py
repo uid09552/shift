@@ -14,10 +14,12 @@ NATS handler.
 """
 
 import logging
+import time
 from datetime import datetime, timedelta
 
 from ortools.sat.python import cp_model
 
+from shift_planner import telemetry
 from shift_planner.models import (
     DailyPlanEntry,
     DaySchedule,
@@ -995,6 +997,32 @@ def solve(data: dict) -> SchedulingOutput:
     """Build and solve the CP-SAT model, return the schedule.
 
     Stable entry point for the CLI, REST API and NATS handler; the actual
-    model lives in :class:`ShiftPlanner`.
+    model lives in :class:`ShiftPlanner`. Being the one entry point, this is
+    also where a solve gets traced and measured — see telemetry.record_solve.
     """
-    return ShiftPlanner(data).solve()
+    period = data.get("planning_period") or {}
+    started = time.perf_counter()
+
+    with telemetry.span(
+        "planner.solve",
+        **{
+            "planner.employees": len(data.get("employees") or []),
+            "planner.workstations": len(data.get("workstations") or []),
+            "planner.shifts": len(data.get("shifts") or []),
+            "planner.period.start": str(period.get("start_date") or ""),
+            "planner.period.end": str(period.get("end_date") or ""),
+        },
+    ) as span:
+        result = ShiftPlanner(data).solve()
+
+        duration = time.perf_counter() - started
+        telemetry.set_attributes(
+            span,
+            **{
+                "planner.status": result.status,
+                "planner.objective_value": float(result.objective_value),
+            },
+        )
+        telemetry.record_solve(duration, result.status)
+
+    return result

@@ -1,13 +1,13 @@
 use async_trait::async_trait;
 use diesel::prelude::*;
 use std::sync::Arc;
+use crate::telemetry;
 use crate::repository::domain::{Shift, WeekdayTime, ShiftRepository};
 use crate::models::{self, NewShift, NewShiftWeekdayTime};
 use crate::schema::shifts;
 use crate::schema::shift_weekday_times;
 use crate::database::DbPool;
 use uuid::Uuid;
-use tokio::task;
 use crate::errors::AppError;
 
 #[derive(Clone)]
@@ -50,7 +50,7 @@ impl ShiftRepository for DieselShiftRepository {
         let short_name = short_name.to_string();
         let color = color.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let new_shift = NewShift { name: &name, short_name: &short_name, color: &color, order, tenant_id: &tenant_id };
             let shift = diesel::insert_into(shifts::table)
@@ -78,7 +78,7 @@ impl ShiftRepository for DieselShiftRepository {
     async fn get_shift(&self, tenant_id: &str, id: Uuid) -> Result<Option<Shift>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let shift_opt = shifts::table
                 .filter(shifts::id.eq(id))
@@ -108,7 +108,7 @@ impl ShiftRepository for DieselShiftRepository {
     async fn update_shift(&self, tenant_id: &str, id: Uuid, name_opt: Option<String>, short_name_opt: Option<String>, color_opt: Option<String>, order_opt: Option<i32>) -> Result<Shift, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
 
             // Verify shift exists and get current values
@@ -166,7 +166,7 @@ impl ShiftRepository for DieselShiftRepository {
     async fn list_shifts(&self, tenant_id: &str) -> Result<Vec<Shift>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let shifts_list = shifts::table
                 .filter(shifts::tenant_id.eq(&tenant_id))
@@ -194,7 +194,7 @@ impl ShiftRepository for DieselShiftRepository {
     async fn delete_shift(&self, tenant_id: &str, id: Uuid) -> Result<(), AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             // First delete all weekday times for this shift
             diesel::delete(
@@ -233,7 +233,7 @@ impl DieselShiftRepository {
     ) -> Result<WeekdayTime, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
 
             // Verify shift exists
@@ -289,7 +289,7 @@ impl DieselShiftRepository {
     ) -> Result<(), AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             diesel::delete(
                 shift_weekday_times::table

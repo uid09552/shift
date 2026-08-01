@@ -17,6 +17,13 @@ dependencies = [
     "mcp>=1.0",
     "pyjwt>=2.8",
     "cryptography>=41.0",
+    # Observability — inert unless OTEL_EXPORTER_OTLP_ENDPOINT is set.
+    # Both exporters ship so the endpoint can be gRPC or HTTP without a rebuild.
+    "opentelemetry-sdk>=1.30",
+    "opentelemetry-exporter-otlp>=1.30",
+    "opentelemetry-instrumentation-flask>=0.51b0",
+    "opentelemetry-instrumentation-httpx>=0.51b0",
+    "opentelemetry-instrumentation-asgi>=0.51b0",
 ]
 
 [project.scripts]

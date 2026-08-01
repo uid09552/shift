@@ -1,9 +1,9 @@
 use std::sync::Arc;
 use async_trait::async_trait;
 use diesel::prelude::*;
-use tokio::task;
 use uuid::Uuid;
 
+use crate::telemetry;
 use crate::database::DbPool;
 use crate::errors::AppError;
 use crate::models::{NewPlanningTask, PlanningTask};
@@ -37,7 +37,7 @@ impl PlanningTaskRepository for DieselPlanningTaskRepository {
     ) -> Result<PlanningTaskDomain, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let new_task = NewPlanningTask {
                 id,
@@ -61,7 +61,7 @@ impl PlanningTaskRepository for DieselPlanningTaskRepository {
     ) -> Result<Option<PlanningTaskDomain>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let result = planning_tasks::table
                 .filter(planning_tasks::id.eq(id))
@@ -80,7 +80,7 @@ impl PlanningTaskRepository for DieselPlanningTaskRepository {
     ) -> Result<Vec<PlanningTaskDomain>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let results = planning_tasks::table
                 .filter(planning_tasks::tenant_id.eq(&tenant_id))
@@ -100,7 +100,7 @@ impl PlanningTaskRepository for DieselPlanningTaskRepository {
     ) -> Result<(), AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             diesel::update(
                 planning_tasks::table
@@ -127,7 +127,7 @@ impl PlanningTaskRepository for DieselPlanningTaskRepository {
     ) -> Result<(), AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             diesel::update(
                 planning_tasks::table
@@ -153,7 +153,7 @@ impl PlanningTaskRepository for DieselPlanningTaskRepository {
     ) -> Result<(), AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let count = diesel::delete(
                 planning_tasks::table
@@ -177,7 +177,7 @@ impl PlanningTaskRepository for DieselPlanningTaskRepository {
     ) -> Result<(), AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             diesel::update(
                 planning_tasks::table
@@ -200,7 +200,7 @@ impl PlanningTaskRepository for DieselPlanningTaskRepository {
         cutoff: chrono::NaiveDateTime,
     ) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
         let pool = Arc::clone(&self.pool);
-        task::spawn_blocking(move || {
+        telemetry::db_blocking(move || {
             let mut conn = pool.get()?;
             let count = diesel::update(
                 planning_tasks::table
