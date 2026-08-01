@@ -16,6 +16,29 @@ export interface WorkstationDailyEmployees {
   planned_employees: number;
 }
 
+/** One person working on a given day, with shift and workstation already named. */
+export interface WorkingEmployee {
+  employee_id: string;
+  employee_name: string;
+  shift_id: string | null;
+  shift_name: string | null;
+  workstation_id: string | null;
+  workstation_name: string | null;
+}
+
+export interface ShiftDailyStaffing {
+  shift_id: string;
+  shift_name: string;
+  employees_working: number;
+}
+
+export interface DailyStaffing {
+  date: string;
+  employees_working: number;
+  employees: WorkingEmployee[];
+  per_shift: ShiftDailyStaffing[];
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -48,5 +71,20 @@ export class AnalysisService {
       `${this.apiUrl}/analysis/planned-employees-per-day-per-workstation`,
       { params },
     );
+  }
+
+  /**
+   * Who works on each day of the range and how many, with shift and workstation
+   * names resolved server-side — one call instead of a roster plus three lookup
+   * lists. Unlike the per-workstation counts above, this covers people rostered
+   * without a workstation too.
+   */
+  getStaffingPerDay(fromDate: string, toDate: string): Observable<DailyStaffing[]> {
+    const params = new HttpParams()
+      .set('from_date', fromDate)
+      .set('to_date', toDate);
+    return this.http.get<DailyStaffing[]>(`${this.apiUrl}/analysis/staffing-per-day`, {
+      params,
+    });
   }
 }

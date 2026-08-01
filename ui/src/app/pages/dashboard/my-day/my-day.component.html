@@ -1,0 +1,203 @@
+<section class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+  <div class="flex flex-wrap items-baseline justify-between gap-2 px-5 py-4 sm:px-6">
+    <div>
+      <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">My day</h3>
+      <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+        @if (myName) {
+          {{ myName }} · your confirmed plan for this week
+        } @else {
+          Your confirmed plan for this week
+        }
+      </p>
+    </div>
+    <span class="text-sm font-medium text-gray-500 tabular-nums dark:text-gray-400">{{ todayLabel }}</span>
+  </div>
+
+  <div class="border-t border-gray-100 px-5 py-5 dark:border-white/[0.05] sm:px-6">
+
+    @if (loading) {
+      <div class="grid gap-4 lg:grid-cols-12">
+        <div class="h-32 animate-pulse rounded-xl bg-gray-100 lg:col-span-7 dark:bg-white/[0.06]"></div>
+        <div class="h-32 animate-pulse rounded-xl bg-gray-100 lg:col-span-5 dark:bg-white/[0.06]"></div>
+        <div class="h-20 animate-pulse rounded-xl bg-gray-100 lg:col-span-12 dark:bg-white/[0.06]"></div>
+      </div>
+    } @else if (unavailable === 'no-session') {
+      <p class="text-sm text-gray-500 dark:text-gray-400">
+        Sign in to see your own shifts here.
+      </p>
+    } @else if (unavailable === 'no-employee') {
+      <p class="text-sm text-gray-500 dark:text-gray-400">
+        Your account isn't linked to an employee record yet, so there's no personal plan to show.
+        <a routerLink="/user-profiles" class="font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400">Open staff profiles</a>
+        to connect it.
+      </p>
+    } @else {
+
+      <div class="grid gap-4 lg:grid-cols-12">
+
+        <!-- Today — the one thing this section exists to answer -->
+        <div class="lg:col-span-7">
+          <div class="relative h-full overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900/40">
+            @if (today?.shiftName) {
+              <!-- The shift's own colour, used as a functional marker rather than decoration -->
+              <span
+                class="absolute inset-y-0 left-0 w-1.5"
+                [style.background-color]="today?.shiftColor || '#465fff'"
+                aria-hidden="true"
+              ></span>
+              <div class="pl-3">
+                <p class="text-xs font-medium uppercase tracking-wide text-brand-600 dark:text-brand-400">Today</p>
+                <h4 class="mt-1 text-2xl font-semibold tracking-tight text-gray-800 dark:text-white/90">
+                  {{ today?.shiftName }}
+                </h4>
+                @if (today?.hours) {
+                  <p class="mt-1 text-lg font-medium text-gray-600 tabular-nums dark:text-gray-300">{{ today?.hours }}</p>
+                }
+                <dl class="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm">
+                  <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Workstation</dt>
+                    <dd class="mt-0.5 font-medium text-gray-800 dark:text-white/90">
+                      {{ today?.workstationName || 'Not assigned' }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-gray-500 dark:text-gray-400">With you</dt>
+                    <dd class="mt-0.5 font-medium text-gray-800 dark:text-white/90">
+                      {{ colleagueCount }} {{ colleagueCount === 1 ? 'colleague' : 'colleagues' }}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            } @else {
+              <div>
+                <p class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Today</p>
+                <h4 class="mt-1 text-2xl font-semibold tracking-tight text-gray-800 dark:text-white/90">
+                  No shift planned
+                </h4>
+                @if (nextWorkingDay) {
+                  <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                    Next up: <span class="font-medium text-gray-800 dark:text-white/90">{{ nextWorkingDay.shiftName }}</span>
+                    on {{ nextWorkingDay.weekdayLabel }}{{ nextWorkingDay.hours ? ', ' + nextWorkingDay.hours : '' }}.
+                  </p>
+                } @else {
+                  <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                    Nothing confirmed for you for the rest of this week.
+                  </p>
+                }
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- Who else is on -->
+        <div class="lg:col-span-5">
+          <div class="h-full rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900/40">
+            <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90">
+              @if (colleaguesAreShiftMates) {
+                Others on your shift
+              } @else {
+                Working with you
+              }
+            </h4>
+
+            @if (colleagueGroups.length === 0) {
+              <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                @if (today?.shiftName) {
+                  No one else is on your workstation today.
+                } @else {
+                  You're not scheduled today.
+                }
+              </p>
+            } @else {
+              <div class="mt-3 space-y-4">
+                @for (group of colleagueGroups; track group.workstationName) {
+                  <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ group.workstationName }}</p>
+                    <ul class="mt-2 space-y-2">
+                      @for (colleague of group.colleagues; track colleague.id) {
+                        <li class="flex items-center gap-2.5">
+                          <span
+                            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[11px] font-semibold text-gray-600 dark:bg-white/[0.06] dark:text-gray-300"
+                            aria-hidden="true"
+                          >{{ initials(colleague.name) }}</span>
+                          <span class="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-300">{{ colleague.name }}</span>
+                          @if (colleague.shiftName) {
+                            <span class="flex shrink-0 items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                              <span
+                                class="h-2 w-2 rounded-full"
+                                [style.background-color]="colleague.shiftColor || '#9ca3af'"
+                                aria-hidden="true"
+                              ></span>
+                              {{ colleague.shiftName }}
+                            </span>
+                          }
+                        </li>
+                      }
+                    </ul>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- The week, with today lifted out of the row -->
+        <div class="lg:col-span-12">
+          <ul class="grid grid-cols-7 gap-2">
+            @for (day of week; track day.date) {
+              <!-- Whole class strings rather than [class.x] bindings: a binding
+                   name cannot carry a Tailwind variant with brackets
+                   (dark:bg-white/[0.02]), and half-applied state is worse than
+                   verbose markup. -->
+              <li
+                class="rounded-xl border p-1.5 text-center transition-colors sm:p-3"
+                [attr.aria-current]="day.isToday ? 'date' : null"
+                [ngClass]="[
+                  day.isToday
+                    ? 'border-brand-500 bg-white shadow-md ring-1 ring-brand-500/30 dark:border-brand-500 dark:bg-gray-900'
+                    : 'border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-white/[0.03]',
+                  day.isPast ? 'opacity-60' : ''
+                ]"
+              >
+                <p
+                  class="text-[11px] uppercase tracking-wide"
+                  [ngClass]="day.isToday
+                    ? 'font-semibold text-brand-600 dark:text-brand-400'
+                    : 'text-gray-400 dark:text-gray-500'"
+                >{{ day.weekdayLabel }}</p>
+                <p
+                  class="mt-0.5 tabular-nums"
+                  [ngClass]="day.isToday
+                    ? 'text-xl font-bold text-gray-900 dark:text-white'
+                    : 'text-base font-medium text-gray-600 dark:text-gray-300'"
+                >{{ day.dayNumber }}</p>
+
+                @if (day.shiftName) {
+                  <span
+                    class="mt-2 inline-flex max-w-full items-center rounded-full px-1 py-0.5 text-[10px] font-medium leading-4 sm:px-2 sm:text-[11px]"
+                    [style.background-color]="day.shiftColor || '#465fff'"
+                    [style.color]="textOn(day.shiftColor)"
+                    [title]="dayLabel(day)"
+                    [attr.aria-label]="dayLabel(day)"
+                  >
+                    <span class="truncate" aria-hidden="true">{{ day.shiftShortName || day.shiftName }}</span>
+                  </span>
+                  @if (day.isToday && day.workstationName) {
+                    <p class="mt-1 truncate text-[11px] text-gray-500 dark:text-gray-400">{{ day.workstationName }}</p>
+                  }
+                } @else {
+                  <span class="mt-2 inline-block text-[11px] text-gray-400 dark:text-gray-600">Off</span>
+                }
+              </li>
+            }
+          </ul>
+          <a
+            routerLink="/kalender"
+            class="mt-3 inline-block text-xs font-medium text-brand-600 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-brand-400"
+          >Open the full schedule →</a>
+        </div>
+
+      </div>
+    }
+  </div>
+</section>

@@ -70,6 +70,19 @@ export class EmployeeService {
     return this.http.get<PaginatedEmployeeResponse>(`${this.apiUrl}/employees`, { params });
   }
 
+  /**
+   * The employee record behind a sign-in address, or null when none matches.
+   *
+   * The endpoint answers 200 with an `{ error }` body rather than 404 when the
+   * address is unknown, so the caller cannot rely on the HTTP status alone —
+   * hence the mapping to null here, once, instead of at every call site.
+   */
+  getEmployeeByEmail(email: string): Observable<Employee | null> {
+    return this.http
+      .get<Employee | { error: string }>(`${this.apiUrl}/employees/email/${encodeURIComponent(email)}`)
+      .pipe(map((res) => ('id' in res ? (res as Employee) : null)));
+  }
+
   getEmployeeDetail(id: string): Observable<EmployeeProfile> {
     return forkJoin({
       employee: this.http.get<Employee>(`${this.apiUrl}/employees/${id}`),

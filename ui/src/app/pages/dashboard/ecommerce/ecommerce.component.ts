@@ -11,6 +11,7 @@ import { AnalysisService, WorkstationDailyHours } from '../../../shared/services
 import { ConfirmedShiftPlanService } from '../../../shared/services/confirmed-shift-plan.service';
 import { AuditLogService, AuditLog } from '../../../shared/services/audit-log.service';
 import { PlannerService, PlanningTaskItem } from '../../../shared/services/planner.service';
+import { MyDayComponent } from '../my-day/my-day.component';
 
 export interface WorkstationCoverage {
   id: string;
@@ -28,6 +29,7 @@ export interface WorkstationCoverage {
     CommonModule,
     RouterLink,
     NgApexchartsModule,
+    MyDayComponent,
   ],
   templateUrl: './ecommerce.component.html',
 })

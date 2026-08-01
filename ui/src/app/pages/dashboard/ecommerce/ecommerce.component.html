@@ -1,4 +1,10 @@
 <div class="grid grid-cols-12 gap-4 md:gap-6">
+  <!-- My Day — the signed-in user's own plan, first because it is the one
+       part of this page that is about them rather than the ward -->
+  <div class="col-span-12">
+    <app-my-day />
+  </div>
+
   <!-- Metric Tiles -->
   <div class="col-span-12 sm:col-span-4">
     <a routerLink="/user-profiles" class="block rounded-2xl border border-gray-200 bg-white p-5 cursor-pointer transition-shadow hover:shadow-md dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
