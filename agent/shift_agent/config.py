@@ -34,6 +34,20 @@ class Settings:
     max_tokens: int = int(os.environ.get("SHIFT_AGENT_MAX_TOKENS", "4096"))
     temperature: float = float(os.environ.get("SHIFT_AGENT_TEMPERATURE", "0.1"))
 
+    # The model's context window, in tokens. Everything sent in one call counts
+    # against it: system prompt, tool definitions, the conversation so far and
+    # every tool result in it. When the conversation outgrows what is left
+    # after reserving `max_tokens` for the reply, the oldest turns are dropped
+    # before the call — see agent/graph.py's _fit_to_context.
+    max_context_tokens: int = int(
+        os.environ.get("SHIFT_AGENT_MAX_CONTEXT_TOKENS", "131072")
+    )
+
+    # IANA timezone the agent reports "today" in (currentDateTime, agent/clock.py) —
+    # the ward's timezone, which is not necessarily the server's. Empty = the
+    # host's local time.
+    timezone: str = os.environ.get("SHIFT_AGENT_TIMEZONE", "")
+
     # ------------------------------------------------------------------
     # Ollama-specific
     # ------------------------------------------------------------------

@@ -58,13 +58,11 @@ paths:
             default: 0
       responses:
         '200':
-          description: List of employees
+          description: Paginated list of employees
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Employee'
+                $ref: '#/components/schemas/EmployeePaginatedResponse'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -2065,6 +2063,42 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /analysis/staffing-per-day:
+    get:
+      tags:
+        - Analysis
+      summary: Get who works per day, and how many
+      description: "Returns, for each day in the range, how many distinct employees are working according to the confirmed roster, who they are (with shift and workstation names resolved), and the split per shift. Counts everyone marked present, including anyone rostered without a workstation — so unlike the per-workstation breakdowns, this is the head count for the day. Requires from_date and to_date query parameters."
+      operationId: getStaffingPerDay
+      parameters:
+        - name: from_date
+          in: query
+          required: true
+          description: First day of the range (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          required: true
+          description: Last day of the range, inclusive (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Head count per day, with the per-shift split
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DailyStaffing'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /audit-logs:
     get:
       tags:
@@ -2149,6 +2183,42 @@ components:
           format: double
           description: Monthly working hours for the employee
           example: 160.0
+        available_shifts:
+          type: array
+          description: Shifts this employee may be scheduled for. Returned on reads; set through the available-shifts endpoints.
+          items:
+            $ref: '#/components/schemas/Shift'
+        capabilities:
+          type: array
+          description: Capabilities this employee holds. Returned on reads; set through the capabilities endpoints.
+          items:
+            $ref: '#/components/schemas/Capability'
+
+    EmployeePaginatedResponse:
+      type: object
+      required:
+        - data
+        - total
+        - limit
+        - offset
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Employee'
+          description: Employees for the current page
+        total:
+          type: integer
+          description: Total number of employees
+          example: 40
+        limit:
+          type: integer
+          description: Maximum number of results returned
+          example: 50
+        offset:
+          type: integer
+          description: Number of results skipped
+          example: 0
 
     PlanRequest:
       type: object
@@ -2311,9 +2381,13 @@ components:
         solver_time_limit_seconds:
           type: number
           format: double
-          exclusiveMinimum: true
+          # Strictly greater than zero. Expressed in prose rather than as
+          # `exclusiveMinimum: true`, which is OpenAPI 3.0's boolean form: the
+          # MCP server generates JSON Schema 2020-12 tools from this document,
+          # and there `exclusiveMinimum` must be a number, so the boolean form
+          # makes the generated tool fail validation on every call.
           minimum: 0
-          description: Maximum time the CP-SAT solver may run before returning its best solution
+          description: Maximum time the CP-SAT solver may run before returning its best solution. Must be greater than 0.
           example: 120.0
         solver_num_workers:
           type: integer
@@ -2425,7 +2499,11 @@ components:
         solver_time_limit_seconds:
           type: number
           format: double
-          exclusiveMinimum: true
+          # Strictly greater than zero. Expressed in prose rather than as
+          # `exclusiveMinimum: true`, which is OpenAPI 3.0's boolean form: the
+          # MCP server generates JSON Schema 2020-12 tools from this document,
+          # and there `exclusiveMinimum` must be a number, so the boolean form
+          # makes the generated tool fail validation on every call.
           minimum: 0
         solver_num_workers:
           type: integer
@@ -3467,7 +3545,8 @@ components:
         shift_id:
           type: string
           format: uuid
-          description: ID of the shift
+          description: "ID of the shift, or null on a day the employee works no shift — see absence_type"
+          nullable: true
         workstation_id:
           type: string
           format: uuid
@@ -3714,10 +3793,15 @@ components:
           example: "2026-06-09"
         status:
           type: string
-          description: "Either 'assigned' (with shift + workstation details) or 'free' (no shift planned for that day)"
+          description: >
+            Either 'assigned' (with shift + workstation details) or 'free' (no
+            shift planned for that day). Results produced before the two were
+            merged also carry 'not_assigned', which meant "no shift planned,
+            and not a mandated rest day" — treat it as 'free'.
           enum:
             - assigned
             - free
+            - not_assigned
           example: "assigned"
         shift_id:
           type: string
@@ -3944,6 +4028,87 @@ components:
           format: int64
           description: Number of employees planned for this workstation on this date
           example: 2
+
+    DailyStaffing:
+      type: object
+      required:
+        - date
+        - employees_working
+        - employees
+        - per_shift
+      properties:
+        date:
+          type: string
+          format: date
+          description: The day this head count is for
+          example: "2026-06-09"
+        employees_working:
+          type: integer
+          format: int64
+          description: Distinct employees working that day, counting everyone marked present whether or not they have a workstation
+          example: 15
+        employees:
+          type: array
+          description: Who is working that day, with shift and workstation names already resolved — no further lookups needed to name anyone
+          items:
+            $ref: '#/components/schemas/WorkingEmployee'
+        per_shift:
+          type: array
+          description: The same head count split by shift. Employees rostered without a shift appear in employees_working only.
+          items:
+            $ref: '#/components/schemas/ShiftDailyStaffing'
+
+    WorkingEmployee:
+      type: object
+      required:
+        - employee_id
+        - employee_name
+      properties:
+        employee_id:
+          type: string
+          format: uuid
+        employee_name:
+          type: string
+          example: "Anna Müller"
+        shift_id:
+          type: string
+          format: uuid
+          nullable: true
+        shift_name:
+          type: string
+          nullable: true
+          description: Name of the shift, or null when the person is rostered without one
+          example: "Late shift"
+        workstation_id:
+          type: string
+          format: uuid
+          nullable: true
+        workstation_name:
+          type: string
+          nullable: true
+          description: Name of the workstation, or null when the person is not assigned to one
+          example: "MRT Room 1"
+
+    ShiftDailyStaffing:
+      type: object
+      required:
+        - shift_id
+        - shift_name
+        - employees_working
+      properties:
+        shift_id:
+          type: string
+          format: uuid
+          description: Unique identifier of the shift
+        shift_name:
+          type: string
+          description: Name of the shift
+          example: "Late shift"
+        employees_working:
+          type: integer
+          format: int64
+          description: Distinct employees working this shift on this date
+          example: 4
 
     AuditLog:
       type: object

@@ -27,9 +27,10 @@ flowchart TB
 
 | File | Role |
 |---|---|
-| `graph.py` | The ReAct loop: the `agent` node calls the LLM, the `tools` node runs what it asked for, repeat until a plain-text answer. History is kept per `session_id` in LangGraph's in-memory `MemorySaver`. |
+| `graph.py` | The ReAct loop: the `agent` node calls the LLM, the `tools` node runs what it asked for, repeat until a plain-text answer. History is kept per `session_id` in LangGraph's in-memory `MemorySaver`, and [capped](#context-window) before each call. |
 | `client.py` | Lists the MCP server's tools at startup and wraps each as a LangChain `StructuredTool`. |
 | `knowledge.py` | The agent's own tools — `searchKnowledge`, `readKnowledgeDoc`, `listKnowledgeTopics` — over the documentation bundle in `docs/knowledge`. |
+| `clock.py` | The agent's other local tool, `currentDateTime` — see [Telling the time](#telling-the-time). |
 | `server.py` | The HTTP surface. Validates the caller's token against Keycloak's JWKS, then stores it in a contextvar for the duration of the agent call. |
 | `auth.py` | Keycloak verification plus the contextvar holding the token. |
 
@@ -114,6 +115,45 @@ shift-agent knowledge                              # list every document
 shift-agent knowledge "why is the plan infeasible" # what searchKnowledge returns
 docker compose exec agent shift-agent knowledge    # …inside the container
 ```
+
+## Telling the time
+
+A model has no idea what day it is, yet most of what a ward manager asks is
+anchored to now — "how many people work **today**", "who is on nights
+**tomorrow**". `clock.py` binds one local tool, `currentDateTime`, returning the
+date, weekday and time plus ready-made ranges for this week, next week and this
+month; the system prompt tells the agent to call it before any relative-time
+question. It is a tool rather than a date in the prompt because the graph is
+built once per process: a date baked in at startup is wrong by the next morning.
+
+Weekday numbering matches the rest of the system (0 = Monday … 6 = Sunday), and
+`SHIFT_AGENT_TIMEZONE` sets the ward's timezone when it differs from the
+server's.
+
+That answers *when*. Answering *who* is
+[`getStaffingPerDay`](api.md): one call returns the day's head count, the people
+working with shift and workstation names already resolved, and the split per
+shift. The agent is told to use it as it stands, because the two things it would
+otherwise have to do — counting roster rows and matching employee ids to names —
+are exactly what a small model gets wrong. For the same reason
+`getStaffingPerDay` must be in `MCP_TOOLS` if you set that allowlist.
+
+## Context window
+
+Every tool result stays in the session's history, and a session lives as long as
+the process, so a busy chat grows steadily. Before each LLM call
+`graph.py`'s `_fit_to_context` drops the oldest turns until what is sent fits
+`SHIFT_AGENT_MAX_CONTEXT_TOKENS` (default 131072) minus the reply's
+`SHIFT_AGENT_MAX_TOKENS`, keeping 15% back for the bound tool schemas that the
+approximate token count cannot see.
+
+- The system prompt is always kept, and the kept history starts at a user
+  message — a tool result whose tool call has been trimmed away is a malformed
+  conversation that providers reject.
+- Only what is *sent* is capped. The full history stays in the checkpointer, so
+  nothing is lost from the session itself.
+- Set the variable to your model's real window: 131072 suits gpt-oss and
+  llama 3.x, gpt-4o is 128000, small local models are often 8192.
 
 ## Running it
 

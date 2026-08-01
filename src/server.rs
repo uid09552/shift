@@ -166,6 +166,10 @@ pub fn create_router(state: AppState) -> Router {
             "/analysis/planned-employees-per-day-per-workstation",
             get(AnalysisService::get_planned_employees_per_day_per_workstation),
         )
+        .route(
+            "/analysis/staffing-per-day",
+            get(AnalysisService::get_staffing_per_day),
+        )
         // Audit Logs
         .route("/audit-logs", get(AuditLogService::list_audit_logs))
         // Resolve the request's tenant and roles from the x-access-token JWT (or the

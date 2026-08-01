@@ -11,10 +11,15 @@ use crate::database::DbPool;
 use crate::errors::AppError;
 use crate::models as models;
 use crate::schema::confirmed_shift_plans;
+use crate::schema::employees;
 use crate::schema::shift_weekday_times;
+use crate::schema::shifts;
 use crate::schema::workstations;
 
-use super::domain::{AnalysisRepository, WorkstationDailyEmployeesDomain, WorkstationDailyHoursDomain};
+use super::domain::{
+    AnalysisRepository, DailyStaffingDomain, ShiftDailyStaffingDomain,
+    WorkingEmployeeDomain, WorkstationDailyEmployeesDomain, WorkstationDailyHoursDomain,
+};
 
 #[derive(Clone)]
 pub struct DieselAnalysisRepository {
@@ -173,6 +178,150 @@ impl AnalysisRepository for DieselAnalysisRepository {
                 .collect();
 
             results.sort_by(|a, b| a.date.cmp(&b.date).then_with(|| a.workstation_name.cmp(&b.workstation_name)));
+
+            Ok(results)
+        })
+        .await
+        .map_err(|_| AppError::Internal)?
+    }
+
+    async fn get_staffing_per_day(
+        &self,
+        tenant_id: &str,
+        from_date: NaiveDate,
+        to_date: NaiveDate,
+    ) -> Result<Vec<DailyStaffingDomain>, AppError> {
+        let tenant_id = tenant_id.to_string();
+        let pool = Arc::clone(&self.pool);
+        telemetry::db_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::Internal)?;
+
+            // Everyone marked present, workstation or not — a nurse rostered
+            // without one is still working. Absences (is_present false) are the
+            // rest of the roster and are excluded.
+            let plans: Vec<models::ConfirmedShiftPlan> = confirmed_shift_plans::table
+                .filter(confirmed_shift_plans::tenant_id.eq(&tenant_id))
+                .filter(confirmed_shift_plans::is_present.eq(true))
+                .filter(confirmed_shift_plans::date.ge(from_date))
+                .filter(confirmed_shift_plans::date.le(to_date))
+                .load::<models::ConfirmedShiftPlan>(&mut conn)
+                .map_err(|_| AppError::Internal)?;
+
+            if plans.is_empty() {
+                return Ok(Vec::new());
+            }
+
+            let shift_ids: Vec<Uuid> = plans
+                .iter()
+                .filter_map(|p| p.shift_id)
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .collect();
+            let workstation_ids: Vec<Uuid> = plans
+                .iter()
+                .filter_map(|p| p.workstation_id)
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .collect();
+            let employee_ids: Vec<Uuid> = plans
+                .iter()
+                .map(|p| p.employee_id)
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .collect();
+
+            let shift_names: HashMap<Uuid, String> = shifts::table
+                .filter(shifts::id.eq_any(&shift_ids))
+                .filter(shifts::tenant_id.eq(&tenant_id))
+                .load::<models::Shift>(&mut conn)
+                .map_err(|_| AppError::Internal)?
+                .into_iter()
+                .map(|s| (s.id, s.name))
+                .collect();
+
+            let workstation_names: HashMap<Uuid, String> = workstations::table
+                .filter(workstations::id.eq_any(&workstation_ids))
+                .filter(workstations::tenant_id.eq(&tenant_id))
+                .load::<models::Workstation>(&mut conn)
+                .map_err(|_| AppError::Internal)?
+                .into_iter()
+                .map(|w| (w.id, w.name))
+                .collect();
+
+            let employee_names: HashMap<Uuid, String> = employees::table
+                .filter(employees::id.eq_any(&employee_ids))
+                .filter(employees::tenant_id.eq(&tenant_id))
+                .load::<models::Employee>(&mut conn)
+                .map_err(|_| AppError::Internal)?
+                .into_iter()
+                .map(|e| (e.id, e.name))
+                .collect();
+
+            // Distinct employees, because one person can hold two entries on a
+            // day (two workstations, or a split shift) and is still one person.
+            let mut per_day: HashMap<NaiveDate, Vec<WorkingEmployeeDomain>> = HashMap::new();
+            let mut per_day_employees: HashMap<NaiveDate, std::collections::HashSet<Uuid>> =
+                HashMap::new();
+            let mut per_day_shift: HashMap<(NaiveDate, Uuid), std::collections::HashSet<Uuid>> =
+                HashMap::new();
+            for plan in &plans {
+                per_day_employees
+                    .entry(plan.date)
+                    .or_default()
+                    .insert(plan.employee_id);
+                per_day.entry(plan.date).or_default().push(WorkingEmployeeDomain {
+                    employee_id: plan.employee_id,
+                    employee_name: employee_names
+                        .get(&plan.employee_id)
+                        .cloned()
+                        .unwrap_or_default(),
+                    shift_id: plan.shift_id,
+                    shift_name: plan.shift_id.and_then(|id| shift_names.get(&id).cloned()),
+                    workstation_id: plan.workstation_id,
+                    workstation_name: plan
+                        .workstation_id
+                        .and_then(|id| workstation_names.get(&id).cloned()),
+                });
+                if let Some(shift_id) = plan.shift_id {
+                    per_day_shift
+                        .entry((plan.date, shift_id))
+                        .or_default()
+                        .insert(plan.employee_id);
+                }
+            }
+
+            let mut results: Vec<DailyStaffingDomain> = per_day
+                .into_iter()
+                .map(|(date, mut employees)| {
+                    let mut per_shift: Vec<ShiftDailyStaffingDomain> = per_day_shift
+                        .iter()
+                        .filter(|((d, _), _)| *d == date)
+                        .map(|((_, shift_id), shift_employees)| ShiftDailyStaffingDomain {
+                            shift_id: *shift_id,
+                            shift_name: shift_names.get(shift_id).cloned().unwrap_or_default(),
+                            employees_working: shift_employees.len() as i64,
+                        })
+                        .collect();
+                    per_shift.sort_by(|a, b| a.shift_name.cmp(&b.shift_name));
+                    employees.sort_by(|a, b| {
+                        a.shift_name
+                            .cmp(&b.shift_name)
+                            .then_with(|| a.employee_name.cmp(&b.employee_name))
+                    });
+
+                    DailyStaffingDomain {
+                        date,
+                        employees_working: per_day_employees
+                            .get(&date)
+                            .map(|set| set.len())
+                            .unwrap_or(0) as i64,
+                        employees,
+                        per_shift,
+                    }
+                })
+                .collect();
+
+            results.sort_by_key(|r| r.date);
 
             Ok(results)
         })

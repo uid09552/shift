@@ -153,8 +153,18 @@ curl -X POST http://localhost:8081/api/v1/planner/optimized-shifts/<result_id>/t
 |---|---|---|
 | `GET` | `/analysis/planned-hours-per-day-per-workstation` | Hours per workstation per day |
 | `GET` | `/analysis/planned-employees-per-day-per-workstation` | Headcount per workstation per day |
+| `GET` | `/analysis/staffing-per-day` | Who works each day, how many, and the split per shift |
 
-Both read confirmed plans and back the dashboard charts.
+All three read confirmed plans; the first two back the dashboard charts, all
+over a required `from_date`/`to_date` range.
+
+`staffing-per-day` differs from the per-workstation headcount in two ways that
+matter: it counts **distinct employees**, including anyone rostered without a
+workstation, so it is the day's actual headcount rather than a sum that
+double-counts and omits; and it returns each person with their shift and
+workstation **names** resolved. That is what lets a caller answer "how many
+people work today" or "who is on nights" without joining three more lists — see
+[Agent & MCP](agent.md#telling-the-time).
 
 ## Audit logs
 

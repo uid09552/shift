@@ -4,11 +4,17 @@ HTTP (MCP_SERVER_URL, default http://mcp:8900/mcp) to discover and call
 backend tools, using a configurable LLM provider (Ollama local, Ollama.com
 cloud, or OpenAI).
 
-Two sources of tools, and the split matters:
+Three sources of tools, and the split matters:
   - the MCP server, for everything that touches backend *state* (list, read,
     create, update) — discovered at connect time, one tool per API operation;
   - the local knowledge bundle (knowledge.py), for *explanation* — how the
-    product is used, how it is built, why the solver behaves as it does.
+    product is used, how it is built, why the solver behaves as it does;
+  - the clock (clock.py), for *now* — the one thing the model cannot know,
+    and what "who works today" has to be resolved against before any API call.
+
+Context: the history of a session grows without bound (every tool result is
+kept), so what goes to the model each turn is capped at the configured window —
+see _fit_to_context.
 
 Architecture:
   1. On startup, build_graph() creates the graph skeleton (agent + tools
@@ -31,17 +37,25 @@ import logging
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages.utils import count_tokens_approximately, trim_messages
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
+from shift_agent import telemetry
 from shift_agent.config import settings
 from shift_agent.agent.client import MCPClient
+from shift_agent.agent.clock import build_clock_tools
 from shift_agent.agent.knowledge import build_knowledge_tools
 
 logger = logging.getLogger(__name__)
+
+# Fraction of the remaining window the prompt may fill. The rest absorbs what
+# count_tokens_approximately doesn't measure — chiefly the bound tool schemas,
+# which for the OpenAPI-generated MCP surface are substantial.
+_CONTEXT_SAFETY = 0.85
 
 SYSTEM_PROMPT = """You are the in-app assistant for Shift Planner, a hospital shift \
 scheduling web app. You help the signed-in user find their way around the app, \
@@ -58,6 +72,10 @@ and settings.
 - **readKnowledgeDoc**: Read one documentation page in full, by the path \
   searchKnowledge returned.
 - **listKnowledgeTopics**: List every documentation page, when search finds nothing.
+- **currentDateTime**: The current date, weekday and time, plus ready-made date \
+  ranges for this week, next week and this month. You do not know today's date \
+  otherwise — call this before answering anything phrased as "today", "now", \
+  "tomorrow", "this week" or "this month".
 
 Your remaining tools come from the Shift Planner backend API — one per API \
 operation, named after it. The ones you will need most:
@@ -69,9 +87,34 @@ operation, named after it. The ones you will need most:
 - **listWorkstations**: List all workstations/departments.
 - **listCapabilities**: List all capabilities/skills.
 - **listEmployees**: List employees.
+- **listConfirmedShiftPlans**: The raw roster rows for a date range, absences \
+  included. Only when getStaffingPerDay doesn't cover it — who is *off* and why, \
+  say. Its rows carry ids, not names.
+- **getStaffingPerDay**: Who works on each day of a range and how many, with shift \
+  and workstation names already filled in. This is the tool for "how many people \
+  work today" and "who is on the night shift" alike — the count is computed in the \
+  database and the names need no lookup, so use what it returns as it stands.
+- **getPlannedEmployeesPerDayPerWorkstation**: Head count broken down *per \
+  workstation* per day. Only when the user asks about workstations or \
+  departments — it leaves out anyone rostered without a workstation, so its \
+  numbers do not add up to the day's head count.
 - **getPlannerSettings**: Get the current optimizer settings.
 - **updatePlannerSettings**: Update optimizer settings (call getPlannerSettings \
   first to get current values, then change only what the user asked).
+
+Answering "who is working" questions:
+- Call currentDateTime first, then pass concrete dates. Never guess today's date, \
+  and always set both from_date and to_date — for a single day, both are that same \
+  date.
+- Go through getStaffingPerDay. Never count roster rows or match ids to names \
+  yourself: listConfirmedShiftPlans holds one row per employee per day, working or \
+  not, and both the counting and the joining are easy to get wrong.
+- For one shift, filter getStaffingPerDay's employees by shift_name and report \
+  those people. Say plainly if nobody is on it.
+- An empty result for a date means nothing is confirmed for it. Say the plan isn't \
+  confirmed yet; don't report it as "nobody is working".
+- In listConfirmedShiftPlans, an entry with is_present false is someone planned but \
+  away — absence_type says why. Never count them as working.
 
 Rules:
 - Answer questions about how the product works, what a concept means, or how the \
@@ -142,6 +185,68 @@ def _build_llm() -> BaseChatModel:
         )
 
 
+def _context_budget() -> int:
+    """Tokens available for the prompt: the window, less room for the reply.
+
+    The model's context window has to hold the prompt *and* what it generates,
+    so the reply's `max_tokens` comes off the top. The rest is a margin for what
+    the approximate token count can't see — the tool schemas bound to the model,
+    and the difference between characters/4 and the real tokenizer.
+    """
+    return max(
+        1024,
+        int((settings.max_context_tokens - settings.max_tokens) * _CONTEXT_SAFETY),
+    )
+
+
+def _fit_to_context(messages: list[BaseMessage]) -> list[BaseMessage]:
+    """Drop the oldest turns until the conversation fits the context window.
+
+    A chat session is a singleton keyed by ``session_id`` and lives as long as
+    the process, so its history only grows — and each tool call adds the whole
+    JSON result to it. Without this, a long session eventually exceeds the
+    model's window and every further message fails.
+
+    Trimming keeps the system prompt and the most recent turns, and starts the
+    kept history at a user message: a tool result whose originating tool call
+    has been trimmed away is a malformed conversation that providers reject.
+    """
+    budget = _context_budget()
+    if count_tokens_approximately(messages) <= budget:
+        return messages
+
+    trimmed = trim_messages(
+        messages,
+        max_tokens=budget,
+        token_counter=count_tokens_approximately,
+        strategy="last",
+        include_system=True,
+        start_on="human",
+        allow_partial=False,
+    )
+
+    # Nothing but the system prompt survived — the current turn alone is over
+    # budget (a huge tool result, usually). Fall back to the user's question on
+    # its own: it drops the tool output the answer needed, but the model can ask
+    # for it again, whereas an over-long prompt just fails.
+    if not any(not isinstance(m, SystemMessage) for m in trimmed):
+        last_human = next(
+            (m for m in reversed(messages) if isinstance(m, HumanMessage)), None
+        )
+        trimmed = [*(m for m in messages if isinstance(m, SystemMessage))]
+        if last_human is not None:
+            trimmed.append(last_human)
+
+    dropped = len(messages) - len(trimmed)
+    logger.info(
+        "Context limit reached — dropped %d of %d message(s) to fit ~%d tokens",
+        dropped,
+        len(messages),
+        budget,
+    )
+    return trimmed
+
+
 def _make_agent_node(llm: BaseChatModel):
     """Create the agent node function bound to the given LLM."""
 
@@ -149,7 +254,21 @@ def _make_agent_node(llm: BaseChatModel):
         messages = state["messages"]
         if not messages or not isinstance(messages[0], SystemMessage):
             messages = [SystemMessage(content=SYSTEM_PROMPT), *messages]
-        response = llm.invoke(messages)
+
+        # The full history stays in the checkpointer; only what goes to the
+        # model this turn is capped.
+        sent = _fit_to_context(list(messages))
+
+        with telemetry.span(
+            "agent.llm",
+            **{
+                "agent.model": settings.model,
+                "agent.context.messages": len(sent),
+                "agent.context.tokens": count_tokens_approximately(sent),
+                "agent.context.dropped": len(messages) - len(sent),
+            },
+        ):
+            response = llm.invoke(sent)
         return {"messages": [response]}
 
     return call_model
@@ -168,7 +287,8 @@ def build_graph(knowledge_path: str | None = None) -> Any:
       - ``builder``: the ``StateGraph`` (not yet compiled)
       - ``mcp_client``: the ``MCPClient`` instance
       - ``checkpointer``: the ``MemorySaver``
-      - ``local_tools``: the agent's own tools (knowledge base)
+      - ``local_tools``: the agent's own tools (the clock, and the knowledge
+        base when its bundle is present)
 
     Call ``connect_mcp()`` to discover the MCP tools and compile the graph.
     """
@@ -177,13 +297,17 @@ def build_graph(knowledge_path: str | None = None) -> Any:
 
     # Read off disk once, here rather than per request: the bundle ships with
     # the image and never changes while the process runs.
-    local_tools = build_knowledge_tools(knowledge_path)
-    if not local_tools:
+    knowledge_tools = build_knowledge_tools(knowledge_path)
+    if not knowledge_tools:
         logger.warning(
             "No knowledge tools — bundle missing at %s. The agent can still use "
             "the MCP tools, but cannot answer product or architecture questions.",
             knowledge_path or settings.knowledge_path,
         )
+
+    # The clock needs no configuration and is always bound: without it the model
+    # cannot resolve "today", and most roster questions are phrased that way.
+    local_tools = [*build_clock_tools(), *knowledge_tools]
 
     return {
         "builder": StateGraph(MessagesState),
@@ -229,7 +353,7 @@ async def connect_mcp(state: dict) -> Any:
     compiled.mcp_client = mcp_client  # type: ignore[attr-defined]
 
     logger.info(
-        "MCP connected — %d tool(s) bound (%d MCP, %d knowledge)",
+        "MCP connected — %d tool(s) bound (%d MCP, %d local)",
         len(tools),
         len(mcp_tools),
         len(local_tools),

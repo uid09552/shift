@@ -69,4 +69,30 @@ impl AnalysisService {
 
         Ok(Json(serde_json::to_value(results).unwrap()))
     }
+
+    /// GET /analysis/staffing-per-day
+    /// Returns, per day, how many distinct employees are working and how they
+    /// split across shifts — the answer to "how many people work today".
+    /// Requires from_date and to_date query parameters (YYYY-MM-DD format).
+    pub async fn get_staffing_per_day(
+        tenant: TenantContext,
+        Query(q): Query<AnalysisQuery>,
+        State(state): State<AppState>,
+    ) -> Result<Json<Value>, AppError> {
+        let from_date = NaiveDate::parse_from_str(&q.from_date, "%Y-%m-%d")
+            .map_err(|_| AppError::Validation("Invalid from_date format, use YYYY-MM-DD".into()))?;
+        let to_date = NaiveDate::parse_from_str(&q.to_date, "%Y-%m-%d")
+            .map_err(|_| AppError::Validation("Invalid to_date format, use YYYY-MM-DD".into()))?;
+
+        if from_date > to_date {
+            return Err(AppError::Validation("from_date must be before or equal to to_date".into()));
+        }
+
+        let results = state
+            .analysis_repo
+            .get_staffing_per_day(&tenant.0, from_date, to_date)
+            .await?;
+
+        Ok(Json(serde_json::to_value(results).unwrap()))
+    }
 }

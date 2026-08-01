@@ -1,2 +1,8 @@
-1) adjust agent, add tool datetime, so that agent can answer e.g. how many people work today or who is in shift xyz today.
-2) conider prompt lenght, which is max 131072, make it configurable default as provided. remove old message from context if too long.
+[DONE] 1) adjust agent, add tool datetime, so that agent can answer e.g. how many people work today or who is in shift xyz today.
+[DONE] 2) conider prompt lenght, which is max 131072, make it configurable default as provided. remove old message from context if too long.
+3) create my day view in Dashboard. the my day should show relevant data for me for the current day.
+- which workstation
+- which shift
+- today central and bolded, visualized in foreground or other to show manly the today
+- the week with shifts should be also show
+- who is else assigned to the workstations, where I am alos in, to anser the question who else is working with me.

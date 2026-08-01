@@ -259,10 +259,45 @@ pub struct WorkstationDailyEmployeesDomain {
     pub planned_employees: i64,
 }
 
+/// Who is working on one day, how many of them, and on which shift.
+///
+/// Unlike the per-workstation breakdowns above, the count is of *distinct
+/// employees* and includes those rostered without a workstation — so it is the
+/// answer to "how many people work today", which summing the per-workstation
+/// counts is not. Names are resolved here rather than left as ids: the callers
+/// that ask this question (the chat agent above all) would otherwise have to
+/// join three more lists to say who anyone is.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DailyStaffingDomain {
+    pub date: NaiveDate,
+    pub employees_working: i64,
+    pub employees: Vec<WorkingEmployeeDomain>,
+    pub per_shift: Vec<ShiftDailyStaffingDomain>,
+}
+
+/// One person working on that day, with everything needed to name them.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WorkingEmployeeDomain {
+    pub employee_id: Uuid,
+    pub employee_name: String,
+    pub shift_id: Option<Uuid>,
+    pub shift_name: Option<String>,
+    pub workstation_id: Option<Uuid>,
+    pub workstation_name: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ShiftDailyStaffingDomain {
+    pub shift_id: Uuid,
+    pub shift_name: String,
+    pub employees_working: i64,
+}
+
 #[async_trait]
 pub trait AnalysisRepository {
     async fn get_planned_hours_per_day_per_workstation(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<WorkstationDailyHoursDomain>, AppError>;
     async fn get_planned_employees_per_day_per_workstation(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<WorkstationDailyEmployeesDomain>, AppError>;
+    async fn get_staffing_per_day(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<DailyStaffingDomain>, AppError>;
 }
 
 #[async_trait]
