@@ -6,11 +6,11 @@ tags: [user-guide, assistant, chat, llm]
 status: stable
 generated:
   by: claude-code/claude-opus-5
-  at: 2026-07-31T00:00:00Z
+  at: 2026-08-01T00:00:00Z
 sources:
   - resource: docs/guide/assistant.md
     author: human:maxrg
-    last_modified: 2026-07-31
+    last_modified: 2026-08-01
 ---
 
 The round speech-bubble button in the bottom-right corner of every page opens a
@@ -19,8 +19,8 @@ menus.
 
 # What it can do
 
-The assistant uses the same functions the screens use, so requests fall into three
-sorts:
+The assistant uses the same functions the screens use, and it can read this
+documentation, so requests fall into four sorts:
 
 **Take me somewhere.**
 > *"Open the planner settings."* · *"Show me the workstation calendar."*
@@ -32,6 +32,13 @@ The page changes underneath the chat window.
 
 **Change something.**
 > *"Set the minimum rest to 12 hours."* · *"Add a capability called Dialysis."* · *"Mark Thomas Weber unavailable on the 14th of March."*
+
+**Explain something.**
+> *"How do I confirm a plan?"* · *"What does 'soft minimum' actually mean?"* · *"Why would the planner call a week infeasible?"* · *"What is the difference between a shift wish and an available shift?"*
+
+Answers to these come out of the product's written documentation — the same pages
+this one lives among — not out of the model's general knowledge. Ask it where an
+answer came from and it can name the page.
 
 # How to get good answers
 
@@ -61,6 +68,9 @@ Honest limits:
   runs the same calculation, which takes as long as it takes.
 * **It only knows what is in the system.** No access to your email, your paper
   notes or last month's messages.
+* **Its explanations are only as current as the documentation.** If a page here
+  is out of date, so is the answer — it quotes the documentation rather than
+  inspecting the running code.
 
 # When it isn't there
 

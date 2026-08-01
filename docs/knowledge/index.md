@@ -78,4 +78,12 @@ This bundle is derived from the prose documentation in `docs/` (published with
 MkDocs) and from those files directly. It is a parallel, agent-oriented view of
 the same system — not a replacement for the human-facing site.
 
+## Who reads this
+
+The product's own chat assistant, at runtime: `agent/shift_agent/agent/knowledge.py`
+loads this directory at startup and searches it to answer users' questions about
+how the system works — so a correction made here reaches end users on the next
+agent image build. See
+[Agent and MCP service](/architecture/agent-and-mcp-service.md).
+
 See [Update log](/log.md).

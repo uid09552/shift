@@ -25,8 +25,11 @@ Website chat widget
 │        │  puts the request's token in a contextvar (auth.py)    │
 │        ▼                                                        │
 │ LangGraph agent (graph.py)                                      │
-│    agent ⇄ tools loop  ───────────► MCP client (client.py)      │
-│    (Ollama / OpenAI + ToolNode)              │                  │
+│    agent ⇄ tools loop  ──┬────────► knowledge tools             │
+│    (Ollama / OpenAI +    │          (knowledge.py, in-process,  │
+│     ToolNode)            │           reads docs/knowledge)      │
+│                          └────────► MCP client (client.py)      │
+│                                              │                  │
 └──────────────────────────────────────────────┼──────────────────┘
                                                │ streamable HTTP
                                                │ Authorization: Bearer
@@ -46,6 +49,15 @@ Website chat widget
   `tools` node runs whatever it asked for via the MCP client, loop until the
   model answers in plain text). Conversation history is kept in memory per
   `session_id` via LangGraph's `MemorySaver` checkpointer.
+
+- **`knowledge.py`** — the agent's only tools of its own: `searchKnowledge`,
+  `readKnowledgeDoc` and `listKnowledgeTopics` over the Open Knowledge Format
+  bundle in [`../docs/knowledge`](../docs/knowledge). The MCP tools report
+  *state*; these explain *the product* — how a ward manager does something, what
+  a domain concept means, how the services fit together, why the solver decided
+  what it did. Search is lexical (TF-IDF over frontmatter and body, with crude
+  stemming) — no embeddings, no index to build, nothing to keep in sync. See
+  [Knowledge base](#knowledge-base) below for the path configuration.
 
 - **`client.py`** — lists the MCP server's tools at startup and wraps them as
   LangChain `StructuredTool` objects the agent can call. Each call opens its
@@ -77,7 +89,42 @@ Website chat widget
   LLM provider selection (Ollama local, Ollama.com cloud, OpenAI).
 
 - **`cli.py`** — `shift-agent chat` for local testing, `shift-agent api` to
-  start the chat server, `shift-agent mcp` to start the MCP server.
+  start the chat server, `shift-agent mcp` to start the MCP server,
+  `shift-agent knowledge` to inspect the documentation bundle.
+
+## Knowledge base
+
+The agent answers "how does X work" questions from the OKF bundle in
+`backend/docs/knowledge` — ~50 Markdown documents, each with YAML frontmatter
+naming its title, type, description and tags. It is loaded once when the graph
+is built and held in memory; the documents ship with the image and are never
+re-read.
+
+The bundle root is fixed **at startup**, in this order:
+
+1. `--knowledge-path` on `shift-agent api` / `shift-agent chat`
+2. `SHIFT_AGENT_KNOWLEDGE_PATH`
+3. `backend/docs/knowledge`, resolved relative to the installed package — which
+   inside `deploy/Dockerfile.agent` lands on `/docs/knowledge`, where the image
+   copies the bundle.
+
+A path with no documents in it is not fatal: the three tools are simply not
+bound, the agent keeps its MCP tools, and startup logs a warning. Note that
+`MCP_TOOLS` does not apply here — that allowlist only trims MCP tools.
+
+Check what the running agent can see, locally or in the container:
+
+```bash
+# Every document the agent has, and where they came from
+shift-agent knowledge
+docker compose exec agent shift-agent knowledge
+
+# What searchKnowledge would return for a question
+shift-agent knowledge "why is the plan infeasible"
+
+# A different bundle
+shift-agent api --knowledge-path /srv/my-knowledge
+```
 
 ## LLM Providers
 

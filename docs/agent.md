@@ -3,14 +3,20 @@
 `agent/` holds a LangGraph chat agent that lets signed-in users drive the app by
 talking to it, and the MCP server it calls to get anything done.
 
-The agent has **no backend tools of its own**. Every capability it has comes
-from the MCP server, which is generated from `api/openapi.yaml` at startup. Add
-an endpoint to the spec and the agent can use it — no agent code changes.
+The agent has **no backend tools of its own**. Everything that touches backend
+state comes from the MCP server, which is generated from `api/openapi.yaml` at
+startup. Add an endpoint to the spec and the agent can use it — no agent code
+changes.
+
+What it does hold locally is documentation: the [knowledge
+bundle](#knowledge-base) it reads to explain how the product works, rather than
+guessing from whatever the model happens to remember.
 
 ```mermaid
 flowchart TB
     W["Chat widget<br/>POST /api/v1/chat"] --> S["agent/server.py<br/>Flask + Keycloak verification"]
     S --> G["agent/graph.py<br/>ReAct loop, MemorySaver"]
+    G <--> K["agent/knowledge.py<br/>OKF bundle, in-process"]
     G <--> C["agent/client.py<br/>MCP client"]
     C -->|"streamable HTTP<br/>Authorization: Bearer"| M["mcp/server.py<br/>FastMCP.from_openapi()"]
     M --> B["Rust backend REST API"]
@@ -23,6 +29,7 @@ flowchart TB
 |---|---|
 | `graph.py` | The ReAct loop: the `agent` node calls the LLM, the `tools` node runs what it asked for, repeat until a plain-text answer. History is kept per `session_id` in LangGraph's in-memory `MemorySaver`. |
 | `client.py` | Lists the MCP server's tools at startup and wraps each as a LangChain `StructuredTool`. |
+| `knowledge.py` | The agent's own tools — `searchKnowledge`, `readKnowledgeDoc`, `listKnowledgeTopics` — over the documentation bundle in `docs/knowledge`. |
 | `server.py` | The HTTP surface. Validates the caller's token against Keycloak's JWKS, then stores it in a contextvar for the duration of the agent call. |
 | `auth.py` | Keycloak verification plus the contextvar holding the token. |
 
@@ -67,7 +74,46 @@ Selected with `SHIFT_AGENT_LLM_PROVIDER`:
 
 `MCP_TOOLS` narrows what the model sees to a comma-separated allowlist. Worth
 setting for small local models, which choose badly from all ~70 backend
-operations. Unset means everything.
+operations. Unset means everything. It does not affect the knowledge tools.
+
+## Knowledge base
+
+`docs/knowledge` is an [Open Knowledge
+Format](https://github.com/google/open-knowledge-format) bundle: ~50 Markdown
+documents, one concept each, with YAML frontmatter stating title, type,
+description and tags. `agent/knowledge.py` loads it once at graph build time and
+exposes three tools:
+
+| Tool | Use |
+|---|---|
+| `searchKnowledge` | Keyword search over frontmatter and body; returns the best-matching documents with a snippet. |
+| `readKnowledgeDoc` | One document in full, by bundle path (`concepts/shift.md`). |
+| `listKnowledgeTopics` | The whole catalogue — path, title, description. |
+
+This is what lets the agent answer "how do I confirm a plan", "what is a
+capability", "why did the solver refuse" — questions the MCP tools cannot touch,
+because those read state and never explain it. Retrieval is TF-IDF over the
+frontmatter and body with crude stemming, not embeddings: at this corpus size
+the curated frontmatter carries the signal, and there is no index to build or
+model to ship.
+
+The bundle root is fixed at startup, first match wins:
+
+1. `--knowledge-path` on `shift-agent api` / `shift-agent chat`
+2. `SHIFT_AGENT_KNOWLEDGE_PATH`
+3. `backend/docs/knowledge` relative to the installed package — inside
+   `deploy/Dockerfile.agent` that resolves to `/docs/knowledge`, where the image
+   copies the bundle and `docker-compose.yml` pins the variable.
+
+If the path holds no documents the tools are not bound at all: the agent keeps
+working on its MCP tools and logs a warning. To check what a running agent can
+actually see:
+
+```bash
+shift-agent knowledge                              # list every document
+shift-agent knowledge "why is the plan infeasible" # what searchKnowledge returns
+docker compose exec agent shift-agent knowledge    # …inside the container
+```
 
 ## Running it
 

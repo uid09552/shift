@@ -21,6 +21,9 @@ MCP lifecycle:
   - The remote MCP server (MCP_SERVER_URL) is contacted on the first chat
     request to discover its tools; each tool call then opens its own
     short-lived session (see client.py).
+  - The agent's own knowledge tools (knowledge.py) are loaded from disk in the
+    same step, from the bundle root fixed at startup (--knowledge-path /
+    SHIFT_AGENT_KNOWLEDGE_PATH).
 """
 
 from __future__ import annotations
@@ -49,6 +52,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 _graph_state: dict | None = None
 _graph: Any = None
+# Knowledge bundle root chosen at startup by create_app() (shift-agent api
+# --knowledge-path); None = whatever SHIFT_AGENT_KNOWLEDGE_PATH resolves to.
+_knowledge_path: str | None = None
 
 
 def _get_or_create_graph():
@@ -58,7 +64,7 @@ def _get_or_create_graph():
         return _graph
 
     logger.info("Building agent graph…")
-    _graph_state = build_graph()
+    _graph_state = build_graph(knowledge_path=_knowledge_path)
 
     # Connect MCP synchronously inside an event loop
     loop = asyncio.new_event_loop()
@@ -126,8 +132,18 @@ def require_auth(f: Callable) -> Callable:
 # ---------------------------------------------------------------------------
 
 
-def create_app() -> Flask:
-    """Create and configure the Flask application."""
+def create_app(knowledge_path: str | None = None) -> Flask:
+    """Create and configure the Flask application.
+
+    Args:
+        knowledge_path: root of the documentation bundle the agent answers
+            product questions from, overriding SHIFT_AGENT_KNOWLEDGE_PATH.
+            Fixed here, at startup, because the graph is a process-wide
+            singleton shared by every request.
+    """
+    global _knowledge_path
+    _knowledge_path = knowledge_path
+
     app = Flask(__name__)
 
     # ---- Health check (no auth) ----

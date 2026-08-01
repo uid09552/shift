@@ -4,10 +4,17 @@ Shift Agent configuration, sourced from environment variables (see .env.example)
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# shift_agent/config.py -> shift_agent -> agent -> backend/docs/knowledge.
+# In deploy/Dockerfile.agent the same two levels up land on the image root,
+# where the bundle is copied to /docs/knowledge (same trick as the OpenAPI
+# spec in shift_agent/mcp/server.py).
+_DEFAULT_KNOWLEDGE_PATH = Path(__file__).resolve().parents[2] / "docs" / "knowledge"
 
 
 @dataclass(frozen=True)
@@ -81,6 +88,17 @@ class Settings:
     # server is the entire backend API, more than a small local model can handle.
     mcp_tools: tuple[str, ...] = tuple(
         name.strip() for name in os.environ.get("MCP_TOOLS", "").split(",") if name.strip()
+    )
+
+    # ------------------------------------------------------------------
+    # Knowledge base (the agent's own tools — agent/knowledge.py)
+    # ------------------------------------------------------------------
+    # Root of the Open Knowledge Format bundle the agent answers product,
+    # architecture and how-to questions from. Overridable at startup with
+    # `shift-agent chat|api --knowledge-path`. A path that doesn't exist just
+    # disables the knowledge tools; everything else still works.
+    knowledge_path: str = os.environ.get(
+        "SHIFT_AGENT_KNOWLEDGE_PATH", str(_DEFAULT_KNOWLEDGE_PATH)
     )
 
 

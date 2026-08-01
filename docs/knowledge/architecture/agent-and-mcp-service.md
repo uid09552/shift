@@ -1,36 +1,45 @@
 ---
 type: Service
 title: Agent and MCP Service
-description: The LangGraph chat agent and the FastMCP server generated from the OpenAPI spec — one image, two commands, and the user's token carried end to end.
+description: The LangGraph chat agent, its knowledge tools, and the FastMCP server generated from the OpenAPI spec — one image, two commands, and the user's token carried end to end.
 resource: agent/shift_agent
-tags: [architecture, agent, mcp, langgraph, llm]
+tags: [architecture, agent, mcp, langgraph, llm, knowledge]
 status: stable
 generated:
   by: claude-code/claude-opus-5
-  at: 2026-07-31T00:00:00Z
+  at: 2026-08-01T00:00:00Z
 sources:
   - resource: docs/agent.md
     author: human:maxrg
-    last_modified: 2026-07-25
+    last_modified: 2026-08-01
   - resource: agent/shift_agent/mcp/server.py
     author: human:maxrg
     last_modified: 2026-07-26
   - resource: agent/shift_agent/agent/graph.py
     author: human:maxrg
-    last_modified: 2026-07-25
+    last_modified: 2026-08-01
+  - resource: agent/shift_agent/agent/knowledge.py
+    author: human:maxrg
+    last_modified: 2026-08-01
 ---
 
 `agent/` holds a LangGraph chat agent that lets signed-in users drive the app by
 talking to it, and the MCP server it calls to get anything done.
 
-**The agent has no backend tools of its own.** Every capability comes from the
-MCP server, generated from `api/openapi.yaml` at startup — see
-[Spec-driven tool surface](/architecture/spec-driven-tool-surface.md).
+**The agent has no backend tools of its own.** Everything that reads or writes
+system state comes from the MCP server, generated from `api/openapi.yaml` at
+startup — see [Spec-driven tool surface](/architecture/spec-driven-tool-surface.md).
+
+Its one local capability is *this bundle*: three read-only tools over
+`docs/knowledge`, so questions about how the product works are answered from
+written documentation rather than from the model's own recollection. State comes
+from the API; explanation comes from here.
 
 ```mermaid
 flowchart TB
     W["Chat widget<br/>POST /api/v1/chat"] --> S["agent/server.py<br/>Flask + Keycloak verification"]
     S --> G["agent/graph.py<br/>ReAct loop, MemorySaver"]
+    G <--> K["agent/knowledge.py<br/>this bundle, in-process"]
     G <--> C["agent/client.py<br/>MCP client"]
     C -->|"streamable HTTP<br/>Authorization: Bearer"| M["mcp/server.py<br/>FastMCP.from_openapi()"]
     M --> B["Rust backend REST API"]
@@ -43,6 +52,7 @@ flowchart TB
 |---|---|
 | `graph.py` | The ReAct loop: the `agent` node calls the LLM, the `tools` node runs what it asked for, repeat until a plain-text answer. History per `session_id` in LangGraph's in-memory `MemorySaver`. |
 | `client.py` | Lists the MCP server's tools at startup and wraps each as a LangChain `StructuredTool`. |
+| `knowledge.py` | The agent's own tools over this bundle — `searchKnowledge`, `readKnowledgeDoc`, `listKnowledgeTopics`. |
 | `server.py` | HTTP surface. Verifies the caller's token against Keycloak's JWKS, then stores it in a contextvar for the duration of the call. |
 | `auth.py` | Keycloak verification plus the contextvar holding the token. |
 
@@ -78,7 +88,44 @@ Selected with `SHIFT_AGENT_LLM_PROVIDER`:
 
 `MCP_TOOLS` narrows what the model sees to a comma-separated allowlist. Worth
 setting for small local models, which choose badly from all ~70 backend
-operations. Unset means everything.
+operations. Unset means everything. The knowledge tools are not affected — that
+allowlist covers MCP tools only.
+
+# The knowledge tools
+
+`knowledge.py` loads this bundle once when the graph is built and holds it in
+memory. Every document's frontmatter (`title`, `type`, `description`, `tags`) is
+parsed out and indexed alongside its headings and body.
+
+| Tool | Use |
+|---|---|
+| `searchKnowledge` | Keyword search; returns the best-matching documents with path, title, description and a snippet. |
+| `readKnowledgeDoc` | One document in full, by bundle path — `concepts/shift.md`, with or without the leading `/` used in this bundle's own links. |
+| `listKnowledgeTopics` | The whole catalogue: every path, title and description. |
+
+Retrieval is TF-IDF over those fields with crude suffix stemming, not embeddings.
+At ~50 curated documents the frontmatter carries the signal, and the inverse
+document frequency matters more than the similarity model: "shift" appears in
+nearly every document here and must count for almost nothing, or every question
+lands on whichever page says it most often.
+
+The bundle root is fixed **at startup**, first match winning:
+
+1. `--knowledge-path` on `shift-agent api` / `shift-agent chat`
+2. `SHIFT_AGENT_KNOWLEDGE_PATH`
+3. `docs/knowledge` resolved relative to the installed package — inside
+   `deploy/Dockerfile.agent` that is `/docs/knowledge`, where the image copies
+   the bundle and `docker-compose.yml` pins the variable.
+
+A path with no documents is not fatal: the tools are simply not bound, the agent
+keeps its MCP tools, and startup logs a warning. To see what a running agent
+actually has:
+
+```bash
+shift-agent knowledge                              # list every document
+shift-agent knowledge "why is the plan infeasible" # what searchKnowledge returns
+docker compose exec agent shift-agent knowledge    # …inside the container
+```
 
 # Chat API
 
@@ -123,6 +170,7 @@ returns 503 and the next retries.
 |---|---|
 | New backend capability | Add it to `api/openapi.yaml` and the backend; the MCP server picks it up automatically |
 | New navigable page | Add it to `KNOWN_PAGES` **and** `ui/src/app/app.routes.ts` |
+| Something the assistant explains wrongly | Fix or add the document here in `docs/knowledge`; nothing in the agent changes |
 | Persistent history | Swap `MemorySaver` for `SqliteSaver` or `PostgresSaver` in `graph.py` |
 | Streaming replies | Use `graph.astream(...)` instead of `graph.ainvoke(...)` |
 

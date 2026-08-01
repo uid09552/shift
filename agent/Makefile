@@ -1,4 +1,4 @@
-.PHONY: install sync chat api api-custom api-debug mcp mcp-http mcp-token test-api clean help
+.PHONY: install sync chat api api-custom api-debug mcp mcp-http mcp-token knowledge test-api clean help
 
 # Default target
 all: install
@@ -50,6 +50,12 @@ import json, sys; \
 d = json.load(sys.stdin); \
 sys.exit(json.dumps(d)) if 'access_token' not in d else print(d['access_token'])"
 
+# List the documentation bundle the agent answers product questions from —
+# the quickest check that SHIFT_AGENT_KNOWLEDGE_PATH resolves. Pass a question
+# to see what searchKnowledge would return: make knowledge Q="why is it infeasible"
+knowledge:
+	uv run shift-agent knowledge $(if $(Q),"$(Q)",)
+
 # Quick smoke test of the API (no auth)
 test-api:
 	@echo "Starting API server for testing..."
@@ -98,6 +104,7 @@ help:
 	@echo "  make mcp         Start MCP server (stdio transport)"
 	@echo "  make mcp-http    Start MCP server (streamable HTTP, :8900)"
 	@echo "  make mcp-token   Fetch an access token for the HTTP MCP server"
+	@echo "  make knowledge   List the knowledge bundle (Q=\"...\" to search it)"
 	@echo "  make test-api    Smoke test the REST API (no auth)"
 	@echo "  make test-api-auth  Smoke test with Keycloak auth"
 	@echo "  make clean       Remove .venv and build artifacts"

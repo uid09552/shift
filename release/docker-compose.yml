@@ -155,6 +155,10 @@ services:
       # Pinned here rather than left to agent.env because the hostname is this
       # compose file's own service name.
       MCP_SERVER_URL: http://mcp:8900/mcp
+      # The documentation bundle the agent answers product, architecture and
+      # how-to questions from, baked into the image by deploy/Dockerfile.agent.
+      # Pinned for the same reason: it's an in-image path, not a host one.
+      SHIFT_AGENT_KNOWLEDGE_PATH: /docs/knowledge
     depends_on:
       - backend
       - mcp

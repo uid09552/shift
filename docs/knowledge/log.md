@@ -1,5 +1,24 @@
 # Bundle Update Log
 
+## 2026-08-01
+
+* **Change**: The chat agent now reads this bundle. `agent/shift_agent/agent/knowledge.py`
+  loads it at startup and exposes `searchKnowledge`, `readKnowledgeDoc` and
+  `listKnowledgeTopics`, so the assistant answers "how does X work" questions
+  from these documents instead of from the model's own recollection. The bundle
+  root is `SHIFT_AGENT_KNOWLEDGE_PATH` / `--knowledge-path`, defaulting to
+  `docs/knowledge`, and `deploy/Dockerfile.agent` copies it to `/docs/knowledge`
+  in the image.
+* **Revision**: [Agent and MCP service](/architecture/agent-and-mcp-service.md) —
+  documented the knowledge tools, their retrieval model and the path resolution;
+  corrected "no tools of its own", which now holds only for backend state.
+* **Revision**: [Using the assistant](/guide/using-the-assistant.md) — added
+  "explain something" as a fourth kind of request, and the corresponding limit:
+  its explanations are only as current as this bundle.
+* **Note**: This bundle is now a runtime dependency of the agent image, not only
+  reference material. A document added here reaches the assistant on the next
+  image build; nothing in the agent needs changing.
+
 ## 2026-07-31
 
 * **Creation**: Established the bundle root [index](/index.md) and this log,

@@ -26,14 +26,22 @@ def cli():
 
 
 @cli.command()
-def chat():
+@click.option(
+    "--knowledge-path",
+    default=None,
+    envvar="SHIFT_AGENT_KNOWLEDGE_PATH",
+    help="Root of the Open Knowledge Format documentation bundle the agent "
+    "answers product questions from (default: SHIFT_AGENT_KNOWLEDGE_PATH, "
+    "else backend/docs/knowledge).",
+)
+def chat(knowledge_path):
     """Interactive terminal chat with the agent (for local testing)."""
     from langchain_core.messages import HumanMessage
 
     from shift_agent.agent.graph import build_graph, connect_mcp, disconnect_mcp
 
     async def run():
-        state = build_graph()
+        state = build_graph(knowledge_path=knowledge_path)
         graph = await connect_mcp(state)
 
         config = {"configurable": {"thread_id": "cli"}}
@@ -71,22 +79,73 @@ def chat():
 @click.option("--host", default="0.0.0.0", help="Host to bind the server to (default: 0.0.0.0)")
 @click.option("--port", default=8899, type=int, help="Port to listen on (default: 8899)")
 @click.option("--debug", is_flag=True, default=False, help="Enable Flask debug mode")
-def api(host, port, debug):
+@click.option(
+    "--knowledge-path",
+    default=None,
+    envvar="SHIFT_AGENT_KNOWLEDGE_PATH",
+    help="Root of the Open Knowledge Format documentation bundle the agent "
+    "answers product questions from (default: SHIFT_AGENT_KNOWLEDGE_PATH, "
+    "else backend/docs/knowledge).",
+)
+def api(host, port, debug, knowledge_path):
     """Start the agent's REST API server."""
     from shift_agent.agent.server import create_app
+    from shift_agent.config import settings
 
     print("Starting Shift Agent REST API")
-    print(f"  Host  : {host}")
-    print(f"  Port  : {port}")
-    print(f"  Debug : {debug}")
+    print(f"  Host      : {host}")
+    print(f"  Port      : {port}")
+    print(f"  Debug     : {debug}")
+    print(f"  Knowledge : {knowledge_path or settings.knowledge_path}")
     print()
     print("Endpoints:")
     print(f"  POST http://{host}:{port}/api/v1/chat")
     print(f"  GET  http://{host}:{port}/api/v1/health")
     print()
 
-    app = create_app()
+    app = create_app(knowledge_path=knowledge_path)
     app.run(host=host, port=port, debug=debug)
+
+
+@cli.command()
+@click.argument("query", required=False)
+@click.option(
+    "--knowledge-path",
+    default=None,
+    envvar="SHIFT_AGENT_KNOWLEDGE_PATH",
+    help="Root of the documentation bundle (default: SHIFT_AGENT_KNOWLEDGE_PATH, "
+    "else backend/docs/knowledge).",
+)
+@click.option("--limit", default=5, type=int, help="Max results to show (default: 5)")
+def knowledge(query, knowledge_path, limit):
+    """Inspect the knowledge bundle the agent answers product questions from.
+
+    Without QUERY, lists every document — the quickest way to check that a
+    deployment resolved the bundle at all (e.g. inside the container:
+    `docker compose exec agent shift-agent knowledge`). With QUERY, shows what
+    the agent's searchKnowledge tool would find.
+    """
+    from shift_agent.agent.knowledge import KnowledgeBase
+    from shift_agent.config import settings
+
+    root = knowledge_path or settings.knowledge_path
+    kb = KnowledgeBase(root)
+    if not kb.available:
+        raise click.ClickException(f"No knowledge documents found at {root}")
+
+    if not query:
+        for entry in kb.catalogue():
+            click.echo(f"{entry['path']:45s} {entry['title']}")
+        click.echo(f"\n{len(kb.docs)} document(s) in {kb.root}")
+        return
+
+    results = kb.search(query, limit=limit)
+    if not results:
+        click.echo(f"No documents matched '{query}'.")
+        return
+    for entry in results:
+        click.echo(f"\n{entry['score']:>7}  {entry['path']} — {entry['title']}")
+        click.echo(f"         {entry['snippet']}")
 
 
 @cli.command()

@@ -9,8 +9,8 @@ Planner Settings page](../assets/screenshots/assistant.png)
 
 ## What it can do
 
-The assistant can use the same functions the screens use. In practice that
-means three sorts of request:
+The assistant can use the same functions the screens use, and it can read this
+documentation. In practice that means four sorts of request:
 
 **Take me somewhere.**
 
@@ -31,6 +31,17 @@ The page changes underneath the chat window, as in the screenshot above.
 > *"Set the minimum rest to 12 hours."*
 > *"Add a capability called Dialysis."*
 > *"Mark Thomas Weber unavailable on the 14th of March."*
+
+**Explain something.**
+
+> *"How do I confirm a plan?"*
+> *"What does 'soft minimum' actually mean?"*
+> *"Why would the planner call a week infeasible?"*
+> *"What is the difference between a shift wish and an available shift?"*
+
+Answers of this last sort come out of the product's own documentation rather
+than the model's general knowledge, so they describe *this* system — and they
+are only as current as the documentation is.
 
 ## How to get good answers
 

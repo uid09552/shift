@@ -29,6 +29,13 @@ COPY agent/shift_agent ./shift_agent
 # inside this image is the filesystem root (see OPENAPI_SPEC_PATH).
 COPY api/openapi.yaml /api/openapi.yaml
 
+# The Open Knowledge Format documentation bundle the chat agent answers product,
+# architecture and how-to questions from (shift_agent/agent/knowledge.py). Same
+# path trick as the spec above: config.py's default resolves two levels up from
+# shift_agent/config.py, i.e. the image root. Override with
+# SHIFT_AGENT_KNOWLEDGE_PATH or `shift-agent api --knowledge-path`.
+COPY docs/knowledge /docs/knowledge
+
 # Ensure the virtual environment is in PATH
 ENV PATH="/app/.venv/bin:$PATH"
 

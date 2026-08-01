@@ -2,17 +2,24 @@
 The agent's LangGraph: a ReAct-style loop that talks to the MCP server over
 HTTP (MCP_SERVER_URL, default http://mcp:8900/mcp) to discover and call
 backend tools, using a configurable LLM provider (Ollama local, Ollama.com
-cloud, or OpenAI). The agent has no tools of its own — everything it can do
-comes from the MCP server.
+cloud, or OpenAI).
+
+Two sources of tools, and the split matters:
+  - the MCP server, for everything that touches backend *state* (list, read,
+    create, update) — discovered at connect time, one tool per API operation;
+  - the local knowledge bundle (knowledge.py), for *explanation* — how the
+    product is used, how it is built, why the solver behaves as it does.
 
 Architecture:
   1. On startup, build_graph() creates the graph skeleton (agent + tools
-     nodes, edges, checkpointer) but does NOT compile it yet.
-  2. connect_mcp() lists the remote MCP server's tools, binds them to the LLM,
-     and compiles the graph.
-  3. The agent node calls the LLM with the discovered tools bound.
-  4. The tools node runs whatever tool the LLM asked for via the MCP client,
-     forwarding the current request's access token to the MCP server.
+     nodes, edges, checkpointer) and loads the knowledge tools, but does NOT
+     compile the graph yet.
+  2. connect_mcp() lists the remote MCP server's tools, binds them together
+     with the knowledge tools to the LLM, and compiles the graph.
+  3. The agent node calls the LLM with the bound tools.
+  4. The tools node runs whatever tool the LLM asked for — in-process for the
+     knowledge tools, via the MCP client (forwarding the current request's
+     access token) for the rest.
   5. Loop until the LLM answers in plain text.
 
 See README.md for how to extend this (swap the checkpointer, add nodes, etc.).
@@ -32,15 +39,28 @@ from langgraph.prebuilt import ToolNode, tools_condition
 
 from shift_agent.config import settings
 from shift_agent.agent.client import MCPClient
+from shift_agent.agent.knowledge import build_knowledge_tools
 
 logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """You are the in-app assistant for Shift Planner, a hospital shift \
-scheduling web app. You help the signed-in user find their way around the app and \
-adjust configuration — you are not the scheduling optimizer itself.
+scheduling web app. You help the signed-in user find their way around the app, \
+explain how the product works, and adjust configuration — you are not the \
+scheduling optimizer itself.
 
-Your tools come from the Shift Planner backend API — one per API operation, named \
-after it. The ones you will need most:
+You have a documentation bundle covering the product: user workflows, the domain \
+concepts, the system architecture, the interfaces, and the solver's constraints \
+and settings.
+
+- **searchKnowledge**: Search that documentation. Use it whenever the user asks how \
+  something works, what something means, why the planner behaved a certain way, or \
+  how the system is built.
+- **readKnowledgeDoc**: Read one documentation page in full, by the path \
+  searchKnowledge returned.
+- **listKnowledgeTopics**: List every documentation page, when search finds nothing.
+
+Your remaining tools come from the Shift Planner backend API — one per API \
+operation, named after it. The ones you will need most:
 
 - **navigate**: Send the user's browser to a page in the app (dashboard, schedule, \
   employee_calendar, workstation_calendar, scheduler, user_profiles, shifts, \
@@ -54,6 +74,13 @@ after it. The ones you will need most:
   first to get current values, then change only what the user asked).
 
 Rules:
+- Answer questions about how the product works, what a concept means, or how the \
+system is built from the documentation, not from memory: call searchKnowledge first \
+and base the answer on what it returns. Say so plainly if the documentation doesn't \
+cover it.
+- The documentation explains; the API tools report the current state. A question \
+about *this* ward's actual data ("how many employees do we have") is an API call, \
+not a documentation lookup.
 - Before calling updatePlannerSettings, call getPlannerSettings first if you \
   don't already know the current values in this conversation — that tool requires \
   every field, and you must carry over the ones the user didn't ask to change.
@@ -128,23 +155,41 @@ def _make_agent_node(llm: BaseChatModel):
     return call_model
 
 
-def build_graph() -> Any:
+def build_graph(knowledge_path: str | None = None) -> Any:
     """Build the agent graph skeleton (uncompiled).
+
+    Args:
+        knowledge_path: root of the Open Knowledge Format bundle to answer
+            product questions from. Defaults to ``settings.knowledge_path``
+            (``SHIFT_AGENT_KNOWLEDGE_PATH``). A path that doesn't exist yields
+            no knowledge tools, and the agent runs on the MCP tools alone.
 
     Returns a dict with:
       - ``builder``: the ``StateGraph`` (not yet compiled)
       - ``mcp_client``: the ``MCPClient`` instance
       - ``checkpointer``: the ``MemorySaver``
+      - ``local_tools``: the agent's own tools (knowledge base)
 
-    Call ``connect_mcp()`` to discover tools and compile the graph.
+    Call ``connect_mcp()`` to discover the MCP tools and compile the graph.
     """
     mcp_client = MCPClient()
     checkpointer = MemorySaver()
+
+    # Read off disk once, here rather than per request: the bundle ships with
+    # the image and never changes while the process runs.
+    local_tools = build_knowledge_tools(knowledge_path)
+    if not local_tools:
+        logger.warning(
+            "No knowledge tools — bundle missing at %s. The agent can still use "
+            "the MCP tools, but cannot answer product or architecture questions.",
+            knowledge_path or settings.knowledge_path,
+        )
 
     return {
         "builder": StateGraph(MessagesState),
         "mcp_client": mcp_client,
         "checkpointer": checkpointer,
+        "local_tools": local_tools,
     }
 
 
@@ -164,8 +209,10 @@ async def connect_mcp(state: dict) -> Any:
     builder: StateGraph = state["builder"]
     mcp_client: MCPClient = state["mcp_client"]
     checkpointer = state["checkpointer"]
+    local_tools = state.get("local_tools") or []
 
-    tools = await mcp_client.connect()
+    mcp_tools = await mcp_client.connect()
+    tools = [*local_tools, *mcp_tools]
 
     # Build the LLM with tools bound
     llm = _build_llm()
@@ -181,7 +228,12 @@ async def connect_mcp(state: dict) -> Any:
     compiled = builder.compile(checkpointer=checkpointer)
     compiled.mcp_client = mcp_client  # type: ignore[attr-defined]
 
-    logger.info("MCP connected — %d tool(s) bound", len(tools))
+    logger.info(
+        "MCP connected — %d tool(s) bound (%d MCP, %d knowledge)",
+        len(tools),
+        len(mcp_tools),
+        len(local_tools),
+    )
     return compiled
 
 
