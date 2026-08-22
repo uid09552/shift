@@ -36,7 +36,7 @@ export class ProductListTableComponent {
     {
       id: 1,
       name: "Macbook pro M4",
-      image: "/images/product/product-01.jpg",
+      image: "images/product/product-01.jpg",
       category: "Laptop",
       brand: "Apple",
       price: "$699",
@@ -46,7 +46,7 @@ export class ProductListTableComponent {
     {
       id: 2,
       name: "Apple Watch Ultra",
-      image: "/images/product/product-02.jpg",
+      image: "images/product/product-02.jpg",
       category: "Watch",
       brand: "Apple",
       price: "$1,579",
@@ -56,7 +56,7 @@ export class ProductListTableComponent {
     {
       id: 3,
       name: "iPhone 15 Pro Max",
-      image: "/images/product/product-03.jpg",
+      image: "images/product/product-03.jpg",
       category: "Phone",
       brand: "Apple",
       price: "$1,039",
@@ -66,7 +66,7 @@ export class ProductListTableComponent {
     {
       id: 4,
       name: "iPad Pro 3rd Gen",
-      image: "/images/product/product-04.jpg",
+      image: "images/product/product-04.jpg",
       category: "Electronics",
       brand: "Apple",
       price: "$43,999",
@@ -76,7 +76,7 @@ export class ProductListTableComponent {
     {
       id: 5,
       name: "Samsung Galaxy S24 Ultra",
-      image: "/images/product/product-05.jpg",
+      image: "images/product/product-05.jpg",
       category: "Phone",
       brand: "Samsung",
       price: "$699",
@@ -86,7 +86,7 @@ export class ProductListTableComponent {
     {
       id: 6,
       name: "Airpods Pro 2nd Gen",
-      image: "/images/product/product-01.jpg",
+      image: "images/product/product-01.jpg",
       category: "Accessories",
       brand: "Apple",
       price: "$839",
@@ -96,7 +96,7 @@ export class ProductListTableComponent {
     {
       id: 7,
       name: "LG OLED & 4K Smart TV",
-      image: "/images/product/product-02.jpg",
+      image: "images/product/product-02.jpg",
       category: "Electronics",
       brand: "LG",
       price: "$1,769",
@@ -106,7 +106,7 @@ export class ProductListTableComponent {
     {
       id: 8,
       name: "Sony WH-1000XM5 Headphones",
-      image: "/images/product/product-03.jpg",
+      image: "images/product/product-03.jpg",
       category: "Audio",
       brand: "Sony",
       price: "$399",
@@ -116,7 +116,7 @@ export class ProductListTableComponent {
     {
       id: 9,
       name: "Dell XPS 13 Laptop",
-      image: "/images/product/product-04.jpg",
+      image: "images/product/product-04.jpg",
       category: "Laptop",
       brand: "Dell",
       price: "$1,299",
@@ -126,7 +126,7 @@ export class ProductListTableComponent {
     {
       id: 10,
       name: "Google Pixel 8 Pro",
-      image: "/images/product/product-05.jpg",
+      image: "images/product/product-05.jpg",
       category: "Phone",
       brand: "Google",
       price: "$899",
@@ -136,7 +136,7 @@ export class ProductListTableComponent {
     {
       id: 11,
       name: "Microsoft Surface Pro 9",
-      image: "/images/product/product-02.jpg",
+      image: "images/product/product-02.jpg",
       category: "Tablet",
       brand: "Microsoft",
       price: "$1,099",
@@ -146,7 +146,7 @@ export class ProductListTableComponent {
     {
       id: 12,
       name: "Canon EOS R5 Camera",
-      image: "/images/product/product-03.jpg",
+      image: "images/product/product-03.jpg",
       category: "Camera",
       brand: "Canon",
       price: "$3,899",
@@ -156,7 +156,7 @@ export class ProductListTableComponent {
     {
       id: 13,
       name: "Nintendo Switch OLED",
-      image: "/images/product/product-04.jpg",
+      image: "images/product/product-04.jpg",
       category: "Gaming",
       brand: "Nintendo",
       price: "$349",
@@ -166,7 +166,7 @@ export class ProductListTableComponent {
     {
       id: 14,
       name: "Razer DeathAdder V3 Mouse",
-      image: "/images/product/product-05.jpg",
+      image: "images/product/product-05.jpg",
       category: "Accessories",
       brand: "Razer",
       price: "$89",
@@ -176,7 +176,7 @@ export class ProductListTableComponent {
     {
       id: 15,
       name: "HP Envy 34 Monitor",
-      image: "/images/product/product-01.jpg",
+      image: "images/product/product-01.jpg",
       category: "Monitor",
       brand: "HP",
       price: "$799",
@@ -186,7 +186,7 @@ export class ProductListTableComponent {
     {
       id: 16,
       name: "Bose QuietComfort Earbuds",
-      image: "/images/product/product-02.jpg",
+      image: "images/product/product-02.jpg",
       category: "Audio",
       brand: "Bose",
       price: "$279",
@@ -196,7 +196,7 @@ export class ProductListTableComponent {
     {
       id: 17,
       name: "ASUS ROG Gaming Laptop",
-      image: "/images/product/product-03.jpg",
+      image: "images/product/product-03.jpg",
       category: "Laptop",
       brand: "ASUS",
       price: "$2,199",
@@ -206,7 +206,7 @@ export class ProductListTableComponent {
     {
       id: 18,
       name: "Logitech MX Master 3S",
-      image: "/images/product/product-04.jpg",
+      image: "images/product/product-04.jpg",
       category: "Accessories",
       brand: "Logitech",
       price: "$119",
@@ -216,7 +216,7 @@ export class ProductListTableComponent {
     {
       id: 19,
       name: "Steam Deck OLED",
-      image: "/images/product/product-05.jpg",
+      image: "images/product/product-05.jpg",
       category: "Gaming",
       brand: "Valve",
       price: "$649",
@@ -226,7 +226,7 @@ export class ProductListTableComponent {
     {
       id: 20,
       name: "Samsung 980 Pro SSD 2TB",
-      image: "/images/product/product-01.jpg",
+      image: "images/product/product-01.jpg",
       category: "Storage",
       brand: "Samsung",
       price: "$299",

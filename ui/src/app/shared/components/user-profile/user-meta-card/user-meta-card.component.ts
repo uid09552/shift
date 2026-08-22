@@ -29,7 +29,7 @@ export class UserMetaCardComponent {
     lastName: 'Chowdhury',
     role: 'Team Manager',
     location: 'Arizona, United States',
-    avatar: '/images/user/owner.jpg',
+    avatar: 'images/user/owner.jpg',
     social: {
       facebook: 'https://www.facebook.com/PimjoHQ',
       x: 'https://x.com/PimjoHQ',

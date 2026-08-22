@@ -47,7 +47,7 @@ export class RecentOrdersComponent {
       category: "Laptop",
       price: "$2399.00",
       status: "Delivered",
-      image: "/images/product/product-01.jpg",
+      image: "images/product/product-01.jpg",
     },
     {
       id: 2,
@@ -56,7 +56,7 @@ export class RecentOrdersComponent {
       category: "Watch",
       price: "$879.00",
       status: "Pending",
-      image: "/images/product/product-02.jpg",
+      image: "images/product/product-02.jpg",
     },
     {
       id: 3,
@@ -65,7 +65,7 @@ export class RecentOrdersComponent {
       category: "SmartPhone",
       price: "$1869.00",
       status: "Delivered",
-      image: "/images/product/product-03.jpg",
+      image: "images/product/product-03.jpg",
     },
     {
       id: 4,
@@ -74,7 +74,7 @@ export class RecentOrdersComponent {
       category: "Electronics",
       price: "$1699.00",
       status: "Canceled",
-      image: "/images/product/product-04.jpg",
+      image: "images/product/product-04.jpg",
     },
     {
       id: 5,
@@ -83,7 +83,7 @@ export class RecentOrdersComponent {
       category: "Accessories",
       price: "$240.00",
       status: "Delivered",
-      image: "/images/product/product-05.jpg",
+      image: "images/product/product-05.jpg",
     },
   ];
 
