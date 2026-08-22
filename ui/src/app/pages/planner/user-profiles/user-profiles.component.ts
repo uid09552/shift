@@ -14,6 +14,8 @@ import { UnavailabilityService } from '../../../shared/services/unavailability.s
 import { GlobalSearchService } from '../../../shared/services/global-search.service';
 import { ConfirmedShiftPlanService } from '../../../shared/services/confirmed-shift-plan.service';
 import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
+import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
+import { TranslationService } from '../../../shared/i18n/translation.service';
 
 interface LeaveEntry {
   id: string;
@@ -34,31 +36,32 @@ interface LeaveEntry {
     LabelComponent,
     ButtonComponent,
     DateRangePickerComponent,
+    TranslatePipe,
   ],
   template: `
-    <app-page-breadcrumb pageTitle="User Profiles" />
+    <app-page-breadcrumb pageTitle="nav.userProfiles" />
 
     <!-- Add / Edit Form Mask -->
     @if (showForm) {
       <div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div class="px-5 py-4 sm:px-6">
           <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
-            {{ editingEmployee ? 'Edit User' : 'New User' }}
+            {{ (editingEmployee ? 'userProfiles.editTitle' : 'userProfiles.newTitle') | t }}
           </h3>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {{ editingEmployee ? 'Modify user details, capabilities and shifts.' : 'Enter name and email for the new user.' }}
+            {{ (editingEmployee ? 'userProfiles.editSubtitle' : 'userProfiles.newSubtitle') | t }}
           </p>
         </div>
 
         <div class="px-5 pb-5 sm:px-6">
           <!-- Name -->
           <div class="mb-5">
-            <app-label for="userName" className="mb-1.5">Name</app-label>
+            <app-label for="userName" className="mb-1.5">{{ 'common.name' | t }}</app-label>
             <app-input-field
               id="userName"
               name="userName"
               type="text"
-              placeholder="e.g. Max Mustermann"
+              [placeholder]="'userProfiles.namePlaceholder' | t"
               [value]="formName"
               (valueChange)="onNameChange($event)"
             />
@@ -66,12 +69,12 @@ interface LeaveEntry {
 
           <!-- Email -->
           <div class="mb-5">
-            <app-label for="userEmail" className="mb-1.5">Email</app-label>
+            <app-label for="userEmail" className="mb-1.5">{{ 'common.email' | t }}</app-label>
             <app-input-field
               id="userEmail"
               name="userEmail"
               type="email"
-              placeholder="e.g. max@example.com"
+              [placeholder]="'userProfiles.emailPlaceholder' | t"
               [value]="formEmail"
               (valueChange)="onEmailChange($event)"
             />
@@ -79,7 +82,7 @@ interface LeaveEntry {
 
           <!-- Monthly working hours -->
           <div class="mb-5">
-            <app-label for="userMonthlyHours" className="mb-1.5">Max Working Hours (per Month)</app-label>
+            <app-label for="userMonthlyHours" className="mb-1.5">{{ 'userProfiles.monthlyHours' | t }}</app-label>
             <app-input-field
               id="userMonthlyHours"
               name="userMonthlyHours"
@@ -88,15 +91,15 @@ interface LeaveEntry {
               [value]="formMonthlyWorkingHours"
               (valueChange)="onMonthlyWorkingHoursChange($event)"
             />
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Target monthly working hours used by the schedule optimizer</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ 'userProfiles.monthlyHoursHint' | t }}</p>
           </div>
 
           <!-- Capabilities (only in edit mode) -->
           @if (editingEmployee) {
             <div class="mb-5">
-              <app-label className="mb-2">Capabilities</app-label>
+              <app-label className="mb-2">{{ 'common.capabilities' | t }}</app-label>
               @if (allCapabilities.length === 0) {
-                <p class="text-sm text-gray-400 dark:text-gray-500">No capabilities available. Create some in Configuration → Capabilities first.</p>
+                <p class="text-sm text-gray-400 dark:text-gray-500">{{ 'userProfiles.noCapabilities' | t }}</p>
               } @else {
                 <div class="flex flex-wrap gap-3">
                   @for (cap of allCapabilities; track cap.id) {
@@ -116,9 +119,9 @@ interface LeaveEntry {
 
             <!-- Shifts (only in edit mode) -->
             <div class="mb-5">
-              <app-label className="mb-2">Available Shifts</app-label>
+              <app-label className="mb-2">{{ 'userProfiles.availableShifts' | t }}</app-label>
               @if (allShifts.length === 0) {
-                <p class="text-sm text-gray-400 dark:text-gray-500">No shifts available. Create some in Configuration → Shifts first.</p>
+                <p class="text-sm text-gray-400 dark:text-gray-500">{{ 'userProfiles.noShifts' | t }}</p>
               } @else {
                 <div class="flex flex-wrap gap-3">
                   @for (shift of allShifts; track shift.id) {
@@ -138,7 +141,7 @@ interface LeaveEntry {
 
             <!-- Leave & Unavailability (unified calendar picker) -->
             <div class="mb-5">
-              <app-label className="mb-3">Leave &amp; Unavailability</app-label>
+              <app-label className="mb-3">{{ 'employeeCalendar.leavePanel' | t }}</app-label>
 
               <div class="grid grid-cols-1 gap-5 lg:grid-cols-[280px_1fr]">
 
@@ -155,7 +158,7 @@ interface LeaveEntry {
                       [class.dark:text-amber-300]="leaveType === 'unavailable'"
                       [class.text-gray-500]="leaveType !== 'unavailable'"
                       [class.dark:text-gray-400]="leaveType !== 'unavailable'"
-                    >Unavailable</button>
+                    >{{ 'employeeCalendar.leaveUnavailable' | t }}</button>
                     <button type="button" (click)="leaveType = 'day_off'"
                       class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
                       [class.bg-white]="leaveType === 'day_off'"
@@ -165,7 +168,7 @@ interface LeaveEntry {
                       [class.dark:text-yellow-300]="leaveType === 'day_off'"
                       [class.text-gray-500]="leaveType !== 'day_off'"
                       [class.dark:text-gray-400]="leaveType !== 'day_off'"
-                    >Vacation</button>
+                    >{{ 'employeeCalendar.leaveVacation' | t }}</button>
                     <button type="button" (click)="leaveType = 'sick'"
                       class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
                       [class.bg-white]="leaveType === 'sick'"
@@ -175,7 +178,7 @@ interface LeaveEntry {
                       [class.dark:text-red-400]="leaveType === 'sick'"
                       [class.text-gray-500]="leaveType !== 'sick'"
                       [class.dark:text-gray-400]="leaveType !== 'sick'"
-                    >Sick Leave</button>
+                    >{{ 'employeeCalendar.leaveSick' | t }}</button>
                   </div>
 
                   @if (leaveType === 'unavailable') {
@@ -186,7 +189,7 @@ interface LeaveEntry {
                         [(ngModel)]="preferSoft"
                         [ngModelOptions]="{ standalone: true }"
                       />
-                      Soft preference — the optimizer may still schedule this if needed
+                      {{ 'userProfiles.softPreference' | t }}
                     </label>
                   }
 
@@ -210,18 +213,18 @@ interface LeaveEntry {
                         <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
                       </svg>
                     }
-                    Add {{ leaveTypeLabel(leaveType) }}
+                    {{ 'employeeCalendar.addLeave' | t: { type: leaveTypeLabelKey(leaveType) | t } }}
                   </button>
 
                   @if (leaveError) {
-                    <p class="mt-2 text-xs text-red-500 dark:text-red-400">{{ leaveError }}</p>
+                    <p class="mt-2 text-xs text-red-500 dark:text-red-400">{{ leaveError | t }}</p>
                   }
                 </div>
 
                 <!-- Right: existing entries list -->
                 <div>
                   @if (leaveEntries.length === 0) {
-                    <p class="mt-2 text-sm text-gray-400 dark:text-gray-500">No leave or unavailability recorded yet.</p>
+                    <p class="mt-2 text-sm text-gray-400 dark:text-gray-500">{{ 'employeeCalendar.noEntries' | t }}</p>
                   } @else {
                     <div class="max-h-80 space-y-1.5 overflow-y-auto pr-1">
                       @for (entry of leaveEntries; track entry.id) {
@@ -241,12 +244,12 @@ interface LeaveEntry {
                               [class.text-red-700]="entry.type === 'sick'"
                               [class.dark:bg-red-900]="entry.type === 'sick'"
                               [class.dark:text-red-300]="entry.type === 'sick'"
-                            >{{ leaveTypeLabel(entry.type) }}</span>
+                            >{{ leaveTypeLabelKey(entry.type) | t }}</span>
                             @if (entry.is_soft_preference) {
                               <span
                                 class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-white/[0.08] dark:text-gray-400"
-                                title="Soft preference — the optimizer may still schedule this if needed"
-                              >soft</span>
+                                [title]="'userProfiles.softPreference' | t"
+                              >{{ 'userProfiles.soft' | t }}</span>
                             }
                           </div>
                           <button
@@ -275,14 +278,14 @@ interface LeaveEntry {
               variant="primary"
               (btnClick)="saveEmployee()"
             >
-              {{ editingEmployee ? 'Save Changes' : 'Create User' }}
+              {{ (editingEmployee ? 'config.saveChanges' : 'userProfiles.create') | t }}
             </app-button>
             <app-button
               size="sm"
               variant="outline"
               (btnClick)="cancelForm()"
             >
-              Cancel
+              {{ 'common.cancel' | t }}
             </app-button>
           </div>
         </div>
@@ -293,14 +296,14 @@ interface LeaveEntry {
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
       <div class="flex items-center justify-between px-5 py-4 sm:px-6">
         <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
-          Employee Overview
+          {{ 'userProfiles.overview' | t }}
         </h3>
         <div class="flex items-center gap-2">
           <app-button size="sm" variant="outline" (btnClick)="downloadTemplate()">
-            Download Template
+            {{ 'config.downloadTemplate' | t }}
           </app-button>
           <app-button size="sm" variant="outline" (btnClick)="importFileInput.click()" [disabled]="importing">
-            {{ importing ? 'Importing...' : 'Import' }}
+            {{ (importing ? 'config.importing' : 'config.import') | t }}
           </app-button>
           <input
             #importFileInput
@@ -315,7 +318,7 @@ interface LeaveEntry {
             [startIcon]="plusIcon"
             (btnClick)="openAddForm()"
           >
-            Add User
+            {{ 'userProfiles.add' | t }}
           </app-button>
         </div>
       </div>
@@ -330,12 +333,12 @@ interface LeaveEntry {
           <div class="flex items-start justify-between gap-3">
             <div>
               <p class="font-medium">
-                Import finished: {{ importResult.created }} created, {{ importResult.skipped }} skipped.
+                {{ 'config.importFinished' | t: { created: importResult.created, skipped: importResult.skipped } }}
               </p>
               @if (importResult.errors.length > 0) {
                 <ul class="mt-1.5 list-inside list-disc space-y-0.5">
                   @for (err of importResult.errors; track err.row) {
-                    <li>Row {{ err.row }}: {{ err.message }}</li>
+                    <li>{{ 'config.importRowError' | t: { row: err.row, message: err.message } }}</li>
                   }
                 </ul>
               }
@@ -351,24 +354,24 @@ interface LeaveEntry {
         <table class="min-w-full">
           <thead class="border-b border-gray-100 dark:border-white/[0.05]">
             <tr>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Name</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Max Hrs/Month</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Shifts</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Capabilities</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Actions</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.name' | t }}</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'userProfiles.maxHoursColumn' | t }}</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.shifts' | t }}</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.capabilities' | t }}</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
             @if (loading) {
               <tr>
                 <td colspan="5" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
-                  Loading employees...
+                  {{ 'userProfiles.loading' | t }}
                 </td>
               </tr>
             } @else if (employees.length === 0 && !loading) {
               <tr>
                 <td colspan="5" class="px-5 py-8 text-center text-gray-400 dark:text-gray-500">
-                  No employees found. Click "Add User" to create one.
+                  {{ 'userProfiles.empty' | t }}
                 </td>
               </tr>
             } @else {
@@ -424,14 +427,14 @@ interface LeaveEntry {
                         variant="outline"
                         (btnClick)="openEditForm(employee)"
                       >
-                        Edit
+                        {{ 'common.edit' | t }}
                       </app-button>
                       <app-button
                         size="sm"
                         variant="danger"
                         (btnClick)="deleteEmployee(employee)"
                       >
-                        Delete
+                        {{ 'common.delete' | t }}
                       </app-button>
                     </div>
                   </td>
@@ -565,6 +568,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
     private globalSearchService: GlobalSearchService,
     private confirmedShiftPlanService: ConfirmedShiftPlanService,
     private confirmDialog: ConfirmDialogService,
+    private translations: TranslationService,
   ) {}
 
   ngOnInit(): void {
@@ -801,9 +805,9 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
 
   async deleteEmployee(employee: EmployeeProfile): Promise<void> {
     const ok = await this.confirmDialog.confirm({
-      title: 'Delete Employee',
-      message: `Are you sure you want to delete "${employee.name}"? This action cannot be undone.`,
-      confirmLabel: 'Delete',
+      title: this.translations.t('userProfiles.confirmDeleteTitle'),
+      message: this.translations.t('userProfiles.confirmDeleteMessage', { name: employee.name }),
+      confirmLabel: this.translations.t('common.delete'),
       danger: true,
     });
     if (!ok) return;
@@ -823,10 +827,11 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
     }));
   }
 
-  leaveTypeLabel(type: string): string {
-    if (type === 'sick') return 'Sick Leave';
-    if (type === 'day_off') return 'Vacation';
-    return 'Unavailable';
+  // Translation key of a leave entry's type label.
+  leaveTypeLabelKey(type: string): string {
+    if (type === 'sick') return 'employeeCalendar.leaveSick';
+    if (type === 'day_off') return 'employeeCalendar.leaveVacation';
+    return 'employeeCalendar.leaveUnavailable';
   }
 
   applyLeaveRange(): void {
@@ -870,7 +875,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.leaveProcessing = false;
-        this.leaveError = 'Failed to save some entries. Please try again.';
+        this.leaveError = 'employeeCalendar.saveFailed';
       },
     });
   }
@@ -882,7 +887,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
 
     obs$.subscribe({
       next: () => { this.leaveEntries = this.leaveEntries.filter(e => e.id !== entry.id); },
-      error: () => { this.leaveError = 'Failed to delete entry.'; },
+      error: () => { this.leaveError = 'employeeCalendar.deleteFailed'; },
     });
   }
 

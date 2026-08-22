@@ -34,6 +34,8 @@ import { ShiftService, Shift } from '../../../shared/services/shift.service';
 import { WorkstationService, Workstation } from '../../../shared/services/workstation.service';
 import { ContextMenuService, ContextMenuItem } from '../../../shared/components/ui/context-menu/context-menu.service';
 import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
+import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
+import { TranslationService } from '../../../shared/i18n/translation.service';
 
 interface DayInfo {
   date: Date;
@@ -51,7 +53,7 @@ interface CellDetail {
 @Component({
   selector: 'app-scheduler',
   standalone: true,
-  imports: [CommonModule, FormsModule, PageBreadcrumbComponent, CalendarNavComponent, CalendarTableComponent],
+  imports: [CommonModule, FormsModule, PageBreadcrumbComponent, CalendarNavComponent, CalendarTableComponent, TranslatePipe],
   templateUrl: './scheduler.component.html',
   styleUrl: './scheduler.component.css',
 })
@@ -124,7 +126,6 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   takePlanSuccess = false;
   takePlanError: string | null = null;
 
-  readonly DAY_NAMES_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   // ── Editing the proposed schedule ────────────────────────────────
   shifts: Shift[] = [];
@@ -153,6 +154,7 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     private workstationService: WorkstationService,
     private contextMenuService: ContextMenuService,
     private confirmDialogService: ConfirmDialogService,
+    private translations: TranslationService,
   ) {}
 
   ngOnInit(): void {
@@ -182,7 +184,9 @@ export class SchedulerComponent implements OnInit, OnDestroy {
 
   get currentRows(): CalendarTableRow[] { return this.filteredRows; }
   get currentCellMap(): Map<string, Map<string, CalendarTableCellData>> { return this.filteredCellMap; }
-  get currentRowLabel(): string { return this.viewMode === 'workstation' ? 'Workstation' : 'Employee'; }
+  get currentRowLabel(): string {
+    return this.translations.t(this.viewMode === 'workstation' ? 'common.workstation' : 'common.employee');
+  }
   get currentRowIcon(): 'workstation' | 'employee' { return this.viewMode; }
   get currentCellMode(): 'count' | 'name' { return this.viewMode === 'workstation' ? 'count' : 'name'; }
 
@@ -204,7 +208,7 @@ export class SchedulerComponent implements OnInit, OnDestroy {
       d.setDate(d.getDate() + i);
       return {
         date: d,
-        label: this.DAY_NAMES_FULL[d.getDay() === 0 ? 6 : d.getDay() - 1].substring(0, 3),
+        label: d.toLocaleDateString(this.translations.locale, { weekday: 'short' }),
         dayNum: d.getDate(),
         isToday: d.getTime() === today.getTime(),
       };
@@ -255,7 +259,7 @@ export class SchedulerComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.loading = false;
-        this.error = 'Failed to load optimized shift results.';
+        this.error = 'scheduler.error.loadResults';
       },
     });
   }
@@ -465,11 +469,14 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   clearEmployeeSelection(): void { this.selectedEmployeeIds = []; }
 
   get selectedEmployeesLabel(): string {
-    if (!this.selectedEmployeeIds.length) return 'All Employees';
+    if (!this.selectedEmployeeIds.length) return this.translations.t('scheduler.allEmployees');
     if (this.selectedEmployeeIds.length === 1) {
-      return this.employees.find(e => e.id === this.selectedEmployeeIds[0])?.name ?? '1 employee';
+      return (
+        this.employees.find(e => e.id === this.selectedEmployeeIds[0])?.name ??
+        this.translations.t('scheduler.oneEmployee')
+      );
     }
-    return `${this.selectedEmployeeIds.length} employees`;
+    return this.translations.t('scheduler.nEmployees', { count: this.selectedEmployeeIds.length });
   }
 
   // ── Planning ──────────────────────────────────────────────────────
@@ -498,11 +505,11 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   triggerPlan(): void {
     if (this.planningMode === 'range') {
       if (!this.customStartDate || !this.customEndDate) {
-        this.error = 'Pick a start and end date for the planning range.';
+        this.error = 'scheduler.error.pickDates';
         return;
       }
       if (this.customEndDate < this.customStartDate) {
-        this.error = 'End date must be on or after the start date.';
+        this.error = 'scheduler.error.endBeforeStart';
         return;
       }
     }
@@ -525,7 +532,7 @@ export class SchedulerComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.isPlanning = false;
-        this.error = 'Failed to start optimization. Please contact support.';
+        this.error = 'scheduler.error.startFailed';
       },
     });
   }
@@ -545,17 +552,17 @@ export class SchedulerComponent implements OnInit, OnDestroy {
               this.setResult(result);
               this.loadAllResults();
             },
-            error: () => { this.error = 'Failed to load optimization result.'; },
+            error: () => { this.error = 'scheduler.error.loadResult'; },
           });
         } else if (status.status === 'failed') {
           this.isPlanning = false;
           this.planningTaskId = null;
-          this.error = 'Optimization failed. Please contact support.';
+          this.error = 'scheduler.error.optimizationFailed';
         }
       },
       error: () => {
         this.isPlanning = false;
-        this.error = 'Failed to check optimization status.';
+        this.error = 'scheduler.error.checkStatus';
       },
     });
   }
@@ -580,12 +587,13 @@ export class SchedulerComponent implements OnInit, OnDestroy {
         this.setResult(result);
         this.loadAllResults();
       },
-      error: () => { this.error = 'Failed to load result.'; },
+      error: () => { this.error = 'scheduler.error.loadResult'; },
     });
   }
 
-  taskStatusLabel(status: string): string {
-    return status === 'done' ? 'completed' : status;
+  // Translation key of a planning task's status; unknown statuses show as-is.
+  taskStatusKey(status: string): string {
+    return `scheduler.taskStatus.${status}`;
   }
 
   // ── Take as plan ─────────────────────────────────────────────────
@@ -653,16 +661,19 @@ export class SchedulerComponent implements OnInit, OnDestroy {
       const isFree = entry?.status === 'free';
 
       const items: ContextMenuItem[] = [
-        { label: hasAssignment ? 'Edit Assignment' : 'Assign Shift', action: () => this.openEditAssignment(employeeId, employeeName, dateStr) },
+        {
+          label: this.translations.t(hasAssignment ? 'scheduler.editAssignment' : 'scheduler.assignShift'),
+          action: () => this.openEditAssignment(employeeId, employeeName, dateStr),
+        },
       ];
       if (hasAssignment) {
-        items.push({ label: 'Mark as Free', action: () => {
+        items.push({ label: this.translations.t('scheduler.markAsFree'), action: () => {
           this.mutateAssignment(employeeId, employeeName, dateStr, { status: 'free', shiftId: null, workstationId: null });
           this.commitScheduleChange();
         }});
-        items.push({ label: 'Remove Entry', danger: true, action: () => this.confirmRemoveAssignment(employeeId, employeeName, dateStr) });
+        items.push({ label: this.translations.t('scheduler.removeEntry'), danger: true, action: () => this.confirmRemoveAssignment(employeeId, employeeName, dateStr) });
       } else if (isFree) {
-        items.push({ label: 'Clear (Unassign)', action: () => {
+        items.push({ label: this.translations.t('scheduler.clearUnassign'), action: () => {
           this.mutateAssignment(employeeId, employeeName, dateStr, { status: 'unassigned', shiftId: null, workstationId: null });
           this.commitScheduleChange();
         }});
@@ -677,11 +688,16 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     const uniqueEmployeeIds = [...new Set(assignments.map(a => a.employeeId))];
     const items: ContextMenuItem[] = [
       {
-        label: `Take as Plan (${uniqueEmployeeIds.length} employee${uniqueEmployeeIds.length > 1 ? 's' : ''})`,
+        label: this.translations.t('scheduler.takeAsPlanCount', {
+          count: this.translations.t(
+            uniqueEmployeeIds.length === 1 ? 'scheduler.oneEmployee' : 'scheduler.nEmployees',
+            { count: uniqueEmployeeIds.length },
+          ),
+        }),
         action: () => this.takeAsPlan(uniqueEmployeeIds),
       },
       {
-        label: `Remove All in Cell (${assignments.length})`,
+        label: this.translations.t('scheduler.removeAllInCell', { count: assignments.length }),
         danger: true,
         action: () => this.confirmRemoveCellAssignments(assignments, dateStr),
       },
@@ -698,12 +714,30 @@ export class SchedulerComponent implements OnInit, OnDestroy {
 
     const items: ContextMenuItem[] = isMassSelection
       ? [
-          { label: `Take as Plan (${selected.size} selected)`, action: () => this.takeAsPlan([...selected]) },
-          { label: `Clear Assignments (${selected.size} selected)`, danger: true, action: () => this.confirmClearEmployees([...selected]) },
+          {
+            label: this.translations.t('scheduler.takeAsPlanFor', {
+              label: this.translations.t('scheduler.selectedCount', { label: selected.size }),
+            }),
+            action: () => this.takeAsPlan([...selected]),
+          },
+          {
+            label: this.translations.t('scheduler.clearAssignmentsFor', {
+              label: this.translations.t('scheduler.selectedCount', { label: selected.size }),
+            }),
+            danger: true,
+            action: () => this.confirmClearEmployees([...selected]),
+          },
         ]
       : [
-          { label: `Take as Plan (${employeeName})`, action: () => this.takeAsPlan([employeeId]) },
-          { label: `Clear All Assignments (${employeeName})`, danger: true, action: () => this.confirmClearEmployees([employeeId]) },
+          {
+            label: this.translations.t('scheduler.takeAsPlanFor', { label: employeeName }),
+            action: () => this.takeAsPlan([employeeId]),
+          },
+          {
+            label: this.translations.t('scheduler.clearAssignmentsFor', { label: employeeName }),
+            danger: true,
+            action: () => this.confirmClearEmployees([employeeId]),
+          },
         ];
     this.contextMenuService.open(evt.event, items);
   }
@@ -720,9 +754,9 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   get editSelectedLabel(): string {
     if (this.editSelectedIds.size === 1) {
       const id = [...this.editSelectedIds][0];
-      return this.employees.find(e => e.id === id)?.name ?? '1 employee';
+      return this.employees.find(e => e.id === id)?.name ?? this.translations.t('scheduler.oneEmployee');
     }
-    return `${this.editSelectedIds.size} employees`;
+    return this.translations.t('scheduler.nEmployees', { count: this.editSelectedIds.size });
   }
 
   // ── Edit assignment modal ──────────────────────────────────────────
@@ -813,7 +847,7 @@ export class SchedulerComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.savingSchedule = false;
-        this.error = 'Failed to save schedule edit.';
+        this.error = 'scheduler.error.saveEdit';
       },
     });
   }
@@ -848,7 +882,7 @@ export class SchedulerComponent implements OnInit, OnDestroy {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, shiftMap]) => ({
         date,
-        weekday: new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' }),
+        weekday: new Date(date + 'T00:00:00').toLocaleDateString(this.translations.locale, { weekday: 'long' }),
         shifts: Array.from(shiftMap.entries()).map(([shiftId, bucket]) => ({
           shift_id: shiftId,
           shift_name: bucket.shiftName,
@@ -862,9 +896,9 @@ export class SchedulerComponent implements OnInit, OnDestroy {
 
   private async confirmRemoveAssignment(employeeId: string, employeeName: string, dateStr: string): Promise<void> {
     const ok = await this.confirmDialogService.confirm({
-      title: 'Remove Assignment',
-      message: `Remove ${employeeName}'s assignment on ${dateStr}?`,
-      confirmLabel: 'Remove',
+      title: this.translations.t('scheduler.confirmRemoveTitle'),
+      message: this.translations.t('scheduler.confirmRemoveMessage', { employee: employeeName, date: dateStr }),
+      confirmLabel: this.translations.t('scheduler.remove'),
       danger: true,
     });
     if (!ok) return;
@@ -877,9 +911,9 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     dateStr: string,
   ): Promise<void> {
     const ok = await this.confirmDialogService.confirm({
-      title: 'Remove Assignments',
-      message: `Remove ${assignments.length} assignment(s) on ${dateStr}?`,
-      confirmLabel: 'Remove',
+      title: this.translations.t('scheduler.confirmRemoveManyTitle'),
+      message: this.translations.t('scheduler.confirmRemoveManyMessage', { count: assignments.length, date: dateStr }),
+      confirmLabel: this.translations.t('scheduler.remove'),
       danger: true,
     });
     if (!ok) return;
@@ -891,12 +925,13 @@ export class SchedulerComponent implements OnInit, OnDestroy {
 
   async confirmClearEmployees(employeeIds: string[]): Promise<void> {
     const label = employeeIds.length === 1
-      ? (this.employees.find(e => e.id === employeeIds[0])?.name ?? '1 employee')
-      : `${employeeIds.length} employees`;
+      ? (this.employees.find(e => e.id === employeeIds[0])?.name ??
+         this.translations.t('scheduler.oneEmployee'))
+      : this.translations.t('scheduler.nEmployees', { count: employeeIds.length });
     const ok = await this.confirmDialogService.confirm({
-      title: 'Clear Assignments',
-      message: `Remove all shift assignments in this plan for ${label}? Free/day-off entries are kept.`,
-      confirmLabel: 'Clear',
+      title: this.translations.t('scheduler.confirmClearTitle'),
+      message: this.translations.t('scheduler.confirmClearMessage', { label }),
+      confirmLabel: this.translations.t('scheduler.clear'),
       danger: true,
     });
     if (!ok || !this.selectedResult) return;
@@ -919,9 +954,20 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   }
 
   formatModalDate(date: Date): string {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
+    return date.toLocaleDateString(this.translations.locale, {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+    });
+  }
+
+  /** A `YYYY-MM-DD` date as a medium-length label in the active language. */
+  formatDateLabel(date: string): string {
+    return new Date(date + 'T00:00:00').toLocaleDateString(this.translations.locale, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
   }
 
   get objectiveValue(): string {

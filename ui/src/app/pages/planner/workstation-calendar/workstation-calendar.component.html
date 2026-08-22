@@ -1,4 +1,4 @@
-<app-page-breadcrumb pageTitle="Workstation Calendar" />
+<app-page-breadcrumb pageTitle="nav.workstationCalendar" />
 
 <div class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
   <!-- Header with week navigation + export -->
@@ -14,14 +14,14 @@
       (click)="exportToExcel()"
       [disabled]="loading || workstations.length === 0"
       class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
-      title="Export current week to Excel"
+      [title]="'workstationCalendar.exportTitle' | t"
     >
       <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
         <polyline points="7 10 12 15 17 10"></polyline>
         <line x1="12" y1="15" x2="12" y2="3"></line>
       </svg>
-      Export Excel
+      {{ 'common.exportExcel' | t }}
     </button>
   </div>
 
@@ -32,30 +32,30 @@
         <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
         <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
       </svg>
-      Loading shift plans…
+      {{ 'schedule.loadingPlans' | t }}
     </div>
   } @else if (error) {
     <div class="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
-      <p class="mb-2 text-sm">{{ error }}</p>
-      <button (click)="loadAll()" class="rounded-lg bg-brand-500 px-4 py-2 text-xs font-medium text-white transition hover:bg-brand-600">Retry</button>
+      <p class="mb-2 text-sm">{{ error | t }}</p>
+      <button (click)="loadAll()" class="rounded-lg bg-brand-500 px-4 py-2 text-xs font-medium text-white transition hover:bg-brand-600">{{ 'common.retry' | t }}</button>
     </div>
   } @else if (workstations.length === 0) {
     <div class="flex items-center justify-center py-20 text-sm text-gray-400 dark:text-gray-500">
-      No workstations found. Add workstations in Configuration → Workstations.
+      {{ 'workstationCalendar.noWorkstations' | t }}
     </div>
   } @else {
     <app-calendar-table
       [rows]="calendarTableRows"
       [days]="days"
       [cellMap]="calendarTableCellMap"
-      rowLabel="Workstation"
+      [rowLabel]="'common.workstation' | t"
       (cellClick)="onTableCellClick($event)"
     />
   }
 
   <!-- Legend -->
   <div class="flex flex-wrap items-center gap-4 border-t border-gray-100 px-5 py-3 dark:border-white/[0.05] sm:px-6">
-    <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Legend:</span>
+    <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ 'common.legend' | t }}</span>
     @for (shift of shifts; track shift.id) {
       <div class="flex items-center gap-1.5">
         <div

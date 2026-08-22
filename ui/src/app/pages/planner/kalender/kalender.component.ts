@@ -17,7 +17,13 @@ import {
   ConfirmedShiftPlanService,
   ConfirmedShiftPlan,
 } from '../../../shared/services/confirmed-shift-plan.service';
+import {
+  ShiftWishService,
+  ShiftWish,
+} from '../../../shared/services/shift-wish.service';
 import { GlobalSearchService } from '../../../shared/services/global-search.service';
+import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
+import { TranslationService } from '../../../shared/i18n/translation.service';
 
 interface DayInfo {
   date: Date;
@@ -34,10 +40,15 @@ interface CellData {
   absenceType: string | null;
 }
 
+interface WishCellData {
+  wish: ShiftWish | null;
+  shift: Shift | null;
+}
+
 @Component({
   selector: 'app-kalender',
   standalone: true,
-  imports: [CommonModule, PageBreadcrumbComponent, CalendarNavComponent],
+  imports: [CommonModule, PageBreadcrumbComponent, CalendarNavComponent, TranslatePipe],
   templateUrl: './kalender.component.html',
   styleUrl: './kalender.component.css',
 })
@@ -53,6 +64,13 @@ export class KalenderComponent implements OnInit, OnDestroy {
 
   // Map: employeeId -> dateString (YYYY-MM-DD) -> ConfirmedShiftPlan
   planMap = new Map<string, Map<string, ConfirmedShiftPlan>>();
+
+  // Monthly view only: show the employees' shift wishes instead of the confirmed
+  // plan, so a planner can see what was requested before/while planning the month.
+  wishesOnly = false;
+
+  // Map: employeeId -> dateString (YYYY-MM-DD) -> ShiftWish
+  wishMap = new Map<string, Map<string, ShiftWish>>();
 
   loading = true;
   error: string | null = null;
@@ -75,20 +93,6 @@ export class KalenderComponent implements OnInit, OnDestroy {
   private resizeStartX = 0;
   private resizeStartWidth = 0;
 
-  readonly DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  readonly DAY_NAMES_FULL = [
-    'Monday',
-    'Tuesday',
-    'Wednesday',
-    'Thursday',
-    'Friday',
-    'Saturday',
-    'Sunday',
-  ];
-  readonly MONTH_NAMES_SHORT = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ];
 
   // Search subscription
   private searchSub!: Subscription;
@@ -98,7 +102,9 @@ export class KalenderComponent implements OnInit, OnDestroy {
     private shiftService: ShiftService,
     private workstationService: WorkstationService,
     private confirmedShiftPlanService: ConfirmedShiftPlanService,
+    private shiftWishService: ShiftWishService,
     private globalSearchService: GlobalSearchService,
+    private translations: TranslationService,
     private router: Router,
   ) {}
 
@@ -158,7 +164,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
       d.setDate(d.getDate() + i);
       days.push({
         date: d,
-        label: this.DAY_NAMES_FULL[d.getDay() === 0 ? 6 : d.getDay() - 1].substring(0, 3),
+        label: this.shortWeekdayName(d),
         dayNum: d.getDate(),
         isToday: d.getTime() === today.getTime(),
       });
@@ -177,7 +183,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
       const d = new Date(year, month, i);
       days.push({
         date: d,
-        label: this.DAY_NAMES_FULL[d.getDay() === 0 ? 6 : d.getDay() - 1].substring(0, 3),
+        label: this.shortWeekdayName(d),
         dayNum: d.getDate(),
         isToday: d.getTime() === today.getTime(),
       });
@@ -185,13 +191,33 @@ export class KalenderComponent implements OnInit, OnDestroy {
     return days;
   }
 
+  // Weekday and month names follow the active UI language.
+  private shortWeekdayName(d: Date): string {
+    return d.toLocaleDateString(this.translations.locale, { weekday: 'short' });
+  }
+
+  private shortMonthName(d: Date): string {
+    return d.toLocaleDateString(this.translations.locale, { month: 'short' });
+  }
+
   setViewMode(mode: 'week' | 'month'): void {
     if (this.viewMode === mode) return;
     this.viewMode = mode;
+    // Wishes are a month-view lens; leaving the month view drops back to the plan.
+    if (mode !== 'month') {
+      this.wishesOnly = false;
+    }
     this.editingCell = null;
     this.deletingCell = null;
     this.computeDays();
-    this.loadPlans();
+    this.loadPeriod();
+  }
+
+  toggleWishesOnly(): void {
+    this.wishesOnly = !this.wishesOnly;
+    this.editingCell = null;
+    this.deletingCell = null;
+    this.loadPeriod();
   }
 
   prevPeriod(): void {
@@ -202,7 +228,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
       this.anchorDate = new Date(this.anchorDate.getFullYear(), this.anchorDate.getMonth() - 1, 1);
     }
     this.computeDays();
-    this.loadPlans();
+    this.loadPeriod();
   }
 
   nextPeriod(): void {
@@ -213,13 +239,13 @@ export class KalenderComponent implements OnInit, OnDestroy {
       this.anchorDate = new Date(this.anchorDate.getFullYear(), this.anchorDate.getMonth() + 1, 1);
     }
     this.computeDays();
-    this.loadPlans();
+    this.loadPeriod();
   }
 
   goToday(): void {
     this.anchorDate = this.normalizeDate(new Date());
     this.computeDays();
-    this.loadPlans();
+    this.loadPeriod();
   }
 
   get periodStart(): Date {
@@ -234,12 +260,12 @@ export class KalenderComponent implements OnInit, OnDestroy {
     const s = this.periodStart;
     const e = this.periodEnd;
     if (this.viewMode === 'month') {
-      return `${this.MONTH_NAMES_SHORT[s.getMonth()]} ${s.getFullYear()}`;
+      return `${this.shortMonthName(s)} ${s.getFullYear()}`;
     }
     if (s.getMonth() === e.getMonth()) {
-      return `${this.MONTH_NAMES_SHORT[s.getMonth()]} ${s.getDate()} – ${e.getDate()}, ${s.getFullYear()}`;
+      return `${this.shortMonthName(s)} ${s.getDate()} – ${e.getDate()}, ${s.getFullYear()}`;
     }
-    return `${this.MONTH_NAMES_SHORT[s.getMonth()]} ${s.getDate()} – ${this.MONTH_NAMES_SHORT[e.getMonth()]} ${e.getDate()}, ${s.getFullYear()}`;
+    return `${this.shortMonthName(s)} ${s.getDate()} – ${this.shortMonthName(e)} ${e.getDate()}, ${s.getFullYear()}`;
   }
 
   // ── Data loading ─────────────────────────────────────────────────
@@ -257,14 +283,24 @@ export class KalenderComponent implements OnInit, OnDestroy {
         this.employees = [...this.allEmployees];
         this.shifts = shifts;
         this.workstations = workstations;
-        this.loadPlans();
+        this.loadPeriod();
       },
       error: (err) => {
         console.error('Failed to load base data', err);
-        this.error = 'Failed to load data. Please try again.';
+        this.error = 'schedule.loadFailed';
         this.loading = false;
       },
     });
+  }
+
+  // Loads whatever the grid currently shows for the visible period: the confirmed
+  // plan, or — in the monthly wishes-only view — the employees' shift wishes.
+  loadPeriod(): void {
+    if (this.wishesOnly) {
+      this.loadWishes();
+    } else {
+      this.loadPlans();
+    }
   }
 
   loadPlans(): void {
@@ -289,6 +325,24 @@ export class KalenderComponent implements OnInit, OnDestroy {
       });
   }
 
+  loadWishes(): void {
+    this.loading = true;
+    const fromStr = this.formatDate(this.periodStart);
+    const toStr = this.formatDate(this.periodEnd);
+
+    this.shiftWishService.getShiftWishes(undefined, fromStr, toStr).subscribe({
+      next: (wishes) => {
+        this.buildWishMap(wishes);
+        this.loading = false;
+      },
+      error: (err) => {
+        console.error('Failed to load shift wishes', err);
+        this.wishMap.clear();
+        this.loading = false;
+      },
+    });
+  }
+
   buildPlanMap(plans: ConfirmedShiftPlan[]): void {
     this.planMap.clear();
     for (const p of plans) {
@@ -298,6 +352,18 @@ export class KalenderComponent implements OnInit, OnDestroy {
         this.planMap.set(p.employee_id, inner);
       }
       inner.set(p.date, p);
+    }
+  }
+
+  buildWishMap(wishes: ShiftWish[]): void {
+    this.wishMap.clear();
+    for (const w of wishes) {
+      let inner = this.wishMap.get(w.employee_id);
+      if (!inner) {
+        inner = new Map();
+        this.wishMap.set(w.employee_id, inner);
+      }
+      inner.set(w.wish_date, w);
     }
   }
 
@@ -322,6 +388,14 @@ export class KalenderComponent implements OnInit, OnDestroy {
     };
   }
 
+  getWishCell(employeeId: string, day: DayInfo): WishCellData {
+    const wish = this.wishMap.get(employeeId)?.get(this.formatDate(day.date));
+    if (!wish) {
+      return { wish: null, shift: null };
+    }
+    return { wish, shift: this.shifts.find((s) => s.id === wish.shift_id) ?? null };
+  }
+
   getShiftColor(shift: Shift | null): string {
     return shift?.color ?? '#6B7280';
   }
@@ -339,6 +413,24 @@ export class KalenderComponent implements OnInit, OnDestroy {
   // used in the grid and the Excel export: sick leave stays red (it needs to
   // stand out for staffing/compliance), planned absences (vacation, holiday)
   // get amber, and unscheduled "free" days stay neutral.
+  // Translation key for an absence_type, falling back to a generic "Absent" for
+  // values the UI does not know a label for.
+  absenceLabelKey(type: string | null): string {
+    switch (type) {
+      case 'sick':
+        return 'schedule.absence.sick';
+      case 'day_off':
+        return 'schedule.absence.vacation';
+      case 'holiday':
+        return 'schedule.absence.holiday';
+      case 'free':
+      case null:
+        return 'schedule.absence.free';
+      default:
+        return 'schedule.absence.absent';
+    }
+  }
+
   absenceCategory(type: string | null): 'sick' | 'planned' | 'free' {
     if (type === 'sick') return 'sick';
     if (type === 'free' || type === null) return 'free';
@@ -547,7 +639,11 @@ export class KalenderComponent implements OnInit, OnDestroy {
 
   exportToExcel(): void {
     const fmt = (d: Date) =>
-      d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+      d.toLocaleDateString(this.translations.locale, {
+        weekday: 'short',
+        day: '2-digit',
+        month: '2-digit',
+      });
 
     let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
 <head><meta charset="UTF-8">
@@ -560,7 +656,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
   .sick { background:#FEE2E2; color:#991B1B; }
   .empty { color:#9CA3AF; }
 </style></head><body><table>
-<thead><tr><th>Employee</th>`;
+<thead><tr><th>${this.translations.t('common.employee')}</th>`;
     for (const day of this.days) {
       html += `<th>${fmt(day.date)}</th>`;
     }
@@ -569,14 +665,19 @@ export class KalenderComponent implements OnInit, OnDestroy {
     for (const emp of this.employees) {
       html += `<tr><td class="emp-cell">${emp.name}</td>`;
       for (const day of this.days) {
+        // The wishes-only view exports what it shows: the requested shifts.
+        if (this.wishesOnly) {
+          const wishCell = this.getWishCell(emp.id, day);
+          html += wishCell.wish
+            ? `<td>[${this.getShiftShortName(wishCell.shift)}] ${wishCell.shift?.name ?? '?'}</td>`
+            : `<td class="empty">—</td>`;
+          continue;
+        }
         const cell = this.getCell(emp.id, day);
         if (!cell.plan) {
           html += `<td class="empty">—</td>`;
         } else if (!cell.isPresent) {
-          const label = cell.absenceType === 'sick' ? 'Sick Leave'
-            : cell.absenceType === 'day_off' ? 'Vacation'
-            : cell.absenceType === 'holiday' ? 'Holiday'
-            : cell.absenceType ?? 'Absent';
+          const label = this.translations.t(this.absenceLabelKey(cell.absenceType));
           const cls = cell.absenceType === 'sick' ? 'sick' : 'absent';
           html += `<td class="${cls}">${label}</td>`;
         } else {
@@ -596,7 +697,8 @@ export class KalenderComponent implements OnInit, OnDestroy {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `schedule-${this.viewMode}-${this.formatDate(this.periodStart)}.xls`;
+    const kind = this.wishesOnly ? 'wishes' : 'schedule';
+    a.download = `${kind}-${this.viewMode}-${this.formatDate(this.periodStart)}.xls`;
     a.click();
     URL.revokeObjectURL(url);
   }

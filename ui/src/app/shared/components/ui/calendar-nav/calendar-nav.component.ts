@@ -1,20 +1,22 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
+import { TranslatePipe } from '../../../i18n/translate.pipe';
+
 @Component({
   selector: 'app-calendar-nav',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TranslatePipe],
   template: `
     <div class="flex items-center gap-2">
       <button
         (click)="today.emit()"
         class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
-      >Today</button>
+      >{{ 'common.today' | t }}</button>
       <button
         (click)="prev.emit()"
         class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
-        [attr.aria-label]="'Previous ' + periodType"
+        [attr.aria-label]="previousLabelKey | t"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M15 19L8 12L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -26,7 +28,7 @@ import { CommonModule } from '@angular/common';
       <button
         (click)="next.emit()"
         class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
-        [attr.aria-label]="'Next ' + periodType"
+        [attr.aria-label]="nextLabelKey | t"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M9 5L16 12L9 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -37,8 +39,19 @@ import { CommonModule } from '@angular/common';
 })
 export class CalendarNavComponent {
   @Input() label = '';
-  @Input() periodType = 'week';
+  /** `week` or `month` — names the period the arrows step through. */
+  @Input() periodType: 'week' | 'month' = 'week';
   @Output() prev = new EventEmitter<void>();
   @Output() next = new EventEmitter<void>();
   @Output() today = new EventEmitter<void>();
+
+  // Separate keys per period rather than one parameterized phrase: German
+  // adjective endings depend on the noun's gender.
+  get previousLabelKey(): string {
+    return this.periodType === 'month' ? 'common.previousMonth' : 'common.previousWeek';
+  }
+
+  get nextLabelKey(): string {
+    return this.periodType === 'month' ? 'common.nextMonth' : 'common.nextWeek';
+  }
 }

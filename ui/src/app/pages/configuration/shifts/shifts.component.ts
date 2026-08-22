@@ -9,8 +9,11 @@ import { ButtonComponent } from '../../../shared/components/ui/button/button.com
 import { ShiftService, Shift, WeekdayTime, SetWeekdayTimeRequest, ImportResult } from '../../../shared/services/shift.service';
 import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
 import { ContextMenuService } from '../../../shared/components/ui/context-menu/context-menu.service';
+import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
+import { TranslationService } from '../../../shared/i18n/translation.service';
 
-const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+/** Monday-first weekday indices, matching the backend's weekday numbering. */
+const WEEKDAY_COUNT = 7;
 
 @Component({
   selector: 'app-shifts',
@@ -22,31 +25,32 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
     InputFieldComponent,
     LabelComponent,
     ButtonComponent,
+    TranslatePipe,
   ],
   template: `
-    <app-page-breadcrumb pageTitle="Shifts" />
+    <app-page-breadcrumb pageTitle="nav.shifts" />
 
     <!-- Add / Edit Form Mask -->
     @if (showForm) {
       <div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div class="px-5 py-4 sm:px-6">
           <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
-            {{ editingShift ? 'Edit Shift' : 'New Shift' }}
+            {{ (editingShift ? 'shifts.editTitle' : 'shifts.newTitle') | t }}
           </h3>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {{ editingShift ? 'Modify shift name and weekday times.' : 'Enter a name for the new shift.' }}
+            {{ (editingShift ? 'shifts.editSubtitle' : 'shifts.newSubtitle') | t }}
           </p>
         </div>
 
         <div class="px-5 pb-5 sm:px-6">
           <!-- Shift Name -->
           <div class="mb-5">
-            <app-label for="shiftName" className="mb-1.5">Shift Name</app-label>
+            <app-label for="shiftName" className="mb-1.5">{{ 'shifts.nameLabel' | t }}</app-label>
             <app-input-field
               id="shiftName"
               name="shiftName"
               type="text"
-              placeholder="e.g. Morning (8:00 - 16:00)"
+              [placeholder]="'shifts.namePlaceholder' | t"
               [value]="formName"
               (valueChange)="onNameChange($event)"
             />
@@ -54,7 +58,7 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
 
           <!-- Short Name -->
           <div class="mb-5">
-            <app-label for="shortName" className="mb-1.5">Short Name</app-label>
+            <app-label for="shortName" className="mb-1.5">{{ 'shifts.shortNameLabel' | t }}</app-label>
             <app-input-field
               id="shortName"
               name="shortName"
@@ -64,12 +68,12 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
               [value]="formShortName"
               (valueChange)="onShortNameChange($event)"
             />
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Maximum 10 characters</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ 'shifts.shortNameHint' | t }}</p>
           </div>
 
           <!-- Color Picker -->
           <div class="mb-5">
-            <app-label for="color" className="mb-1.5">Color</app-label>
+            <app-label for="color" className="mb-1.5">{{ 'shifts.colorLabel' | t }}</app-label>
             <div class="flex items-center gap-3">
               <input
                 id="color"
@@ -92,7 +96,7 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
 
           <!-- Order -->
           <div class="mb-5">
-            <app-label for="order" className="mb-1.5">Display Order</app-label>
+            <app-label for="order" className="mb-1.5">{{ 'shifts.orderLabel' | t }}</app-label>
             <app-input-field
               id="order"
               name="order"
@@ -101,13 +105,13 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
               [value]="formOrder"
               (valueChange)="onOrderChange($event)"
             />
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Lower values appear first in lists</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ 'shifts.orderHint' | t }}</p>
           </div>
 
           <!-- Weekday Times (only in edit mode) -->
           @if (editingShift) {
             <div class="mb-5">
-              <app-label className="mb-2">Weekday Times</app-label>
+              <app-label className="mb-2">{{ 'shifts.weekdayTimes' | t }}</app-label>
               <div class="space-y-3">
                 @for (day of weekdayOptions; track day.value) {
                   <div class="flex flex-wrap items-center gap-3">
@@ -139,7 +143,7 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
                     </div>
                     @if (formWeekdays[day.value].enabled) {
                       <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                        <span class="whitespace-nowrap">Min:</span>
+                        <span class="whitespace-nowrap">{{ 'shifts.min' | t }}</span>
                         <input
                           type="number"
                           min="0"
@@ -147,7 +151,7 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
                           (input)="onMinEmployeesChange(day.value, $event)"
                           class="w-16 h-9 rounded border border-gray-300 px-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                         />
-                        <span class="whitespace-nowrap">Max:</span>
+                        <span class="whitespace-nowrap">{{ 'shifts.max' | t }}</span>
                         <input
                           type="number"
                           min="0"
@@ -156,7 +160,7 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
                           (input)="onMaxEmployeesChange(day.value, $event)"
                           class="w-16 h-9 rounded border border-gray-300 px-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                         />
-                        <span class="whitespace-nowrap">Free days after:</span>
+                        <span class="whitespace-nowrap">{{ 'shifts.freeDaysAfter' | t }}</span>
                         <input
                           type="number"
                           min="0"
@@ -180,14 +184,14 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
               variant="primary"
               (btnClick)="saveShift()"
             >
-              {{ editingShift ? 'Save Changes' : 'Create Shift' }}
+              {{ (editingShift ? 'config.saveChanges' : 'shifts.create') | t }}
             </app-button>
             <app-button
               size="sm"
               variant="outline"
               (btnClick)="cancelForm()"
             >
-              Cancel
+              {{ 'common.cancel' | t }}
             </app-button>
           </div>
         </div>
@@ -198,14 +202,14 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
       <div class="flex items-center justify-between px-5 py-4 sm:px-6">
         <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
-          Shift Overview
+          {{ 'shifts.overview' | t }}
         </h3>
         <div class="flex items-center gap-2">
           <app-button size="sm" variant="outline" (btnClick)="downloadTemplate()">
-            Download Template
+            {{ 'config.downloadTemplate' | t }}
           </app-button>
           <app-button size="sm" variant="outline" (btnClick)="importFileInput.click()" [disabled]="importing">
-            {{ importing ? 'Importing...' : 'Import' }}
+            {{ (importing ? 'config.importing' : 'config.import') | t }}
           </app-button>
           <input
             #importFileInput
@@ -220,7 +224,7 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
             [startIcon]="plusIcon"
             (btnClick)="openAddForm()"
           >
-            Add Shift
+            {{ 'shifts.add' | t }}
           </app-button>
         </div>
       </div>
@@ -235,12 +239,12 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
           <div class="flex items-start justify-between gap-3">
             <div>
               <p class="font-medium">
-                Import finished: {{ importResult.created }} created, {{ importResult.skipped }} skipped.
+                {{ 'config.importFinished' | t: { created: importResult.created, skipped: importResult.skipped } }}
               </p>
               @if (importResult.errors.length > 0) {
                 <ul class="mt-1.5 list-inside list-disc space-y-0.5">
                   @for (err of importResult.errors; track err.row) {
-                    <li>Row {{ err.row }}: {{ err.message }}</li>
+                    <li>{{ 'config.importRowError' | t: { row: err.row, message: err.message } }}</li>
                   }
                 </ul>
               }
@@ -256,18 +260,18 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
         <table class="min-w-full">
           <thead class="border-b border-gray-100 dark:border-white/[0.05]">
             <tr>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Color</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Short Name</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Name</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Weekday Times</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Actions</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'shifts.colorLabel' | t }}</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'shifts.shortNameLabel' | t }}</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.name' | t }}</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'shifts.weekdayTimes' | t }}</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
             @if (loading) {
               <tr>
                 <td colspan="5" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
-                  Loading shifts...
+                  {{ 'shifts.loading' | t }}
                 </td>
               </tr>
             } @else if (shifts.length === 0) {
@@ -277,7 +281,7 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                     <line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
                   </svg>
-                  <p class="text-sm">No shifts found. Click "Add Shift" to create one.</p>
+                  <p class="text-sm">{{ 'shifts.empty' | t }}</p>
                 </td>
               </tr>
             } @else {
@@ -311,7 +315,7 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
                   </td>
                   <td class="px-4 py-3 text-start text-theme-sm">
                     @if (shift.weekday_times.length === 0) {
-                      <span class="text-gray-300 dark:text-gray-600">No times configured</span>
+                      <span class="text-gray-300 dark:text-gray-600">{{ 'shifts.noTimes' | t }}</span>
                     } @else {
                       <div class="flex flex-wrap gap-1.5">
                         @for (wt of shift.weekday_times; track wt.weekday) {
@@ -335,14 +339,14 @@ const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', '
                         variant="outline"
                         (btnClick)="openEditForm(shift)"
                       >
-                        Edit
+                        {{ 'common.edit' | t }}
                       </app-button>
                       <app-button
                         size="sm"
                         variant="danger"
                         (btnClick)="deleteShift(shift)"
                       >
-                        Delete
+                        {{ 'common.delete' | t }}
                       </app-button>
                     </div>
                   </td>
@@ -366,10 +370,16 @@ export class ShiftsComponent implements OnInit {
   formColor = '#3B82F6';
   formOrder = 0;
 
-  weekdayOptions = WEEKDAY_NAMES.map((name, i) => ({ label: name, value: i }));
+  // Monday-first weekday labels in the active UI language.
+  get weekdayOptions(): { label: string; value: number }[] {
+    return Array.from({ length: WEEKDAY_COUNT }, (_, i) => ({
+      label: this.getWeekdayName(i),
+      value: i,
+    }));
+  }
 
   formWeekdays: { enabled: boolean; start_time: string; end_time: string; min_employees: number; max_employees: number | null; free_days_after_shift: number }[] =
-    WEEKDAY_NAMES.map(() => ({ enabled: false, start_time: '08:00', end_time: '16:00', min_employees: 1, max_employees: null, free_days_after_shift: 0 }));
+    Array.from({ length: WEEKDAY_COUNT }, () => ({ enabled: false, start_time: '08:00', end_time: '16:00', min_employees: 1, max_employees: null, free_days_after_shift: 0 }));
 
   plusIcon = `<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.25C12.4142 3.25 12.75 3.58579 12.75 4V11.25H20C20.4142 11.25 20.75 11.5858 20.75 12C20.75 12.4142 20.4142 12.75 20 12.75H12.75V20C12.75 20.4142 12.4142 20.75 12 20.75C11.5858 20.75 11.25 20.4142 11.25 20V12.75H4C3.58579 12.75 3.25 12.4142 3.25 12C3.25 11.5858 3.58579 11.25 4 11.25H11.25V4C11.25 3.58579 11.5858 3.25 12 3.25Z" fill="currentColor"></path></svg>`;
 
@@ -380,6 +390,7 @@ export class ShiftsComponent implements OnInit {
     private shiftService: ShiftService,
     private confirmDialog: ConfirmDialogService,
     private contextMenu: ContextMenuService,
+    private translations: TranslationService,
   ) {}
 
   ngOnInit(): void {
@@ -436,7 +447,9 @@ export class ShiftsComponent implements OnInit {
   }
 
   getWeekdayName(weekday: number): string {
-    return WEEKDAY_NAMES[weekday] || `Day ${weekday}`;
+    // Weekday 0 is Monday; 2024-01-01 was a Monday.
+    const date = new Date(2024, 0, 1 + weekday);
+    return date.toLocaleDateString(this.translations.locale, { weekday: 'long' });
   }
 
   openAddForm(): void {
@@ -602,7 +615,7 @@ export class ShiftsComponent implements OnInit {
   }
 
   private resetWeekdayForm(): void {
-    this.formWeekdays = WEEKDAY_NAMES.map(() => ({
+    this.formWeekdays = Array.from({ length: WEEKDAY_COUNT }, () => ({
       enabled: false,
       start_time: '08:00',
       end_time: '16:00',
@@ -614,16 +627,16 @@ export class ShiftsComponent implements OnInit {
 
   onRowContextMenu(event: MouseEvent, shift: Shift): void {
     this.contextMenu.open(event, [
-      { label: 'Edit', action: () => this.openEditForm(shift) },
-      { label: 'Delete', danger: true, action: () => this.deleteShift(shift) },
+      { label: this.translations.t('common.edit'), action: () => this.openEditForm(shift) },
+      { label: this.translations.t('common.delete'), danger: true, action: () => this.deleteShift(shift) },
     ]);
   }
 
   async deleteShift(shift: Shift): Promise<void> {
     const ok = await this.confirmDialog.confirm({
-      title: 'Delete Shift',
-      message: `Are you sure you want to delete "${shift.name}"? This action cannot be undone.`,
-      confirmLabel: 'Delete',
+      title: this.translations.t('shifts.confirmDeleteTitle'),
+      message: this.translations.t('shifts.confirmDeleteMessage', { name: shift.name }),
+      confirmLabel: this.translations.t('common.delete'),
       danger: true,
     });
     if (!ok) return;

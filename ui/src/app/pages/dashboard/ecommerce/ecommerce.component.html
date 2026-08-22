@@ -14,7 +14,7 @@
         </svg>
       </div>
       <div class="mt-5">
-        <span class="text-sm text-gray-500 dark:text-gray-400">Employees</span>
+        <span class="text-sm text-gray-500 dark:text-gray-400">{{ 'common.employees' | t }}</span>
         <h4 class="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">{{ employeeCount }}</h4>
       </div>
     </a>
@@ -28,7 +28,7 @@
         </svg>
       </div>
       <div class="mt-5">
-        <span class="text-sm text-gray-500 dark:text-gray-400">Shifts</span>
+        <span class="text-sm text-gray-500 dark:text-gray-400">{{ 'common.shifts' | t }}</span>
         <h4 class="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">{{ shiftCount }}</h4>
       </div>
     </a>
@@ -42,7 +42,7 @@
         </svg>
       </div>
       <div class="mt-5">
-        <span class="text-sm text-gray-500 dark:text-gray-400">Workstations</span>
+        <span class="text-sm text-gray-500 dark:text-gray-400">{{ 'common.workstations' | t }}</span>
         <h4 class="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">{{ workstationCount }}</h4>
       </div>
     </a>
@@ -53,7 +53,7 @@
     <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white px-5 pt-5 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6 sm:pt-6">
       <div class="flex items-center justify-between">
         <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
-          Planned Hours per Day
+          {{ 'dashboard.plannedHoursPerDay' | t }}
         </h3>
       </div>
 
@@ -72,37 +72,37 @@
     <div class="h-full overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
       <div class="flex items-center justify-between px-5 py-4 sm:px-6">
         <div>
-          <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">Today's Coverage</h3>
-          <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Confirmed shift plans for today</p>
+          <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'dashboard.todaysCoverage' | t }}</h3>
+          <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'dashboard.todaysCoverageSub' | t }}</p>
         </div>
         <a routerLink="/kalender" class="text-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400">
-          Open schedule
+          {{ 'dashboard.openSchedule' | t }}
         </a>
       </div>
 
       <div class="border-t border-gray-100 px-5 py-5 dark:border-white/[0.05] sm:px-6">
         @if (loadingCoverage) {
-          <p class="py-6 text-center text-sm text-gray-400 dark:text-gray-500">Loading coverage…</p>
+          <p class="py-6 text-center text-sm text-gray-400 dark:text-gray-500">{{ 'dashboard.loadingCoverage' | t }}</p>
         } @else {
           <div class="mb-5 grid grid-cols-2 gap-4">
             <div class="rounded-xl bg-brand-50 px-4 py-3 dark:bg-brand-500/10">
               <span class="block text-2xl font-bold text-brand-600 dark:text-brand-400">{{ todayWorkingCount }}</span>
-              <span class="text-xs text-gray-500 dark:text-gray-400">Working today</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ 'dashboard.workingToday' | t }}</span>
             </div>
             <div class="rounded-xl bg-gray-50 px-4 py-3 dark:bg-white/[0.03]">
               <span class="block text-2xl font-bold text-gray-700 dark:text-gray-300">{{ todayLeaveCount }}</span>
-              <span class="text-xs text-gray-500 dark:text-gray-400">On leave / sick</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ 'dashboard.onLeave' | t }}</span>
             </div>
           </div>
 
           @if (understaffedCount > 0) {
             <div class="mb-4 rounded-lg border border-error-200 bg-error-50 px-3 py-2 text-xs font-medium text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
-              {{ understaffedCount }} workstation{{ understaffedCount > 1 ? 's are' : ' is' }} below minimum staffing today
+              {{ (understaffedCount === 1 ? 'dashboard.understaffedOne' : 'dashboard.understaffedMany') | t: { count: understaffedCount } }}
             </div>
           }
 
           @if (workstationCoverage.length === 0) {
-            <p class="text-sm text-gray-400 dark:text-gray-500">No active workstations configured.</p>
+            <p class="text-sm text-gray-400 dark:text-gray-500">{{ 'dashboard.noWorkstations' | t }}</p>
           } @else {
             <div class="space-y-1.5">
               @for (ws of workstationCoverage; track ws.id) {
@@ -136,13 +136,13 @@
     <!-- Latest Optimization Run -->
     <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
       <div class="px-5 py-4 sm:px-6">
-        <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">Latest Optimization Run</h3>
+        <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'dashboard.latestRun' | t }}</h3>
       </div>
       <div class="border-t border-gray-100 px-5 py-5 dark:border-white/[0.05] sm:px-6">
         @if (loadingLatestTask) {
-          <p class="text-sm text-gray-400 dark:text-gray-500">Loading…</p>
+          <p class="text-sm text-gray-400 dark:text-gray-500">{{ 'common.loading' | t }}</p>
         } @else if (!latestTask) {
-          <p class="mb-3 text-sm text-gray-400 dark:text-gray-500">No optimization runs yet.</p>
+          <p class="mb-3 text-sm text-gray-400 dark:text-gray-500">{{ 'dashboard.noRuns' | t }}</p>
           <a routerLink="/scheduler" class="text-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400">
             Run the optimizer →
           </a>
@@ -177,13 +177,13 @@
     <!-- Recent Activity -->
     <div class="flex-1 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
       <div class="px-5 py-4 sm:px-6">
-        <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">Recent Activity</h3>
+        <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'dashboard.recentActivity' | t }}</h3>
       </div>
       <div class="border-t border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
         @if (loadingActivity) {
-          <p class="text-sm text-gray-400 dark:text-gray-500">Loading…</p>
+          <p class="text-sm text-gray-400 dark:text-gray-500">{{ 'common.loading' | t }}</p>
         } @else if (recentActivity.length === 0) {
-          <p class="text-sm text-gray-400 dark:text-gray-500">No recent activity.</p>
+          <p class="text-sm text-gray-400 dark:text-gray-500">{{ 'dashboard.noActivity' | t }}</p>
         } @else {
           <ul class="space-y-3">
             @for (log of recentActivity; track log.id) {

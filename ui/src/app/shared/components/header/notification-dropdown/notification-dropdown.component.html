@@ -25,7 +25,7 @@
   >
     <div class="flex items-center justify-between pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
       <h5 class="text-lg font-semibold text-gray-800 dark:text-gray-200">
-        Notification
+        {{ 'notifications.title' | t }}
       </h5>
       <button
         (click)="toggleDropdown()"
@@ -49,9 +49,9 @@
     </div>
     <ul class="flex flex-col h-auto overflow-y-auto custom-scrollbar">
       @if (loading) {
-        <li class="px-4 py-6 text-center text-sm text-gray-400">Loading...</li>
+        <li class="px-4 py-6 text-center text-sm text-gray-400">{{ 'common.loading' | t }}</li>
       } @else if (loaded && logs.length === 0) {
-        <li class="px-4 py-6 text-center text-sm text-gray-400">No audit log events yet.</li>
+        <li class="px-4 py-6 text-center text-sm text-gray-400">{{ 'notifications.empty' | t }}</li>
       }
       @for (log of logs; track log.id) {
         <li>
@@ -65,7 +65,7 @@
                   {{ actionLabel(log.action) }}
                 </span>
                 @if (log.actor) {
-                  <span>by {{ log.actor }}</span>
+                  <span>{{ 'notifications.by' | t: { actor: log.actor } }}</span>
                 }
               </span>
               <span class="flex items-center gap-2 text-gray-500 text-theme-xs dark:text-gray-400">
@@ -88,27 +88,27 @@
     </h4>
     <dl class="space-y-3 text-sm">
       <div class="flex justify-between gap-4">
-        <dt class="text-gray-500 dark:text-gray-400">Action</dt>
+        <dt class="text-gray-500 dark:text-gray-400">{{ 'notifications.action' | t }}</dt>
         <dd class="font-mono text-gray-800 dark:text-white/90">{{ selectedLog.action }}</dd>
       </div>
       <div class="flex justify-between gap-4">
-        <dt class="text-gray-500 dark:text-gray-400">Actor</dt>
-        <dd class="text-gray-800 dark:text-white/90">{{ selectedLog.actor || 'unknown' }}</dd>
+        <dt class="text-gray-500 dark:text-gray-400">{{ 'notifications.actor' | t }}</dt>
+        <dd class="text-gray-800 dark:text-white/90">{{ selectedLog.actor || ('notifications.unknownActor' | t) }}</dd>
       </div>
       <div class="flex justify-between gap-4">
-        <dt class="text-gray-500 dark:text-gray-400">Entity</dt>
+        <dt class="text-gray-500 dark:text-gray-400">{{ 'notifications.entity' | t }}</dt>
         <dd class="text-gray-800 dark:text-white/90">{{ selectedLog.entity_type || '—' }}</dd>
       </div>
       <div class="flex justify-between gap-4">
-        <dt class="shrink-0 text-gray-500 dark:text-gray-400">Entity ID</dt>
+        <dt class="shrink-0 text-gray-500 dark:text-gray-400">{{ 'notifications.entityId' | t }}</dt>
         <dd class="truncate font-mono text-xs text-gray-800 dark:text-white/90">{{ selectedLog.entity_id || '—' }}</dd>
       </div>
       <div class="flex justify-between gap-4">
-        <dt class="text-gray-500 dark:text-gray-400">Time</dt>
+        <dt class="text-gray-500 dark:text-gray-400">{{ 'notifications.time' | t }}</dt>
         <dd class="text-gray-800 dark:text-white/90">{{ selectedLog.created_at | date:'medium' }}</dd>
       </div>
       <div>
-        <dt class="mb-1.5 text-gray-500 dark:text-gray-400">Changes</dt>
+        <dt class="mb-1.5 text-gray-500 dark:text-gray-400">{{ 'notifications.changes' | t }}</dt>
         <dd>
           <pre class="max-h-60 overflow-auto rounded-lg bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">{{ formatChanges(selectedLog.changes) }}</pre>
         </dd>

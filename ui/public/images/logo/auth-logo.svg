@@ -1,45 +1,19 @@
-<svg width="231" height="48" viewBox="0 0 231 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M0.425781 12.6316C0.425781 5.65535 6.08113 0 13.0574 0H35.7942C42.7704 0 48.4258 5.65535 48.4258 12.6316V35.3684C48.4258 42.3446 42.7704 48 35.7942 48H13.0574C6.08113 48 0.425781 42.3446 0.425781 35.3684V12.6316Z" fill="#465FFF"/>
-<g filter="url(#filter0_d_3903_56743)">
-<path d="M13.0615 12.6323C13.0615 11.237 14.1926 10.106 15.5878 10.106C16.9831 10.106 18.1142 11.237 18.1142 12.6323V35.3691C18.1142 36.7644 16.9831 37.8954 15.5878 37.8954C14.1926 37.8954 13.0615 36.7644 13.0615 35.3691V12.6323Z" fill="white"/>
-</g>
-<g filter="url(#filter1_d_3903_56743)">
-<path d="M22.5391 22.7353C22.5391 21.3401 23.6701 20.209 25.0654 20.209C26.4606 20.209 27.5917 21.3401 27.5917 22.7353V35.3669C27.5917 36.7621 26.4606 37.8932 25.0654 37.8932C23.6701 37.8932 22.5391 36.7621 22.5391 35.3669V22.7353Z" fill="white" fill-opacity="0.9" shape-rendering="crispEdges"/>
-</g>
-<g filter="url(#filter2_d_3903_56743)">
-<path d="M32.0078 16.4189C32.0078 15.0236 33.1389 13.8926 34.5341 13.8926C35.9294 13.8926 37.0604 15.0236 37.0604 16.4189V35.3663C37.0604 36.7615 35.9294 37.8926 34.5341 37.8926C33.1389 37.8926 32.0078 36.7615 32.0078 35.3663V16.4189Z" fill="white" fill-opacity="0.7" shape-rendering="crispEdges"/>
-</g>
-<text x="66" y="35" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="27" font-weight="700" fill="white">Planner</text>
-<defs>
-<filter id="filter0_d_3903_56743" x="12.0615" y="9.60596" width="7.05273" height="29.7896" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-<feFlood flood-opacity="0" result="BackgroundImageFix"/>
-<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-<feOffset dy="0.5"/>
-<feGaussianBlur stdDeviation="0.5"/>
-<feComposite in2="hardAlpha" operator="out"/>
-<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.12 0"/>
-<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_3903_56743"/>
-<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_3903_56743" result="shape"/>
-</filter>
-<filter id="filter1_d_3903_56743" x="21.5391" y="19.709" width="7.05273" height="19.6843" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-<feFlood flood-opacity="0" result="BackgroundImageFix"/>
-<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-<feOffset dy="0.5"/>
-<feGaussianBlur stdDeviation="0.5"/>
-<feComposite in2="hardAlpha" operator="out"/>
-<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.12 0"/>
-<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_3903_56743"/>
-<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_3903_56743" result="shape"/>
-</filter>
-<filter id="filter2_d_3903_56743" x="31.0078" y="13.3926" width="7.05273" height="26" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-<feFlood flood-opacity="0" result="BackgroundImageFix"/>
-<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-<feOffset dy="0.5"/>
-<feGaussianBlur stdDeviation="0.5"/>
-<feComposite in2="hardAlpha" operator="out"/>
-<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.12 0"/>
-<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_3903_56743"/>
-<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_3903_56743" result="shape"/>
-</filter>
-</defs>
+<svg width="258" height="48" viewBox="0 0 172 32" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ShiftPlanner">
+  <!-- Badge -->
+  <path d="M0 8.42105C0 3.77023 3.77023 0 8.42105 0H23.5789C28.2298 0 32 3.77023 32 8.42105V23.5789C32 28.2298 28.2298 32 23.5789 32H8.42105C3.77023 32 0 28.2298 0 23.5789V8.42105Z" fill="#465FFF"/>
+  <!-- Shift ring: three arcs for the three shifts of a day, fading around the rotation -->
+  <g stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" fill="none">
+    <path d="M9.489 10.536A8.5 8.5 0 0 1 22.511 10.536"/>
+    <path d="M23.987 13.093A8.5 8.5 0 0 1 17.476 24.371" stroke-opacity="0.8"/>
+    <path d="M14.524 24.371A8.5 8.5 0 0 1 8.013 13.093" stroke-opacity="0.55"/>
+  </g>
+  <!-- Clock hands -->
+  <g stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round">
+    <path d="M16 16V10.2"/>
+    <path d="M16 16L19.64 13.9"/>
+  </g>
+  <!-- Wordmark. System sans stack: an <img>-loaded SVG cannot use the page's webfonts. -->
+  <text x="42" y="22.2" font-family="Roboto, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="16.5" font-weight="700" letter-spacing="-0.4">
+    <tspan fill="#FFFFFF">Shift</tspan><tspan fill="#8098FF">Planner</tspan>
+  </text>
 </svg>

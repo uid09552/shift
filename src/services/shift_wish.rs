@@ -9,8 +9,8 @@ use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::repository::AppState;
-use crate::repository::domain::{ShiftWish, ShiftWishRepository};
-use crate::services::tenant::TenantContext;
+use crate::repository::domain::{EmployeeRepository, ShiftWish, ShiftWishRepository};
+use crate::services::tenant::{RoleContext, TenantContext, UserContext};
 
 #[derive(Deserialize)]
 pub struct ListShiftWishesQuery {
@@ -20,6 +20,37 @@ pub struct ListShiftWishesQuery {
 }
 
 pub struct ShiftWishService;
+
+/// Verifies the caller may write the wishes of `employee_id`.
+///
+/// `shift-planner` and `shift-admin` may write anyone's wishes. Everyone else — in
+/// practice `shift-viewer`, the only other role that reaches these handlers — may only
+/// write their own, matched by the employee's e-mail address against the caller's
+/// `email` / `preferred_username` token claims.
+async fn authorize_wish_for_employee(
+    tenant: &TenantContext,
+    roles: &RoleContext,
+    user: &UserContext,
+    state: &AppState,
+    employee_id: Uuid,
+) -> Result<(), AppError> {
+    if roles.can_write() {
+        return Ok(());
+    }
+
+    let employee = state
+        .employee_repo
+        .get_employee(&tenant.0, employee_id)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::NotFound)?;
+
+    if user.matches_email(&employee.email) {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden)
+    }
+}
 
 impl ShiftWishService {
     pub async fn list_shift_wishes(
@@ -60,6 +91,8 @@ impl ShiftWishService {
 
     pub async fn create_shift_wish(
         tenant: TenantContext,
+        roles: RoleContext,
+        user: UserContext,
         State(state): State<AppState>,
         Json(body): Json<Value>,
     ) -> Result<Json<Value>, AppError> {
@@ -84,6 +117,8 @@ impl ShiftWishService {
 
         let wish_date = NaiveDate::parse_from_str(wish_date_str, "%Y-%m-%d")
             .map_err(|_| AppError::Validation("Invalid 'wish_date' format, use YYYY-MM-DD".into()))?;
+
+        authorize_wish_for_employee(&tenant, &roles, &user, &state, employee_id).await?;
 
         let wish = ShiftWish {
             id: Uuid::new_v4(), // Will be replaced by DB-generated ID
@@ -116,15 +151,19 @@ impl ShiftWishService {
 
     pub async fn delete_shift_wish(
         tenant: TenantContext,
+        roles: RoleContext,
+        user: UserContext,
         Path(wish_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
-        state
+        let wish = state
             .shift_wish_repo
             .get_shift_wish(&tenant.0, wish_id)
             .await
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
+
+        authorize_wish_for_employee(&tenant, &roles, &user, &state, wish.employee_id).await?;
 
         state
             .shift_wish_repo

@@ -23,10 +23,18 @@ export class ShiftWishService {
 
   constructor(private http: HttpClient) {}
 
-  getShiftWishes(employeeId?: string): Observable<ShiftWish[]> {
+  // `fromDate`/`toDate` (YYYY-MM-DD, inclusive) only filter when both are given.
+  getShiftWishes(
+    employeeId?: string,
+    fromDate?: string,
+    toDate?: string,
+  ): Observable<ShiftWish[]> {
     let params = new HttpParams();
     if (employeeId) {
       params = params.set('employee_id', employeeId);
+    }
+    if (fromDate && toDate) {
+      params = params.set('from_date', fromDate).set('to_date', toDate);
     }
     return this.http.get<ShiftWish[]>(`${this.apiUrl}/shift-wishes`, { params });
   }

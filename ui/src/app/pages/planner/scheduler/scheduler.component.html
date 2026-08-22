@@ -1,13 +1,13 @@
-<app-page-breadcrumb pageTitle="Schedule Optimizer" />
+<app-page-breadcrumb pageTitle="nav.scheduleOptimizer" />
 
 <div class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
   <!-- Header -->
   <div class="border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
-        <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">Optimized Shift Planning</h3>
+        <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'scheduler.heading' | t }}</h3>
         @if (latestResult) {
-          <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">Plan available</span>
+          <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">{{ 'scheduler.planAvailable' | t }}</span>
         }
       </div>
       <div class="flex flex-wrap items-center gap-2">
@@ -28,7 +28,7 @@
               <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
               </svg>
-              Workstations
+              {{ 'scheduler.viewWorkstations' | t }}
             </button>
             <button
               (click)="setView('employee')"
@@ -44,7 +44,7 @@
               <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>
               </svg>
-              Employees
+              {{ 'scheduler.viewEmployees' | t }}
             </button>
           </div>
         }
@@ -62,7 +62,7 @@
               [class.dark:text-white]="planningMode === 'weeks'"
               [class.text-gray-500]="planningMode !== 'weeks'"
               [class.dark:text-gray-400]="planningMode !== 'weeks'"
-            >Weeks</button>
+            >{{ 'scheduler.modeWeeks' | t }}</button>
             <button
               type="button"
               (click)="planningMode = 'range'"
@@ -73,11 +73,11 @@
               [class.dark:text-white]="planningMode === 'range'"
               [class.text-gray-500]="planningMode !== 'range'"
               [class.dark:text-gray-400]="planningMode !== 'range'"
-            >Date range</button>
+            >{{ 'scheduler.modeRange' | t }}</button>
           </div>
 
           @if (planningMode === 'weeks') {
-            <span class="text-xs text-gray-500 dark:text-gray-400">Plan</span>
+            <span class="text-xs text-gray-500 dark:text-gray-400">{{ 'scheduler.plan' | t }}</span>
             <select [(ngModel)]="planningWeeks" class="border-0 bg-transparent py-0 text-sm font-medium text-gray-700 focus:ring-0 dark:text-gray-300">
               @for (w of WEEK_OPTIONS; track w) {
                 <option [value]="w">{{ w }}w</option>
@@ -90,7 +90,7 @@
               [max]="customEndDate"
               class="border-0 bg-transparent py-0 text-sm font-medium text-gray-700 focus:ring-0 dark:text-gray-300 dark:[color-scheme:dark]"
             />
-            <span class="text-xs text-gray-400 dark:text-gray-500">to</span>
+            <span class="text-xs text-gray-400 dark:text-gray-500">{{ 'scheduler.rangeTo' | t }}</span>
             <input
               type="date"
               [(ngModel)]="customEndDate"
@@ -101,9 +101,9 @@
         </div>
 
         <!-- Monthly hours toggle -->
-        <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 dark:border-gray-700" title="Try to match each employee's monthly working hours target">
+        <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 dark:border-gray-700" [title]="'scheduler.matchMonthlyHoursTitle' | t">
           <input type="checkbox" [(ngModel)]="enableMonthlyHoursTarget" class="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500">
-          <span class="text-xs font-medium text-gray-600 dark:text-gray-400">Match monthly hours</span>
+          <span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ 'scheduler.matchMonthlyHours' | t }}</span>
         </label>
 
         <!-- Employee selector -->
@@ -122,8 +122,8 @@
             <div class="absolute right-0 z-10 mt-2 w-64 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
               <div class="border-b border-gray-100 p-2 dark:border-gray-700">
                 <div class="flex gap-2">
-                  <button (click)="selectAllEmployees()" class="flex-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">Select All</button>
-                  <button (click)="clearEmployeeSelection()" class="flex-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">Clear</button>
+                  <button (click)="selectAllEmployees()" class="flex-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">{{ 'scheduler.selectAll' | t }}</button>
+                  <button (click)="clearEmployeeSelection()" class="flex-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">{{ 'scheduler.clear' | t }}</button>
                 </div>
               </div>
               <div class="max-h-60 overflow-y-auto p-2">
@@ -144,12 +144,12 @@
               <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
               <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
             </svg>
-            <span>Calculating…</span>
+            <span>{{ 'scheduler.calculating' | t }}</span>
           } @else {
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
             </svg>
-            <span>Calculate Plan</span>
+            <span>{{ 'scheduler.calculatePlan' | t }}</span>
           }
         </button>
 
@@ -159,24 +159,24 @@
             (click)="takeAsPlan()"
             [disabled]="takingAsPlan"
             class="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20"
-            title="Save this optimizer result as confirmed shift plans (overwrites existing plans for the period)"
+            [title]="'scheduler.takeAsPlanTitle' | t"
           >
             @if (takingAsPlan) {
               <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
                 <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
                 <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
               </svg>
-              <span>Saving…</span>
+              <span>{{ 'scheduler.saving' | t }}</span>
             } @else if (takePlanSuccess) {
               <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="20 6 9 17 4 12"></polyline>
               </svg>
-              <span>Saved!</span>
+              <span>{{ 'scheduler.saved' | t }}</span>
             } @else {
               <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline>
               </svg>
-              <span>Take as Plan</span>
+              <span>{{ 'scheduler.takeAsPlan' | t }}</span>
             }
           </button>
         }
@@ -186,7 +186,7 @@
             <line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line>
             <line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>
           </svg>
-          <span>Jobs</span>
+          <span>{{ 'scheduler.jobs' | t }}</span>
           @if (planningTasks.length > 0) {
             <span class="rounded-full bg-gray-200 px-1.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-400">{{ planningTasks.length }}</span>
           }
@@ -202,7 +202,7 @@
         <svg class="h-5 w-5 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
         </svg>
-        <span class="text-sm text-red-600 dark:text-red-400">{{ error || takePlanError }}</span>
+        <span class="text-sm text-red-600 dark:text-red-400">{{ (error || takePlanError || '') | t }}</span>
       </div>
     </div>
   }
@@ -211,20 +211,23 @@
   @if (selectedResult) {
     <div class="flex items-center border-b border-gray-100 px-5 py-3 dark:border-white/[0.05] sm:px-6">
       <div class="flex flex-wrap items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-        <span>Period: {{ selectedResult.result.planning_period.start_date | date:'mediumDate' }} – {{ selectedResult.result.planning_period.end_date | date:'mediumDate' }}</span>
-        <span>Score: {{ objectiveValue }}</span>
-        <span>Status: {{ status }}</span>
+        <span>{{ 'scheduler.period' | t: {
+          from: formatDateLabel(selectedResult.result.planning_period.start_date),
+          to: formatDateLabel(selectedResult.result.planning_period.end_date)
+        } }}</span>
+        <span>{{ 'scheduler.score' | t: { value: objectiveValue } }}</span>
+        <span>{{ 'scheduler.statusValue' | t: { value: status } }}</span>
         @if (savingSchedule) {
           <span class="flex items-center gap-1 text-brand-500">
             <svg class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
               <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
             </svg>
-            Saving edit…
+            {{ 'scheduler.savingEdit' | t }}
           </span>
         }
         @if (viewMode === 'employee') {
-          <span class="italic text-gray-400 dark:text-gray-500">Right-click a day or employee name to edit</span>
+          <span class="italic text-gray-400 dark:text-gray-500">{{ 'scheduler.editHint' | t }}</span>
         }
       </div>
     </div>
@@ -233,16 +236,16 @@
   <!-- Mass operations toolbar (employee view, multi-select) -->
   @if (viewMode === 'employee' && editSelectedIds.size > 0) {
     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-brand-100 bg-brand-50 px-5 py-2.5 dark:border-brand-900/40 dark:bg-brand-500/10 sm:px-6">
-      <span class="text-xs font-medium text-brand-700 dark:text-brand-300">{{ editSelectedLabel }} selected</span>
+      <span class="text-xs font-medium text-brand-700 dark:text-brand-300">{{ 'scheduler.selectedCount' | t: { label: editSelectedLabel } }}</span>
       <div class="flex items-center gap-2">
         <button (click)="takeAsPlan([...editSelectedIds])" class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20">
-          Take as Plan
+          {{ 'scheduler.takeAsPlan' | t }}
         </button>
         <button (click)="confirmClearEmployees([...editSelectedIds])" class="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-500/10">
-          Clear Assignments
+          {{ 'scheduler.clearAssignments' | t }}
         </button>
         <button (click)="clearEditSelection()" class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]">
-          Clear Selection
+          {{ 'scheduler.clearSelection' | t }}
         </button>
       </div>
     </div>
@@ -260,7 +263,7 @@
         <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
         <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
       </svg>
-      Loading optimized schedule…
+      {{ 'scheduler.loadingSchedule' | t }}
     </div>
   } @else if (!selectedResult) {
     <div class="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
@@ -268,8 +271,8 @@
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
         <line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
       </svg>
-      <p class="mb-4 text-sm">No optimized plan available.</p>
-      <button (click)="triggerPlan()" class="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600">Calculate New Plan</button>
+      <p class="mb-4 text-sm">{{ 'scheduler.noPlan' | t }}</p>
+      <button (click)="triggerPlan()" class="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600">{{ 'scheduler.calculateNewPlan' | t }}</button>
     </div>
   } @else {
     <app-calendar-table
@@ -292,7 +295,7 @@
 <!-- Shift legend -->
 @if (selectedResult && uniqueShifts.length > 0) {
   <div class="mt-4 rounded-xl border border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-white/[0.03]">
-    <div class="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Shift Legend</div>
+    <div class="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{{ 'scheduler.shiftLegend' | t }}</div>
     <div class="flex flex-wrap gap-3">
       @for (shift of uniqueShifts; track shift.id) {
         <div class="flex items-center gap-1.5">
@@ -309,13 +312,13 @@
   <div class="mt-4 rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
     <div class="flex items-center justify-between border-b border-gray-100 px-5 py-3 dark:border-white/[0.05]">
       <div>
-        <span class="text-sm font-semibold text-gray-800 dark:text-white/90">Optimization Jobs</span>
-        <span class="ml-2 text-xs text-gray-400">auto-refreshes every 30s</span>
+        <span class="text-sm font-semibold text-gray-800 dark:text-white/90">{{ 'scheduler.optimizationJobs' | t }}</span>
+        <span class="ml-2 text-xs text-gray-400">{{ 'scheduler.autoRefresh' | t }}</span>
       </div>
     </div>
     <div class="divide-y divide-gray-100 dark:divide-white/[0.05]">
       @if (planningTasks.length === 0) {
-        <div class="px-5 py-6 text-center text-sm text-gray-400">No jobs found.</div>
+        <div class="px-5 py-6 text-center text-sm text-gray-400">{{ 'scheduler.noJobs' | t }}</div>
       }
       @for (task of planningTasks; track task.id) {
         <div class="flex flex-col gap-1 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -335,7 +338,7 @@
               [class.dark:bg-red-900/30]="task.status === 'error'"
               [class.dark:text-red-400]="task.status === 'error'"
             >
-              {{ taskStatusLabel(task.status) }}
+              {{ taskStatusKey(task.status) | t }}
             </span>
             @if (task.error_message) {
               <span class="max-w-xs truncate text-xs text-red-500 dark:text-red-400" [title]="task.error_message">
@@ -348,12 +351,12 @@
             @if (task.result_id) {
               <button (click)="loadResultById(task.result_id!)"
                 class="rounded-lg border border-brand-200 px-3 py-1 text-xs font-medium text-brand-600 transition hover:bg-brand-50 dark:border-brand-800 dark:text-brand-400 dark:hover:bg-brand-500/10">
-                View
+                {{ 'scheduler.view' | t }}
               </button>
             }
             <button (click)="deleteEntry(task)" [disabled]="deletingResultId === task.id"
               class="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-500/10">
-              @if (deletingResultId === task.id) { … } @else { Delete }
+              @if (deletingResultId === task.id) { … } @else { {{ 'common.delete' | t }} }
             </button>
           </div>
         </div>
@@ -407,7 +410,7 @@
     <div class="mx-4 w-full max-w-sm rounded-xl bg-white p-6 shadow-xl dark:bg-gray-900" (click)="$event.stopPropagation()">
       <div class="mb-4 flex items-center justify-between">
         <div>
-          <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">Edit Assignment</h3>
+          <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'scheduler.editAssignment' | t }}</h3>
           <p class="text-sm text-gray-500 dark:text-gray-400">{{ editingAssignment.employeeName }} · {{ editingAssignment.date }}</p>
         </div>
         <button (click)="closeEditAssignment()" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800">
@@ -419,28 +422,28 @@
 
       <div class="space-y-4">
         <div>
-          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Status</label>
+          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ 'common.status' | t }}</label>
           <select [(ngModel)]="editingAssignment.status" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-            <option value="assigned">Assigned</option>
-            <option value="free">Free (day off)</option>
-            <option value="unassigned">Unassigned (no entry)</option>
+            <option value="assigned">{{ 'scheduler.statusAssigned' | t }}</option>
+            <option value="free">{{ 'scheduler.statusFree' | t }}</option>
+            <option value="unassigned">{{ 'scheduler.statusUnassigned' | t }}</option>
           </select>
         </div>
 
         @if (editingAssignment.status === 'assigned') {
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Shift</label>
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ 'common.shift' | t }}</label>
             <select [(ngModel)]="editingAssignment.shiftId" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-              <option [ngValue]="null">Select a shift…</option>
+              <option [ngValue]="null">{{ 'scheduler.selectShift' | t }}</option>
               @for (s of shifts; track s.id) {
                 <option [ngValue]="s.id">{{ s.name }}</option>
               }
             </select>
           </div>
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Workstation</label>
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ 'common.workstation' | t }}</label>
             <select [(ngModel)]="editingAssignment.workstationId" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-              <option [ngValue]="null">None</option>
+              <option [ngValue]="null">{{ 'common.none' | t }}</option>
               @for (w of workstations; track w.id) {
                 <option [ngValue]="w.id">{{ w.name }}</option>
               }
@@ -451,14 +454,14 @@
 
       <div class="mt-5 flex items-center justify-end gap-3">
         <button (click)="closeEditAssignment()" class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]">
-          Cancel
+          {{ 'common.cancel' | t }}
         </button>
         <button
           (click)="saveEditAssignment()"
           [disabled]="editingAssignment.status === 'assigned' && !editingAssignment.shiftId"
           class="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Save
+          {{ 'common.save' | t }}
         </button>
       </div>
     </div>

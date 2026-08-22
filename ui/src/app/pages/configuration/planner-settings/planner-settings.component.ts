@@ -11,6 +11,7 @@ import { InputFieldComponent } from '../../../shared/components/form/input/input
 import { LabelComponent } from '../../../shared/components/form/label/label.component';
 import { ButtonComponent } from '../../../shared/components/ui/button/button.component';
 import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip/info-tooltip.component';
+import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 
 @Component({
   selector: 'app-planner-settings',
@@ -23,19 +24,18 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
     LabelComponent,
     ButtonComponent,
     InfoTooltipComponent,
+    TranslatePipe,
   ],
   template: `
-    <app-page-breadcrumb pageTitle="Planner Settings" />
+    <app-page-breadcrumb pageTitle="nav.plannerSettings" />
 
     <p class="mb-6 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-      These settings control how the shift optimizer balances coverage, fairness, and rest
-      requirements when it generates a schedule. Changes apply to every optimization run
-      triggered from this tenant.
+      {{ 'plannerSettings.intro' | t }}
     </p>
 
     @if (loading) {
       <div class="rounded-2xl border border-gray-200 bg-white px-5 py-12 text-center text-sm text-gray-400 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-500">
-        Loading planner settings...
+        {{ 'plannerSettings.loading' | t }}
       </div>
     } @else {
       <div class="space-y-6">
@@ -47,7 +47,7 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
               ? 'border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400'
               : 'border-error-200 bg-error-50 text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400'"
           >
-            <span>{{ message }}</span>
+            <span>{{ message | t }}</span>
             <button
               type="button"
               (click)="message = null"
@@ -61,14 +61,14 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
         <!-- Rest & recovery constraints -->
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <div class="px-5 py-4 sm:px-6">
-            <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">Rest &amp; Recovery</h3>
-            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Hard limits on consecutive work and rest between shifts</p>
+            <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'plannerSettings.restSection' | t }}</h3>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.restSectionSub' | t }}</p>
           </div>
           <div class="grid grid-cols-1 gap-5 border-t border-gray-100 px-5 py-5 dark:border-white/[0.05] sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
             <div>
               <app-label for="nightShiftRecoveryDays" className="mb-1.5">
-                Night shift recovery (days)
-                <app-info-tooltip text="Higher values force more rest days after a night shift, cutting burnout risk but needing more staff to cover the gap. Lower values (0 disables) let someone be rescheduled sooner, at higher fatigue risk." />
+                {{ 'plannerSettings.nightShiftRecoveryDays.label' | t }}
+                <app-info-tooltip [text]="'plannerSettings.nightShiftRecoveryDays.tooltip' | t" />
               </app-label>
               <app-input-field
                 id="nightShiftRecoveryDays"
@@ -78,12 +78,12 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
                 [value]="form.night_shift_recovery_days"
                 (valueChange)="onFieldChange('night_shift_recovery_days', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Days off required after a night shift. 0 disables.</p>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.nightShiftRecoveryDays.hint' | t }}</p>
             </div>
             <div>
               <app-label for="minRestHours" className="mb-1.5">
-                Minimum rest (hours)
-                <app-info-tooltip text="Higher values block back-to-back shifts more aggressively, protecting rest but shrinking who's eligible for the next shift. Lower values (0 disables) allow tighter turnarounds between shifts." />
+                {{ 'plannerSettings.minRestHours.label' | t }}
+                <app-info-tooltip [text]="'plannerSettings.minRestHours.tooltip' | t" />
               </app-label>
               <app-input-field
                 id="minRestHours"
@@ -94,12 +94,12 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
                 [value]="form.min_rest_hours"
                 (valueChange)="onFieldChange('min_rest_hours', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Rest required between shifts on consecutive days.</p>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.minRestHours.hint' | t }}</p>
             </div>
             <div>
               <app-label for="maxConsecutiveDays" className="mb-1.5">
-                Max consecutive days
-                <app-info-tooltip text="Lower values force more frequent days off, spreading work across more people. Higher values (0 disables) allow longer stretches without a break." />
+                {{ 'plannerSettings.maxConsecutiveDays.label' | t }}
+                <app-info-tooltip [text]="'plannerSettings.maxConsecutiveDays.tooltip' | t" />
               </app-label>
               <app-input-field
                 id="maxConsecutiveDays"
@@ -109,12 +109,12 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
                 [value]="form.max_consecutive_days"
                 (valueChange)="onFieldChange('max_consecutive_days', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Longest run of working days allowed. 0 disables.</p>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.maxConsecutiveDays.hint' | t }}</p>
             </div>
             <div>
               <app-label for="maxWorkingDaysPerWeek" className="mb-1.5">
-                Max days per week
-                <app-info-tooltip text="Lower values cap how many shifts one person can work per week, spreading coverage across more employees. Higher values (0 disables) let the solver lean more heavily on whoever is available." />
+                {{ 'plannerSettings.maxWorkingDaysPerWeek.label' | t }}
+                <app-info-tooltip [text]="'plannerSettings.maxWorkingDaysPerWeek.tooltip' | t" />
               </app-label>
               <app-input-field
                 id="maxWorkingDaysPerWeek"
@@ -124,7 +124,7 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
                 [value]="form.max_working_days_per_week"
                 (valueChange)="onFieldChange('max_working_days_per_week', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Working days allowed per calendar week. 0 disables.</p>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.maxWorkingDaysPerWeek.hint' | t }}</p>
             </div>
           </div>
         </div>
@@ -132,14 +132,14 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
         <!-- Objective weights -->
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <div class="px-5 py-4 sm:px-6">
-            <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">Objective Weights</h3>
-            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Relative importance the solver gives to each goal — higher wins more often when goals conflict</p>
+            <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'plannerSettings.weightsSection' | t }}</h3>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.weightsSectionSub' | t }}</p>
           </div>
           <div class="grid grid-cols-1 gap-5 border-t border-gray-100 px-5 py-5 dark:border-white/[0.05] sm:grid-cols-2 sm:px-6">
             <div>
               <app-label for="equalityWeight" className="mb-1.5">
-                Fairness weight
-                <app-info-tooltip text="Higher values make the solver work harder to equalize total hours across employees, even at the cost of coverage elsewhere. Lower values allow less even hours if it helps meet other goals." />
+                {{ 'plannerSettings.equalityWeight.label' | t }}
+                <app-info-tooltip [text]="'plannerSettings.equalityWeight.tooltip' | t" />
               </app-label>
               <app-input-field
                 id="equalityWeight"
@@ -148,12 +148,12 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
                 [value]="form.equality_weight"
                 (valueChange)="onFieldChange('equality_weight', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Higher values spread hours more evenly across employees.</p>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.equalityWeight.hint' | t }}</p>
             </div>
             <div>
               <app-label for="monthlyHoursTargetWeight" className="mb-1.5">
-                Monthly hours target weight
-                <app-info-tooltip text="Higher values push the solver harder to match each employee's target monthly hours exactly. Lower values (0 disables) let actual hours drift further from the target." />
+                {{ 'plannerSettings.monthlyHoursTargetWeight.label' | t }}
+                <app-info-tooltip [text]="'plannerSettings.monthlyHoursTargetWeight.tooltip' | t" />
               </app-label>
               <app-input-field
                 id="monthlyHoursTargetWeight"
@@ -162,11 +162,11 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
                 [value]="form.monthly_hours_target_weight"
                 (valueChange)="onFieldChange('monthly_hours_target_weight', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Higher values push harder to match each employee's monthly hours target.</p>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.monthlyHoursTargetWeight.hint' | t }}</p>
             </div>
             <div class="sm:col-span-2">
               <app-label className="mb-1.5">
-                Workstation priority weights
+                {{ 'plannerSettings.priorityWeights' | t }}
                 <app-info-tooltip text="Raising a tier's value relative to the others makes it get staffed first when there aren't enough people for everything — e.g. raise High relative to Medium/Low to protect critical workstations first." />
               </app-label>
               <div class="grid grid-cols-3 gap-3">
@@ -174,39 +174,39 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
                   <app-input-field
                     type="number"
                     min="0"
-                    placeholder="High"
+                    [placeholder]="'workstations.priorityHigh' | t"
                     [value]="form.priority_weights.high"
                     (valueChange)="onPriorityWeightChange('high', $event)"
                   />
-                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">High priority</p>
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.priorityHigh' | t }}</p>
                 </div>
                 <div>
                   <app-input-field
                     type="number"
                     min="0"
-                    placeholder="Medium"
+                    [placeholder]="'workstations.priorityMedium' | t"
                     [value]="form.priority_weights.medium"
                     (valueChange)="onPriorityWeightChange('medium', $event)"
                   />
-                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Medium priority</p>
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.priorityMedium' | t }}</p>
                 </div>
                 <div>
                   <app-input-field
                     type="number"
                     min="0"
-                    placeholder="Low"
+                    [placeholder]="'workstations.priorityLow' | t"
                     [value]="form.priority_weights.low"
                     (valueChange)="onPriorityWeightChange('low', $event)"
                   />
-                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Low priority</p>
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.priorityLow' | t }}</p>
                 </div>
               </div>
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">How strongly each workstation priority tier is staffed before lower tiers.</p>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.priorityHint' | t }}</p>
             </div>
             <div>
               <app-label for="shiftContinuityWeight" className="mb-1.5">
-                Shift continuity weight
-                <app-info-tooltip text="Higher values reward keeping an employee on the same shift day-to-day, producing more predictable schedules. Lower values (0 disables) let the solver switch people between shifts more freely." />
+                {{ 'plannerSettings.shiftContinuityWeight.label' | t }}
+                <app-info-tooltip [text]="'plannerSettings.shiftContinuityWeight.tooltip' | t" />
               </app-label>
               <app-input-field
                 id="shiftContinuityWeight"
@@ -215,12 +215,12 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
                 [value]="form.shift_continuity_weight"
                 (valueChange)="onFieldChange('shift_continuity_weight', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Reward for an employee working the same shift on consecutive days.</p>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.shiftContinuityWeight.hint' | t }}</p>
             </div>
             <div>
               <app-label for="shiftContinuityWeekBonus" className="mb-1.5">
-                Week-streak bonus
-                <app-info-tooltip text="Extra reward on top of the continuity weight for a 7+ day run on the same shift. Higher values favor long, stable shift blocks over frequent rotation." />
+                {{ 'plannerSettings.shiftContinuityWeekBonus.label' | t }}
+                <app-info-tooltip [text]="'plannerSettings.shiftContinuityWeekBonus.tooltip' | t" />
               </app-label>
               <app-input-field
                 id="shiftContinuityWeekBonus"
@@ -229,7 +229,7 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
                 [value]="form.shift_continuity_week_bonus"
                 (valueChange)="onFieldChange('shift_continuity_week_bonus', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Extra bonus for a 7+ consecutive day streak on the same shift.</p>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.shiftContinuityWeekBonus.hint' | t }}</p>
             </div>
           </div>
         </div>
@@ -237,14 +237,14 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
         <!-- Weekly hours band -->
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <div class="px-5 py-4 sm:px-6">
-            <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">Weekly Hours Band</h3>
-            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Soft weekly min/max hours, separate from the monthly target above. Leave blank to disable.</p>
+            <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'plannerSettings.weeklyBandSection' | t }}</h3>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.weeklyBandSectionSub' | t }}</p>
           </div>
           <div class="grid grid-cols-1 gap-5 border-t border-gray-100 px-5 py-5 dark:border-white/[0.05] sm:grid-cols-3 sm:px-6">
             <div>
               <app-label for="weeklyMinHours" className="mb-1.5">
-                Min hours / week
-                <app-info-tooltip text="Soft weekly floor, separate from the monthly target. The solver is penalized (not blocked) for going under it. Leave blank to disable this bound entirely." />
+                {{ 'plannerSettings.weeklyMinHours.label' | t }}
+                <app-info-tooltip [text]="'plannerSettings.weeklyMinHours.tooltip' | t" />
               </app-label>
               <app-input-field
                 id="weeklyMinHours"
@@ -253,12 +253,12 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
                 [value]="form.weekly_min_hours ?? ''"
                 (valueChange)="onOptionalFieldChange('weekly_min_hours', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Blank disables the minimum.</p>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.weeklyMinHours.hint' | t }}</p>
             </div>
             <div>
               <app-label for="weeklyMaxHours" className="mb-1.5">
-                Max hours / week
-                <app-info-tooltip text="Soft weekly ceiling, separate from the monthly target. The solver is penalized (not blocked) for going over it. Leave blank to disable this bound entirely." />
+                {{ 'plannerSettings.weeklyMaxHours.label' | t }}
+                <app-info-tooltip [text]="'plannerSettings.weeklyMaxHours.tooltip' | t" />
               </app-label>
               <app-input-field
                 id="weeklyMaxHours"
@@ -267,12 +267,12 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
                 [value]="form.weekly_max_hours ?? ''"
                 (valueChange)="onOptionalFieldChange('weekly_max_hours', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Blank disables the maximum.</p>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.weeklyMaxHours.hint' | t }}</p>
             </div>
             <div>
               <app-label for="weeklyHoursTargetWeight" className="mb-1.5">
-                Weight
-                <app-info-tooltip text="Higher values push harder to keep everyone inside the weekly band above. Lower values make it easier for the solver to violate the band under staffing pressure." />
+                {{ 'plannerSettings.weeklyHoursTargetWeight.label' | t }}
+                <app-info-tooltip [text]="'plannerSettings.weeklyHoursTargetWeight.tooltip' | t" />
               </app-label>
               <app-input-field
                 id="weeklyHoursTargetWeight"
@@ -281,7 +281,7 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
                 [value]="form.weekly_hours_target_weight"
                 (valueChange)="onFieldChange('weekly_hours_target_weight', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">How hard the solver tries to hit the band above.</p>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.weeklyHoursTargetWeight.hint' | t }}</p>
             </div>
           </div>
         </div>
@@ -289,14 +289,14 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
         <!-- Preferences, skill matching & fatigue -->
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <div class="px-5 py-4 sm:px-6">
-            <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">Preferences, Skill Matching &amp; Fatigue</h3>
-            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Soft goals: respecting employee wishes and preferences, discouraging skill downgrades, and spreading fatigue evenly.</p>
+            <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'plannerSettings.preferencesSection' | t }}</h3>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.preferencesSectionSub' | t }}</p>
           </div>
           <div class="grid grid-cols-1 gap-5 border-t border-gray-100 px-5 py-5 dark:border-white/[0.05] sm:grid-cols-2 lg:grid-cols-4 sm:px-6">
             <div>
               <app-label for="wishWeight" className="mb-1.5">
-                Shift wish weight
-                <app-info-tooltip text="Reward for giving an employee a shift they requested in their calendar. Higher values make wishes win more often against fairness and coverage — raise it towards the fairness weight to make wishes near-mandatory. 0 ignores wishes entirely." />
+                {{ 'plannerSettings.wishWeight.label' | t }}
+                <app-info-tooltip [text]="'plannerSettings.wishWeight.tooltip' | t" />
               </app-label>
               <app-input-field
                 id="wishWeight"
@@ -305,12 +305,12 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
                 [value]="form.wish_weight"
                 (valueChange)="onFieldChange('wish_weight', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Reward for fulfilling a requested shift. 0 ignores wishes.</p>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.wishWeight.hint' | t }}</p>
             </div>
             <div>
               <app-label for="preferenceWeight" className="mb-1.5">
-                Preference weight
-                <app-info-tooltip text="Higher values make the solver work harder to avoid a day/shift an employee marked as preferred-off. It's always a soft preference — set to 0 to ignore preferences entirely." />
+                {{ 'plannerSettings.preferenceWeight.label' | t }}
+                <app-info-tooltip [text]="'plannerSettings.preferenceWeight.tooltip' | t" />
               </app-label>
               <app-input-field
                 id="preferenceWeight"
@@ -319,12 +319,12 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
                 [value]="form.preference_weight"
                 (valueChange)="onFieldChange('preference_weight', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Cost of assigning an employee to a day/shift they marked as preferred-off. Never blocks the assignment.</p>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.preferenceWeight.hint' | t }}</p>
             </div>
             <div>
               <app-label for="skillDowngradeWeight" className="mb-1.5">
-                Skill downgrade weight
-                <app-info-tooltip text="Higher values discourage using an over-qualified employee to cover a lower-tier slot, saving them for higher-value work. Lower values (0 disables) let the solver substitute freely regardless of skill level." />
+                {{ 'plannerSettings.skillDowngradeWeight.label' | t }}
+                <app-info-tooltip [text]="'plannerSettings.skillDowngradeWeight.tooltip' | t" />
               </app-label>
               <app-input-field
                 id="skillDowngradeWeight"
@@ -333,12 +333,12 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
                 [value]="form.skill_downgrade_weight"
                 (valueChange)="onFieldChange('skill_downgrade_weight', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Cost of covering a slot with a higher-level capability from the same skill group instead of an exact match.</p>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.skillDowngradeWeight.hint' | t }}</p>
             </div>
             <div>
               <app-label for="fatigueWeight" className="mb-1.5">
-                Fatigue weight
-                <app-info-tooltip text="Higher values push the solver to protect the single most fatigued employee, even if it means slightly less even schedules overall. Set to 0 to disable fatigue-aware scheduling." />
+                {{ 'plannerSettings.fatigueWeight.label' | t }}
+                <app-info-tooltip [text]="'plannerSettings.fatigueWeight.tooltip' | t" />
               </app-label>
               <app-input-field
                 id="fatigueWeight"
@@ -347,12 +347,12 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
                 [value]="form.fatigue_weight"
                 (valueChange)="onFieldChange('fatigue_weight', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Weight on the worst-off employee's accumulated fatigue. 0 disables fatigue tracking.</p>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.fatigueWeight.hint' | t }}</p>
             </div>
             <div>
               <app-label for="nightShiftFatigueMultiplier" className="mb-1.5">
-                Night fatigue multiplier
-                <app-info-tooltip text="How many times more fatiguing a night shift is versus a day shift of the same length. Raise it to make the solver avoid stacking night shifts onto any one person." />
+                {{ 'plannerSettings.nightShiftFatigueMultiplier.label' | t }}
+                <app-info-tooltip [text]="'plannerSettings.nightShiftFatigueMultiplier.tooltip' | t" />
               </app-label>
               <app-input-field
                 id="nightShiftFatigueMultiplier"
@@ -362,7 +362,7 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
                 [value]="form.night_shift_fatigue_multiplier"
                 (valueChange)="onFieldChange('night_shift_fatigue_multiplier', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">How much more fatiguing a night shift is than a day shift of equal length.</p>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.nightShiftFatigueMultiplier.hint' | t }}</p>
             </div>
           </div>
         </div>
@@ -370,14 +370,14 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
         <!-- Solver performance -->
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <div class="px-5 py-4 sm:px-6">
-            <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">Solver Performance</h3>
-            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">How long and how hard the CP-SAT solver works before returning a result</p>
+            <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'plannerSettings.solverSection' | t }}</h3>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.solverSectionSub' | t }}</p>
           </div>
           <div class="grid grid-cols-1 gap-5 border-t border-gray-100 px-5 py-5 dark:border-white/[0.05] sm:grid-cols-2 sm:px-6">
             <div>
               <app-label for="solverTimeLimitSeconds" className="mb-1.5">
-                Time limit (seconds)
-                <app-info-tooltip text="Higher values let the CP-SAT solver search longer for a better schedule before returning its best result so far. Lower values return faster but may be less optimal." />
+                {{ 'plannerSettings.solverTimeLimitSeconds.label' | t }}
+                <app-info-tooltip [text]="'plannerSettings.solverTimeLimitSeconds.tooltip' | t" />
               </app-label>
               <app-input-field
                 id="solverTimeLimitSeconds"
@@ -387,12 +387,12 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
                 [value]="form.solver_time_limit_seconds"
                 (valueChange)="onFieldChange('solver_time_limit_seconds', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Maximum time the solver may run before returning its best solution.</p>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.solverTimeLimitSeconds.hint' | t }}</p>
             </div>
             <div>
               <app-label for="solverNumWorkers" className="mb-1.5">
-                Parallel workers
-                <app-info-tooltip text="More worker threads let the solver search in parallel and often finish faster, at the cost of more CPU usage during optimization." />
+                {{ 'plannerSettings.solverNumWorkers.label' | t }}
+                <app-info-tooltip [text]="'plannerSettings.solverNumWorkers.tooltip' | t" />
               </app-label>
               <app-input-field
                 id="solverNumWorkers"
@@ -402,17 +402,17 @@ import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip
                 [value]="form.solver_num_workers"
                 (valueChange)="onFieldChange('solver_num_workers', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Number of CPU threads the solver may use.</p>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.solverNumWorkers.hint' | t }}</p>
             </div>
           </div>
         </div>
 
         <div class="flex items-center gap-3">
           <app-button size="sm" variant="primary" [disabled]="saving" (btnClick)="save()">
-            {{ saving ? 'Saving...' : 'Save Changes' }}
+            {{ (saving ? 'plannerSettings.saving' : 'config.saveChanges') | t }}
           </app-button>
           @if (form.updated_at) {
-            <span class="text-xs text-gray-400 dark:text-gray-500">Last updated {{ form.updated_at | date: 'medium' }}</span>
+            <span class="text-xs text-gray-400 dark:text-gray-500">{{ 'plannerSettings.lastUpdated' | t: { date: (form.updated_at | date: 'medium') ?? '' } }}</span>
           }
         </div>
       </div>
@@ -461,7 +461,7 @@ export class PlannerSettingsComponent implements OnInit {
       error: (err) => {
         console.error('Failed to load planner settings', err);
         this.loading = false;
-        this.showMessage('Failed to load planner settings.', 'error');
+        this.showMessage('plannerSettings.loadFailed', 'error');
       },
     });
   }
@@ -492,13 +492,13 @@ export class PlannerSettingsComponent implements OnInit {
       next: (settings) => {
         this.form = settings;
         this.saving = false;
-        this.showMessage('Planner settings saved.', 'success');
+        this.showMessage('plannerSettings.saved', 'success');
       },
       error: (err) => {
         console.error('Failed to save planner settings', err);
         this.saving = false;
         const apiMessage = err?.error?.error;
-        this.showMessage(apiMessage ?? 'Failed to save planner settings.', 'error');
+        this.showMessage(apiMessage ?? 'plannerSettings.saveFailed', 'error');
       },
     });
   }

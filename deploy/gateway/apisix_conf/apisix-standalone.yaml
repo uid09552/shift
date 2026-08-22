@@ -277,7 +277,7 @@ routes:
         discovery: http://keycloak:8080/auth/realms/shift/.well-known/openid-configuration
         scope: "openid profile email shift-org"
         bearer_only: false
-        unauth_action: deny
+        unauth_action: pass
         ssl_verify: false
         # Caches a successful introspection result for this many seconds so
         # every API call doesn't round-trip to Keycloak — still re-validates

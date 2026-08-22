@@ -10,8 +10,16 @@ use crate::repository::AppState;
 
 /// Realm role granting full read/write access.
 const ROLE_PLANNER: &str = "shift-planner";
-/// Realm role granting read-only access.
+/// Realm role granting full read/write access, on top of planner rights.
+const ROLE_ADMIN: &str = "shift-admin";
+/// Realm role granting read-only access, plus write access to the caller's own
+/// self-service data (see `SELF_SERVICE_SEGMENTS`).
 const ROLE_VIEWER: &str = "shift-viewer";
+
+/// Path segments whose mutations a `shift-viewer` may perform for their own records.
+/// The method check below lets those requests through; the handler is responsible for
+/// verifying ownership against the caller's identity (`UserContext`).
+const SELF_SERVICE_SEGMENTS: [&str; 1] = ["shift-wishes"];
 
 /// The tenant a request is scoped to. Every repository call takes this so a request
 /// can never read or write another tenant's rows.
@@ -43,7 +51,9 @@ impl FromRequestParts<AppState> for TenantContext {
 pub enum Role {
     /// `shift-planner` — may use every method.
     Planner,
-    /// `shift-viewer` — may only read.
+    /// `shift-admin` — may use every method.
+    Admin,
+    /// `shift-viewer` — may only read, except for their own self-service data.
     Viewer,
 }
 
@@ -54,9 +64,9 @@ pub enum Role {
 pub struct RoleContext(pub Vec<Role>);
 
 impl RoleContext {
-    /// Whether the caller may perform mutating requests.
+    /// Whether the caller may perform mutating requests on any record.
     pub fn can_write(&self) -> bool {
-        self.0.contains(&Role::Planner)
+        self.0.contains(&Role::Planner) || self.0.contains(&Role::Admin)
     }
 
     /// Whether the caller may read at all — any known role does.
@@ -64,13 +74,60 @@ impl RoleContext {
         !self.0.is_empty()
     }
 
-    /// Whether the roles cover `method`. Safe methods need any known role, everything
-    /// else needs `shift-planner`.
-    fn allows(&self, method: &Method) -> bool {
+    /// Whether the roles cover `method` on `path`. Safe methods need any known role.
+    /// Mutations need `shift-planner` or `shift-admin`, except on self-service paths,
+    /// where any reader passes here and the handler enforces ownership.
+    fn allows(&self, method: &Method, path: &str) -> bool {
         match *method {
             Method::GET | Method::HEAD | Method::OPTIONS => self.can_read(),
+            _ if is_self_service_path(path) => self.can_read(),
             _ => self.can_write(),
         }
+    }
+}
+
+/// Whether `path` is one a `shift-viewer` may mutate for their own records.
+fn is_self_service_path(path: &str) -> bool {
+    path.split('/').any(|segment| SELF_SERVICE_SEGMENTS.contains(&segment))
+}
+
+/// Who the caller is, resolved by the `authenticate` middleware from the
+/// `x-access-token` JWT. Used by handlers that let a `shift-viewer` write their own
+/// records: the record's owner must match one of these identifiers.
+#[derive(Clone, Debug, Default)]
+pub struct UserContext {
+    pub subject: Option<String>,
+    pub username: Option<String>,
+    pub email: Option<String>,
+}
+
+impl UserContext {
+    /// Whether `email` identifies the caller. Employees are keyed by e-mail address,
+    /// which Keycloak may carry either as the `email` claim or — when the realm logs
+    /// in with e-mail addresses — as `preferred_username`. Both are compared
+    /// case-insensitively, as e-mail local parts are treated case-insensitively here.
+    pub fn matches_email(&self, email: &str) -> bool {
+        let matches = |claim: &Option<String>| {
+            claim
+                .as_deref()
+                .is_some_and(|c| c.eq_ignore_ascii_case(email))
+        };
+        matches(&self.email) || matches(&self.username)
+    }
+}
+
+#[async_trait]
+impl FromRequestParts<AppState> for UserContext {
+    type Rejection = StatusCode;
+
+    /// Reads the identity resolved by `authenticate`. A request that skipped
+    /// resolution has no identity and cannot pass an ownership check.
+    async fn from_request_parts(parts: &mut Parts, _state: &AppState) -> Result<Self, Self::Rejection> {
+        parts
+            .extensions
+            .get::<UserContext>()
+            .cloned()
+            .ok_or(StatusCode::UNAUTHORIZED)
     }
 }
 
@@ -103,8 +160,12 @@ pub async fn authenticate(
     mut request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    let (tenant, roles) = if state.dev_mode {
-        (state.default_tenant_id.clone(), RoleContext(vec![Role::Planner]))
+    let (tenant, roles, user) = if state.dev_mode {
+        (
+            state.default_tenant_id.clone(),
+            RoleContext(vec![Role::Planner]),
+            UserContext::default(),
+        )
     } else {
         let token = request
             .headers()
@@ -114,15 +175,20 @@ pub async fn authenticate(
             .map_err(|_| StatusCode::UNAUTHORIZED)?;
         let claims = claims_from_token(token).ok_or(StatusCode::UNAUTHORIZED)?;
         let tenant = tenant_from_claims(&claims).ok_or(StatusCode::UNAUTHORIZED)?;
-        (tenant, RoleContext(roles_from_claims(&claims)))
+        (
+            tenant,
+            RoleContext(roles_from_claims(&claims)),
+            user_from_claims(&claims),
+        )
     };
 
-    if !roles.allows(request.method()) {
+    if !roles.allows(request.method(), request.uri().path()) {
         return Err(StatusCode::FORBIDDEN);
     }
 
     request.extensions_mut().insert(TenantContext(tenant));
     request.extensions_mut().insert(roles);
+    request.extensions_mut().insert(user);
     Ok(next.run(request).await)
 }
 
@@ -159,10 +225,26 @@ fn roles_from_claims(claims: &serde_json::Value) -> Vec<Role> {
         .iter()
         .filter_map(|r| match r.as_str()? {
             ROLE_PLANNER => Some(Role::Planner),
+            ROLE_ADMIN => Some(Role::Admin),
             ROLE_VIEWER => Some(Role::Viewer),
             _ => None,
         })
         .collect()
+}
+
+/// Extracts the caller's identity from the standard OIDC claims.
+fn user_from_claims(claims: &serde_json::Value) -> UserContext {
+    let claim = |name: &str| {
+        claims
+            .get(name)
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+    };
+    UserContext {
+        subject: claim("sub"),
+        username: claim("preferred_username"),
+        email: claim("email"),
+    }
 }
 
 #[cfg(test)]
@@ -232,18 +314,70 @@ mod tests {
         let planner = RoleContext(vec![Role::Planner]);
         let viewer = RoleContext(vec![Role::Viewer]);
         let none = RoleContext(vec![]);
+        let path = "/api/v1/employees";
 
         for method in [Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE] {
-            assert!(planner.allows(&method), "planner should be allowed {method}");
+            assert!(planner.allows(&method, path), "planner should be allowed {method}");
         }
 
-        assert!(viewer.allows(&Method::GET));
-        assert!(viewer.allows(&Method::HEAD));
+        assert!(viewer.allows(&Method::GET, path));
+        assert!(viewer.allows(&Method::HEAD, path));
         for method in [Method::POST, Method::PUT, Method::PATCH, Method::DELETE] {
-            assert!(!viewer.allows(&method), "viewer should be denied {method}");
+            assert!(!viewer.allows(&method, path), "viewer should be denied {method}");
         }
 
-        assert!(!none.allows(&Method::GET));
-        assert!(!none.allows(&Method::POST));
+        assert!(!none.allows(&Method::GET, path));
+        assert!(!none.allows(&Method::POST, path));
+    }
+
+    #[test]
+    fn admin_may_write_like_a_planner() {
+        let token = make_token(serde_json::json!({
+            "tenant": ["orga"],
+            "realm_access": { "roles": ["shift-admin"] }
+        }));
+        assert_eq!(roles_from_token(&token), vec![Role::Admin]);
+
+        let admin = RoleContext(vec![Role::Admin]);
+        for method in [Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE] {
+            assert!(admin.allows(&method, "/api/v1/employees"), "admin should be allowed {method}");
+        }
+    }
+
+    #[test]
+    fn viewer_may_mutate_self_service_paths() {
+        let viewer = RoleContext(vec![Role::Viewer]);
+        let none = RoleContext(vec![]);
+
+        for path in ["/api/v1/shift-wishes", "/api/v1/shift-wishes/3a9e23b8-4a00-478c-99b7-eb68df54bc40"] {
+            assert!(viewer.allows(&Method::POST, path), "viewer should reach {path}");
+            assert!(viewer.allows(&Method::DELETE, path), "viewer should reach {path}");
+            assert!(!none.allows(&Method::POST, path), "roleless caller should not reach {path}");
+        }
+
+        // Nothing else opens up just because the word appears in a query-ish segment.
+        assert!(!viewer.allows(&Method::POST, "/api/v1/confirmed-shift-plans"));
+    }
+
+    #[test]
+    fn identity_matches_email_or_username_case_insensitively() {
+        let claims = serde_json::json!({
+            "sub": "3a9e23b8-4a00-478c-99b7-eb68df54bc40",
+            "preferred_username": "Nurse.Jane",
+            "email": "Jane@Hospital.Example"
+        });
+        let user = user_from_claims(&claims);
+
+        assert_eq!(user.subject.as_deref(), Some("3a9e23b8-4a00-478c-99b7-eb68df54bc40"));
+        assert!(user.matches_email("jane@hospital.example"));
+        assert!(user.matches_email("nurse.jane"));
+        assert!(!user.matches_email("john@hospital.example"));
+    }
+
+    #[test]
+    fn identity_without_claims_matches_nobody() {
+        let user = user_from_claims(&serde_json::json!({ "tenant": ["orga"] }));
+        assert!(!user.matches_email("jane@hospital.example"));
+        assert!(!UserContext::default().matches_email(""));
     }
 }

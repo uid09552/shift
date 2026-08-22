@@ -27,19 +27,19 @@
       <img
         class="dark:hidden"
         src="/images/logo/logo.svg"
-        alt="Logo"
+        alt="ShiftPlanner"
         width="150"
-        height="40"
+        height="28"
       />
       <img
         class="hidden dark:block"
         src="/images/logo/logo-dark.svg"
-        alt="Logo"
+        alt="ShiftPlanner"
         width="150"
-        height="40"
+        height="28"
       />
       } @else {
-      <img src="/images/logo/logo-icon.svg" alt="Logo" width="32" height="32" />
+      <img src="/images/logo/logo-icon.svg" alt="ShiftPlanner" width="32" height="32" />
       }
     </a>
   </div>
@@ -59,7 +59,7 @@
             }"
           >
             @if ((isExpanded$ | async) || (isHovered$ | async) || (isMobileOpen$ | async)) 
-            { Menu } 
+            { {{ 'nav.menu' | t }} }
            @else {
             <svg
               width="1em"
@@ -106,7 +106,7 @@
                   (isMobileOpen$ | async)) {
 
                   <span class="menu-item-text">
-                    {{ nav.name }}
+                    {{ nav.name | t }}
                   </span>
                   } 
                   @if (nav.new && ((isExpanded$ | async) || (isHovered$ |
@@ -172,7 +172,7 @@
                               'menu-dropdown-item-active': isActive(subItem.path),
                             }"
                       >
-                        {{ subItem.name }}
+                        {{ subItem.name | t }}
                         <span class="flex items-center gap-1 ml-auto">
                           @if (subItem.new) {
                           <span
@@ -231,7 +231,7 @@
                     class="menu-item-text"
                   >
                     @if ((isExpanded$ | async) || (isHovered$ | async) || (isMobileOpen$ | async)) {
-                    {{ nav.name }}
+                    {{ nav.name | t }}
                     }
                   </span>
                 </a>

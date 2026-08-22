@@ -23,6 +23,8 @@ import {
   ConfirmedShiftPlan,
 } from '../../../shared/services/confirmed-shift-plan.service';
 import { GlobalSearchService } from '../../../shared/services/global-search.service';
+import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
+import { TranslationService } from '../../../shared/i18n/translation.service';
 
 interface DayInfo {
   date: Date;
@@ -51,7 +53,7 @@ interface CellDetail {
 @Component({
   selector: 'app-workstation-calendar',
   standalone: true,
-  imports: [CommonModule, PageBreadcrumbComponent, CalendarNavComponent, CalendarTableComponent],
+  imports: [CommonModule, PageBreadcrumbComponent, CalendarNavComponent, CalendarTableComponent, TranslatePipe],
   templateUrl: './workstation-calendar.component.html',
   styleUrl: './workstation-calendar.component.css',
 })
@@ -78,7 +80,6 @@ export class WorkstationCalendarComponent implements OnInit, OnDestroy {
   showCellDetail = false;
   selectedCellDetail: CellDetail | null = null;
 
-  readonly DAY_NAMES_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   private searchSub!: Subscription;
 
@@ -88,6 +89,7 @@ export class WorkstationCalendarComponent implements OnInit, OnDestroy {
     private workstationService: WorkstationService,
     private confirmedShiftPlanService: ConfirmedShiftPlanService,
     private globalSearchService: GlobalSearchService,
+    private translations: TranslationService,
   ) {}
 
   ngOnInit(): void {
@@ -127,7 +129,7 @@ export class WorkstationCalendarComponent implements OnInit, OnDestroy {
       const dow = d.getDay();
       return {
         date: d,
-        label: this.DAY_NAMES_FULL[dow === 0 ? 6 : dow - 1].substring(0, 3),
+        label: d.toLocaleDateString(this.translations.locale, { weekday: 'short' }),
         dayNum: d.getDate(),
         isToday: d.getTime() === today.getTime(),
         isWeekend: dow === 0 || dow === 6,
@@ -139,8 +141,8 @@ export class WorkstationCalendarComponent implements OnInit, OnDestroy {
     const s = this.weekStart;
     const e = new Date(s);
     e.setDate(e.getDate() + 6);
-    const sm = s.toLocaleString('default', { month: 'short' });
-    const em = e.toLocaleString('default', { month: 'short' });
+    const sm = s.toLocaleDateString(this.translations.locale, { month: 'short' });
+    const em = e.toLocaleDateString(this.translations.locale, { month: 'short' });
     if (s.getFullYear() !== e.getFullYear()) {
       return `${sm} ${s.getDate()}, ${s.getFullYear()} – ${em} ${e.getDate()}, ${e.getFullYear()}`;
     }
@@ -189,7 +191,7 @@ export class WorkstationCalendarComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Failed to load data', err);
-        this.error = 'Failed to load data. Please try again.';
+        this.error = 'schedule.loadFailed';
         this.loading = false;
       },
     });
@@ -275,7 +277,8 @@ export class WorkstationCalendarComponent implements OnInit, OnDestroy {
   // ── Excel export ─────────────────────────────────────────
 
   exportToExcel(): void {
-    const fmt = (d: Date) => d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    const fmt = (d: Date) =>
+      d.toLocaleDateString(this.translations.locale, { weekday: 'short', day: '2-digit', month: '2-digit' });
 
     let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
 <head><meta charset="UTF-8">
@@ -285,7 +288,7 @@ export class WorkstationCalendarComponent implements OnInit, OnDestroy {
   tr:nth-child(even) td { background:#f0f4ff; }
   .ws-cell { font-weight:600; background:#EFF6FF; }
 </style></head><body><table>
-<thead><tr><th>Workstation</th>`;
+<thead><tr><th>${this.translations.t('common.workstation')}</th>`;
     for (const day of this.days) {
       html += `<th>${fmt(day.date)}</th>`;
     }
@@ -329,9 +332,11 @@ export class WorkstationCalendarComponent implements OnInit, OnDestroy {
   }
 
   formatModalDate(date: Date): string {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
+    return date.toLocaleDateString(this.translations.locale, {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+    });
   }
 
   // ── Modal ──────────────────────────────────────────────────

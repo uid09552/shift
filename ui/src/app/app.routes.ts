@@ -23,52 +23,52 @@ export const routes: Routes = [
         path: '',
         component: EcommerceComponent,
         pathMatch: 'full',
-        title: 'ShiftPlanner - Dashboard',
+        title: 'title.dashboard',
       },
       {
         path:'kalender',
         component:KalenderComponent,
-        title:'ShiftPlanner - Schedule'
+        title:'title.schedule'
       },
       {
         path:'employee-calendar',
         component:EmployeeCalendarComponent,
-        title:'ShiftPlanner - Employee Calendar'
+        title:'title.employeeCalendar'
       },
       {
         path:'scheduler',
         component:SchedulerComponent,
-        title:'ShiftPlanner - Schedule Optimizer'
+        title:'title.scheduleOptimizer'
       },
       {
         path:'user-profiles',
         component:UserProfilesComponent,
-        title:'ShiftPlanner - User Profiles'
+        title:'title.userProfiles'
       },
       {
         path:'shifts',
         component:ShiftsComponent,
-        title:'ShiftPlanner - Shifts'
+        title:'title.shifts'
       },
       {
         path:'workstations',
         component:WorkstationsComponent,
-        title:'ShiftPlanner - Workstations'
+        title:'title.workstations'
       },
       {
         path:'capabilities',
         component:CapabilitiesComponent,
-        title:'ShiftPlanner - Capabilities'
+        title:'title.capabilities'
       },
       {
         path:'workstation-calendar',
         component:WorkstationCalendarComponent,
-        title:'ShiftPlanner - Workstation Calendar'
+        title:'title.workstationCalendar'
       },
       {
         path:'planner-settings',
         component:PlannerSettingsComponent,
-        title:'ShiftPlanner - Planner Settings'
+        title:'title.plannerSettings'
       },
     ]
   },
@@ -76,17 +76,17 @@ export const routes: Routes = [
   {
     path:'signin',
     component:SignInComponent,
-    title:'ShiftPlanner - Sign In'
+    title:'title.signIn'
   },
   {
     path:'signup',
     component:SignUpComponent,
-    title:'ShiftPlanner - Sign Up'
+    title:'title.signUp'
   },
   // error pages
   {
     path:'**',
     component:NotFoundComponent,
-    title:'ShiftPlanner - Page Not Found'
+    title:'title.notFound'
   },
 ];

@@ -8,7 +8,7 @@
         [ngClass]="{
           'bg-gray-100 dark:bg-white/[0.03]': isMobileOpen$ | async
         }"
-        (click)="handleToggle()" aria-label="Toggle Sidebar">
+        (click)="handleToggle()" [attr.aria-label]="'header.toggleSidebar' | t">
         @if (isMobileOpen$ | async) {
           <!-- Cross Icon -->
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -27,8 +27,8 @@
       </button>
       <!-- Logo (placeholder) -->
       <a routerLink="/" class="xl:hidden">
-        <img class="dark:hidden" src="/images/logo/logo.svg" alt="Logo" />
-        <img class="hidden dark:block" src="/images/logo/logo-dark.svg" alt="Logo" />
+        <img class="dark:hidden" src="/images/logo/logo.svg" alt="ShiftPlanner" width="150" height="28" />
+        <img class="hidden dark:block" src="/images/logo/logo-dark.svg" alt="ShiftPlanner" width="150" height="28" />
       </a>
       <button (click)="toggleApplicationMenu()"
         class="flex items-center justify-center w-10 h-10 text-gray-700 rounded-lg z-99999 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 xl:hidden">
@@ -50,7 +50,7 @@
                   fill="" />
               </svg>
             </span>
-            <input #searchInput type="text" placeholder="Search or type command..."
+            <input #searchInput type="text" [placeholder]="'header.searchPlaceholder' | t"
               class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-200 bg-transparent py-2.5 pl-12 pr-14 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:bg-white/[0.03] dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 xl:w-[430px]"
               [(ngModel)]="searchQuery"
               [ngModelOptions]="{standalone: true}"
@@ -67,6 +67,8 @@
     <div [ngClass]="isApplicationMenuOpen ? 'flex' : 'hidden'"
       class="items-center justify-between w-full gap-4 px-5 py-4 xl:flex shadow-theme-md xl:justify-end xl:px-0 xl:shadow-none">
       <div class="flex items-center gap-2 2xsm:gap-3">
+        <!-- LanguageSwitcher -->
+        <app-language-switcher />
         <!-- ThemeToggleButton placeholder -->
         <app-theme-toggle-button />
         <!-- NotificationDropdown placeholder -->

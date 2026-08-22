@@ -3,11 +3,12 @@ import { DropdownComponent } from '../../ui/dropdown/dropdown.component';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { UserService, UserInfo } from '../../../services/user.service';
+import { TranslatePipe } from '../../../i18n/translate.pipe';
 
 @Component({
   selector: 'app-user-dropdown',
   templateUrl: './user-dropdown.component.html',
-  imports: [CommonModule, RouterModule, DropdownComponent],
+  imports: [CommonModule, RouterModule, DropdownComponent, TranslatePipe],
 })
 export class UserDropdownComponent implements OnInit {
   isOpen = false;

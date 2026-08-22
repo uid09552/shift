@@ -1281,6 +1281,11 @@ paths:
       tags:
         - Shift Wishes
       summary: Create a new shift wish
+      description: >
+        Requires the `shift-planner` or `shift-admin` realm role to create a wish for
+        any employee. A `shift-viewer` may only create wishes for themselves — the
+        employee's e-mail address must match the `email` or `preferred_username`
+        claim of their token, otherwise the request is rejected with 403.
       operationId: createShiftWish
       requestBody:
         required: true
@@ -1297,6 +1302,8 @@ paths:
                 $ref: '#/components/schemas/ShiftWish'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '409':
           description: A wish already exists for this employee and date
         '500':
@@ -1331,6 +1338,11 @@ paths:
       tags:
         - Shift Wishes
       summary: Delete a shift wish
+      description: >
+        Requires the `shift-planner` or `shift-admin` realm role to delete any wish.
+        A `shift-viewer` may only delete their own wishes — the wish's employee must
+        match the `email` or `preferred_username` claim of their token, otherwise the
+        request is rejected with 403.
       operationId: deleteShiftWish
       parameters:
         - name: wishId
@@ -1342,6 +1354,8 @@ paths:
       responses:
         '204':
           description: Shift wish deleted successfully
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -4186,6 +4200,17 @@ components:
 
     NotFound:
       description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: >
+        The caller's realm roles do not permit this operation. Mutating requests
+        require `shift-planner` or `shift-admin`; a `shift-viewer` may only write
+        shift wishes belonging to the employee whose e-mail address matches their
+        own token (`email` / `preferred_username`).
       content:
         application/json:
           schema:

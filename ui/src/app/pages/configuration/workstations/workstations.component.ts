@@ -26,6 +26,8 @@ import {
 } from '../../../shared/components/ui/date-range-picker/date-range-picker.component';
 import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
 import { ContextMenuService } from '../../../shared/components/ui/context-menu/context-menu.service';
+import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
+import { TranslationService } from '../../../shared/i18n/translation.service';
 
 @Component({
   selector: 'app-workstations',
@@ -39,31 +41,32 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
     LabelComponent,
     ButtonComponent,
     DateRangePickerComponent,
+    TranslatePipe,
   ],
   template: `
-    <app-page-breadcrumb pageTitle="Workstations" />
+    <app-page-breadcrumb pageTitle="nav.workstations" />
 
     <!-- Add / Edit Form Mask -->
     @if (showForm) {
       <div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div class="px-5 py-4 sm:px-6">
           <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
-            {{ editingWorkstation ? 'Edit Workstation' : 'New Workstation' }}
+            {{ (editingWorkstation ? 'workstations.editTitle' : 'workstations.newTitle') | t }}
           </h3>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {{ editingWorkstation ? 'Modify workstation details, active shifts, and required capabilities.' : 'Enter details for the new workstation.' }}
+            {{ (editingWorkstation ? 'workstations.editSubtitle' : 'workstations.newSubtitle') | t }}
           </p>
         </div>
 
         <div class="px-5 pb-5 sm:px-6">
           <!-- Name -->
           <div class="mb-5">
-            <app-label for="wsName" className="mb-1.5">Name</app-label>
+            <app-label for="wsName" className="mb-1.5">{{ 'common.name' | t }}</app-label>
             <app-input-field
               id="wsName"
               name="wsName"
               type="text"
-              placeholder="e.g. MRT Room 1"
+              [placeholder]="'workstations.namePlaceholder' | t"
               [value]="formName"
               (valueChange)="onNameChange($event)"
             />
@@ -78,29 +81,29 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
                 (change)="formAvailable = !formAvailable"
                 class="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-700"
               />
-              Available
+              {{ 'workstations.available' | t }}
             </label>
           </div>
 
           <!-- Priority -->
           <div class="mb-5">
-            <app-label for="wsPriority" className="mb-1.5">Priority</app-label>
+            <app-label for="wsPriority" className="mb-1.5">{{ 'workstations.priority' | t }}</app-label>
             <select
               id="wsPriority"
               [(ngModel)]="formPriority"
               class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
             >
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
+              <option value="high">{{ 'workstations.priorityHigh' | t }}</option>
+              <option value="medium">{{ 'workstations.priorityMedium' | t }}</option>
+              <option value="low">{{ 'workstations.priorityLow' | t }}</option>
             </select>
           </div>
 
           <!-- Staffing limits -->
           <div class="mb-5">
-            <app-label className="mb-1.5">Staffing per Shift</app-label>
+            <app-label className="mb-1.5">{{ 'workstations.staffingPerShift' | t }}</app-label>
             <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-              <span class="whitespace-nowrap">Min:</span>
+              <span class="whitespace-nowrap">{{ 'shifts.min' | t }}</span>
               <input
                 type="number"
                 min="0"
@@ -108,7 +111,7 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
                 (input)="onMinEmployeesChange($event)"
                 class="w-20 h-9 rounded border border-gray-300 px-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
               />
-              <span class="whitespace-nowrap">Max:</span>
+              <span class="whitespace-nowrap">{{ 'shifts.max' | t }}</span>
               <input
                 type="number"
                 min="0"
@@ -118,13 +121,13 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
                 class="w-20 h-9 rounded border border-gray-300 px-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
               />
             </div>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">How many employees may work this workstation per shift (max blank = no limit)</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ 'workstations.staffingHint' | t }}</p>
           </div>
 
           <!-- Active Shifts (edit mode) -->
           @if (editingWorkstation) {
             <div class="mb-5">
-              <app-label className="mb-2">Active Shifts</app-label>
+              <app-label className="mb-2">{{ 'workstations.activeShifts' | t }}</app-label>
               <div class="space-y-2">
                 @for (shift of allShifts; track shift.id) {
                   <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
@@ -142,7 +145,7 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
 
             <!-- Required Capabilities -->
             <div class="mb-5">
-              <app-label className="mb-2">Required Capabilities</app-label>
+              <app-label className="mb-2">{{ 'workstations.requiredCapabilities' | t }}</app-label>
               <div class="space-y-2">
                 @for (cap of allCapabilities; track cap.id) {
                   <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
@@ -160,7 +163,7 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
 
             <!-- Unavailability periods -->
             <div class="mb-5">
-              <app-label className="mb-2">Unavailability Periods</app-label>
+              <app-label className="mb-2">{{ 'workstations.unavailabilityPeriods' | t }}</app-label>
               <div class="flex flex-col gap-4 sm:flex-row sm:items-start">
                 <div class="w-full max-w-[280px]">
                   <app-date-range-picker
@@ -175,12 +178,12 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
                     (btnClick)="addUnavailability()"
                     className="mt-2 w-full"
                   >
-                    Mark Period Unavailable
+                    {{ 'workstations.markPeriodUnavailable' | t }}
                   </app-button>
                 </div>
                 <div class="flex-1 space-y-2">
                   @if (workstationUnavailabilities.length === 0) {
-                    <p class="text-sm text-gray-400 dark:text-gray-500">No unavailability periods configured.</p>
+                    <p class="text-sm text-gray-400 dark:text-gray-500">{{ 'workstations.noUnavailability' | t }}</p>
                   } @else {
                     @for (u of workstationUnavailabilities; track u.id) {
                       <div class="flex items-center justify-between gap-2 rounded border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
@@ -190,7 +193,7 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
                           (click)="deleteUnavailability(u)"
                           class="text-error-600 hover:text-error-700 text-xs font-medium dark:text-error-400"
                         >
-                          Remove
+                          {{ 'workstations.remove' | t }}
                         </button>
                       </div>
                     }
@@ -207,14 +210,14 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
               variant="primary"
               (btnClick)="saveWorkstation()"
             >
-              {{ editingWorkstation ? 'Save Changes' : 'Create Workstation' }}
+              {{ (editingWorkstation ? 'config.saveChanges' : 'workstations.create') | t }}
             </app-button>
             <app-button
               size="sm"
               variant="outline"
               (btnClick)="cancelForm()"
             >
-              Cancel
+              {{ 'common.cancel' | t }}
             </app-button>
           </div>
         </div>
@@ -225,14 +228,14 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
       <div class="flex items-center justify-between px-5 py-4 sm:px-6">
         <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
-          Workstation Overview
+          {{ 'workstations.overview' | t }}
         </h3>
         <div class="flex items-center gap-2">
           <app-button size="sm" variant="outline" (btnClick)="downloadTemplate()">
-            Download Template
+            {{ 'config.downloadTemplate' | t }}
           </app-button>
           <app-button size="sm" variant="outline" (btnClick)="importFileInput.click()" [disabled]="importing">
-            {{ importing ? 'Importing...' : 'Import' }}
+            {{ (importing ? 'config.importing' : 'config.import') | t }}
           </app-button>
           <input
             #importFileInput
@@ -247,7 +250,7 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
             [startIcon]="plusIcon"
             (btnClick)="openAddForm()"
           >
-            Add Workstation
+            {{ 'workstations.add' | t }}
           </app-button>
         </div>
       </div>
@@ -262,12 +265,12 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
           <div class="flex items-start justify-between gap-3">
             <div>
               <p class="font-medium">
-                Import finished: {{ importResult.created }} created, {{ importResult.skipped }} skipped.
+                {{ 'config.importFinished' | t: { created: importResult.created, skipped: importResult.skipped } }}
               </p>
               @if (importResult.errors.length > 0) {
                 <ul class="mt-1.5 list-inside list-disc space-y-0.5">
                   @for (err of importResult.errors; track err.row) {
-                    <li>Row {{ err.row }}: {{ err.message }}</li>
+                    <li>{{ 'config.importRowError' | t: { row: err.row, message: err.message } }}</li>
                   }
                 </ul>
               }
@@ -283,20 +286,20 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
         <table class="min-w-full">
           <thead class="border-b border-gray-100 dark:border-white/[0.05]">
             <tr>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Name</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Available</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Priority</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Staffing</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Active Shifts</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Required Capabilities</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Actions</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.name' | t }}</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'workstations.available' | t }}</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'workstations.priority' | t }}</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'workstations.staffing' | t }}</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'workstations.activeShifts' | t }}</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'workstations.requiredCapabilities' | t }}</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
             @if (loading) {
               <tr>
                 <td colspan="7" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
-                  Loading workstations...
+                  {{ 'workstations.loading' | t }}
                 </td>
               </tr>
             } @else if (workstations.length === 0) {
@@ -306,7 +309,7 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
                     <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
                     <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
                   </svg>
-                  <p class="text-sm">No workstations found. Click "Add Workstation" to create one.</p>
+                  <p class="text-sm">{{ 'workstations.empty' | t }}</p>
                 </td>
               </tr>
             } @else {
@@ -338,7 +341,7 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
                       } @else {
                         <span class="h-1.5 w-1.5 rounded-full" [ngClass]="ws.available ? 'bg-success-500' : 'bg-error-500'"></span>
                       }
-                      {{ ws.available ? 'Enabled' : 'Disabled' }}
+                      {{ (ws.available ? 'workstations.enabled' : 'workstations.disabled') | t }}
                     </button>
                   </td>
                   <td class="px-4 py-3 text-start text-theme-sm">
@@ -393,14 +396,14 @@ import { ContextMenuService } from '../../../shared/components/ui/context-menu/c
                         variant="outline"
                         (btnClick)="openEditForm(ws)"
                       >
-                        Edit
+                        {{ 'common.edit' | t }}
                       </app-button>
                       <app-button
                         size="sm"
                         variant="danger"
                         (btnClick)="deleteWorkstation(ws)"
                       >
-                        Delete
+                        {{ 'common.delete' | t }}
                       </app-button>
                     </div>
                   </td>
@@ -454,6 +457,7 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
     private workstationUnavailabilityService: WorkstationUnavailabilityService,
     private confirmDialog: ConfirmDialogService,
     private contextMenu: ContextMenuService,
+    private translations: TranslationService,
   ) {}
 
   ngOnInit(): void {
@@ -795,16 +799,16 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
 
   onRowContextMenu(event: MouseEvent, ws: Workstation): void {
     this.contextMenu.open(event, [
-      { label: 'Edit', action: () => this.openEditForm(ws) },
-      { label: 'Delete', danger: true, action: () => this.deleteWorkstation(ws) },
+      { label: this.translations.t('common.edit'), action: () => this.openEditForm(ws) },
+      { label: this.translations.t('common.delete'), danger: true, action: () => this.deleteWorkstation(ws) },
     ]);
   }
 
   async deleteWorkstation(ws: Workstation): Promise<void> {
     const ok = await this.confirmDialog.confirm({
-      title: 'Delete Workstation',
-      message: `Are you sure you want to delete "${ws.name}"? This action cannot be undone.`,
-      confirmLabel: 'Delete',
+      title: this.translations.t('workstations.confirmDeleteTitle'),
+      message: this.translations.t('workstations.confirmDeleteMessage', { name: ws.name }),
+      confirmLabel: this.translations.t('common.delete'),
       danger: true,
     });
     if (!ok) return;

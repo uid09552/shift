@@ -1,5 +1,6 @@
 import { Component, Input, Output, EventEmitter, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { TranslatePipe } from '../../../i18n/translate.pipe';
 
 export interface CalendarTableRow {
   id: string;
@@ -52,14 +53,15 @@ export interface CalendarTableRowContextMenuEvent {
 @Component({
   selector: 'app-calendar-table',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TranslatePipe],
   templateUrl: './calendar-table.component.html',
 })
 export class CalendarTableComponent implements OnDestroy {
   @Input() rows: CalendarTableRow[] = [];
   @Input() days: CalendarTableDay[] = [];
   @Input() cellMap: Map<string, Map<string, CalendarTableCellData>> = new Map();
-  @Input() rowLabel = 'Workstation';
+  /** Already-translated column header for the row axis. */
+  @Input() rowLabel = '';
   @Input() rowIcon: 'workstation' | 'employee' = 'workstation';
   @Input() cellDisplayMode: 'count' | 'name' = 'count';
   @Input() rowColWidth = 220;

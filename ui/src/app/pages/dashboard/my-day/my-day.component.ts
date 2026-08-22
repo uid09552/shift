@@ -9,6 +9,8 @@ import { EmployeeService } from '../../../shared/services/employee.service';
 import { Shift, ShiftService } from '../../../shared/services/shift.service';
 import { UserService } from '../../../shared/services/user.service';
 import { DropdownComponent } from '../../../shared/components/ui/dropdown/dropdown.component';
+import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
+import { TranslationService } from '../../../shared/i18n/translation.service';
 
 /** One day of the strip, as it renders. */
 export interface MyDay {
@@ -55,7 +57,7 @@ type UnavailableReason = 'no-session' | 'no-employee' | null;
 @Component({
   selector: 'app-my-day',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, DropdownComponent],
+  imports: [CommonModule, FormsModule, RouterLink, DropdownComponent, TranslatePipe],
   templateUrl: './my-day.component.html',
 })
 export class MyDayComponent implements OnInit {
@@ -95,13 +97,22 @@ export class MyDayComponent implements OnInit {
   private staffing = new Map<string, DailyStaffing>();
   private shifts: Shift[] | null = null;
 
-  private readonly WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  /** Monday-first short weekday labels in the active UI language. */
+  private get WEEKDAY_LABELS(): string[] {
+    const monday = new Date(2024, 0, 1); // a Monday
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      return d.toLocaleDateString(this.translations.locale, { weekday: 'short' });
+    });
+  }
 
   constructor(
     private userService: UserService,
     private employeeService: EmployeeService,
     private analysisService: AnalysisService,
     private shiftService: ShiftService,
+    private translations: TranslationService,
   ) {}
 
   ngOnInit(): void {
@@ -242,7 +253,7 @@ export class MyDayComponent implements OnInit {
         date: key,
         weekdayLabel: this.WEEKDAY_LABELS[(date.getDay() + 6) % 7],
         dayNumber: date.getDate(),
-        monthLabel: date.getDate() === 1 ? date.toLocaleDateString(undefined, { month: 'short' }) : null,
+        monthLabel: date.getDate() === 1 ? date.toLocaleDateString(this.translations.locale, { month: 'short' }) : null,
         isToday: key === todayKey,
         isPast: key < todayKey,
         isSelected: key === selectedKey,
@@ -415,7 +426,7 @@ export class MyDayComponent implements OnInit {
   }
 
   get selectedDateLabel(): string {
-    return this.selectedDate.toLocaleDateString(undefined, {
+    return this.selectedDate.toLocaleDateString(this.translations.locale, {
       weekday: 'long',
       day: 'numeric',
       month: 'long',
@@ -425,30 +436,41 @@ export class MyDayComponent implements OnInit {
   /** The card's eyebrow: "Today" when it is, the weekday otherwise. */
   get selectedHeading(): string {
     if (this.isViewingToday) {
-      return 'Today';
+      return this.translations.t('myDay.today');
     }
     const offset = Math.round(
       (this.startOfDay(this.selectedDate).getTime() - this.startOfDay(new Date()).getTime()) / 86400000,
     );
     if (offset === 1) {
-      return 'Tomorrow';
+      return this.translations.t('myDay.tomorrow');
     }
     if (offset === -1) {
-      return 'Yesterday';
+      return this.translations.t('myDay.yesterday');
     }
-    return this.selectedDate.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' });
+    return this.selectedDate.toLocaleDateString(this.translations.locale, {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
+    });
   }
 
-  /** "you" / the person's first name, so the copy reads the same either way. */
+  /** The person's first name, used wherever copy names who is being viewed. */
   get subject(): string {
     if (this.isViewingSelf || !this.viewing) {
-      return 'you';
+      return '';
     }
     return this.viewing.name.split(/\s+/)[0];
   }
 
-  get possessive(): string {
-    return this.isViewingSelf || !this.viewing ? 'your' : `${this.subject}'s`;
+  /**
+   * Heading over the colleague list. Self and other are separate keys rather than a
+   * possessive fragment, because languages build that phrase differently.
+   */
+  get colleaguesHeadingKey(): string {
+    if (this.colleaguesAreShiftMates) {
+      return this.isViewingSelf ? 'myDay.othersOnYourShift' : 'myDay.othersOnPersonShift';
+    }
+    return this.isViewingSelf ? 'myDay.workingWithYou' : 'myDay.workingWithPerson';
   }
 
   get colleagueCount(): number {
@@ -481,17 +503,21 @@ export class MyDayComponent implements OnInit {
 
   /** Full description of a day, for tiles that show only initials. */
   dayLabel(day: MyDay): string {
-    const date = this.parseDate(day.date).toLocaleDateString(undefined, {
+    const date = this.parseDate(day.date).toLocaleDateString(this.translations.locale, {
       weekday: 'long',
       day: 'numeric',
       month: 'long',
     });
     if (!day.shiftName) {
-      return `${date}: no shift`;
+      return this.translations.t('myDay.dayNoShift', { date });
     }
     return day.workstationName
-      ? `${date}: ${day.shiftName}, ${day.workstationName}`
-      : `${date}: ${day.shiftName}`;
+      ? this.translations.t('myDay.dayShiftWorkstation', {
+          date,
+          shift: day.shiftName,
+          workstation: day.workstationName,
+        })
+      : this.translations.t('myDay.dayShift', { date, shift: day.shiftName });
   }
 
   /** Initials for the avatar chips — two letters at most. */

@@ -5,13 +5,15 @@ import { DropdownComponent } from '../../ui/dropdown/dropdown.component';
 import { DropdownItemComponent } from '../../ui/dropdown/dropdown-item/dropdown-item.component';
 import { ModalComponent } from '../../ui/modal/modal.component';
 import { AuditLog, AuditLogService } from '../../../services/audit-log.service';
+import { TranslatePipe } from '../../../i18n/translate.pipe';
+import { TranslationService } from '../../../i18n/translation.service';
 
 const MAX_NOTIFICATIONS = 10;
 
 @Component({
   selector: 'app-notification-dropdown',
   templateUrl: './notification-dropdown.component.html',
-  imports: [CommonModule, RouterModule, DropdownComponent, DropdownItemComponent, ModalComponent],
+  imports: [CommonModule, RouterModule, DropdownComponent, DropdownItemComponent, ModalComponent, TranslatePipe],
 })
 export class NotificationDropdownComponent {
   isOpen = false;
@@ -23,7 +25,10 @@ export class NotificationDropdownComponent {
   showDetail = false;
   selectedLog: AuditLog | null = null;
 
-  constructor(private auditLogService: AuditLogService) {}
+  constructor(
+    private auditLogService: AuditLogService,
+    private translations: TranslationService,
+  ) {}
 
   /** Notifications are only fetched once the user opens the dropdown — no background polling. */
   toggleDropdown(): void {
@@ -67,10 +72,10 @@ export class NotificationDropdownComponent {
   actionLabel(action: string): string {
     const [entity, verb] = action.split('.');
     const verbLabel: Record<string, string> = {
-      create: 'created',
-      update: 'updated',
-      delete: 'deleted',
-      optimize: 'optimization requested',
+      create: this.translations.t('notifications.verb.create'),
+      update: this.translations.t('notifications.verb.update'),
+      delete: this.translations.t('notifications.verb.delete'),
+      optimize: this.translations.t('notifications.verb.optimize'),
     };
     const entityLabel = entity ? entity.charAt(0).toUpperCase() + entity.slice(1).replace(/_/g, ' ') : action;
     return `${entityLabel} ${verbLabel[verb] ?? verb ?? ''}`.trim();

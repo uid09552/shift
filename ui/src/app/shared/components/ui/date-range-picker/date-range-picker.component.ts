@@ -7,6 +7,8 @@ import {
   SimpleChanges,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { TranslatePipe } from '../../../i18n/translate.pipe';
+import { TranslationService } from '../../../i18n/translation.service';
 
 export interface MarkedDay {
   date: string;   // YYYY-MM-DD
@@ -26,7 +28,7 @@ interface CalendarCell {
 @Component({
   selector: 'app-date-range-picker',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TranslatePipe],
   template: `
     <div class="select-none">
       <!-- Month navigation -->
@@ -102,7 +104,7 @@ interface CalendarCell {
                 type="button"
                 (click)="clearRange()"
                 class="ml-2 text-brand-400 hover:text-brand-600 dark:hover:text-brand-200"
-                title="Clear selection"
+                [title]="'datePicker.clearSelection' | t"
               >
                 <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
@@ -123,11 +125,15 @@ export class DateRangePickerComponent implements OnChanges {
   }
   @Output() rangeChange = new EventEmitter<DateRange | null>();
 
-  readonly WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
-  readonly MONTHS = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
+  /** Monday-first weekday initials in the active UI language. */
+  get WEEKDAYS(): string[] {
+    const monday = new Date(2024, 0, 1); // a Monday
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      return d.toLocaleDateString(this.translations.locale, { weekday: 'narrow' });
+    });
+  }
 
   viewYear = new Date().getFullYear();
   viewMonth = new Date().getMonth();
@@ -139,7 +145,7 @@ export class DateRangePickerComponent implements OnChanges {
   private markedMap = new Map<string, string>();
   private readonly todayMs: number;
 
-  constructor() {
+  constructor(private translations: TranslationService) {
     const t = new Date();
     t.setHours(0, 0, 0, 0);
     this.todayMs = t.getTime();
@@ -155,7 +161,10 @@ export class DateRangePickerComponent implements OnChanges {
   }
 
   get monthLabel(): string {
-    return `${this.MONTHS[this.viewMonth]} ${this.viewYear}`;
+    return new Date(this.viewYear, this.viewMonth, 1).toLocaleDateString(this.translations.locale, {
+      month: 'long',
+      year: 'numeric',
+    });
   }
 
   get calendarDays(): CalendarCell[] {

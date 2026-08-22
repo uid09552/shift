@@ -28,6 +28,8 @@ import {
   ShiftWish,
 } from '../../../shared/services/shift-wish.service';
 import { ThemeService } from '../../../shared/services/theme.service';
+import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
+import { TranslationService } from '../../../shared/i18n/translation.service';
 
 interface LeaveEntry {
   id: string;
@@ -78,6 +80,7 @@ interface ShiftHoursSummary {
     PageBreadcrumbComponent,
     CalendarNavComponent,
     DateRangePickerComponent,
+    TranslatePipe,
   ],
   templateUrl: './employee-calendar.component.html',
   styleUrl: './employee-calendar.component.css',
@@ -140,22 +143,15 @@ export class EmployeeCalendarComponent implements OnInit {
   leaveProcessing = false;
   leaveError: string | null = null;
 
-  readonly MONTH_NAMES = [
-    'January',
-    'February',
-    'March',
-    'April',
-    'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December',
-  ];
-
-  readonly DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  // Weekday headers, Monday-first, in the active UI language.
+  get DAY_NAMES(): string[] {
+    const monday = new Date(2024, 0, 1); // a Monday
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      return d.toLocaleDateString(this.translations.locale, { weekday: 'short' });
+    });
+  }
 
   // Exposed to the template so the calendar grid's `.dark …` CSS (which lives
   // in this component's encapsulated stylesheet) has a `.dark` ancestor
@@ -170,6 +166,7 @@ export class EmployeeCalendarComponent implements OnInit {
     private confirmedShiftPlanService: ConfirmedShiftPlanService,
     private unavailabilityService: UnavailabilityService,
     private shiftWishService: ShiftWishService,
+    private translations: TranslationService,
     private route: ActivatedRoute,
     private themeService: ThemeService,
   ) {
@@ -222,7 +219,7 @@ export class EmployeeCalendarComponent implements OnInit {
         }
       },
       error: (err) => {
-        this.error = 'Failed to load data. Please try again.';
+        this.error = 'schedule.loadFailed';
         this.loading = false;
         console.error('Error loading initial data:', err);
       },
@@ -344,7 +341,10 @@ export class EmployeeCalendarComponent implements OnInit {
   }
 
   private buildCalendar(): void {
-    this.monthLabel = `${this.MONTH_NAMES[this.currentMonth]} ${this.currentYear}`;
+    this.monthLabel = new Date(this.currentYear, this.currentMonth, 1).toLocaleDateString(
+      this.translations.locale,
+      { month: 'long', year: 'numeric' },
+    );
 
     const firstDayOfMonth = new Date(this.currentYear, this.currentMonth, 1);
 
@@ -517,7 +517,7 @@ export class EmployeeCalendarComponent implements OnInit {
   }
 
   private formatShortDate(d: Date): string {
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return d.toLocaleDateString(this.translations.locale, { month: 'short', day: 'numeric' });
   }
 
   formatDate(date: Date): string {
@@ -757,10 +757,28 @@ export class EmployeeCalendarComponent implements OnInit {
     }));
   }
 
-  leaveTypeLabel(type: string): string {
-    if (type === 'sick') return 'Sick Leave';
-    if (type === 'day_off') return 'Vacation';
-    return 'Unavailable';
+  // Translation key of a leave entry's type label.
+  leaveTypeLabelKey(type: string): string {
+    if (type === 'sick') return 'employeeCalendar.leaveSick';
+    if (type === 'day_off') return 'employeeCalendar.leaveVacation';
+    return 'employeeCalendar.leaveUnavailable';
+  }
+
+  // Translation key of a confirmed plan's absence_type label.
+  absenceLabelKey(type: string | null): string {
+    switch (type) {
+      case 'sick':
+        return 'schedule.absence.sick';
+      case 'day_off':
+        return 'schedule.absence.vacation';
+      case 'holiday':
+        return 'schedule.absence.holiday';
+      case 'free':
+      case null:
+        return 'schedule.absence.free';
+      default:
+        return 'schedule.absence.absent';
+    }
   }
 
   applyLeaveRange(): void {
@@ -812,7 +830,7 @@ export class EmployeeCalendarComponent implements OnInit {
       },
       error: () => {
         this.leaveProcessing = false;
-        this.leaveError = 'Failed to save some entries. Please try again.';
+        this.leaveError = 'employeeCalendar.saveFailed';
       },
     });
   }
@@ -832,7 +850,7 @@ export class EmployeeCalendarComponent implements OnInit {
           this.loadPlansForMonth();
         }
       },
-      error: () => { this.leaveError = 'Failed to delete entry.'; },
+      error: () => { this.leaveError = 'employeeCalendar.deleteFailed'; },
     });
   }
 
@@ -867,33 +885,36 @@ export class EmployeeCalendarComponent implements OnInit {
   .unavail { background:#F3F4F6; color:#6B7280; }
 </style></head><body><table>
 <thead><tr>
-  <th>Date</th><th>Weekday</th><th>Shift</th><th>Workstation</th><th>Status</th>
+  <th>${this.translations.t('employeeCalendar.export.date')}</th>
+  <th>${this.translations.t('employeeCalendar.export.weekday')}</th>
+  <th>${this.translations.t('common.shift')}</th>
+  <th>${this.translations.t('common.workstation')}</th>
+  <th>${this.translations.t('common.status')}</th>
 </tr></thead><tbody>`;
 
     for (const week of this.weeks) {
       for (const day of week.days) {
         if (!day.isCurrentMonth) continue;
         const dateStr = this.formatDate(day.date);
-        const weekday = day.date.toLocaleDateString('en-US', { weekday: 'long' });
+        const weekday = day.date.toLocaleDateString(this.translations.locale, { weekday: 'long' });
 
         if (day.plan && day.plan.is_present) {
           html += `<tr><td>${dateStr}</td><td>${weekday}</td>
             <td>${day.shiftName ?? '—'}</td>
             <td>${day.workstationName ?? '—'}</td>
-            <td>Present</td></tr>`;
+            <td>${this.translations.t('employeeCalendar.export.present')}</td></tr>`;
         } else if (day.plan && !day.plan.is_present) {
-          const absLabel = day.plan.absence_type === 'day_off' ? 'Vacation'
-            : day.plan.absence_type === 'sick' ? 'Sick Leave'
-            : day.plan.absence_type === 'free' ? 'Free'
-            : day.plan.absence_type ?? 'Absent';
+          const absLabel = this.translations.t(this.absenceLabelKey(day.plan.absence_type));
           html += `<tr class="absent"><td>${dateStr}</td><td>${weekday}</td>
             <td>—</td><td>—</td><td>${absLabel}</td></tr>`;
         } else if (day.isUnavailable) {
           html += `<tr class="unavail"><td>${dateStr}</td><td>${weekday}</td>
-            <td>—</td><td>—</td><td>Unavailable</td></tr>`;
+            <td>—</td><td>—</td><td>${this.translations.t('employeeCalendar.leaveUnavailable')}</td></tr>`;
         } else if (day.wish) {
           html += `<tr><td>${dateStr}</td><td>${weekday}</td>
-            <td>—</td><td>—</td><td>Wish: ${day.wishShiftName ?? 'Shift'}</td></tr>`;
+            <td>—</td><td>—</td><td>${this.translations.t('employeeCalendar.export.wish', {
+              shift: day.wishShiftName ?? this.translations.t('common.shift'),
+            })}</td></tr>`;
         } else {
           html += `<tr><td>${dateStr}</td><td>${weekday}</td>
             <td>—</td><td>—</td><td>—</td></tr>`;

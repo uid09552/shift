@@ -1,7 +1,7 @@
 <div class="overflow-x-auto">
   @if (rows.length === 0) {
     <div class="flex items-center justify-center py-20 text-sm text-gray-400 dark:text-gray-500">
-      No data to display.
+      {{ 'common.noData' | t }}
     </div>
   } @else {
     <table class="w-full min-w-[900px] border-collapse">

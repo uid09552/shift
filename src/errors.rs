@@ -13,6 +13,9 @@ pub enum AppError {
     #[error("Not found")]
     NotFound,
 
+    #[error("Forbidden")]
+    Forbidden,
+
     #[error("Database error")]
     DbError,
 
@@ -36,6 +39,7 @@ impl IntoResponse for AppError {
             AppError::Validation(msg) => (StatusCode::BAD_REQUEST, msg),
             AppError::Duplicate => (StatusCode::CONFLICT, self.to_string()),
             AppError::NotFound => (StatusCode::NOT_FOUND, self.to_string()),
+            AppError::Forbidden => (StatusCode::FORBIDDEN, self.to_string()),
             AppError::DbError => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
             AppError::Internal => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
         };
