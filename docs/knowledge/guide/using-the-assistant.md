@@ -20,7 +20,7 @@ menus.
 # What it can do
 
 The assistant uses the same functions the screens use, and it can read this
-documentation, so requests fall into four sorts:
+documentation, so requests fall into five sorts:
 
 **Take me somewhere.**
 > *"Open the planner settings."* · *"Show me the workstation calendar."*
@@ -32,6 +32,13 @@ The page changes underneath the chat window.
 
 **Change something.**
 > *"Set the minimum rest to 12 hours."* · *"Add a capability called Dialysis."* · *"Mark Thomas Weber unavailable on the 14th of March."*
+
+**Read a file for me.**
+> Attach an existing shift plan with the paperclip button — a spreadsheet, a CSV,
+> or a PDF printed from one. The assistant works out which columns hold the
+> people, the dates and the shifts, shows you what it read, and asks before
+> taking it as shift assignments. See [Importing a
+> roster](/guide/importing-a-roster.md).
 
 **Explain something.**
 > *"How do I confirm a plan?"* · *"What does 'soft minimum' actually mean?"* · *"Why would the planner call a week infeasible?"* · *"What is the difference between a shift wish and an available shift?"*
@@ -80,5 +87,6 @@ everything else in the app works perfectly well without it.
 
 # Related
 
+* Handing it a file: [Importing a roster](/guide/importing-a-roster.md)
 * How it works: [Agent and MCP service](/architecture/agent-and-mcp-service.md)
 * What it can call: [MCP tool surface](/interfaces/mcp-tool-surface.md)

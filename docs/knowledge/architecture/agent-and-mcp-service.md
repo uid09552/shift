@@ -30,16 +30,23 @@ talking to it, and the MCP server it calls to get anything done.
 system state comes from the MCP server, generated from `api/openapi.yaml` at
 startup — see [Spec-driven tool surface](/architecture/spec-driven-tool-surface.md).
 
-Its one local capability is *this bundle*: three read-only tools over
+Its main local capability is *this bundle*: three read-only tools over
 `docs/knowledge`, so questions about how the product works are answered from
 written documentation rather than from the model's own recollection. State comes
 from the API; explanation comes from here.
 
+The other local capability is the roster upload — reading a shift plan out of a
+file the user attached. Its writes still go through MCP; the local part exists
+because the file's *grid* must not pass through the model, only the layout the
+model declares for it.
+
 ```mermaid
 flowchart TB
-    W["Chat widget<br/>POST /api/v1/chat"] --> S["agent/server.py<br/>Flask + Keycloak verification"]
+    W["Chat widget<br/>POST /api/v1/chat<br/>POST /api/v1/chat/upload"] --> S["agent/server.py<br/>Flask + Keycloak verification"]
     S --> G["agent/graph.py<br/>ReAct loop, MemorySaver"]
     G <--> K["agent/knowledge.py<br/>this bundle, in-process"]
+    G <--> D["agent/roster.py<br/>uploaded grid, per session"]
+    D --> C
     G <--> C["agent/client.py<br/>MCP client"]
     C -->|"streamable HTTP<br/>Authorization: Bearer"| M["mcp/server.py<br/>FastMCP.from_openapi()"]
     M --> B["Rust backend REST API"]
@@ -53,8 +60,19 @@ flowchart TB
 | `graph.py` | The ReAct loop: the `agent` node calls the LLM, the `tools` node runs what it asked for, repeat until a plain-text answer. History per `session_id` in LangGraph's in-memory `MemorySaver`. |
 | `client.py` | Lists the MCP server's tools at startup and wraps each as a LangChain `StructuredTool`. |
 | `knowledge.py` | The agent's own tools over this bundle — `searchKnowledge`, `readKnowledgeDoc`, `listKnowledgeTopics`. |
+| `documents.py` | Reduces an uploaded PDF/CSV/XLSX to sheets of cell strings. Interprets nothing. |
+| `roster.py` | `previewRosterUpload` / `interpretRosterUpload` / `applyRosterUpload`, over a per-session store of uploaded grids. |
 | `server.py` | HTTP surface. Verifies the caller's token against Keycloak's JWKS, then stores it in a contextvar for the duration of the call. |
 | `auth.py` | Keycloak verification plus the contextvar holding the token. |
+
+The roster tools follow the same rule the rest of the agent does. The model
+supplies only a *layout* — which column holds the names, which row the dates,
+which month, which codes mean a day off — and `roster.py` expands that into the
+hundreds of assignments the grid implies, deterministically, in Python. Those go
+to `POST /shift-assignments/import` through the MCP client, first with `dry_run`
+so the agent can show its reading and ask, then for real once the user agrees.
+See [Importing a roster](/guide/importing-a-roster.md) for the user's view and
+[Shift assignment](/concepts/shift-assignment.md) for what gets created.
 
 One design point worth understanding: `client.py` opens a **fresh short-lived MCP
 session per tool call**. A long-lived session would fix its headers at connect

@@ -14,9 +14,11 @@ guessing from whatever the model happens to remember.
 
 ```mermaid
 flowchart TB
-    W["Chat widget<br/>POST /api/v1/chat"] --> S["agent/server.py<br/>Flask + Keycloak verification"]
+    W["Chat widget<br/>POST /api/v1/chat<br/>POST /api/v1/chat/upload"] --> S["agent/server.py<br/>Flask + Keycloak verification"]
     S --> G["agent/graph.py<br/>ReAct loop, MemorySaver"]
     G <--> K["agent/knowledge.py<br/>OKF bundle, in-process"]
+    G <--> D["agent/roster.py<br/>uploaded grid, per session"]
+    D --> C
     G <--> C["agent/client.py<br/>MCP client"]
     C -->|"streamable HTTP<br/>Authorization: Bearer"| M["mcp/server.py<br/>FastMCP.from_openapi()"]
     M --> B["Rust backend REST API"]
@@ -31,6 +33,8 @@ flowchart TB
 | `client.py` | Lists the MCP server's tools at startup and wraps each as a LangChain `StructuredTool`. |
 | `knowledge.py` | The agent's own tools — `searchKnowledge`, `readKnowledgeDoc`, `listKnowledgeTopics` — over the documentation bundle in `docs/knowledge`. |
 | `clock.py` | The agent's other local tool, `currentDateTime` — see [Telling the time](#telling-the-time). |
+| `documents.py` | Parses an uploaded PDF/CSV/XLSX into sheets of cell strings. Interprets nothing — see [Roster uploads](#roster-uploads). |
+| `roster.py` | `previewRosterUpload`, `interpretRosterUpload`, `applyRosterUpload`, plus the per-session store the uploaded grid lives in. |
 | `server.py` | The HTTP surface. Validates the caller's token against Keycloak's JWKS, then stores it in a contextvar for the duration of the agent call. |
 | `auth.py` | Keycloak verification plus the contextvar holding the token. |
 
@@ -138,6 +142,66 @@ otherwise have to do — counting roster rows and matching employee ids to names
 are exactly what a small model gets wrong. For the same reason
 `getStaffingPerDay` must be in `MCP_TOOLS` if you set that allowlist.
 
+## Roster uploads
+
+`POST /api/v1/chat/upload` takes a shift plan the ward already has — a
+spreadsheet, a CSV, or a PDF printed from one — and turns it into
+[shift assignments](knowledge/concepts/shift-assignment.md), with the user's
+confirmation in between.
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant S as server.py
+    participant R as roster.py
+    participant G as graph (LLM)
+    participant B as backend
+
+    U->>S: multipart file
+    S->>R: parse + stage grid
+    S->>G: "a roster was attached" + first rows
+    G->>R: interpretRosterUpload(layout)
+    R->>B: importShiftAssignments(dry_run) via MCP
+    B-->>R: what would be written
+    G-->>U: "I read 28 people, 1–30 September…  take it?"
+    U->>G: yes
+    G->>R: applyRosterUpload
+    R->>B: importShiftAssignments via MCP
+```
+
+Two decisions shape this.
+
+**The grid never reaches the model.** A month's roster is thirty people by
+thirty days — nine hundred cells. Having the model transcribe those into tool
+arguments would be slow, expensive, and wrong in the way transcription always
+is, with nothing to check it against. So the model supplies only the *layout*:
+which column holds the names, which row holds the dates, which month it is,
+which codes mean a day off. A dozen numbers it reads off the preview. The
+expansion from layout to nine hundred assignments happens in `roster.py`, in
+Python, identically every time. The grid itself stays in the upload store.
+
+**Nothing is written before the user agrees.** `interpretRosterUpload` dry-runs
+the import and hands back the backend's own resolution report — which names
+matched which employees, which codes matched which shifts, and what matched
+nothing. The agent shows that and waits. `applyRosterUpload` replays exactly the
+staged rows, so what lands is what was shown.
+
+The writes still go through MCP like every other backend call: `roster.py` is
+handed `MCPClient.call_sync` and invokes `importShiftAssignments` directly,
+without the model in the loop. That means the tool works even when `MCP_TOOLS`
+is set — the allowlist filters what is *bound to the model*, not what the agent
+can call. The backend endpoint (`POST /shift-assignments/import`) matches
+employees by full name, email, id or surname-first spelling, and shifts by name,
+short name or id, because a roster document has names and no ids.
+
+Formats, in descending order of how well they read: **XLSX** (real cells),
+**CSV** (real cells, delimiter and encoding sniffed — cp1252 included, since
+that is what German Excel writes), **PDF** (no cells at all — `pdfplumber`
+recovers ruled tables exactly, infers columns from text alignment where there
+are no rules, and falls back to splitting lines on wide gaps; a scan has no text
+and is rejected with an explanation). Uploads are capped at 10 MB and expire
+from the store after six hours.
+
 ## Context window
 
 Every tool result stays in the session's history, and a session lives as long as
@@ -186,6 +250,20 @@ curl -X POST http://localhost:8899/api/v1/chat \
   "ui_action": {"action": "navigate", "path": "/planner-settings"}
 }
 ```
+
+Attaching a roster file is the same conversation, over multipart:
+
+```bash
+curl -X POST http://localhost:8899/api/v1/chat/upload \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@dienstplan_september.xlsx" \
+  -F "session_id=default" \
+  -F "message=this is September"
+```
+
+The reply is the same shape, plus an `upload` object naming the staged file and
+its sheets. Confirming ("yes, take it") is an ordinary `POST /api/v1/chat` on
+the same `session_id` — see [Roster uploads](#roster-uploads).
 
 With no Keycloak configured (`KEYCLOAK_JWKS_URL` / `KEYCLOAK_REALM_URL` unset),
 the endpoint accepts unauthenticated requests — development only.

@@ -141,6 +141,10 @@ pub fn create_router(state: AppState) -> Router {
             get(ShiftAssignmentService::get_employee_shift_assignments).post(ShiftAssignmentService::create_shift_assignment),
         )
         .route(
+            "/shift-assignments/import",
+            post(ShiftAssignmentService::import_shift_assignments),
+        )
+        .route(
             "/shift-assignments/:assignment_id",
             delete(ShiftAssignmentService::delete_shift_assignment),
         )

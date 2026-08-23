@@ -60,6 +60,7 @@ Most time goes on the second and third.
 * [Creating a schedule](/guide/creating-a-schedule.md) - the main workflow, step by step.
 * [Reading calendars](/guide/reading-calendars.md) - the three views, editing a single day, exporting.
 * [Using the assistant](/guide/using-the-assistant.md) - asking the app for things in ordinary sentences.
+* [Importing a roster](/guide/importing-a-roster.md) - handing the assistant a plan you already have as a PDF, CSV or Excel file.
 * [User troubleshooting](/guide/troubleshooting-playbook.md) - the handful of problems that actually come up.
 
 Terms are defined in the [Glossary](/glossary.md). The mechanics behind the

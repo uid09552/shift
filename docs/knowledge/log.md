@@ -1,5 +1,26 @@
 # Bundle Update Log
 
+## 2026-08-23
+
+* **Change**: The chat assistant can now read an existing roster out of an
+  attached PDF, CSV or XLSX file and turn it into shift assignments, after
+  showing the user what it read and being told to go ahead. New agent modules
+  `agent/shift_agent/agent/documents.py` (parsing) and `roster.py` (the three
+  tools and the per-session upload store); new endpoint
+  `POST /api/v1/chat/upload` on the agent, and `POST /shift-assignments/import`
+  on the backend.
+* **Creation**: Added [Importing a roster](/guide/importing-a-roster.md) — what
+  a readable file looks like, what to check in the assistant's summary before
+  agreeing, and what the import deliberately does not do.
+* **Revision**: [Using the assistant](/guide/using-the-assistant.md) — "read a
+  file for me" as a fifth kind of request.
+* **Revision**: [Agent and MCP service](/architecture/agent-and-mcp-service.md) —
+  the second local capability, and why the grid is expanded in Python while only
+  the layout comes from the model.
+* **Revision**: [Shift assignment](/concepts/shift-assignment.md) and
+  [REST API](/interfaces/rest-api.md) — the bulk import endpoint, its name-based
+  matching and its `dry_run` mode.
+
 ## 2026-08-01
 
 * **Change**: The chat agent now reads this bundle. `agent/shift_agent/agent/knowledge.py`

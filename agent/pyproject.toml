@@ -17,6 +17,10 @@ dependencies = [
     "mcp>=1.0",
     "pyjwt>=2.8",
     "cryptography>=41.0",
+    # Reading roster files the user attaches in chat (agent/documents.py).
+    # CSV needs nothing; these two cover the other two formats.
+    "openpyxl>=3.1",
+    "pdfplumber>=0.11",
     # Observability — inert unless OTEL_EXPORTER_OTLP_ENDPOINT is set.
     # Both exporters ship so the endpoint can be gRPC or HTTP without a rebuild.
     "opentelemetry-sdk>=1.30",

@@ -37,7 +37,20 @@ day menu, under *Assign shift* and *Wish shift (optimizer)* respectively. Choosi
 the wrong one is a common source of confusion: an assignment is a decision, a
 wish is a request.
 
+# Creating many at once
+
+Besides the day menu, a whole month of assignments can be loaded from a roster
+document. `POST /shift-assignments/import` takes rows naming the employee and
+shift as *text* — full name, email or id for the person; name, short name or id
+for the shift — and resolves them server-side. Sent with `dry_run`, it writes
+nothing and reports what it would do, including every name it could not match.
+
+That is what the assistant's file upload runs on: the user attaches their
+existing plan, the agent reads the layout and dry-runs it, shows the result, and
+only applies it once the user agrees — see [Importing a
+roster](/guide/importing-a-roster.md).
+
 # Related
 
-* Endpoints: `GET`/`POST /employees/{id}/shift-assignments`, `DELETE /shift-assignments/{id}` — see [REST API](/interfaces/rest-api.md)
+* Endpoints: `GET`/`POST /employees/{id}/shift-assignments`, `POST /shift-assignments/import`, `DELETE /shift-assignments/{id}` — see [REST API](/interfaces/rest-api.md)
 * Whose commitment: [Employee](/concepts/employee.md)

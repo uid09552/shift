@@ -3,11 +3,19 @@ import { AfterViewChecked, Component, ElementRef, ViewChild } from '@angular/cor
 import { FormsModule } from '@angular/forms';
 import { NavigationStart, Router } from '@angular/router';
 import { Marked, Renderer } from 'marked';
-import { ChatService } from '../../services/chat.service';
+import {
+  ACCEPTED_UPLOAD_TYPES,
+  ChatResponse,
+  ChatService,
+  MAX_UPLOAD_BYTES,
+} from '../../services/chat.service';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
   text: string;
+  // Set on the bubble standing in for an attached file, so it renders as a
+  // document chip rather than as the user having typed a filename.
+  attachment?: string;
   // Assistant replies are markdown; `html` is the rendered form bound with
   // [innerHTML] (Angular sanitizes it). Absent for user and error messages,
   // which are shown verbatim.
@@ -44,8 +52,10 @@ export class ChatWidgetComponent implements AfterViewChecked {
   sending = false;
   draft = '';
   messages: ChatMessage[] = [];
+  readonly acceptedTypes = ACCEPTED_UPLOAD_TYPES;
 
   @ViewChild('scrollAnchor') private scrollAnchor?: ElementRef<HTMLDivElement>;
+  @ViewChild('fileInput') private fileInput?: ElementRef<HTMLInputElement>;
 
   constructor(private chatService: ChatService, private router: Router) {
     this.hidden = HIDDEN_ON.some((p) => this.router.url.startsWith(p));
@@ -71,9 +81,45 @@ export class ChatWidgetComponent implements AfterViewChecked {
     this.messages.push({ role: 'user', text });
     this.draft = '';
     this.sending = true;
+    this.chatService.sendMessage(text).subscribe(this.replyHandler());
+  }
 
-    this.chatService.sendMessage(text).subscribe({
-      next: (res) => {
+  pickFile(): void {
+    if (!this.sending) this.fileInput?.nativeElement.click();
+  }
+
+  /**
+   * Send an attached roster file. Whatever is in the draft box goes with it as
+   * a note — "this is April", say — since that is often exactly the bit the
+   * file itself doesn't state.
+   */
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    // Clear immediately, so picking the same file twice still fires a change.
+    input.value = '';
+    if (!file || this.sending) return;
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      this.messages.push({
+        role: 'assistant',
+        text: `${file.name} is too large — the limit is ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB.`,
+        error: true,
+      });
+      return;
+    }
+
+    const note = this.draft.trim();
+    this.messages.push({ role: 'user', text: note, attachment: file.name });
+    this.draft = '';
+    this.sending = true;
+    this.chatService.uploadFile(file, note || undefined).subscribe(this.replyHandler());
+  }
+
+  /** Shared handling of an agent reply, for both a typed message and an upload. */
+  private replyHandler() {
+    return {
+      next: (res: ChatResponse) => {
         this.sending = false;
         const reply = res.reply || '…';
         this.messages.push({ role: 'assistant', text: reply, html: this.render(reply) });
@@ -81,15 +127,18 @@ export class ChatWidgetComponent implements AfterViewChecked {
           this.router.navigateByUrl(res.ui_action['path'] as string);
         }
       },
-      error: () => {
+      error: (err: { error?: { error?: string } }) => {
         this.sending = false;
         this.messages.push({
           role: 'assistant',
-          text: 'Something went wrong reaching the assistant. Please try again.',
+          // The agent explains a file it could not read in words the user can
+          // act on ("save it as .xlsx"), so pass that through rather than
+          // flattening it to a generic failure.
+          text: err?.error?.error || 'Something went wrong reaching the assistant. Please try again.',
           error: true,
         });
       },
-    });
+    };
   }
 
   private render(text: string): string {

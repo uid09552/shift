@@ -139,10 +139,17 @@ single run without changing stored settings.
 |---|---|---|
 | `GET` | `/confirmed-shift-plans` | List |
 | `GET` `PUT` `DELETE` | `/confirmed-shift-plans/{id}` | Read / update / delete |
+| `POST` | `/shift-assignments/import` | Bulk-create fixed assignments from a roster, matching people and shifts by name |
 | `DELETE` | `/shift-assignments/{id}` | Delete a fixed assignment |
 | `GET` | `/analysis/planned-hours-per-day-per-workstation` | Hours per workstation per day |
 | `GET` | `/analysis/planned-employees-per-day-per-workstation` | Headcount per workstation per day |
 | `GET` | `/audit-logs` | Read the tenant's audit trail |
+
+`/shift-assignments/import` is the one write that takes names instead of ids —
+it exists for importing a plan that already exists on paper, where nothing has
+an id yet. Sent with `dry_run` it resolves everything and reports what it would
+write without writing it, which is how the assistant shows its reading of an
+uploaded file before the user accepts it.
 
 The analysis endpoints read confirmed plans and back the dashboard charts. The
 audit trail is write-only from inside: entries are recorded by services, never

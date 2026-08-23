@@ -17,6 +17,13 @@ Token forwarding:
     Authorization: Bearer, which forwards it to the backend, so every call
     runs as the signed-in user.
 
+File uploads:
+  - POST /api/v1/chat/upload takes a roster document (PDF/CSV/XLSX) as
+    multipart, parses it to a grid (documents.py), stages it for the session
+    (roster.py) and runs one agent turn over a description of it. The agent
+    reads the layout and reports back what it would import; nothing is written
+    until the user confirms in a following /chat message.
+
 MCP lifecycle:
   - The remote MCP server (MCP_SERVER_URL) is contacted on the first chat
     request to discover its tools; each tool call then opens its own
@@ -36,6 +43,7 @@ from functools import wraps
 from typing import Any, Callable
 
 from flask import Flask, jsonify, request
+from werkzeug.utils import secure_filename
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from shift_agent import telemetry
@@ -44,10 +52,21 @@ from shift_agent.agent.auth import (
     set_forwarded_token,
     verify_keycloak_token,
 )
+from shift_agent.agent.documents import (
+    SUPPORTED_EXTENSIONS,
+    DocumentError,
+    parse_document,
+)
 from shift_agent.agent.graph import build_graph, connect_mcp, disconnect_mcp
+from shift_agent.agent import roster
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Largest roster upload accepted. A month's plan is a few hundred kilobytes
+# even as a PDF; the cap is here so a mis-drop can't hand the parser a
+# gigabyte.
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 # ---------------------------------------------------------------------------
 # Graph singleton — built once, reused for the process lifetime
@@ -147,6 +166,9 @@ def create_app(knowledge_path: str | None = None) -> Flask:
     _knowledge_path = knowledge_path
 
     app = Flask(__name__)
+    # Reject an oversized body before Werkzeug buffers it; the upload handler
+    # checks the parsed size again for a message the user can act on.
+    app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
     # One server span per request, named after the route. No-op unless an OTLP
     # endpoint is configured (see telemetry.init_telemetry, called at startup).
     telemetry.instrument_flask(app)
@@ -156,27 +178,13 @@ def create_app(knowledge_path: str | None = None) -> Flask:
     def health():
         return jsonify({"status": "ok"})
 
-    # ---- Chat endpoint (auth-protected) ----
-    @app.route("/api/v1/chat", methods=["POST"])
-    @require_auth
-    def chat():
-        """Send one user message and get the agent's reply.
+    # ---- One agent turn, shared by /chat and /chat/upload ----
+    def _run_turn(message: str, session_id: str):
+        """Run the graph over one user message and build the JSON response.
 
-        Body: { "message": str, "session_id": str (optional) }
-        Response: { "session_id": str, "reply": str, "ui_action": ... }
-
-        Requires Authorization: Bearer <keycloak-token> when Keycloak is
-        configured (see auth.py).
+        Returns a Flask response tuple either way — the error paths answer with
+        a status of their own, so the callers just return what comes back.
         """
-        if not request.is_json:
-            return jsonify({"error": "Content-Type must be application/json"}), 415
-
-        data = request.get_json(silent=True) or {}
-        message = data.get("message")
-        session_id = data.get("session_id") or "default"
-        if not message or not isinstance(message, str):
-            return jsonify({"error": "Missing 'message' (string)"}), 400
-
         # Forward this request's own access token (the same one require_auth
         # verified) into auth.py's contextvar, so client.py can present it to
         # the MCP server as Authorization: Bearer. This has to wrap the graph
@@ -244,5 +252,109 @@ def create_app(knowledge_path: str | None = None) -> Flask:
             "reply": reply,
             "ui_action": ui_action,
         })
+
+    # ---- Chat endpoint (auth-protected) ----
+    @app.route("/api/v1/chat", methods=["POST"])
+    @require_auth
+    def chat():
+        """Send one user message and get the agent's reply.
+
+        Body: { "message": str, "session_id": str (optional) }
+        Response: { "session_id": str, "reply": str, "ui_action": ... }
+
+        Requires Authorization: Bearer <keycloak-token> when Keycloak is
+        configured (see auth.py).
+        """
+        if not request.is_json:
+            return jsonify({"error": "Content-Type must be application/json"}), 415
+
+        data = request.get_json(silent=True) or {}
+        message = data.get("message")
+        session_id = data.get("session_id") or "default"
+        if not message or not isinstance(message, str):
+            return jsonify({"error": "Missing 'message' (string)"}), 400
+
+        return _run_turn(message, session_id)
+
+    # ---- Roster file upload (auth-protected) ----
+    @app.route("/api/v1/chat/upload", methods=["POST"])
+    @require_auth
+    def chat_upload():
+        """Attach a roster document to the conversation and have it read.
+
+        Multipart form: file=<pdf|csv|xlsx>, session_id (optional),
+        message (optional — whatever the user typed alongside the attachment).
+        Response: the same shape as /chat, plus `upload` describing the file.
+
+        The file itself never reaches the model. It is parsed into a grid and
+        staged in roster.py; what the model gets is a description and the first
+        rows, and it works out the layout from that. Nothing is written here —
+        the agent is instructed to report its reading and wait for the user to
+        accept it (see graph.py's system prompt).
+        """
+        upload = request.files.get("file")
+        if upload is None or not upload.filename:
+            return jsonify({
+                "error": "Missing 'file' in the upload. Accepted types: "
+                         + ", ".join(SUPPORTED_EXTENSIONS),
+            }), 400
+
+        session_id = request.form.get("session_id") or "default"
+        note = (request.form.get("message") or "").strip()
+
+        data = upload.read()
+        if not data:
+            return jsonify({"error": "The uploaded file is empty"}), 400
+        if len(data) > MAX_UPLOAD_BYTES:
+            return jsonify({
+                "error": f"File too large — the limit is {MAX_UPLOAD_BYTES // (1024 * 1024)} MB",
+            }), 413
+
+        filename = secure_filename(upload.filename) or upload.filename
+        try:
+            document = parse_document(filename, data)
+        except DocumentError as exc:
+            # A user-facing message by construction — say what is wrong with
+            # their file rather than "bad request".
+            return jsonify({"error": str(exc)}), 400
+        except Exception:
+            logger.exception("Failed to parse upload %s", filename)
+            return jsonify({"error": "The file could not be read."}), 400
+
+        staged = roster.store.add(session_id, document)
+        logger.info(
+            "Roster upload %s staged for session %s — %s, %d sheet(s)",
+            staged.upload_id,
+            session_id,
+            filename,
+            len(document.sheets),
+        )
+
+        message = (
+            "The user has attached a shift roster file. Work out how it is laid "
+            "out, call interpretRosterUpload, then show what you read and ask "
+            "whether to take it as their shift assignments. Do not write "
+            "anything yet.\n\n"
+            + roster.describe_upload(staged)
+        )
+        if note:
+            message += f"\n\nThe user also wrote: {note}"
+
+        response = _run_turn(message, session_id)
+        # _run_turn hands back either the reply or an error tuple; only the
+        # former should carry the upload details.
+        if isinstance(response, tuple):
+            return response
+        payload = response.get_json()
+        payload["upload"] = {
+            "upload_id": staged.upload_id,
+            "filename": filename,
+            "kind": document.kind,
+            "sheets": [
+                {"name": sheet.name, "rows": sheet.height, "columns": sheet.width}
+                for sheet in document.sheets
+            ],
+        }
+        return jsonify(payload)
 
     return app

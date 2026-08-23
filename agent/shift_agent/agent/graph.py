@@ -10,7 +10,11 @@ Three sources of tools, and the split matters:
   - the local knowledge bundle (knowledge.py), for *explanation* — how the
     product is used, how it is built, why the solver behaves as it does;
   - the clock (clock.py), for *now* — the one thing the model cannot know,
-    and what "who works today" has to be resolved against before any API call.
+    and what "who works today" has to be resolved against before any API call;
+  - the roster upload (roster.py), for reading a shift plan out of a file the
+    user attached. Its writes still go to the backend through MCP — the tools
+    exist because the *grid* must not pass through the model, only the layout
+    it declares for it.
 
 Context: the history of a session grows without bound (every tool result is
 kept), so what goes to the model each turn is capped at the configured window —
@@ -49,6 +53,7 @@ from shift_agent.config import settings
 from shift_agent.agent.client import MCPClient
 from shift_agent.agent.clock import build_clock_tools
 from shift_agent.agent.knowledge import build_knowledge_tools
+from shift_agent.agent.roster import build_roster_tools
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +81,14 @@ and settings.
   ranges for this week, next week and this month. You do not know today's date \
   otherwise — call this before answering anything phrased as "today", "now", \
   "tomorrow", "this week" or "this month".
+
+When the user attaches a roster file (PDF, CSV or Excel), three more tools read it:
+
+- **previewRosterUpload**: Show more of the uploaded file's grid than the upload \
+  message did — further down, wider, or another sheet.
+- **interpretRosterUpload**: Declare how the grid is laid out and get back what it \
+  would import, without writing anything.
+- **applyRosterUpload**: Write the staged assignments, once the user has said yes.
 
 Your remaining tools come from the Shift Planner backend API — one per API \
 operation, named after it. The ones you will need most:
@@ -115,6 +128,36 @@ Answering "who is working" questions:
   confirmed yet; don't report it as "nobody is working".
 - In listConfirmedShiftPlans, an entry with is_present false is someone planned but \
   away — absence_type says why. Never count them as working.
+
+Reading an uploaded roster file:
+- The upload message shows the first rows of each sheet with row and column \
+  indices. Read it as a table: find the column holding people's names, and find \
+  where the dates are. Use previewRosterUpload if you need to see more.
+- Most ward plans are a **matrix**: one row per person, one column per day, the \
+  cells holding a short shift code. A file with one row per assignment \
+  (person, date, shift) is a **list**. Pick the style that matches.
+- The month and year are often only in a title cell, a header, or the filename — \
+  read them from there and pass year and month. If neither the file nor the user \
+  says which month it is, ask; do not assume the current one.
+- **Call listShifts before interpreting.** The codes in the cells are that ward's \
+  own shift short names, and you cannot tell a shift code from a day-off marker \
+  without the list. A code that matches a shift's name or short name is a shift; \
+  everything else in a cell ('-', 'X', 'free', 'U', 'Url', holiday and sickness \
+  markers) goes in ignore_codes. Never guess a familiar-looking code is an \
+  absence — 'Na' or 'N' is usually the night shift.
+- Call interpretRosterUpload, then **show the user what you read** before anything \
+  is written: the month and date range, how many people and how many assignments, \
+  which shift code mapped to which shift, and — plainly — any name or code that \
+  matched nothing. A short markdown table is the clearest way.
+- Then ask whether to take it as their **shift assignments** — call them that, \
+  not a confirmed plan or a roster. They are fixed commitments the optimizer \
+  plans around, not a finished schedule. Wait for an explicit yes. If they say no, or want a column read differently, adjust the layout and \
+  interpret again — nothing has been written.
+- Only after they agree, call applyRosterUpload and report what was created, \
+  skipped and why. If rows conflict with assignments those people already have, \
+  say so and ask before re-running with replace_existing.
+- Never invent an employee or a shift to make a row fit. Unmatched names stay \
+  unmatched, and the user decides what to do about them.
 
 Rules:
 - Answer questions about how the product works, what a concept means, or how the \
@@ -307,7 +350,13 @@ def build_graph(knowledge_path: str | None = None) -> Any:
 
     # The clock needs no configuration and is always bound: without it the model
     # cannot resolve "today", and most roster questions are phrased that way.
-    local_tools = [*build_clock_tools(), *knowledge_tools]
+    # The roster tools call the backend through this same MCP client, so they
+    # take its sync entry point now and use it once it has connected.
+    local_tools = [
+        *build_clock_tools(),
+        *build_roster_tools(mcp_client.call_sync),
+        *knowledge_tools,
+    ]
 
     return {
         "builder": StateGraph(MessagesState),

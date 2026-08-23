@@ -1772,6 +1772,47 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /shift-assignments/import:
+    post:
+      tags:
+        - Shift Assignments
+      summary: Bulk-create fixed shift assignments from a parsed roster
+      description: |
+        Creates many fixed shift assignments in one call, matching employees and
+        shifts **by name** rather than by id — employees by full name, email or
+        UUID (surname-first spellings such as "Meier, Anna" are matched too),
+        shifts by name, short name (the roster code) or UUID.
+
+        Intended for importing an existing roster document. Send `dry_run: true`
+        first: nothing is written and the response reports exactly what would
+        happen — how many rows resolved, which employee and shift names matched
+        which records, and which matched nothing — so the interpretation can be
+        shown to the user for confirmation before any data changes. Repeat the
+        same request with `dry_run: false` to apply it.
+
+        An employee can hold only one assignment per date. A row that collides
+        with an existing assignment is skipped and reported, unless
+        `replace_existing` is set, in which case the existing one is removed
+        first.
+      operationId: importShiftAssignments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportShiftAssignmentsRequest'
+      responses:
+        '200':
+          description: Import result (a report only, when dry_run was set)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportShiftAssignmentsResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /shift-assignments/{assignmentId}:
     delete:
       tags:
@@ -3509,6 +3550,120 @@ components:
           format: date
           description: Date of the shift assignment (YYYY-MM-DD)
           example: "2026-06-09"
+
+    ImportShiftAssignmentRow:
+      type: object
+      required:
+        - employee
+        - shift
+        - date
+      properties:
+        employee:
+          type: string
+          description: Employee full name, email or UUID, as written in the source document
+          example: "Anna Meier"
+        shift:
+          type: string
+          description: Shift name, short name (roster code) or UUID, as written in the source document
+          example: "N"
+        date:
+          type: string
+          format: date
+          description: Date of the assignment (YYYY-MM-DD)
+          example: "2026-09-01"
+
+    ImportShiftAssignmentsRequest:
+      type: object
+      required:
+        - assignments
+      properties:
+        assignments:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportShiftAssignmentRow'
+        dry_run:
+          type: boolean
+          default: false
+          description: Resolve and validate everything but write nothing, so the result can be reviewed first
+        replace_existing:
+          type: boolean
+          default: false
+          description: Overwrite an employee's existing assignment on the same date instead of skipping the row
+
+    ImportShiftAssignmentsMatch:
+      type: object
+      properties:
+        input:
+          type: string
+          description: The spelling used in the source document
+        matched:
+          type: string
+          description: The name of the record it was matched to
+        id:
+          type: string
+          format: uuid
+
+    ImportShiftAssignmentsIssue:
+      type: object
+      properties:
+        row:
+          type: integer
+          description: 1-based index of the offending row in the request
+        employee:
+          type: string
+        shift:
+          type: string
+        date:
+          type: string
+        message:
+          type: string
+
+    ImportShiftAssignmentsResult:
+      type: object
+      properties:
+        dry_run:
+          type: boolean
+        total:
+          type: integer
+        resolved:
+          type: integer
+          description: Rows that resolved to a real employee, shift and date
+        created:
+          type: integer
+          description: Rows actually written (always 0 for a dry run)
+        replaced:
+          type: integer
+          description: Rows that replaced an existing assignment on the same date
+        skipped:
+          type: integer
+        from_date:
+          type: string
+          format: date
+          nullable: true
+        to_date:
+          type: string
+          format: date
+          nullable: true
+        unmatched_employees:
+          type: array
+          items:
+            type: string
+        unmatched_shifts:
+          type: array
+          items:
+            type: string
+        matched_employees:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportShiftAssignmentsMatch'
+        matched_shifts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportShiftAssignmentsMatch'
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportShiftAssignmentsIssue'
 
     ConfirmedShiftPlanPaginatedResponse:
       type: object

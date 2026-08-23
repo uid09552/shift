@@ -134,10 +134,8 @@ class MCPClient:
         LangGraph's ToolNode regardless of whether the graph is invoked with
         ``.invoke()`` (sync) or ``.ainvoke()`` (async).
 
-        The access token is resolved here, on the caller's stack, and passed
-        down explicitly — the sync path hops threads/event loops, which the
-        contextvar it comes from would not survive. The trace context is
-        carried the same way, and for the same reason.
+        The sync path delegates to ``call_sync``, which resolves the access
+        token and trace context on the caller's stack before hopping threads.
         """
         tool_name: str = mcp_tool.name
         tool_description: str = mcp_tool.description or ""
@@ -147,23 +145,7 @@ class MCPClient:
             return await self._call_tool(tool_name, kwargs, get_outgoing_token())
 
         def sync_call(**kwargs: Any) -> str:
-            token = get_outgoing_token()
-            trace_context = telemetry.current_context()
-
-            async def run() -> str:
-                with telemetry.use_context(trace_context):
-                    return await self._call_tool(tool_name, kwargs, token)
-
-            try:
-                asyncio.get_running_loop()
-            except RuntimeError:
-                # No running loop (the usual case — a Flask request thread).
-                return asyncio.run(run())
-
-            # Called from inside a running loop: asyncio.run() would fail, so
-            # run it to completion on a worker thread of its own instead.
-            with ThreadPoolExecutor(max_workers=1) as pool:
-                return pool.submit(asyncio.run, run()).result()
+            return self.call_sync(tool_name, kwargs)
 
         return StructuredTool(
             name=tool_name,
@@ -172,6 +154,38 @@ class MCPClient:
             func=sync_call,
             coroutine=async_call,
         )
+
+    def call_sync(self, name: str, arguments: dict[str, Any]) -> str:
+        """Call an MCP tool from synchronous code, and return its text result.
+
+        Used both by the wrapped StructuredTools above and by the agent's own
+        local tools that need a backend operation without the model in the loop
+        — the roster upload, which sends hundreds of parsed rows to
+        ``importShiftAssignments`` (see agent/roster.py). Those still go through
+        MCP like every other backend call; they just aren't the model's own tool
+        choice.
+
+        The access token and trace context are resolved here, on the caller's
+        stack, and passed down explicitly: the sync path hops threads and event
+        loops, which the contextvars they come from would not survive.
+        """
+        token = get_outgoing_token()
+        trace_context = telemetry.current_context()
+
+        async def run() -> str:
+            with telemetry.use_context(trace_context):
+                return await self._call_tool(name, arguments, token)
+
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # No running loop (the usual case — a Flask request thread).
+            return asyncio.run(run())
+
+        # Called from inside a running loop: asyncio.run() would fail, so run
+        # it to completion on a worker thread of its own instead.
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, run()).result()
 
     async def _call_tool(
         self,
