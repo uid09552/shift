@@ -51,6 +51,9 @@ no separate migrate command in normal operation.
 | 20 | `add_audit_logs` | audit trail |
 | 21 | `add_planner_settings` | per-tenant solver configuration |
 | 22 | `paper_algorithm_extensions` | skill levels, soft preferences, weekly hour bands, fatigue weights |
+| 23 | `add_shift_wishes` | employee shift wishes |
+| 24 | `add_wish_weight` | per-tenant weight for wishes in the objective |
+| 25 | `add_wish_settings` | per-tenant window for self-service wishing |
 
 ### Working with Diesel
 
@@ -105,11 +108,13 @@ diesel migration redo                  # verify down.sql actually reverses it
 | Table | Key columns |
 |---|---|
 | `planner_settings` | one row per tenant, primary key `tenant_id` |
+| `wish_settings` | one row per tenant, primary key `tenant_id`; `mode` (`enabled` / `disabled` / `date_range`), `window_start?`, `window_end?` |
 | `audit_logs` | `actor?`, `action`, `entity_type?`, `entity_id?`, `changes?`, `created_at` |
 
 ## Tenancy
 
-Every table carries `tenant_id`, and `planner_settings` is keyed by it alone.
+Every table carries `tenant_id`; `planner_settings` and `wish_settings` are keyed
+by it alone.
 Isolation is enforced in the repository layer — each method takes `tenant_id`
 as its first argument and filters on it. There is no row-level security policy
 in the database, so anything bypassing the repositories (a psql session, an

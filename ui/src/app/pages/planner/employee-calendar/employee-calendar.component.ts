@@ -27,6 +27,12 @@ import {
   ShiftWishService,
   ShiftWish,
 } from '../../../shared/services/shift-wish.service';
+import {
+  WishSettings,
+  WishSettingsService,
+  wishAllowedOn,
+} from '../../../shared/services/wish-settings.service';
+import { UserService } from '../../../shared/services/user.service';
 import { ThemeService } from '../../../shared/services/theme.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
@@ -123,6 +129,11 @@ export class EmployeeCalendarComponent implements OnInit {
   loadingUnavailabilities = false;
 
   // ── Shift wishes (requested shift + date, considered by the optimizer) ─
+  // The tenant's wish window, and whether the caller is exempt from it. Both are
+  // only about what the UI offers — the backend enforces the window itself.
+  wishSettings: WishSettings | null = null;
+  private exemptFromWishWindow = false;
+
   wishes: ShiftWish[] = [];
   private wishMap = new Map<string, ShiftWish>(); // dateStr -> wish
 
@@ -166,6 +177,8 @@ export class EmployeeCalendarComponent implements OnInit {
     private confirmedShiftPlanService: ConfirmedShiftPlanService,
     private unavailabilityService: UnavailabilityService,
     private shiftWishService: ShiftWishService,
+    private wishSettingsService: WishSettingsService,
+    private userService: UserService,
     private translations: TranslationService,
     private route: ActivatedRoute,
     private themeService: ThemeService,
@@ -178,6 +191,7 @@ export class EmployeeCalendarComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadInitialData();
+    this.loadWishSettings();
 
     this.route.queryParams.subscribe((params) => {
       const employeeId = params['employeeId'];
@@ -660,6 +674,35 @@ export class EmployeeCalendarComponent implements OnInit {
   }
 
   // ── Shift wish helpers ───────────────────────────────────────────
+
+  private loadWishSettings(): void {
+    this.userService.isPlanner().subscribe((isPlanner) => (this.exemptFromWishWindow = isPlanner));
+    this.wishSettingsService.getWishSettings().subscribe({
+      next: (settings) => (this.wishSettings = settings),
+      error: (err) => console.error('Failed to load wish settings', err),
+    });
+  }
+
+  /** Whether the wish picker is offered for `dateStr` (YYYY-MM-DD). */
+  canWishOn(dateStr: string): boolean {
+    return this.exemptFromWishWindow || wishAllowedOn(this.wishSettings, dateStr);
+  }
+
+  /** The banner above the calendar: what the window currently allows, or nothing. */
+  get wishWindowNotice(): { key: string; params: Record<string, string> } | null {
+    const settings = this.wishSettings;
+    if (!settings || settings.mode === 'enabled' || this.exemptFromWishWindow) {
+      return null;
+    }
+    if (settings.mode === 'disabled') {
+      return { key: 'employeeCalendar.wishesClosed', params: {} };
+    }
+    return {
+      key: 'employeeCalendar.wishesWindow',
+      params: { from: settings.window_start ?? '', to: settings.window_end ?? '' },
+    };
+  }
+
 
   isDeletingWish(dateStr: string): boolean {
     return this.deletingWish?.dateStr === dateStr;

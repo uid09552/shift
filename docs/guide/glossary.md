@@ -102,6 +102,11 @@ Every term this application uses, in plain language. Sorted alphabetically.
   is rewarded for granting it, but may decide otherwise. Set from the Employee
   Calendar.
 
+**Wish window**
+: Whether staff may enter their own shift wishes, and for which days — open,
+  closed, or a date range. **Configuration → Wish Window**, admins only.
+  Planners and admins are never limited by it.
+
 **Short name**
 : The one- or two-letter abbreviation for a shift, shown in calendar squares.
 

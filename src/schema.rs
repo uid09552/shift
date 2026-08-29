@@ -190,6 +190,17 @@ diesel::table! {
 }
 
 diesel::table! {
+    wish_settings (tenant_id) {
+        tenant_id -> Varchar,
+        mode -> Varchar,
+        window_start -> Nullable<Date>,
+        window_end -> Nullable<Date>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
     audit_logs (id) {
         id -> Uuid,
         tenant_id -> Varchar,
@@ -239,4 +250,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     workstation_unavailabilities,
     audit_logs,
     planner_settings,
+    wish_settings,
 );

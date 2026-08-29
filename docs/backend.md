@@ -60,6 +60,7 @@ handlers that need to vary their behaviour by role.
 | `confirmed_shift_plan.rs` | The approved schedule |
 | `optimizer.rs` | Planning tasks, NATS publish/subscribe, optimizer results |
 | `planner_settings.rs` | Per-tenant solver configuration |
+| `wish_settings.rs` | Per-tenant shift-wish window; `PUT` is `shift-admin` only |
 | `analysis.rs` | Aggregate reporting endpoints |
 | `audit_log.rs` | Writing and reading the audit trail |
 | `auth.rs` | `/self` — decodes the gateway's `X-Userinfo` header |
@@ -138,3 +139,19 @@ make check   # cargo check
 
 Tests live in `tests/`. Because repositories are traits, handler tests can run
 against fakes with no database; `tower-test` drives the router directly.
+
+`tests/wish_window.rs` goes the other way and is worth knowing about: it boots
+the real router on an ephemeral port and talks to it over HTTP with **forged
+access tokens**, which is legitimate here because the backend only decodes the
+JWT payload — the gateway verifies it. That is the only way to cover a rule
+split between the role middleware and a handler, as the shift-wish window is.
+
+It needs PostgreSQL — `DATABASE_URL`, or the development default. Each test
+works in a throwaway tenant (`test-wish-<uuid>`) and deletes its rows
+afterwards, so it is safe against a development database. With no database
+reachable the tests print a notice and pass rather than failing.
+
+```bash
+cargo test --test wish_window            # just those
+cargo test --test wish_window -- --nocapture   # incl. the skip notice
+```

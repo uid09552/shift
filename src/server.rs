@@ -26,6 +26,7 @@ use crate::services::{
     shift_wish::ShiftWishService,
     tenant,
     unavailability::UnavailabilityService,
+    wish_settings::WishSettingsService,
     workstation::WorkstationService,
     workstation_unavailability::WorkstationUnavailabilityService,
 };
@@ -121,6 +122,11 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/shift-wishes/:wish_id",
             get(ShiftWishService::get_shift_wish_by_id).delete(ShiftWishService::delete_shift_wish),
+        )
+        // Shift wish window (readable by everyone, writable by shift-admin only)
+        .route(
+            "/wish-settings",
+            get(WishSettingsService::get_wish_settings).put(WishSettingsService::update_wish_settings),
         )
         // Planner
         .route("/planner/plan", post(optimizer::trigger_plan))

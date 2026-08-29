@@ -56,6 +56,16 @@
     }
   </div>
 
+  <!-- Wish window: why the star option is missing on some or all days -->
+  @if (wishWindowNotice; as notice) {
+    <div class="flex items-start gap-2.5 border-b border-gray-100 bg-gray-50/70 px-5 py-3 text-xs text-gray-600 dark:border-white/[0.05] dark:bg-white/[0.02] dark:text-gray-400 sm:px-6">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="mt-px shrink-0 text-gray-400 dark:text-gray-500">
+        <path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+      </svg>
+      <span>{{ notice.key | t: notice.params }}</span>
+    </div>
+  }
+
   <!-- Calendar grid -->
   <div class="p-4 sm:p-6">
     @if (loading) {
@@ -174,6 +184,7 @@
                       </svg>
                       {{ day.wishShiftName || ('employeeCalendar.wish' | t) }}
                     </div>
+                    @if (canWishOn(formatDate(day.date))) {
                     <div
                       class="cell-actions absolute -top-1 right-0 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/wish:opacity-100"
                       (click)="$event.stopPropagation()"
@@ -199,6 +210,7 @@
                           <button (click)="cancelDeleteWish()" class="flex-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700">{{ 'common.cancel' | t }}</button>
                         </div>
                       </div>
+                    }
                     }
                   </div>
                 }
@@ -429,7 +441,7 @@
                           <span class="text-gray-500 dark:text-gray-400">{{ shift.name }}</span>
                         </button>
                       }
-                      @if (!day.wish) {
+                      @if (!day.wish && canWishOn(formatDate(day.date))) {
                         <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
                         <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
                           {{ 'employeeCalendar.wishShift' | t }}

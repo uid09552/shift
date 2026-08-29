@@ -13,8 +13,9 @@ pub enum AppError {
     #[error("Not found")]
     NotFound,
 
-    #[error("Forbidden")]
-    Forbidden,
+    /// 403 with a reason the client can show — e.g. why a shift wish was refused.
+    #[error("{0}")]
+    Forbidden(String),
 
     #[error("Database error")]
     DbError,
@@ -39,7 +40,7 @@ impl IntoResponse for AppError {
             AppError::Validation(msg) => (StatusCode::BAD_REQUEST, msg),
             AppError::Duplicate => (StatusCode::CONFLICT, self.to_string()),
             AppError::NotFound => (StatusCode::NOT_FOUND, self.to_string()),
-            AppError::Forbidden => (StatusCode::FORBIDDEN, self.to_string()),
+            AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg),
             AppError::DbError => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
             AppError::Internal => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
         };

@@ -9,7 +9,9 @@ use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::repository::AppState;
-use crate::repository::domain::{EmployeeRepository, ShiftWish, ShiftWishRepository};
+use crate::repository::domain::{
+    EmployeeRepository, ShiftWish, ShiftWishRepository, WishMode, WishSettingsRepository,
+};
 use crate::services::tenant::{RoleContext, TenantContext, UserContext};
 
 #[derive(Deserialize)]
@@ -21,18 +23,21 @@ pub struct ListShiftWishesQuery {
 
 pub struct ShiftWishService;
 
-/// Verifies the caller may write the wishes of `employee_id`.
+/// Verifies the caller may write the wish of `employee_id` for `wish_date`.
 ///
-/// `shift-planner` and `shift-admin` may write anyone's wishes. Everyone else — in
-/// practice `shift-viewer`, the only other role that reaches these handlers — may only
-/// write their own, matched by the employee's e-mail address against the caller's
-/// `email` / `preferred_username` token claims.
+/// `shift-planner` and `shift-admin` may write anyone's wishes for any date, whatever
+/// the wish window says — the window governs self-service, not the planners who have
+/// to fix things. Everyone else — in practice `shift-viewer`, the only other role that
+/// reaches these handlers — may only write their own, matched by the employee's e-mail
+/// address against the caller's `email` / `preferred_username` token claims, and only
+/// for dates the tenant's wish window is open for.
 async fn authorize_wish_for_employee(
     tenant: &TenantContext,
     roles: &RoleContext,
     user: &UserContext,
     state: &AppState,
     employee_id: Uuid,
+    wish_date: NaiveDate,
 ) -> Result<(), AppError> {
     if roles.can_write() {
         return Ok(());
@@ -45,11 +50,39 @@ async fn authorize_wish_for_employee(
         .map_err(|_| AppError::Internal)?
         .ok_or(AppError::NotFound)?;
 
-    if user.matches_email(&employee.email) {
-        Ok(())
-    } else {
-        Err(AppError::Forbidden)
+    if !user.matches_email(&employee.email) {
+        return Err(AppError::Forbidden(
+            "You may only manage your own shift wishes".into(),
+        ));
     }
+
+    ensure_wish_window_open(tenant, state, wish_date).await
+}
+
+/// Rejects a self-service wish the tenant's window does not allow. The message is the
+/// one the UI shows, so it names the reason rather than just saying "forbidden".
+async fn ensure_wish_window_open(
+    tenant: &TenantContext,
+    state: &AppState,
+    wish_date: NaiveDate,
+) -> Result<(), AppError> {
+    let settings = state
+        .wish_settings_repo
+        .get_or_create_wish_settings(&tenant.0)
+        .await?;
+
+    if settings.allows_wish_on(wish_date) {
+        return Ok(());
+    }
+
+    Err(AppError::Forbidden(match settings.mode {
+        WishMode::Disabled => "Shift wishes are currently closed".to_string(),
+        _ => format!(
+            "Shift wishes may only be placed for dates between {} and {}",
+            settings.window_start.map(|d| d.to_string()).unwrap_or_else(|| "—".into()),
+            settings.window_end.map(|d| d.to_string()).unwrap_or_else(|| "—".into()),
+        ),
+    }))
 }
 
 impl ShiftWishService {
@@ -118,7 +151,7 @@ impl ShiftWishService {
         let wish_date = NaiveDate::parse_from_str(wish_date_str, "%Y-%m-%d")
             .map_err(|_| AppError::Validation("Invalid 'wish_date' format, use YYYY-MM-DD".into()))?;
 
-        authorize_wish_for_employee(&tenant, &roles, &user, &state, employee_id).await?;
+        authorize_wish_for_employee(&tenant, &roles, &user, &state, employee_id, wish_date).await?;
 
         let wish = ShiftWish {
             id: Uuid::new_v4(), // Will be replaced by DB-generated ID
@@ -163,7 +196,7 @@ impl ShiftWishService {
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
 
-        authorize_wish_for_employee(&tenant, &roles, &user, &state, wish.employee_id).await?;
+        authorize_wish_for_employee(&tenant, &roles, &user, &state, wish.employee_id, wish.wish_date).await?;
 
         state
             .shift_wish_repo

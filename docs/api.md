@@ -86,6 +86,53 @@ A row with `shift_id` blocks one shift; without it, the whole day.
 `is_soft_preference: true` makes it a penalised preference rather than a hard
 block.
 
+## Shift wishes
+
+A shift wish is an employee's request to work a particular shift on a particular
+date — a soft reward for the optimizer, never a guarantee.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` `POST` | `/shift-wishes` | List (`employee_id`, `from_date`+`to_date`) / create |
+| `GET` `DELETE` | `/shift-wishes/{id}` | Read / delete |
+| `GET` `PUT` | `/wish-settings` | Read / set the wish window (**`PUT` needs `shift-admin`**) |
+
+`shift-planner` and `shift-admin` manage anyone's wishes. A `shift-viewer` may
+only manage their own — the employee's e-mail must match the `email` or
+`preferred_username` claim of their token — and only within the wish window.
+
+### The wish window
+
+`/wish-settings` is one row per tenant with three states:
+
+| `mode` | Employees may wish |
+|---|---|
+| `enabled` | for any date |
+| `disabled` | not at all |
+| `date_range` | only for dates in `[window_start, window_end]`, both inclusive |
+
+```bash
+curl -X PUT http://localhost:8081/api/v1/wish-settings \
+  -H "Content-Type: application/json" \
+  -d '{
+        "mode": "date_range",
+        "window_start": "2026-10-01",
+        "window_end": "2026-10-31"
+      }'
+```
+
+`date_range` requires both dates; `window_start` must not be after `window_end`.
+The dates are kept when another mode is active, so switching back to
+`date_range` does not lose them — send `null` to clear them.
+
+A self-service wish the window refuses fails with **403** and the reason in
+`error` ("Shift wishes are currently closed", or the dates it allows). The same
+check applies to deleting a wish, keyed on the wish's own date. Planners and
+admins are never restricted by the window — the window governs self-service, not
+the people who have to fix things. Only `shift-admin` may change it: a
+`shift-planner` gets 403 from the handler, a `shift-viewer` from the role
+middleware.
+
 ## Planner
 
 | Method | Path | Purpose |

@@ -6,6 +6,7 @@ import { SafeHtmlPipe } from '../../pipe/safe-html.pipe';
 import { SidebarWidgetComponent } from './app-sidebar-widget.component';
 import { TranslatePipe } from '../../i18n/translate.pipe';
 import { combineLatest, Subscription } from 'rxjs';
+import { UserService } from '../../services/user.service';
 
 type NavItem = {
   /** Translation key of the entry's label, e.g. `nav.schedule`. */
@@ -13,7 +14,8 @@ type NavItem = {
   icon: string;
   path?: string;
   new?: boolean;
-  subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
+  /** `adminOnly` entries are dropped for anyone without the `shift-admin` role. */
+  subItems?: { name: string; path: string; pro?: boolean; new?: boolean; adminOnly?: boolean }[];
 };
 
 @Component({
@@ -46,7 +48,8 @@ export class AppSidebarComponent {
         { name: "nav.shifts", path: "/shifts", pro: false },
         { name: "nav.workstations", path: "/workstations", pro: false },
         { name: "nav.capabilities", path: "/capabilities", pro: false },
-        { name: "nav.plannerSettings", path: "/planner-settings", pro: false }
+        { name: "nav.plannerSettings", path: "/planner-settings", pro: false },
+        { name: "nav.wishSettings", path: "/wish-settings", pro: false, adminOnly: true }
       ],
     },
     {
@@ -85,7 +88,8 @@ export class AppSidebarComponent {
   constructor(
     public sidebarService: SidebarService,
     private router: Router,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private userService: UserService
   ) {
     this.isExpanded$ = this.sidebarService.isExpanded$;
     this.isMobileOpen$ = this.sidebarService.isMobileOpen$;
@@ -120,6 +124,17 @@ export class AppSidebarComponent {
       )
     );
 
+    // Admin-only entries are hidden rather than disabled: the backend rejects the
+    // write anyway, so a non-admin has nothing to do on that screen.
+    this.subscription.add(
+      this.userService.isAdmin().subscribe(isAdmin => {
+        if (!isAdmin) {
+          this.hideAdminOnlyItems();
+          this.cdr.detectChanges();
+        }
+      })
+    );
+
     // Initial load
     this.setActiveMenuFromRoute(this.router.url);
   }
@@ -127,6 +142,14 @@ export class AppSidebarComponent {
   ngOnDestroy() {
     // Clean up subscriptions
     this.subscription.unsubscribe();
+  }
+
+  private hideAdminOnlyItems() {
+    for (const nav of [...this.navItems, ...this.othersItems]) {
+      if (nav.subItems) {
+        nav.subItems = nav.subItems.filter(subItem => !subItem.adminOnly);
+      }
+    }
   }
 
   isActive(path: string): boolean {

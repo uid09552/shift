@@ -25,6 +25,8 @@ tags:
     description: Employee unavailability management endpoints
   - name: Shift Wishes
     description: Employee shift wish management endpoints (requested shift + date, considered by the optimizer)
+  - name: Wish Settings
+    description: The tenant's shift-wish window — whether, and for which dates, employees may place wishes themselves (shift-admin only to change)
   - name: Planner
     description: Shift scheduling planner endpoints
   - name: Shift Assignments
@@ -1286,6 +1288,12 @@ paths:
         any employee. A `shift-viewer` may only create wishes for themselves — the
         employee's e-mail address must match the `email` or `preferred_username`
         claim of their token, otherwise the request is rejected with 403.
+
+
+        Self-service wishes are additionally subject to the tenant's wish window
+        (GET/PUT /wish-settings): with `mode: disabled` they are refused outright,
+        with `mode: date_range` only for `wish_date` inside the window. Planners and
+        admins are not restricted by it.
       operationId: createShiftWish
       requestBody:
         required: true
@@ -1342,7 +1350,8 @@ paths:
         Requires the `shift-planner` or `shift-admin` realm role to delete any wish.
         A `shift-viewer` may only delete their own wishes — the wish's employee must
         match the `email` or `preferred_username` claim of their token, otherwise the
-        request is rejected with 403.
+        request is rejected with 403 — and only while the tenant's wish window
+        (GET/PUT /wish-settings) is open for the wish's date.
       operationId: deleteShiftWish
       parameters:
         - name: wishId
@@ -1358,6 +1367,68 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /wish-settings:
+    get:
+      tags:
+        - Wish Settings
+      summary: Get the shift-wish window
+      description: >
+        Returns whether employees may place shift wishes themselves, and for which
+        dates. Readable by every role — the UI needs it to decide whether to offer
+        the wish picker. A row with `mode: enabled` is created on first access.
+      operationId: getWishSettings
+      responses:
+        '200':
+          description: Successfully retrieved the wish settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WishSettingsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags:
+        - Wish Settings
+      summary: Update the shift-wish window
+      description: >
+        Replaces the tenant's shift-wish window. **Requires the `shift-admin` realm
+        role** — a `shift-planner` passes the method check but is rejected with 403
+        here, and a `shift-viewer` is rejected by the role middleware.
+
+
+        `mode: date_range` requires both `window_start` and `window_end`. The two
+        dates are stored in the other modes too, so switching back to `date_range`
+        does not lose them.
+
+
+        The window governs self-service wishes only: `shift-planner` and
+        `shift-admin` continue to create and delete wishes for any employee and any
+        date, whatever the mode says.
+      operationId: updateWishSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWishSettingsRequest'
+      responses:
+        '200':
+          description: Successfully updated the wish settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WishSettingsResponse'
+        '400':
+          description: An incomplete or inverted window
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -3152,6 +3223,57 @@ components:
           format: date
           description: Date the employee wishes to work the shift (YYYY-MM-DD)
 
+    WishSettingsResponse:
+      type: object
+      required:
+        - mode
+        - updated_at
+      properties:
+        mode:
+          $ref: '#/components/schemas/WishMode'
+        window_start:
+          type: string
+          format: date
+          nullable: true
+          description: First date wishes may be placed for, inclusive. Only meaningful when mode is date_range.
+        window_end:
+          type: string
+          format: date
+          nullable: true
+          description: Last date wishes may be placed for, inclusive. Only meaningful when mode is date_range.
+        updated_at:
+          type: string
+          format: date-time
+
+    UpdateWishSettingsRequest:
+      type: object
+      required:
+        - mode
+      properties:
+        mode:
+          $ref: '#/components/schemas/WishMode'
+        window_start:
+          type: string
+          format: date
+          nullable: true
+          description: Required when mode is date_range; must be on or before window_end.
+        window_end:
+          type: string
+          format: date
+          nullable: true
+          description: Required when mode is date_range; must be on or after window_start.
+
+    WishMode:
+      type: string
+      enum:
+        - enabled
+        - disabled
+        - date_range
+      description: >
+        Whether employees may place shift wishes themselves: `enabled` for any date,
+        `disabled` not at all, `date_range` only for dates within
+        [window_start, window_end].
+
     TaskDTO:
       type: object
       required:
@@ -4362,10 +4484,13 @@ components:
 
     Forbidden:
       description: >
-        The caller's realm roles do not permit this operation. Mutating requests
+        The caller's realm roles do not permit this operation, or the tenant's
+        shift-wish window is closed for the requested date. Mutating requests
         require `shift-planner` or `shift-admin`; a `shift-viewer` may only write
         shift wishes belonging to the employee whose e-mail address matches their
-        own token (`email` / `preferred_username`).
+        own token (`email` / `preferred_username`), and only for dates the wish
+        window allows. Changing the wish window itself requires `shift-admin`.
+        The `error` field carries the reason.
       content:
         application/json:
           schema:

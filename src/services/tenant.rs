@@ -57,9 +57,20 @@ pub enum Role {
     Viewer,
 }
 
+impl Role {
+    /// The realm role name, as it appears in the token and in the `/self` response.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Role::Planner => ROLE_PLANNER,
+            Role::Admin => ROLE_ADMIN,
+            Role::Viewer => ROLE_VIEWER,
+        }
+    }
+}
+
 /// The roles a request carries, resolved by the `authenticate` middleware from the
 /// `realm_access.roles` claim of the `x-access-token` JWT. In dev mode every request
-/// is treated as a planner.
+/// is treated as a planner and an admin.
 #[derive(Clone, Debug)]
 pub struct RoleContext(pub Vec<Role>);
 
@@ -67,6 +78,13 @@ impl RoleContext {
     /// Whether the caller may perform mutating requests on any record.
     pub fn can_write(&self) -> bool {
         self.0.contains(&Role::Planner) || self.0.contains(&Role::Admin)
+    }
+
+    /// Whether the caller holds `shift-admin`. Only used by handlers that are
+    /// admin-only on top of the method check the middleware already did — the
+    /// wish-window settings are the one such endpoint today.
+    pub fn is_admin(&self) -> bool {
+        self.0.contains(&Role::Admin)
     }
 
     /// Whether the caller may read at all — any known role does.
@@ -149,7 +167,8 @@ impl FromRequestParts<AppState> for RoleContext {
 /// Middleware that resolves tenant and roles for every API request, and enforces the
 /// roles against the request method.
 ///
-/// In dev mode the configured default tenant is used and the caller is a planner.
+/// In dev mode the configured default tenant is used and the caller holds every role,
+/// so admin-only endpoints are reachable without a gateway in front.
 /// Otherwise the request must carry an `x-access-token` header with a JWT whose
 /// `tenant` claim (array) names the caller's tenants — the first entry wins — and
 /// whose `realm_access.roles` claim names their roles. Missing or undecodable tokens
@@ -163,7 +182,7 @@ pub async fn authenticate(
     let (tenant, roles, user) = if state.dev_mode {
         (
             state.default_tenant_id.clone(),
-            RoleContext(vec![Role::Planner]),
+            RoleContext(vec![Role::Planner, Role::Admin]),
             UserContext::default(),
         )
     } else {

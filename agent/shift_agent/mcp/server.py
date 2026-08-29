@@ -127,6 +127,7 @@ KNOWN_PAGES = {
     "workstations": "/workstations",
     "capabilities": "/capabilities",
     "planner_settings": "/planner-settings",
+    "wish_settings": "/wish-settings",
 }
 
 
@@ -144,7 +145,7 @@ def _register_navigation(mcp: FastMCP) -> None:
         Args:
             page: One of: dashboard, schedule, employee_calendar,
                 workstation_calendar, scheduler, user_profiles, shifts,
-                workstations, capabilities, planner_settings.
+                workstations, capabilities, planner_settings, wish_settings.
         """
         path = KNOWN_PAGES.get(page)
         if not path:

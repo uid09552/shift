@@ -459,3 +459,83 @@ pub trait PlannerSettingsRepository {
     async fn get_or_create_planner_settings(&self, tenant_id: &str) -> Result<PlannerSettingsDomain, AppError>;
     async fn update_planner_settings(&self, tenant_id: &str, settings: UpdatePlannerSettings) -> Result<PlannerSettingsDomain, AppError>;
 }
+
+/// Whether — and when — employees may place shift wishes themselves.
+///
+/// The three states an admin can pick on the wish-settings screen. Serialised as
+/// `enabled` / `disabled` / `date_range`, which is also how `wish_settings.mode`
+/// stores them (see migration 25's CHECK constraint).
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum WishMode {
+    /// Wishes may be placed for any date.
+    Enabled,
+    /// No self-service wishes at all.
+    Disabled,
+    /// Wishes may only be placed for dates inside the configured window.
+    DateRange,
+}
+
+impl WishMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            WishMode::Enabled => "enabled",
+            WishMode::Disabled => "disabled",
+            WishMode::DateRange => "date_range",
+        }
+    }
+
+    /// Parses the stored column value. An unknown value — only reachable by writing
+    /// to the database directly, the CHECK constraint rules out the rest — is treated
+    /// as `Disabled` rather than silently opening the window up.
+    pub fn from_db(value: &str) -> Self {
+        match value {
+            "enabled" => WishMode::Enabled,
+            "date_range" => WishMode::DateRange,
+            _ => WishMode::Disabled,
+        }
+    }
+}
+
+/// Per-tenant configuration of the self-service shift-wish window.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WishSettingsDomain {
+    pub mode: WishMode,
+    pub window_start: Option<NaiveDate>,
+    pub window_end: Option<NaiveDate>,
+    pub updated_at: chrono::NaiveDateTime,
+}
+
+impl WishSettingsDomain {
+    /// Whether an employee may place or withdraw a wish for `date` themselves.
+    ///
+    /// A `DateRange` row without both bounds cannot occur (CHECK constraint, plus
+    /// validation in the service), and is treated as closed if it somehow does.
+    pub fn allows_wish_on(&self, date: NaiveDate) -> bool {
+        match self.mode {
+            WishMode::Enabled => true,
+            WishMode::Disabled => false,
+            WishMode::DateRange => match (self.window_start, self.window_end) {
+                (Some(start), Some(end)) => date >= start && date <= end,
+                _ => false,
+            },
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct UpdateWishSettings {
+    pub mode: WishMode,
+    #[serde(default)]
+    pub window_start: Option<NaiveDate>,
+    #[serde(default)]
+    pub window_end: Option<NaiveDate>,
+}
+
+#[async_trait]
+pub trait WishSettingsRepository {
+    /// Returns the tenant's wish settings, creating an open (`enabled`) row on first
+    /// access — the behaviour that predates the window.
+    async fn get_or_create_wish_settings(&self, tenant_id: &str) -> Result<WishSettingsDomain, AppError>;
+    async fn update_wish_settings(&self, tenant_id: &str, settings: UpdateWishSettings) -> Result<WishSettingsDomain, AppError>;
+}

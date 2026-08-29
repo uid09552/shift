@@ -38,7 +38,7 @@ content in the middle](../assets/screenshots/dashboard.png)
 | Group | What lives there |
 |---|---|
 | **Dashboard** | *Overview* — the summary screen you land on |
-| **Configuration** | User Profiles, Shifts, Workstations, Capabilities, Planner Settings |
+| **Configuration** | User Profiles, Shifts, Workstations, Capabilities, Planner Settings, Wish Window (admins only) |
 | **Planner** | Schedule, Employee Calendar, Workstation Calendar, Schedule Optimizer |
 
 Roughly: **Configuration** is where you describe the world, **Planner** is

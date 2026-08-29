@@ -31,6 +31,7 @@ All application routes render inside `AppLayoutComponent` (sidebar + header):
 | `/workstations` | Workstation configuration |
 | `/capabilities` | Capability configuration |
 | `/planner-settings` | Solver settings |
+| `/wish-settings` | Shift-wish window (visible to all, editable by `shift-admin`) |
 | `/signin`, `/signup` | Auth pages (standalone, outside the layout) |
 | `**` | Not found |
 
@@ -47,7 +48,8 @@ ui/src/app/
 │   ├── dashboard/          landing dashboard
 │   ├── planner/            kalender, employee-calendar, workstation-calendar,
 │   │                       scheduler, user-profiles
-│   ├── configuration/      shifts, workstations, capabilities, planner-settings
+│   ├── configuration/      shifts, workstations, capabilities, planner-settings,
+│   │                       wish-settings
 │   ├── auth-pages/         sign-in, sign-up
 │   └── …                   template pages (charts, forms, tables, ui-elements)
 └── shared/
@@ -70,10 +72,12 @@ One service per backend resource, in `ui/src/app/shared/services/`:
 | `unavailability.service.ts` | `/unavailabilities` |
 | `planner.service.ts` | `/planner/*` — trigger, poll, results |
 | `planner-settings.service.ts` | `/planner-settings` |
+| `shift-wish.service.ts` | `/shift-wishes` |
+| `wish-settings.service.ts` | `/wish-settings` — plus `wishAllowedOn()`, the client-side mirror of the window check |
 | `confirmed-shift-plan.service.ts` | `/confirmed-shift-plans` |
 | `analysis.service.ts` | `/analysis/*` |
 | `audit-log.service.ts` | `/audit-logs` |
-| `user.service.ts` | `/self` |
+| `user.service.ts` | `/self` — identity and `roles`, via `isAdmin()` / `isPlanner()` |
 | `chat.service.ts` | the agent's `/api/v1/chat` |
 | `modal.service.ts`, `sidebar.service.ts`, `theme.service.ts`, `global-search.service.ts` | UI state |
 

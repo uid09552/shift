@@ -77,19 +77,52 @@ The same middleware reads the realm roles from the token:
 
 | Role | May do |
 |---|---|
+| `shift-admin` | Every method, plus the admin-only endpoints below |
 | `shift-planner` | Every method — `GET`, `POST`, `PUT`, `PATCH`, `DELETE` |
-| `shift-viewer` | `GET`/`HEAD` only |
+| `shift-viewer` | `GET`/`HEAD` only, plus their own self-service data |
 
 Anything else in `realm_access.roles` is ignored. A method the caller's roles do
 not cover is rejected with **403** before the handler runs, so read-only access
-is enforced in one place rather than per route. A token with neither role can do
-nothing at all — not even read.
+is enforced in one place rather than per route. A token with none of these roles
+can do nothing at all — not even read.
 
-In dev mode there is no token, so every request is treated as a planner.
+In dev mode there is no token, so every request is treated as a planner **and**
+an admin — otherwise admin-only screens would be unreachable without a gateway
+in front.
 
 Handlers that need the roles themselves take the `RoleContext` extractor
-(`can_read()` / `can_write()`); most do not, because the middleware has already
-decided. The roles are defined in the realm
+(`can_read()` / `can_write()` / `is_admin()`); most do not, because the
+middleware has already decided.
+
+### Self-service writes
+
+`SELF_SERVICE_SEGMENTS` in `src/services/tenant.rs` lists the path segments a
+`shift-viewer` may mutate for their *own* records — today just `shift-wishes`.
+The middleware lets those through on the method check; the handler then matches
+the record's employee against the caller's `email` / `preferred_username` claim
+(`UserContext::matches_email`) and rejects anyone else with 403.
+
+Self-service shift wishes are additionally bounded by the tenant's **wish
+window** (`/wish-settings`), which can close wishing entirely or restrict it to
+a date range. See [REST API](api.md#the-wish-window).
+
+### Admin-only endpoints
+
+A few operations need more than write access. The middleware only knows the
+request method, so these check `RoleContext::is_admin()` in the handler and
+return 403 with a reason for anyone else — a `shift-planner` included.
+
+| Endpoint | Why |
+|---|---|
+| `PUT /wish-settings` | Opening and closing the shift-wish window is a ward-management decision, not a planning one |
+
+### What the frontend sees
+
+`GET /self` returns the caller's OIDC profile plus a `roles` array of the realm
+roles above. The UI uses it to hide what the caller cannot use — the sidebar
+drops admin-only entries, and the employee calendar hides the wish picker on
+days the window has closed. It is a convenience, never the enforcement: every
+one of those rules is applied again in the backend. The roles are defined in the realm
 (`deploy/iam/realm-shift.json`) and assigned to users there.
 
 ### `default-roles-<realm>` on imported users

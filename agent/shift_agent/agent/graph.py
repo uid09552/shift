@@ -95,7 +95,7 @@ operation, named after it. The ones you will need most:
 
 - **navigate**: Send the user's browser to a page in the app (dashboard, schedule, \
   employee_calendar, workstation_calendar, scheduler, user_profiles, shifts, \
-  workstations, capabilities, planner_settings).
+  workstations, capabilities, planner_settings, wish_settings).
 - **listShifts**: List all configured shift types.
 - **listWorkstations**: List all workstations/departments.
 - **listCapabilities**: List all capabilities/skills.

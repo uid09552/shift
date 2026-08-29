@@ -112,6 +112,31 @@ delete button appears.
     grants as many as it can and tells you nothing about the ones it couldn't
     — so a quick scan of the finished roster is still worth your time.
 
+### When staff may wish: the wish window
+
+Staff who sign in themselves (the **shift-viewer** role) enter their own wishes
+on this same calendar. Whether they can, and for which days, is set once per
+ward under **Configuration → Wish Window** — a page only the **shift-admin**
+role sees.
+
+| State | What staff can do |
+|---|---|
+| **Open** | Wish for any day. |
+| **Date range** | Wish only for days inside the range you set — the usual way to collect wishes for one month and then stop. |
+| **Closed** | Not wish at all. |
+
+Pick a state, set the two dates if you chose *Date range*, and press **Save
+Changes**. A line under the choices spells out what staff will experience.
+
+On the Employee Calendar, staff see a note at the top when wishing is limited,
+and the *Wish shift* option simply is not offered on days outside the window —
+including the delete button on a wish they already placed, so a wish cannot be
+withdrawn after the deadline you set.
+
+The window never applies to you. Planners and admins add and remove wishes for
+anyone, on any date, whatever the state says — so a late request phoned in
+after the deadline is still yours to enter.
+
 ---
 
 ## Keeping the list tidy
