@@ -133,10 +133,13 @@ backend/
 ### Shift Wishes
 - An employee's request for a specific shift on a specific date
 - A soft reward for the optimizer (`wish_weight`), never a guarantee
-- Employees with the `shift-viewer` role enter their own; whether they may, and
-  for which dates, is the **wish window** (`wish_settings`, one row per tenant):
-  `enabled` / `disabled` / `date_range` with `window_start`/`window_end`
-- Only `shift-admin` may change the window; planners and admins are exempt from it
+- Employees with the `shift-viewer` role enter their own; planners and admins
+  enter anyone's
+- Whether a wish may be placed at all, and for which dates, is the **wish
+  window** (`wish_settings`, one row per tenant): `enabled` / `disabled` /
+  `date_range` with `window_start`/`window_end`
+- The window binds **every** role, `shift-admin` included — it is a lock, not a
+  self-service policy. Only `shift-admin` may change it
 
 ### Optimized Shift Results
 - Results from the optimization algorithm

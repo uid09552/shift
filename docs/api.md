@@ -99,13 +99,14 @@ date — a soft reward for the optimizer, never a guarantee.
 
 `shift-planner` and `shift-admin` manage anyone's wishes. A `shift-viewer` may
 only manage their own — the employee's e-mail must match the `email` or
-`preferred_username` claim of their token — and only within the wish window.
+`preferred_username` claim of their token. The wish window below applies on top
+of that, to everyone.
 
 ### The wish window
 
 `/wish-settings` is one row per tenant with three states:
 
-| `mode` | Employees may wish |
+| `mode` | Wishes may be placed |
 |---|---|
 | `enabled` | for any date |
 | `disabled` | not at all |
@@ -125,13 +126,20 @@ curl -X PUT http://localhost:8081/api/v1/wish-settings \
 The dates are kept when another mode is active, so switching back to
 `date_range` does not lose them — send `null` to clear them.
 
-A self-service wish the window refuses fails with **403** and the reason in
-`error` ("Shift wishes are currently closed", or the dates it allows). The same
-check applies to deleting a wish, keyed on the wish's own date. Planners and
-admins are never restricted by the window — the window governs self-service, not
-the people who have to fix things. Only `shift-admin` may change it: a
-`shift-planner` gets 403 from the handler, a `shift-viewer` from the role
-middleware.
+A wish the window refuses fails with **403** and the reason in `error` ("Shift
+wishes are currently closed", or the dates it allows). The same check applies to
+deleting a wish, keyed on the wish's own date — so a wish placed while the window
+was open cannot be withdrawn after it closed.
+
+!!! warning "The window binds every role"
+    A closed window is a lock, not a self-service policy: `shift-planner` and
+    `shift-admin` are refused exactly like everyone else. An admin who needs to
+    change a wish re-opens the window first, which is itself audit-logged
+    (`wish_settings.update`). Roles still decide *whose* wishes a caller may
+    touch; the window decides *whether anyone* may.
+
+Only `shift-admin` may change the window: a `shift-planner` gets 403 from the
+handler, a `shift-viewer` from the role middleware.
 
 ## Planner
 

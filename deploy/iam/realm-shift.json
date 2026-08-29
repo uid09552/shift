@@ -28,6 +28,9 @@
       "members": [
         {
           "username": "admin"
+        },
+        {
+          "username": "viewer"
         }
       ]
     }
@@ -222,6 +225,25 @@
         "default-roles-shift",
         "shift-admin",
         "shift-planner"
+      ]
+    },
+    {
+      "username": "viewer",
+      "email": "anna.mueller1@klinik.de",
+      "firstName": "Anna",
+      "lastName": "Mueller",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "viewer",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-shift",
+        "shift-viewer"
       ]
     }
   ]

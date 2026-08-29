@@ -38,18 +38,4 @@ export class UserService {
   isAdmin(): Observable<boolean> {
     return this.hasRole('shift-admin');
   }
-
-  /**
-   * Whether the caller manages other people's records — planners and admins are
-   * exempt from the shift-wish window, viewers are not.
-   */
-  isPlanner(): Observable<boolean> {
-    return this.getSelf().pipe(
-      map((info) => {
-        const roles = info.roles ?? [];
-        return roles.includes('shift-planner') || roles.includes('shift-admin');
-      }),
-      catchError(() => of(false)),
-    );
-  }
 }

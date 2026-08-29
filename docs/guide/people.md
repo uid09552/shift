@@ -119,23 +119,28 @@ on this same calendar. Whether they can, and for which days, is set once per
 ward under **Configuration → Wish Window** — a page only the **shift-admin**
 role sees.
 
-| State | What staff can do |
+| State | What can be wished |
 |---|---|
-| **Open** | Wish for any day. |
-| **Date range** | Wish only for days inside the range you set — the usual way to collect wishes for one month and then stop. |
-| **Closed** | Not wish at all. |
+| **Open** | Any day. |
+| **Date range** | Only days inside the range you set — the usual way to collect wishes for one month and then stop. |
+| **Closed** | Nothing. |
 
 Pick a state, set the two dates if you chose *Date range*, and press **Save
 Changes**. A line under the choices spells out what staff will experience.
 
-On the Employee Calendar, staff see a note at the top when wishing is limited,
-and the *Wish shift* option simply is not offered on days outside the window —
-including the delete button on a wish they already placed, so a wish cannot be
-withdrawn after the deadline you set.
+On the Employee Calendar a note at the top says what is currently allowed, and
+the *Wish shift* option simply is not offered on days outside the window —
+including the delete button on a wish already placed, so a wish cannot be
+withdrawn after the deadline.
 
-The window never applies to you. Planners and admins add and remove wishes for
-anyone, on any date, whatever the state says — so a late request phoned in
-after the deadline is still yours to enter.
+The window applies to **you too**. While it is closed — or for a day outside the
+range — nobody adds or withdraws a wish, admins included, and the calendar offers
+no *Wish shift* option to anyone. A late request phoned in after the deadline
+means re-opening the window, entering it, and closing it again; the reopening is
+recorded in the audit log.
+
+That is the point of it: once wishes are locked, what the planner sees is what
+staff asked for, and nobody can quietly slip one in afterwards.
 
 ---
 

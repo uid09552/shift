@@ -127,6 +127,17 @@ impl TestApp {
         )
     }
 
+    /// A token with exactly these claims — for the cases where something the real
+    /// gateway always sends is deliberately missing.
+    fn token_with_claims(&self, payload: Value) -> String {
+        let encode = |bytes: &[u8]| general_purpose::URL_SAFE_NO_PAD.encode(bytes);
+        format!(
+            "{}.{}.signature",
+            encode(br#"{"alg":"RS256","typ":"JWT"}"#),
+            encode(payload.to_string().as_bytes()),
+        )
+    }
+
     /// The employee themselves — a `shift-viewer` writing their own wishes.
     fn viewer(&self) -> String {
         self.token(&["shift-viewer"], &self.employee_email)
@@ -166,6 +177,11 @@ impl TestApp {
             token,
         )
         .await
+    }
+
+    async fn get(&self, token: &str, path: &str) -> (u16, Value) {
+        self.send(reqwest::Client::new().get(format!("{}{path}", self.base_url)), token)
+            .await
     }
 
     async fn send(&self, request: reqwest::RequestBuilder, token: &str) -> (u16, Value) {
@@ -262,14 +278,21 @@ async fn an_employee_cannot_withdraw_a_wish_after_the_window_closed() {
     assert_eq!(status, 200);
     let wish_id = wish["id"].as_str().expect("wish id").to_string();
 
-    // …cannot be taken back once the window has closed behind it.
+    // …cannot be taken back once the window has closed behind it — by anyone.
     app.put_wish_settings(&app.admin(), json!({ "mode": "disabled" })).await;
-    let (status, body) = app.delete_wish(&app.viewer(), &wish_id).await;
-    assert_eq!(status, 403, "a closed window must refuse the withdrawal, got {body}");
-    assert_eq!(wishes_in_tenant(&app), 1, "the wish must survive the refused delete");
+    for (role, token) in [
+        ("viewer", app.viewer()),
+        ("planner", app.planner()),
+        ("admin", app.admin()),
+    ] {
+        let (status, body) = app.delete_wish(&token, &wish_id).await;
+        assert_eq!(status, 403, "a closed window must refuse the {role}'s withdrawal, got {body}");
+    }
+    assert_eq!(wishes_in_tenant(&app), 1, "the wish must survive the refused deletes");
 
-    // A planner is not bound by the window and can still clean it up.
-    let (status, _) = app.delete_wish(&app.planner(), &wish_id).await;
+    // Re-opening the window is what makes it removable again.
+    app.put_wish_settings(&app.admin(), json!({ "mode": "enabled" })).await;
+    let (status, _) = app.delete_wish(&app.viewer(), &wish_id).await;
     assert_eq!(status, 200);
     assert_eq!(wishes_in_tenant(&app), 0);
 
@@ -277,17 +300,61 @@ async fn an_employee_cannot_withdraw_a_wish_after_the_window_closed() {
 }
 
 #[tokio::test]
-async fn planners_and_admins_are_not_bound_by_the_window() {
+async fn a_closed_window_binds_every_role_including_admin() {
     let app = app!();
 
     app.put_wish_settings(&app.admin(), json!({ "mode": "disabled" })).await;
 
-    for (role, token) in [("planner", app.planner()), ("admin", app.admin())] {
+    // The window is a lock, not a self-service policy: nobody gets through it.
+    for (role, token) in [
+        ("viewer", app.viewer()),
+        ("planner", app.planner()),
+        ("admin", app.admin()),
+    ] {
         let (status, body) = app.create_wish(&token, "2026-11-05").await;
-        assert_eq!(status, 200, "a {role} may wish for anyone while the window is closed, got {body}");
+        assert_eq!(status, 403, "a {role} must be refused while the window is closed, got {body}");
+        assert_eq!(body["error"], "Shift wishes are currently closed");
+    }
+    assert_eq!(wishes_in_tenant(&app), 0);
+
+    // An admin who needs to change one re-opens the window first.
+    let (status, _) = app.put_wish_settings(&app.admin(), json!({ "mode": "enabled" })).await;
+    assert_eq!(status, 200);
+    let (status, _) = app.create_wish(&app.admin(), "2026-11-05").await;
+    assert_eq!(status, 200, "with the window open the admin gets through");
+
+    app.cleanup();
+}
+
+#[tokio::test]
+async fn a_date_range_window_binds_every_role_outside_it() {
+    let app = app!();
+
+    app.put_wish_settings(
+        &app.admin(),
+        json!({ "mode": "date_range", "window_start": "2026-10-01", "window_end": "2026-10-31" }),
+    )
+    .await;
+
+    for (role, token) in [
+        ("viewer", app.viewer()),
+        ("planner", app.planner()),
+        ("admin", app.admin()),
+    ] {
+        let (status, body) = app.create_wish(&token, "2026-11-05").await;
+        assert_eq!(status, 403, "a {role} must be refused outside the window, got {body}");
+        assert_eq!(
+            body["error"],
+            "Shift wishes may only be placed for dates between 2026-10-01 and 2026-10-31"
+        );
+
+        // …and let through inside it. A planner and an admin may still do it for
+        // someone else; only the window itself stops them.
+        let (status, body) = app.create_wish(&token, "2026-10-15").await;
+        assert_eq!(status, 200, "a {role} may wish inside the window, got {body}");
         let wish_id = body["id"].as_str().expect("wish id").to_string();
         let (status, _) = app.delete_wish(&token, &wish_id).await;
-        assert_eq!(status, 200, "a {role} may withdraw it again");
+        assert_eq!(status, 200, "and withdraw it again while the window is open");
     }
 
     app.cleanup();
@@ -374,6 +441,123 @@ async fn clearing_the_window_actually_clears_it() {
 
     let (_, reread) = app.get_wish_settings(&app.admin()).await;
     assert_eq!(reread["window_start"], Value::Null);
+
+    app.cleanup();
+}
+
+/// The read side of `shift-viewer`: every safe method, on every resource. A viewer
+/// who cannot list shifts cannot use the app at all, and the failure looks like a
+/// backend bug when it is usually a realm one — hence the explicit coverage.
+#[tokio::test]
+async fn a_viewer_may_read_every_resource() {
+    let app = app!();
+    let viewer = app.viewer();
+
+    let paths = [
+        "/employees",
+        "/shifts",
+        "/capabilities",
+        "/workstations",
+        "/unavailabilities",
+        "/shift-wishes",
+        "/wish-settings",
+        "/planner-settings",
+        "/confirmed-shift-plans",
+        "/planner/tasks",
+        "/planner/optimized-shifts",
+        "/audit-logs",
+        "/self",
+    ];
+    for path in paths {
+        let (status, body) = app.get(&viewer, path).await;
+        assert_eq!(status, 200, "a viewer must be able to GET {path}, got {status} {body}");
+    }
+
+    // …and is still refused every write outside their own wishes.
+    let (status, _) = app
+        .send(
+            reqwest::Client::new()
+                .post(format!("{}/shifts", app.base_url))
+                .json(&json!({ "name": "X", "short_name": "X", "color": "#000000" })),
+            &viewer,
+        )
+        .await;
+    assert_eq!(status, 403, "a viewer may not create a shift");
+
+    app.cleanup();
+}
+
+/// `/self` is what the UI uses to decide which screens to show.
+#[tokio::test]
+async fn self_reports_the_callers_roles() {
+    let app = app!();
+
+    let (status, body) = app.get(&app.viewer(), "/self").await;
+    assert_eq!(status, 200);
+    assert_eq!(body["roles"], json!(["shift-viewer"]));
+
+    let (_, body) = app.get(&app.admin(), "/self").await;
+    assert_eq!(body["roles"], json!(["shift-admin"]));
+
+    app.cleanup();
+}
+
+/// The self-service write a viewer is allowed: their own wish, matched on e-mail.
+#[tokio::test]
+async fn a_viewer_may_manage_their_own_wishes_while_the_window_is_open() {
+    let app = app!();
+
+    app.put_wish_settings(&app.admin(), json!({ "mode": "enabled" })).await;
+
+    // The token's `email` claim identifies them…
+    let (status, body) = app.create_wish(&app.viewer(), "2026-10-05").await;
+    assert_eq!(status, 200, "a viewer must be able to wish for themselves, got {body}");
+    let wish_id = body["id"].as_str().expect("wish id").to_string();
+    let (status, _) = app.delete_wish(&app.viewer(), &wish_id).await;
+    assert_eq!(status, 200, "and withdraw it again");
+
+    // …and so does `preferred_username` alone, which is how the realm carries it
+    // when users log in with their e-mail address.
+    let username_only = app.token_with_claims(json!({
+        "tenant": [app.tenant],
+        "realm_access": { "roles": ["shift-viewer"] },
+        "preferred_username": app.employee_email,
+    }));
+    let (status, body) = app.create_wish(&username_only, "2026-10-06").await;
+    assert_eq!(status, 200, "preferred_username must identify the caller too, got {body}");
+
+    app.cleanup();
+}
+
+/// A token with no `tenant` claim — a Keycloak user who is not an organization
+/// member — is the 401 that looks like "the viewer role is broken". The body has
+/// to say which, or the next person debugs the wrong layer.
+#[tokio::test]
+async fn a_token_without_a_tenant_or_a_role_says_which_is_missing() {
+    let app = app!();
+
+    let no_tenant = app.token_with_claims(json!({
+        "realm_access": { "roles": ["shift-viewer"] },
+        "email": app.employee_email,
+    }));
+    let (status, body) = app.get(&no_tenant, "/shifts").await;
+    assert_eq!(status, 401);
+    assert!(
+        body["error"].as_str().unwrap_or_default().contains("tenant"),
+        "the 401 must name the missing claim, got {body}"
+    );
+
+    let no_role = app.token_with_claims(json!({
+        "tenant": [app.tenant],
+        "realm_access": { "roles": ["default-roles-shift"] },
+        "email": app.employee_email,
+    }));
+    let (status, body) = app.get(&no_role, "/shifts").await;
+    assert_eq!(status, 403);
+    assert!(
+        body["error"].as_str().unwrap_or_default().contains("shift-viewer"),
+        "the 403 must name the roles to assign, got {body}"
+    );
 
     app.cleanup();
 }

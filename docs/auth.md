@@ -102,9 +102,11 @@ The middleware lets those through on the method check; the handler then matches
 the record's employee against the caller's `email` / `preferred_username` claim
 (`UserContext::matches_email`) and rejects anyone else with 403.
 
-Self-service shift wishes are additionally bounded by the tenant's **wish
-window** (`/wish-settings`), which can close wishing entirely or restrict it to
-a date range. See [REST API](api.md#the-wish-window).
+Shift wishes are additionally bounded by the tenant's **wish window**
+(`/wish-settings`), which can close wishing entirely or restrict it to a date
+range. That one binds *every* role, `shift-admin` included — it is a lock on the
+data, not a rule about who may act for whom. See
+[REST API](api.md#the-wish-window).
 
 ### Admin-only endpoints
 
@@ -137,6 +139,35 @@ console — the "Profile" link in the user dropdown
 (`/auth/realms/shift/account/`). Existing users are unaffected by editing the
 template; grant them the role in the admin console (Users → Role mapping) or
 with `kcadm.sh add-roles -r shift --uusername <user> --rolename default-roles-shift`.
+
+## Adding a user
+
+Three things must be true before a new Keycloak user can use the app, and each
+one fails differently:
+
+| Missing | Symptom | Fix |
+|---|---|---|
+| Organization membership | **401** on every request, `"No 'tenant' claim in the token…"` | Add the user to the organization whose alias is the tenant (Organizations → *tenant* → Members) |
+| A `shift-*` realm role | **403**, `"The token carries none of the roles…"` | Users → Role mapping → assign `shift-viewer`, `shift-planner` or `shift-admin` |
+| An e-mail matching their employee row | Reads work; their own shift wishes are refused with `"You may only manage your own shift wishes"` | Set the user's e-mail to the `email` on their `employees` row |
+
+A user in the *wrong* organization is the quiet one: everything returns 200 and
+every list is empty, because the requests are scoped to a tenant that holds no
+data.
+
+The development realm ships two users for exactly this reason:
+`admin` / `admin` (`shift-admin` + `shift-planner`) and `viewer` / `viewer`
+(`shift-viewer`, e-mail `anna.mueller1@klinik.de`, which is the first employee
+`seed_data_v2.py` creates — so self-service wishes work out of the box). Both are
+members of organization `0`. The release realm
+(`release/iam/realm-shift.json.tpl`) deliberately ships **no** demo viewer;
+create real users there.
+
+!!! note "The realm import only runs once"
+    Keycloak skips the import when the realm already exists ("Realm 'shift'
+    already exists. Import skipped"), so editing `realm-shift.json` does nothing
+    to a running instance. Either recreate the `keycloak_db_data` volume, or make
+    the same change in the admin console.
 
 ## Isolation in the data layer
 

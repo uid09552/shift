@@ -6,6 +6,7 @@ use axum::middleware::Next;
 use axum::response::Response;
 use base64::{engine::general_purpose, Engine as _};
 
+use crate::errors::AppError;
 use crate::repository::AppState;
 
 /// Realm role granting full read/write access.
@@ -173,12 +174,14 @@ impl FromRequestParts<AppState> for RoleContext {
 /// `tenant` claim (array) names the caller's tenants — the first entry wins — and
 /// whose `realm_access.roles` claim names their roles. Missing or undecodable tokens
 /// are rejected with 401 — never falling back to the default tenant. A token whose
-/// roles do not cover the request method is rejected with 403.
+/// roles do not cover the request method is rejected with 403. Both carry the reason
+/// in the response body: every rejection here means the realm is set up wrong, and
+/// the answer should not have to be guessed from a bare status code.
 pub async fn authenticate(
     State(state): State<AppState>,
     mut request: Request,
     next: Next,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, AppError> {
     let (tenant, roles, user) = if state.dev_mode {
         (
             state.default_tenant_id.clone(),
@@ -189,11 +192,17 @@ pub async fn authenticate(
         let token = request
             .headers()
             .get("x-access-token")
-            .ok_or(StatusCode::UNAUTHORIZED)?
+            .ok_or_else(|| unauthorized("No x-access-token header — the request did not come through the gateway"))?
             .to_str()
-            .map_err(|_| StatusCode::UNAUTHORIZED)?;
-        let claims = claims_from_token(token).ok_or(StatusCode::UNAUTHORIZED)?;
-        let tenant = tenant_from_claims(&claims).ok_or(StatusCode::UNAUTHORIZED)?;
+            .map_err(|_| unauthorized("The x-access-token header is not valid text"))?;
+        let claims = claims_from_token(token)
+            .ok_or_else(|| unauthorized("The x-access-token is not a decodable JWT"))?;
+        let tenant = tenant_from_claims(&claims).ok_or_else(|| {
+            unauthorized(
+                "No 'tenant' claim in the token — the user is not a member of any Keycloak \
+                 organization, so their requests cannot be scoped to a tenant",
+            )
+        })?;
         (
             tenant,
             RoleContext(roles_from_claims(&claims)),
@@ -202,13 +211,35 @@ pub async fn authenticate(
     };
 
     if !roles.allows(request.method(), request.uri().path()) {
-        return Err(StatusCode::FORBIDDEN);
+        return Err(AppError::Forbidden(if roles.0.is_empty() {
+            "The token carries none of the roles shift-admin, shift-planner, shift-viewer — \
+             assign one in Keycloak (Users → Role mapping)"
+                .to_string()
+        } else {
+            format!(
+                "{} does not cover {} on this path",
+                roles
+                    .0
+                    .iter()
+                    .map(|r| r.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                request.method(),
+            )
+        }));
     }
 
     request.extensions_mut().insert(TenantContext(tenant));
     request.extensions_mut().insert(roles);
     request.extensions_mut().insert(user);
     Ok(next.run(request).await)
+}
+
+/// A 401 that says which part of the token was missing. The gateway verifies the
+/// signature, so every rejection here is a configuration problem — an opaque 401
+/// sends whoever hit it looking in the wrong place (it did exactly that once).
+fn unauthorized(reason: &str) -> AppError {
+    AppError::Unauthorized(reason.to_string())
 }
 
 /// Decodes the payload of a JWT access token. The gateway (APISIX openid-connect

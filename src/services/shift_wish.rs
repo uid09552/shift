@@ -25,12 +25,16 @@ pub struct ShiftWishService;
 
 /// Verifies the caller may write the wish of `employee_id` for `wish_date`.
 ///
-/// `shift-planner` and `shift-admin` may write anyone's wishes for any date, whatever
-/// the wish window says — the window governs self-service, not the planners who have
-/// to fix things. Everyone else — in practice `shift-viewer`, the only other role that
-/// reaches these handlers — may only write their own, matched by the employee's e-mail
-/// address against the caller's `email` / `preferred_username` token claims, and only
-/// for dates the tenant's wish window is open for.
+/// Two independent rules, in this order:
+///
+/// 1. **The wish window binds every role.** A closed window is a lock, not a
+///    self-service policy: while it is shut nobody adds or withdraws a wish —
+///    `shift-admin` included. An admin who needs to change one re-opens the window
+///    first, which leaves an audit entry saying so.
+/// 2. **Whose wish it is.** `shift-planner` and `shift-admin` write anyone's;
+///    everyone else — in practice `shift-viewer`, the only other role that reaches
+///    these handlers — only their own, matched by the employee's e-mail address
+///    against the caller's `email` / `preferred_username` token claims.
 async fn authorize_wish_for_employee(
     tenant: &TenantContext,
     roles: &RoleContext,
@@ -39,6 +43,8 @@ async fn authorize_wish_for_employee(
     employee_id: Uuid,
     wish_date: NaiveDate,
 ) -> Result<(), AppError> {
+    ensure_wish_window_open(tenant, state, wish_date).await?;
+
     if roles.can_write() {
         return Ok(());
     }
@@ -56,11 +62,11 @@ async fn authorize_wish_for_employee(
         ));
     }
 
-    ensure_wish_window_open(tenant, state, wish_date).await
+    Ok(())
 }
 
-/// Rejects a self-service wish the tenant's window does not allow. The message is the
-/// one the UI shows, so it names the reason rather than just saying "forbidden".
+/// Rejects a wish the tenant's window does not allow, whoever is asking. The message
+/// is the one the UI shows, so it names the reason rather than just saying "forbidden".
 async fn ensure_wish_window_open(
     tenant: &TenantContext,
     state: &AppState,
