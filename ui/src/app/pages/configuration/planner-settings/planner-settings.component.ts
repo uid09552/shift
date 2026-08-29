@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -7,11 +7,29 @@ import {
   UpdatePlannerSettingsRequest,
 } from '../../../shared/services/planner-settings.service';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
-import { InputFieldComponent } from '../../../shared/components/form/input/input-field.component';
-import { LabelComponent } from '../../../shared/components/form/label/label.component';
 import { ButtonComponent } from '../../../shared/components/ui/button/button.component';
-import { InfoTooltipComponent } from '../../../shared/components/ui/info-tooltip/info-tooltip.component';
+import { SettingRowComponent } from '../../../shared/components/form/setting-row/setting-row.component';
+import { LevelSelectComponent, LevelOption } from '../../../shared/components/form/level-select/level-select.component';
+import { LevelMeterComponent } from '../../../shared/components/form/level-meter/level-meter.component';
+import { RangeSliderComponent } from '../../../shared/components/form/range-slider/range-slider.component';
+import { CompactNumberComponent } from '../../../shared/components/form/compact-number/compact-number.component';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
+import { TranslationService } from '../../../shared/i18n/translation.service';
+import {
+  LEVEL_LABEL_KEYS,
+  NIGHT_FATIGUE_OPTIONS,
+  PRIORITY_PRESETS,
+  SOLVER_EFFORTS,
+  USE_CASE_TEMPLATES,
+  WEIGHT_SCALES,
+  type PresetValues,
+  type SliderField,
+  type UseCaseTemplate,
+  type WeightField,
+} from './planner-settings.presets';
+
+/** Hours used when the weekly band is switched on without earlier values. */
+const DEFAULT_BAND: { min: number; max: number } = { min: 30, max: 45 };
 
 @Component({
   selector: 'app-planner-settings',
@@ -20,18 +38,41 @@ import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
     CommonModule,
     FormsModule,
     PageBreadcrumbComponent,
-    InputFieldComponent,
-    LabelComponent,
     ButtonComponent,
-    InfoTooltipComponent,
+    SettingRowComponent,
+    LevelSelectComponent,
+    LevelMeterComponent,
+    RangeSliderComponent,
+    CompactNumberComponent,
     TranslatePipe,
   ],
   template: `
     <app-page-breadcrumb pageTitle="nav.plannerSettings" />
 
-    <p class="mb-6 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-      {{ 'plannerSettings.intro' | t }}
-    </p>
+    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <p class="max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+        {{ 'plannerSettings.intro' | t }}
+      </p>
+
+      <button
+        type="button"
+        role="switch"
+        [attr.aria-checked]="expert"
+        (click)="expert = !expert"
+        class="flex shrink-0 items-center gap-2.5 rounded-lg px-1 py-1 text-sm text-gray-600 transition-colors hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 dark:text-gray-400 dark:hover:text-gray-200"
+      >
+        <span
+          class="relative h-5 w-9 rounded-full transition-colors duration-150"
+          [class]="expert ? 'bg-brand-500' : 'bg-gray-200 dark:bg-white/10'"
+        >
+          <span
+            class="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-theme-xs transition-transform duration-150"
+            [class]="expert ? 'translate-x-4' : 'translate-x-0'"
+          ></span>
+        </span>
+        {{ 'plannerSettings.expertMode' | t }}
+      </button>
+    </div>
 
     @if (loading) {
       <div class="rounded-2xl border border-gray-200 bg-white px-5 py-12 text-center text-sm text-gray-400 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-500">
@@ -58,354 +99,386 @@ import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
           </div>
         }
 
-        <!-- Rest & recovery constraints -->
-        <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        <!-- Use case: one click writes every value below -->
+        <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+          <div class="px-5 py-4 sm:px-6">
+            <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'plannerSettings.templatesSection' | t }}</h3>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.templatesSectionSub' | t }}</p>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3 border-t border-gray-100 px-5 py-5 dark:border-white/[0.05] sm:grid-cols-2 sm:px-6 lg:grid-cols-3">
+            @for (template of templates; track template.id) {
+              <button
+                type="button"
+                (click)="applyTemplate(template)"
+                class="flex flex-col rounded-xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-brand-500/20"
+                [class]="activeTemplateId === template.id
+                  ? 'border-brand-400 bg-brand-50/60 dark:border-brand-500/60 dark:bg-brand-500/10'
+                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/60 dark:border-gray-800 dark:hover:border-gray-700 dark:hover:bg-white/[0.02]'"
+              >
+                <span class="flex w-full items-center justify-between gap-2">
+                  <span class="text-sm font-medium text-gray-800 dark:text-white/90">{{ template.labelKey | t }}</span>
+                  @if (activeTemplateId === template.id) {
+                    <svg class="shrink-0 text-brand-500 dark:text-brand-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                  }
+                </span>
+                <span class="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{{ template.hintKey | t }}</span>
+              </button>
+            }
+          </div>
+
+          <!-- Live read of the trade-offs the current values encode -->
+          <div class="flex flex-col gap-3 border-t border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <span class="text-xs text-gray-500 dark:text-gray-400">
+              {{ (activeTemplateId ? 'plannerSettings.templateActive' : 'plannerSettings.customActive') | t }}
+            </span>
+            <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
+              @for (axis of profile; track axis.labelKey) {
+                <span class="flex items-center gap-2">
+                  <span class="text-xs text-gray-500 dark:text-gray-400">{{ axis.labelKey | t }}</span>
+                  <app-level-meter size="sm" [filled]="axis.filled" />
+                </span>
+              }
+            </div>
+          </div>
+        </section>
+
+        <!-- Rest & recovery -->
+        <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <div class="px-5 py-4 sm:px-6">
             <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'plannerSettings.restSection' | t }}</h3>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.restSectionSub' | t }}</p>
           </div>
-          <div class="grid grid-cols-1 gap-5 border-t border-gray-100 px-5 py-5 dark:border-white/[0.05] sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
-            <div>
-              <app-label for="nightShiftRecoveryDays" className="mb-1.5">
-                {{ 'plannerSettings.nightShiftRecoveryDays.label' | t }}
-                <app-info-tooltip [text]="'plannerSettings.nightShiftRecoveryDays.tooltip' | t" />
-              </app-label>
-              <app-input-field
+          <div class="divide-y divide-gray-100 border-t border-gray-100 dark:divide-white/[0.05] dark:border-white/[0.05]">
+            <app-setting-row
+              controlId="nightShiftRecoveryDays"
+              [label]="'plannerSettings.nightShiftRecoveryDays.label' | t"
+              [description]="'plannerSettings.nightShiftRecoveryDays.hint' | t"
+              [tooltip]="'plannerSettings.nightShiftRecoveryDays.tooltip' | t"
+            >
+              <app-range-slider
                 id="nightShiftRecoveryDays"
-                type="number"
-                min="0"
-                max="7"
+                [min]="0" [max]="7" [step]="1"
                 [value]="form.night_shift_recovery_days"
-                (valueChange)="onFieldChange('night_shift_recovery_days', $event)"
+                [valueLabel]="daysLabel(form.night_shift_recovery_days)"
+                (valueChange)="onSliderChange('night_shift_recovery_days', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.nightShiftRecoveryDays.hint' | t }}</p>
-            </div>
-            <div>
-              <app-label for="minRestHours" className="mb-1.5">
-                {{ 'plannerSettings.minRestHours.label' | t }}
-                <app-info-tooltip [text]="'plannerSettings.minRestHours.tooltip' | t" />
-              </app-label>
-              <app-input-field
+            </app-setting-row>
+
+            <app-setting-row
+              controlId="minRestHours"
+              [label]="'plannerSettings.minRestHours.label' | t"
+              [description]="'plannerSettings.minRestHours.hint' | t"
+              [tooltip]="'plannerSettings.minRestHours.tooltip' | t"
+            >
+              <app-range-slider
                 id="minRestHours"
-                type="number"
-                min="0"
-                max="24"
-                [step]="0.5"
+                [min]="0" [max]="24" [step]="0.5"
                 [value]="form.min_rest_hours"
-                (valueChange)="onFieldChange('min_rest_hours', $event)"
+                [valueLabel]="hoursLabel(form.min_rest_hours)"
+                (valueChange)="onSliderChange('min_rest_hours', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.minRestHours.hint' | t }}</p>
-            </div>
-            <div>
-              <app-label for="maxConsecutiveDays" className="mb-1.5">
-                {{ 'plannerSettings.maxConsecutiveDays.label' | t }}
-                <app-info-tooltip [text]="'plannerSettings.maxConsecutiveDays.tooltip' | t" />
-              </app-label>
-              <app-input-field
+            </app-setting-row>
+
+            <app-setting-row
+              controlId="maxConsecutiveDays"
+              [label]="'plannerSettings.maxConsecutiveDays.label' | t"
+              [description]="'plannerSettings.maxConsecutiveDays.hint' | t"
+              [tooltip]="'plannerSettings.maxConsecutiveDays.tooltip' | t"
+            >
+              <app-range-slider
                 id="maxConsecutiveDays"
-                type="number"
-                min="0"
-                max="14"
+                [min]="0" [max]="14" [step]="1"
                 [value]="form.max_consecutive_days"
-                (valueChange)="onFieldChange('max_consecutive_days', $event)"
+                [valueLabel]="daysLabel(form.max_consecutive_days)"
+                (valueChange)="onSliderChange('max_consecutive_days', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.maxConsecutiveDays.hint' | t }}</p>
-            </div>
-            <div>
-              <app-label for="maxWorkingDaysPerWeek" className="mb-1.5">
-                {{ 'plannerSettings.maxWorkingDaysPerWeek.label' | t }}
-                <app-info-tooltip [text]="'plannerSettings.maxWorkingDaysPerWeek.tooltip' | t" />
-              </app-label>
-              <app-input-field
+            </app-setting-row>
+
+            <app-setting-row
+              controlId="maxWorkingDaysPerWeek"
+              [label]="'plannerSettings.maxWorkingDaysPerWeek.label' | t"
+              [description]="'plannerSettings.maxWorkingDaysPerWeek.hint' | t"
+              [tooltip]="'plannerSettings.maxWorkingDaysPerWeek.tooltip' | t"
+            >
+              <app-range-slider
                 id="maxWorkingDaysPerWeek"
-                type="number"
-                min="0"
-                max="7"
+                [min]="0" [max]="7" [step]="1"
                 [value]="form.max_working_days_per_week"
-                (valueChange)="onFieldChange('max_working_days_per_week', $event)"
+                [valueLabel]="daysPerWeekLabel(form.max_working_days_per_week)"
+                (valueChange)="onSliderChange('max_working_days_per_week', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.maxWorkingDaysPerWeek.hint' | t }}</p>
-            </div>
+            </app-setting-row>
           </div>
-        </div>
+        </section>
 
-        <!-- Objective weights -->
-        <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        <!-- Fairness & hours -->
+        <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <div class="px-5 py-4 sm:px-6">
-            <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'plannerSettings.weightsSection' | t }}</h3>
-            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.weightsSectionSub' | t }}</p>
+            <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'plannerSettings.fairnessSection' | t }}</h3>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.fairnessSectionSub' | t }}</p>
           </div>
-          <div class="grid grid-cols-1 gap-5 border-t border-gray-100 px-5 py-5 dark:border-white/[0.05] sm:grid-cols-2 sm:px-6">
-            <div>
-              <app-label for="equalityWeight" className="mb-1.5">
-                {{ 'plannerSettings.equalityWeight.label' | t }}
-                <app-info-tooltip [text]="'plannerSettings.equalityWeight.tooltip' | t" />
-              </app-label>
-              <app-input-field
-                id="equalityWeight"
-                type="number"
-                min="0"
-                [value]="form.equality_weight"
-                (valueChange)="onFieldChange('equality_weight', $event)"
-              />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.equalityWeight.hint' | t }}</p>
-            </div>
-            <div>
-              <app-label for="monthlyHoursTargetWeight" className="mb-1.5">
-                {{ 'plannerSettings.monthlyHoursTargetWeight.label' | t }}
-                <app-info-tooltip [text]="'plannerSettings.monthlyHoursTargetWeight.tooltip' | t" />
-              </app-label>
-              <app-input-field
-                id="monthlyHoursTargetWeight"
-                type="number"
-                min="0"
-                [value]="form.monthly_hours_target_weight"
-                (valueChange)="onFieldChange('monthly_hours_target_weight', $event)"
-              />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.monthlyHoursTargetWeight.hint' | t }}</p>
-            </div>
-            <div class="sm:col-span-2">
-              <app-label className="mb-1.5">
-                {{ 'plannerSettings.priorityWeights' | t }}
-                <app-info-tooltip text="Raising a tier's value relative to the others makes it get staffed first when there aren't enough people for everything — e.g. raise High relative to Medium/Low to protect critical workstations first." />
-              </app-label>
-              <div class="grid grid-cols-3 gap-3">
-                <div>
-                  <app-input-field
-                    type="number"
-                    min="0"
-                    [placeholder]="'workstations.priorityHigh' | t"
-                    [value]="form.priority_weights.high"
-                    (valueChange)="onPriorityWeightChange('high', $event)"
-                  />
-                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.priorityHigh' | t }}</p>
-                </div>
-                <div>
-                  <app-input-field
-                    type="number"
-                    min="0"
-                    [placeholder]="'workstations.priorityMedium' | t"
-                    [value]="form.priority_weights.medium"
-                    (valueChange)="onPriorityWeightChange('medium', $event)"
-                  />
-                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.priorityMedium' | t }}</p>
-                </div>
-                <div>
-                  <app-input-field
-                    type="number"
-                    min="0"
-                    [placeholder]="'workstations.priorityLow' | t"
-                    [value]="form.priority_weights.low"
-                    (valueChange)="onPriorityWeightChange('low', $event)"
-                  />
-                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.priorityLow' | t }}</p>
-                </div>
-              </div>
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.priorityHint' | t }}</p>
-            </div>
-            <div>
-              <app-label for="shiftContinuityWeight" className="mb-1.5">
-                {{ 'plannerSettings.shiftContinuityWeight.label' | t }}
-                <app-info-tooltip [text]="'plannerSettings.shiftContinuityWeight.tooltip' | t" />
-              </app-label>
-              <app-input-field
-                id="shiftContinuityWeight"
-                type="number"
-                min="0"
-                [value]="form.shift_continuity_weight"
-                (valueChange)="onFieldChange('shift_continuity_weight', $event)"
-              />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.shiftContinuityWeight.hint' | t }}</p>
-            </div>
-            <div>
-              <app-label for="shiftContinuityWeekBonus" className="mb-1.5">
-                {{ 'plannerSettings.shiftContinuityWeekBonus.label' | t }}
-                <app-info-tooltip [text]="'plannerSettings.shiftContinuityWeekBonus.tooltip' | t" />
-              </app-label>
-              <app-input-field
-                id="shiftContinuityWeekBonus"
-                type="number"
-                min="0"
-                [value]="form.shift_continuity_week_bonus"
-                (valueChange)="onFieldChange('shift_continuity_week_bonus', $event)"
-              />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.shiftContinuityWeekBonus.hint' | t }}</p>
-            </div>
-          </div>
-        </div>
+          <div class="divide-y divide-gray-100 border-t border-gray-100 dark:divide-white/[0.05] dark:border-white/[0.05]">
+            <app-setting-row
+              controlId="equalityWeight"
+              [label]="'plannerSettings.equalityWeight.label' | t"
+              [description]="'plannerSettings.equalityWeight.hint' | t"
+              [tooltip]="'plannerSettings.equalityWeight.tooltip' | t"
+            >
+              <ng-container [ngTemplateOutlet]="levelControl" [ngTemplateOutletContext]="{ field: 'equality_weight', id: 'equalityWeight', label: ('plannerSettings.equalityWeight.label' | t) }" />
+            </app-setting-row>
 
-        <!-- Weekly hours band -->
-        <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-          <div class="px-5 py-4 sm:px-6">
-            <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'plannerSettings.weeklyBandSection' | t }}</h3>
-            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.weeklyBandSectionSub' | t }}</p>
-          </div>
-          <div class="grid grid-cols-1 gap-5 border-t border-gray-100 px-5 py-5 dark:border-white/[0.05] sm:grid-cols-3 sm:px-6">
-            <div>
-              <app-label for="weeklyMinHours" className="mb-1.5">
-                {{ 'plannerSettings.weeklyMinHours.label' | t }}
-                <app-info-tooltip [text]="'plannerSettings.weeklyMinHours.tooltip' | t" />
-              </app-label>
-              <app-input-field
+            <app-setting-row
+              controlId="monthlyHoursTargetWeight"
+              [label]="'plannerSettings.monthlyHoursTargetWeight.label' | t"
+              [description]="'plannerSettings.monthlyHoursTargetWeight.hint' | t"
+              [tooltip]="'plannerSettings.monthlyHoursTargetWeight.tooltip' | t"
+            >
+              <ng-container [ngTemplateOutlet]="levelControl" [ngTemplateOutletContext]="{ field: 'monthly_hours_target_weight', id: 'monthlyHoursTargetWeight', label: ('plannerSettings.monthlyHoursTargetWeight.label' | t) }" />
+            </app-setting-row>
+
+            <app-setting-row
+              [label]="'plannerSettings.weeklyBandToggle' | t"
+              [description]="'plannerSettings.weeklyBandToggleHint' | t"
+              [tooltip]="'plannerSettings.weeklyBandSectionSub' | t"
+            >
+              <button
+                type="button"
+                role="switch"
+                [attr.aria-checked]="bandEnabled"
+                [attr.aria-label]="'plannerSettings.weeklyBandToggle' | t"
+                (click)="toggleBand(!bandEnabled)"
+                class="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+              >
+                <span
+                  class="relative block h-6 w-11 rounded-full transition-colors duration-150"
+                  [class]="bandEnabled ? 'bg-brand-500' : 'bg-gray-200 dark:bg-white/10'"
+                >
+                  <span
+                    class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-theme-xs transition-transform duration-150"
+                    [class]="bandEnabled ? 'translate-x-5' : 'translate-x-0'"
+                  ></span>
+                </span>
+              </button>
+            </app-setting-row>
+
+            <app-setting-row
+              controlId="weeklyMinHours"
+              [muted]="!bandEnabled"
+              [label]="'plannerSettings.weeklyMinHours.label' | t"
+              [description]="'plannerSettings.weeklyMinHours.hint' | t"
+              [tooltip]="'plannerSettings.weeklyMinHours.tooltip' | t"
+            >
+              <app-range-slider
                 id="weeklyMinHours"
-                type="number"
-                min="0"
-                [value]="form.weekly_min_hours ?? ''"
-                (valueChange)="onOptionalFieldChange('weekly_min_hours', $event)"
+                [min]="0" [max]="60" [step]="1"
+                [disabled]="!bandEnabled"
+                [offValue]="null"
+                [value]="form.weekly_min_hours ?? 0"
+                [valueLabel]="weeklyHoursLabel(form.weekly_min_hours)"
+                (valueChange)="onBandChange('weekly_min_hours', $event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.weeklyMinHours.hint' | t }}</p>
-            </div>
-            <div>
-              <app-label for="weeklyMaxHours" className="mb-1.5">
-                {{ 'plannerSettings.weeklyMaxHours.label' | t }}
-                <app-info-tooltip [text]="'plannerSettings.weeklyMaxHours.tooltip' | t" />
-              </app-label>
-              <app-input-field
-                id="weeklyMaxHours"
-                type="number"
-                min="0"
-                [value]="form.weekly_max_hours ?? ''"
-                (valueChange)="onOptionalFieldChange('weekly_max_hours', $event)"
-              />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.weeklyMaxHours.hint' | t }}</p>
-            </div>
-            <div>
-              <app-label for="weeklyHoursTargetWeight" className="mb-1.5">
-                {{ 'plannerSettings.weeklyHoursTargetWeight.label' | t }}
-                <app-info-tooltip [text]="'plannerSettings.weeklyHoursTargetWeight.tooltip' | t" />
-              </app-label>
-              <app-input-field
-                id="weeklyHoursTargetWeight"
-                type="number"
-                min="0"
-                [value]="form.weekly_hours_target_weight"
-                (valueChange)="onFieldChange('weekly_hours_target_weight', $event)"
-              />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.weeklyHoursTargetWeight.hint' | t }}</p>
-            </div>
-          </div>
-        </div>
+            </app-setting-row>
 
-        <!-- Preferences, skill matching & fatigue -->
-        <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+            <app-setting-row
+              controlId="weeklyMaxHours"
+              [muted]="!bandEnabled"
+              [label]="'plannerSettings.weeklyMaxHours.label' | t"
+              [description]="'plannerSettings.weeklyMaxHours.hint' | t"
+              [tooltip]="'plannerSettings.weeklyMaxHours.tooltip' | t"
+            >
+              <app-range-slider
+                id="weeklyMaxHours"
+                [min]="0" [max]="60" [step]="1"
+                [disabled]="!bandEnabled"
+                [offValue]="null"
+                [value]="form.weekly_max_hours ?? 0"
+                [valueLabel]="weeklyHoursLabel(form.weekly_max_hours)"
+                (valueChange)="onBandChange('weekly_max_hours', $event)"
+              />
+            </app-setting-row>
+
+            <app-setting-row
+              controlId="weeklyHoursTargetWeight"
+              [muted]="!bandEnabled"
+              [label]="'plannerSettings.weeklyHoursTargetWeight.label' | t"
+              [description]="'plannerSettings.weeklyHoursTargetWeight.hint' | t"
+              [tooltip]="'plannerSettings.weeklyHoursTargetWeight.tooltip' | t"
+            >
+              <ng-container [ngTemplateOutlet]="levelControl" [ngTemplateOutletContext]="{ field: 'weekly_hours_target_weight', id: 'weeklyHoursTargetWeight', disabled: !bandEnabled, label: ('plannerSettings.weeklyHoursTargetWeight.label' | t) }" />
+            </app-setting-row>
+          </div>
+        </section>
+
+        <!-- People: wishes, preferences, skills, fatigue -->
+        <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <div class="px-5 py-4 sm:px-6">
             <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'plannerSettings.preferencesSection' | t }}</h3>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.preferencesSectionSub' | t }}</p>
           </div>
-          <div class="grid grid-cols-1 gap-5 border-t border-gray-100 px-5 py-5 dark:border-white/[0.05] sm:grid-cols-2 lg:grid-cols-4 sm:px-6">
-            <div>
-              <app-label for="wishWeight" className="mb-1.5">
-                {{ 'plannerSettings.wishWeight.label' | t }}
-                <app-info-tooltip [text]="'plannerSettings.wishWeight.tooltip' | t" />
-              </app-label>
-              <app-input-field
-                id="wishWeight"
-                type="number"
-                min="0"
-                [value]="form.wish_weight"
-                (valueChange)="onFieldChange('wish_weight', $event)"
-              />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.wishWeight.hint' | t }}</p>
-            </div>
-            <div>
-              <app-label for="preferenceWeight" className="mb-1.5">
-                {{ 'plannerSettings.preferenceWeight.label' | t }}
-                <app-info-tooltip [text]="'plannerSettings.preferenceWeight.tooltip' | t" />
-              </app-label>
-              <app-input-field
-                id="preferenceWeight"
-                type="number"
-                min="0"
-                [value]="form.preference_weight"
-                (valueChange)="onFieldChange('preference_weight', $event)"
-              />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.preferenceWeight.hint' | t }}</p>
-            </div>
-            <div>
-              <app-label for="skillDowngradeWeight" className="mb-1.5">
-                {{ 'plannerSettings.skillDowngradeWeight.label' | t }}
-                <app-info-tooltip [text]="'plannerSettings.skillDowngradeWeight.tooltip' | t" />
-              </app-label>
-              <app-input-field
-                id="skillDowngradeWeight"
-                type="number"
-                min="0"
-                [value]="form.skill_downgrade_weight"
-                (valueChange)="onFieldChange('skill_downgrade_weight', $event)"
-              />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.skillDowngradeWeight.hint' | t }}</p>
-            </div>
-            <div>
-              <app-label for="fatigueWeight" className="mb-1.5">
-                {{ 'plannerSettings.fatigueWeight.label' | t }}
-                <app-info-tooltip [text]="'plannerSettings.fatigueWeight.tooltip' | t" />
-              </app-label>
-              <app-input-field
-                id="fatigueWeight"
-                type="number"
-                min="0"
-                [value]="form.fatigue_weight"
-                (valueChange)="onFieldChange('fatigue_weight', $event)"
-              />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.fatigueWeight.hint' | t }}</p>
-            </div>
-            <div>
-              <app-label for="nightShiftFatigueMultiplier" className="mb-1.5">
-                {{ 'plannerSettings.nightShiftFatigueMultiplier.label' | t }}
-                <app-info-tooltip [text]="'plannerSettings.nightShiftFatigueMultiplier.tooltip' | t" />
-              </app-label>
-              <app-input-field
+          <div class="divide-y divide-gray-100 border-t border-gray-100 dark:divide-white/[0.05] dark:border-white/[0.05]">
+            <app-setting-row
+              controlId="wishWeight"
+              [label]="'plannerSettings.wishWeight.label' | t"
+              [description]="'plannerSettings.wishWeight.hint' | t"
+              [tooltip]="'plannerSettings.wishWeight.tooltip' | t"
+            >
+              <ng-container [ngTemplateOutlet]="levelControl" [ngTemplateOutletContext]="{ field: 'wish_weight', id: 'wishWeight', label: ('plannerSettings.wishWeight.label' | t) }" />
+            </app-setting-row>
+
+            <app-setting-row
+              controlId="preferenceWeight"
+              [label]="'plannerSettings.preferenceWeight.label' | t"
+              [description]="'plannerSettings.preferenceWeight.hint' | t"
+              [tooltip]="'plannerSettings.preferenceWeight.tooltip' | t"
+            >
+              <ng-container [ngTemplateOutlet]="levelControl" [ngTemplateOutletContext]="{ field: 'preference_weight', id: 'preferenceWeight', label: ('plannerSettings.preferenceWeight.label' | t) }" />
+            </app-setting-row>
+
+            <app-setting-row
+              controlId="skillDowngradeWeight"
+              [label]="'plannerSettings.skillDowngradeWeight.label' | t"
+              [description]="'plannerSettings.skillDowngradeWeight.hint' | t"
+              [tooltip]="'plannerSettings.skillDowngradeWeight.tooltip' | t"
+            >
+              <ng-container [ngTemplateOutlet]="levelControl" [ngTemplateOutletContext]="{ field: 'skill_downgrade_weight', id: 'skillDowngradeWeight', label: ('plannerSettings.skillDowngradeWeight.label' | t) }" />
+            </app-setting-row>
+
+            <app-setting-row
+              controlId="fatigueWeight"
+              [label]="'plannerSettings.fatigueWeight.label' | t"
+              [description]="'plannerSettings.fatigueWeight.hint' | t"
+              [tooltip]="'plannerSettings.fatigueWeight.tooltip' | t"
+            >
+              <ng-container [ngTemplateOutlet]="levelControl" [ngTemplateOutletContext]="{ field: 'fatigue_weight', id: 'fatigueWeight', label: ('plannerSettings.fatigueWeight.label' | t) }" />
+            </app-setting-row>
+
+            <app-setting-row
+              controlId="nightShiftFatigueMultiplier"
+              [muted]="form.fatigue_weight === 0"
+              [label]="'plannerSettings.nightShiftFatigueMultiplier.label' | t"
+              [description]="'plannerSettings.nightShiftFatigueMultiplier.hint' | t"
+              [tooltip]="'plannerSettings.nightShiftFatigueMultiplier.tooltip' | t"
+            >
+              <app-level-select
                 id="nightShiftFatigueMultiplier"
-                type="number"
-                min="1"
-                [step]="0.1"
-                [value]="form.night_shift_fatigue_multiplier"
-                (valueChange)="onFieldChange('night_shift_fatigue_multiplier', $event)"
+                [options]="nightFatigueOptions"
+                [value]="nightFatigueValue"
+                [meterFilled]="nightFatigueMeter"
+                [disabled]="form.fatigue_weight === 0"
+                (valueChange)="onNightFatigueChange($event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.nightShiftFatigueMultiplier.hint' | t }}</p>
-            </div>
+              @if (expert) {
+                <app-compact-number
+                  [value]="form.night_shift_fatigue_multiplier"
+                  [min]="1" [step]="0.1"
+                  [ariaLabel]="'plannerSettings.nightShiftFatigueMultiplier.label' | t"
+                  (valueChange)="form.night_shift_fatigue_multiplier = $event"
+                />
+              }
+            </app-setting-row>
           </div>
-        </div>
+        </section>
+
+        <!-- Coverage & continuity -->
+        <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+          <div class="px-5 py-4 sm:px-6">
+            <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'plannerSettings.coverageSection' | t }}</h3>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.coverageSectionSub' | t }}</p>
+          </div>
+          <div class="divide-y divide-gray-100 border-t border-gray-100 dark:divide-white/[0.05] dark:border-white/[0.05]">
+            <app-setting-row
+              controlId="priorityWeights"
+              [label]="'plannerSettings.priorityWeights' | t"
+              [description]="'plannerSettings.priorityHint' | t"
+              [tooltip]="'plannerSettings.priorityTooltip' | t"
+            >
+              <app-level-select
+                id="priorityWeights"
+                [options]="priorityOptions"
+                [value]="priorityValue"
+                [meterFilled]="priorityMeter"
+                (valueChange)="onPriorityChange($event)"
+              />
+              @if (expert) {
+                <div class="flex items-center gap-1.5">
+                  <app-compact-number
+                    [value]="form.priority_weights.high" [min]="0" [widthRem]="5.5"
+                    [ariaLabel]="'plannerSettings.priorityHigh' | t"
+                    (valueChange)="onPriorityWeightChange('high', $event)"
+                  />
+                  <app-compact-number
+                    [value]="form.priority_weights.medium" [min]="0" [widthRem]="5.5"
+                    [ariaLabel]="'plannerSettings.priorityMedium' | t"
+                    (valueChange)="onPriorityWeightChange('medium', $event)"
+                  />
+                  <app-compact-number
+                    [value]="form.priority_weights.low" [min]="0" [widthRem]="5.5"
+                    [ariaLabel]="'plannerSettings.priorityLow' | t"
+                    (valueChange)="onPriorityWeightChange('low', $event)"
+                  />
+                </div>
+              }
+            </app-setting-row>
+
+            <app-setting-row
+              controlId="shiftContinuityWeight"
+              [label]="'plannerSettings.shiftContinuityWeight.label' | t"
+              [description]="'plannerSettings.shiftContinuityWeight.hint' | t"
+              [tooltip]="'plannerSettings.shiftContinuityWeight.tooltip' | t"
+            >
+              <ng-container [ngTemplateOutlet]="levelControl" [ngTemplateOutletContext]="{ field: 'shift_continuity_weight', id: 'shiftContinuityWeight', label: ('plannerSettings.shiftContinuityWeight.label' | t) }" />
+            </app-setting-row>
+
+            <app-setting-row
+              controlId="shiftContinuityWeekBonus"
+              [muted]="form.shift_continuity_weight === 0"
+              [label]="'plannerSettings.shiftContinuityWeekBonus.label' | t"
+              [description]="'plannerSettings.shiftContinuityWeekBonus.hint' | t"
+              [tooltip]="'plannerSettings.shiftContinuityWeekBonus.tooltip' | t"
+            >
+              <ng-container [ngTemplateOutlet]="levelControl" [ngTemplateOutletContext]="{ field: 'shift_continuity_week_bonus', id: 'shiftContinuityWeekBonus', disabled: form.shift_continuity_weight === 0, label: ('plannerSettings.shiftContinuityWeekBonus.label' | t) }" />
+            </app-setting-row>
+          </div>
+        </section>
 
         <!-- Solver performance -->
-        <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <div class="px-5 py-4 sm:px-6">
             <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'plannerSettings.solverSection' | t }}</h3>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.solverSectionSub' | t }}</p>
           </div>
-          <div class="grid grid-cols-1 gap-5 border-t border-gray-100 px-5 py-5 dark:border-white/[0.05] sm:grid-cols-2 sm:px-6">
-            <div>
-              <app-label for="solverTimeLimitSeconds" className="mb-1.5">
-                {{ 'plannerSettings.solverTimeLimitSeconds.label' | t }}
-                <app-info-tooltip [text]="'plannerSettings.solverTimeLimitSeconds.tooltip' | t" />
-              </app-label>
-              <app-input-field
-                id="solverTimeLimitSeconds"
-                type="number"
-                min="1"
-                [step]="1"
-                [value]="form.solver_time_limit_seconds"
-                (valueChange)="onFieldChange('solver_time_limit_seconds', $event)"
+          <div class="divide-y divide-gray-100 border-t border-gray-100 dark:divide-white/[0.05] dark:border-white/[0.05]">
+            <app-setting-row
+              controlId="solverEffort"
+              [label]="'plannerSettings.solverEffort.label' | t"
+              [description]="solverEffortDescription"
+              [tooltip]="'plannerSettings.solverEffort.tooltip' | t"
+            >
+              <app-level-select
+                id="solverEffort"
+                [options]="solverEffortOptions"
+                [value]="solverEffortValue"
+                [meterFilled]="solverEffortMeter"
+                (valueChange)="onSolverEffortChange($event)"
               />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.solverTimeLimitSeconds.hint' | t }}</p>
-            </div>
-            <div>
-              <app-label for="solverNumWorkers" className="mb-1.5">
-                {{ 'plannerSettings.solverNumWorkers.label' | t }}
-                <app-info-tooltip [text]="'plannerSettings.solverNumWorkers.tooltip' | t" />
-              </app-label>
-              <app-input-field
-                id="solverNumWorkers"
-                type="number"
-                min="1"
-                max="64"
-                [value]="form.solver_num_workers"
-                (valueChange)="onFieldChange('solver_num_workers', $event)"
-              />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.solverNumWorkers.hint' | t }}</p>
-            </div>
+              @if (expert) {
+                <div class="flex items-center gap-1.5">
+                  <app-compact-number
+                    [value]="form.solver_time_limit_seconds" [min]="1" [widthRem]="5.5"
+                    [ariaLabel]="'plannerSettings.solverTimeLimitSeconds.label' | t"
+                    (valueChange)="form.solver_time_limit_seconds = $event"
+                  />
+                  <app-compact-number
+                    [value]="form.solver_num_workers" [min]="1" [max]="64" [widthRem]="5.5"
+                    [ariaLabel]="'plannerSettings.solverNumWorkers.label' | t"
+                    (valueChange)="form.solver_num_workers = $event"
+                  />
+                </div>
+              }
+            </app-setting-row>
           </div>
-        </div>
+        </section>
 
         <div class="flex items-center gap-3">
           <app-button size="sm" variant="primary" [disabled]="saving" (btnClick)="save()">
@@ -417,12 +490,39 @@ import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
         </div>
       </div>
     }
+
+    <!-- One control shape for every weight: named level + meter, exact number behind the expert toggle. -->
+    <ng-template #levelControl let-field="field" let-id="id" let-disabled="disabled" let-label="label">
+      <app-level-select
+        [id]="id"
+        [options]="levelOptions(field)"
+        [value]="levelValue(field)"
+        [meterFilled]="levelMeter(field)"
+        [disabled]="!!disabled"
+        (valueChange)="onLevelChange(field, $event)"
+      />
+      @if (expert) {
+        <app-compact-number
+          [value]="weightValue(field)"
+          [min]="0"
+          [ariaLabel]="label"
+          (valueChange)="onWeightValueChange(field, $event)"
+        />
+      }
+    </ng-template>
   `,
   styles: ``,
 })
 export class PlannerSettingsComponent implements OnInit {
+  private readonly plannerSettingsService = inject(PlannerSettingsService);
+  private readonly translations = inject(TranslationService);
+
+  readonly templates = USE_CASE_TEMPLATES;
+
   loading = true;
   saving = false;
+  /** Reveals the exact numbers next to every friendly control. */
+  expert = false;
   message: string | null = null;
   messageKind: 'success' | 'error' = 'success';
 
@@ -449,8 +549,6 @@ export class PlannerSettingsComponent implements OnInit {
     shift_continuity_week_bonus: 2000,
   };
 
-  constructor(private plannerSettingsService: PlannerSettingsService) {}
-
   ngOnInit(): void {
     this.loading = true;
     this.plannerSettingsService.getPlannerSettings().subscribe({
@@ -466,20 +564,307 @@ export class PlannerSettingsComponent implements OnInit {
     });
   }
 
-  onFieldChange(
-    field: keyof Omit<PlannerSettings, 'priority_weights' | 'updated_at' | 'weekly_min_hours' | 'weekly_max_hours'>,
-    value: string | number,
-  ): void {
-    (this.form[field] as number) = Number(value);
+  // ── Use-case templates ────────────────────────────────────────
+
+  /** The preset whose values the form currently matches, if any. */
+  get activeTemplateId(): string | null {
+    return this.templates.find((template) => this.matches(template.values))?.id ?? null;
   }
 
-  onOptionalFieldChange(field: 'weekly_min_hours' | 'weekly_max_hours', value: string | number): void {
-    this.form[field] = value === '' || value === null || value === undefined ? null : Number(value);
+  applyTemplate(template: UseCaseTemplate): void {
+    this.form = {
+      ...this.form,
+      ...template.values,
+      priority_weights: { ...template.values.priority_weights },
+    };
   }
 
-  onPriorityWeightChange(tier: 'high' | 'medium' | 'low', value: string | number): void {
-    this.form.priority_weights[tier] = Number(value);
+  private matches(values: PresetValues): boolean {
+    for (const key of Object.keys(values) as (keyof PresetValues)[]) {
+      if (key === 'priority_weights') {
+        const preset = values.priority_weights;
+        const current = this.form.priority_weights;
+        if (preset.high !== current.high || preset.medium !== current.medium || preset.low !== current.low) {
+          return false;
+        }
+      } else if (values[key] !== this.form[key]) {
+        return false;
+      }
+    }
+    return true;
   }
+
+  /** The four trade-offs the current values encode, for the meter strip. */
+  get profile(): { labelKey: string; filled: number }[] {
+    return [
+      { labelKey: 'plannerSettings.profile.fairness', filled: this.levelMeter('equality_weight') },
+      {
+        labelKey: 'plannerSettings.profile.wishes',
+        filled: Math.max(this.levelMeter('wish_weight'), this.levelMeter('preference_weight')),
+      },
+      { labelKey: 'plannerSettings.profile.coverage', filled: this.priorityMeter },
+      { labelKey: 'plannerSettings.profile.stability', filled: this.levelMeter('shift_continuity_weight') },
+    ];
+  }
+
+  // ── Weights as named levels ───────────────────────────────────
+
+  levelOptions(field: WeightField): LevelOption[] {
+    const options = LEVEL_LABEL_KEYS.map((key, index) => ({
+      value: String(index),
+      label: this.translations.t(key),
+    }));
+    if (this.levelIndex(field) < 0) {
+      options.push({
+        value: 'custom',
+        label: this.translations.t('plannerSettings.level.custom', { value: this.form[field] }),
+      });
+    }
+    return options;
+  }
+
+  levelValue(field: WeightField): string {
+    const index = this.levelIndex(field);
+    return index < 0 ? 'custom' : String(index);
+  }
+
+  /**
+   * Lit segments, 0-5. Values typed by hand in expert mode rarely sit exactly
+   * on a level, so this reads the nearest level from below instead of the
+   * exact index.
+   */
+  levelMeter(field: WeightField): number {
+    const value = this.form[field];
+    if (value <= 0) {
+      return 0;
+    }
+    const scale = WEIGHT_SCALES[field];
+    let filled = 1;
+    for (let i = 1; i < scale.length; i++) {
+      if (value >= scale[i]) {
+        filled = i + 1;
+      }
+    }
+    return filled;
+  }
+
+  onLevelChange(field: WeightField, value: string): void {
+    if (value === 'custom') {
+      return;
+    }
+    this.form[field] = WEIGHT_SCALES[field][Number(value)];
+  }
+
+  weightValue(field: WeightField): number {
+    return this.form[field];
+  }
+
+  onWeightValueChange(field: WeightField, value: number): void {
+    this.form[field] = Math.max(0, value);
+  }
+
+  private levelIndex(field: WeightField): number {
+    return WEIGHT_SCALES[field].indexOf(this.form[field]);
+  }
+
+  // ── Rest & recovery sliders ───────────────────────────────────
+
+  onSliderChange(field: SliderField, value: number): void {
+    this.form[field] = value;
+  }
+
+  daysLabel(value: number): string {
+    if (value === 0) {
+      return this.translations.t('plannerSettings.off');
+    }
+    return this.translations.t(
+      value === 1 ? 'plannerSettings.unit.day' : 'plannerSettings.unit.days',
+      { value },
+    );
+  }
+
+  hoursLabel(value: number): string {
+    return value === 0
+      ? this.translations.t('plannerSettings.off')
+      : this.translations.t('plannerSettings.unit.hours', { value });
+  }
+
+  daysPerWeekLabel(value: number): string {
+    return value === 0
+      ? this.translations.t('plannerSettings.off')
+      : this.translations.t('plannerSettings.unit.daysPerWeek', { value });
+  }
+
+  weeklyHoursLabel(value: number | null): string {
+    return value === null
+      ? this.translations.t('plannerSettings.off')
+      : this.translations.t('plannerSettings.unit.hoursPerWeek', { value });
+  }
+
+  // ── Weekly hours band ─────────────────────────────────────────
+
+  get bandEnabled(): boolean {
+    return this.form.weekly_min_hours !== null || this.form.weekly_max_hours !== null;
+  }
+
+  toggleBand(enabled: boolean): void {
+    if (enabled) {
+      this.form.weekly_min_hours = this.form.weekly_min_hours ?? DEFAULT_BAND.min;
+      this.form.weekly_max_hours = this.form.weekly_max_hours ?? DEFAULT_BAND.max;
+    } else {
+      this.form.weekly_min_hours = null;
+      this.form.weekly_max_hours = null;
+    }
+  }
+
+  /** Keeps the band ordered — dragging one end past the other pushes the other along. */
+  onBandChange(field: 'weekly_min_hours' | 'weekly_max_hours', value: number): void {
+    this.form[field] = value;
+    if (field === 'weekly_min_hours' && this.form.weekly_max_hours !== null && value > this.form.weekly_max_hours) {
+      this.form.weekly_max_hours = value;
+    }
+    if (field === 'weekly_max_hours' && this.form.weekly_min_hours !== null && value < this.form.weekly_min_hours) {
+      this.form.weekly_min_hours = value;
+    }
+  }
+
+  // ── Workstation priority ──────────────────────────────────────
+
+  get priorityOptions(): LevelOption[] {
+    const options = PRIORITY_PRESETS.map((preset) => ({
+      value: preset.id,
+      label: this.translations.t(preset.labelKey),
+    }));
+    if (!this.matchedPriority) {
+      options.push({ value: 'custom', label: this.translations.t('plannerSettings.priority.custom') });
+    }
+    return options;
+  }
+
+  get priorityValue(): string {
+    return this.matchedPriority?.id ?? 'custom';
+  }
+
+  /** Derived from the high-to-low ratio, so hand-typed weights still read sensibly. */
+  get priorityMeter(): number {
+    const { high, low } = this.form.priority_weights;
+    const ratio = low > 0 ? high / low : Infinity;
+    if (ratio <= 1) return 1;
+    if (ratio <= 10) return 2;
+    if (ratio <= 100) return 3;
+    if (ratio <= 1000) return 4;
+    return 5;
+  }
+
+  onPriorityChange(id: string): void {
+    const preset = PRIORITY_PRESETS.find((candidate) => candidate.id === id);
+    if (preset) {
+      this.form.priority_weights = { ...preset.weights };
+    }
+  }
+
+  onPriorityWeightChange(tier: 'high' | 'medium' | 'low', value: number): void {
+    this.form.priority_weights = { ...this.form.priority_weights, [tier]: Math.max(0, value) };
+  }
+
+  private get matchedPriority() {
+    const current = this.form.priority_weights;
+    return PRIORITY_PRESETS.find(
+      (preset) =>
+        preset.weights.high === current.high &&
+        preset.weights.medium === current.medium &&
+        preset.weights.low === current.low,
+    );
+  }
+
+  // ── Night fatigue multiplier ──────────────────────────────────
+
+  get nightFatigueOptions(): LevelOption[] {
+    const options = NIGHT_FATIGUE_OPTIONS.map((option) => ({
+      value: String(option.value),
+      label: this.translations.t(option.labelKey),
+    }));
+    if (!this.matchedNightFatigue) {
+      options.push({
+        value: 'custom',
+        label: this.translations.t('plannerSettings.level.custom', {
+          value: this.form.night_shift_fatigue_multiplier,
+        }),
+      });
+    }
+    return options;
+  }
+
+  get nightFatigueValue(): string {
+    return this.matchedNightFatigue ? String(this.matchedNightFatigue.value) : 'custom';
+  }
+
+  get nightFatigueMeter(): number {
+    const value = this.form.night_shift_fatigue_multiplier;
+    if (value <= 1) return 1;
+    if (value < 2) return 2;
+    if (value < 3) return 3;
+    return 5;
+  }
+
+  onNightFatigueChange(value: string): void {
+    if (value !== 'custom') {
+      this.form.night_shift_fatigue_multiplier = Number(value);
+    }
+  }
+
+  private get matchedNightFatigue() {
+    return NIGHT_FATIGUE_OPTIONS.find(
+      (option) => option.value === this.form.night_shift_fatigue_multiplier,
+    );
+  }
+
+  // ── Solver effort ─────────────────────────────────────────────
+
+  get solverEffortOptions(): LevelOption[] {
+    const options = SOLVER_EFFORTS.map((effort) => ({
+      value: effort.id,
+      label: this.translations.t(effort.labelKey),
+    }));
+    if (!this.matchedSolverEffort) {
+      options.push({ value: 'custom', label: this.translations.t('plannerSettings.solverEffort.custom') });
+    }
+    return options;
+  }
+
+  get solverEffortValue(): string {
+    return this.matchedSolverEffort?.id ?? 'custom';
+  }
+
+  get solverEffortMeter(): number {
+    return this.matchedSolverEffort?.meter ?? (this.form.solver_time_limit_seconds >= 240 ? 5 : 3);
+  }
+
+  /** Spells out what the chosen effort means, so the numbers stay visible without expert mode. */
+  get solverEffortDescription(): string {
+    return this.translations.t('plannerSettings.solverEffort.hint', {
+      seconds: this.form.solver_time_limit_seconds,
+      workers: this.form.solver_num_workers,
+    });
+  }
+
+  onSolverEffortChange(id: string): void {
+    const effort = SOLVER_EFFORTS.find((candidate) => candidate.id === id);
+    if (effort) {
+      this.form.solver_time_limit_seconds = effort.seconds;
+      this.form.solver_num_workers = effort.workers;
+    }
+  }
+
+  private get matchedSolverEffort() {
+    return SOLVER_EFFORTS.find(
+      (effort) =>
+        effort.seconds === this.form.solver_time_limit_seconds &&
+        effort.workers === this.form.solver_num_workers,
+    );
+  }
+
+  // ── Persistence ───────────────────────────────────────────────
 
   save(): void {
     this.saving = true;
