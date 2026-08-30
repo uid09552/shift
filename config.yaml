@@ -13,6 +13,18 @@ broker:
 optimizer:
   url: "http://localhost:8888"
 
+# Keycloak admin connection, used only by the user-management endpoints
+# (/api/v1/users). Leave `url` empty to turn user management off — the server
+# still starts and those endpoints answer 503.
+# `client_id` must be a confidential client whose service account holds the
+# realm-management roles; the shipped realm grants them to shift-gateway
+# (deploy/iam/realm-shift.json).
+keycloak:
+  url: ""                       # e.g. http://localhost:8080/auth (or http://keycloak:8080/auth in compose)
+  realm: "shift"
+  client_id: "shift-gateway"
+  client_secret: ""             # SHIFT_KEYCLOAK__CLIENT_SECRET in a real deployment
+
 # OpenTelemetry export. Off while `endpoint` is empty and
 # OTEL_EXPORTER_OTLP_ENDPOINT is unset; every field below falls back to its
 # standard OTEL_* (or GitLab CI_*) environment variable.

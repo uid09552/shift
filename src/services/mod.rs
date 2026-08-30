@@ -10,6 +10,8 @@ pub mod shift_assignment;
 pub mod confirmed_shift_plan;
 pub mod analysis;
 pub mod auth;
+pub mod keycloak;
+pub mod user_management;
 pub mod tenant;
 pub mod xlsx_io;
 pub mod planner_settings;

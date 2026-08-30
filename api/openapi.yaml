@@ -37,6 +37,10 @@ tags:
     description: Analysis and summary endpoints for shift planning data
   - name: Audit Logs
     description: Audit log events for user/config changes and optimizer runs
+  - name: Users
+    description: >
+      The user accounts of the caller's organization and the shift roles they hold.
+      Backed by Keycloak, not by this database; shift-admin only.
 
 paths:
   /employees:
@@ -2284,8 +2288,245 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /users:
+    get:
+      tags:
+        - Users
+      summary: List the users of the caller's organization
+      description: >
+        Everyone who is a member of the Keycloak organization the request's tenant
+        stands for, together with the shift roles they hold. Other realm roles an
+        account may carry (`offline_access`, `default-roles-*`, …) are not reported.
+
+
+        `shift-admin` only — a `shift-planner` may use every method as far as the
+        role middleware is concerned, so this endpoint checks the role itself.
+      operationId: listUsers
+      responses:
+        '200':
+          description: The organization's members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrganizationUser'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    post:
+      tags:
+        - Users
+      summary: Add a user to the caller's organization
+      description: >
+        Creates a Keycloak account, makes it a member of the caller's organization,
+        and assigns the requested shift roles.
+
+
+        An account whose username or e-mail already exists in the realm is joined to
+        the organization instead of being created again — staff who already have a
+        login should be addable without going into Keycloak. A user who is already a
+        member is a 409.
+
+
+        `shift-admin` only.
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '200':
+          description: The user as they now stand
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationUser'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: The user is already a member of this organization
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /users/{userId}:
+    delete:
+      tags:
+        - Users
+      summary: Remove a user from the caller's organization
+      description: >
+        Takes the shift roles off the user and removes them from the organization.
+        The Keycloak account itself stays: it may belong to another organization,
+        and deleting logins is Keycloak's job.
+
+
+        A user who is not a member of the caller's organization answers 404, not
+        403 — a 403 would confirm the account exists. Removing yourself is refused.
+
+
+        `shift-admin` only.
+      operationId: removeUser
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: Keycloak user id
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The user was removed from the organization
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: removed
+                  id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /users/{userId}/roles:
+    put:
+      tags:
+        - Users
+      summary: Replace the shift roles of a user
+      description: >
+        Sets the user's shift roles to exactly the ones listed: roles that are not
+        named are taken away. Only `shift-admin`, `shift-planner` and `shift-viewer`
+        may be named; any other role name is rejected rather than ignored.
+
+
+        An admin cannot take `shift-admin` off their own account — that would lock
+        the last admin out of this screen and the wish window with it.
+
+
+        `shift-admin` only.
+      operationId: updateUserRoles
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: Keycloak user id
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRolesRequest'
+      responses:
+        '200':
+          description: The user with their new roles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationUser'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
 components:
   schemas:
+    OrganizationUser:
+      type: object
+      required:
+        - id
+        - enabled
+        - roles
+      properties:
+        id:
+          type: string
+          description: Keycloak user id
+        username:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        first_name:
+          type: string
+          nullable: true
+        last_name:
+          type: string
+          nullable: true
+        enabled:
+          type: boolean
+          description: Whether the Keycloak account may sign in
+        roles:
+          type: array
+          description: >
+            The shift roles the user holds, always in the order admin, planner,
+            viewer. Other realm roles are not reported.
+          items:
+            type: string
+            enum: [shift-admin, shift-planner, shift-viewer]
+
+    CreateUserRequest:
+      type: object
+      required:
+        - username
+      properties:
+        username:
+          type: string
+          description: Keycloak username. An existing account with this username (or e-mail) is joined to the organization instead of created.
+        email:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        password:
+          type: string
+          description: >
+            Optional. Without one the account exists but cannot be signed into until
+            a password is set — by a reset mail, or in Keycloak. Ignored when an
+            existing account is joined.
+        temporary_password:
+          type: boolean
+          default: true
+          description: Whether the password must be changed at first login.
+        roles:
+          type: array
+          description: Shift roles to assign. Anything outside the three shift roles is rejected.
+          items:
+            type: string
+            enum: [shift-admin, shift-planner, shift-viewer]
+
+    UpdateUserRolesRequest:
+      type: object
+      required:
+        - roles
+      properties:
+        roles:
+          type: array
+          description: >
+            The complete set of shift roles the user should hold afterwards — this
+            is a replace, not a delta. An empty list leaves the user a member of the
+            organization with no access at all.
+          items:
+            type: string
+            enum: [shift-admin, shift-planner, shift-viewer]
     Employee:
       type: object
       required:
@@ -4505,6 +4746,16 @@ components:
         e-mail address matches their own token (`email` / `preferred_username`).
         Changing the wish window itself requires `shift-admin`. The `error` field
         carries the reason, including which role is missing.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ServiceUnavailable:
+      description: >
+        A service this endpoint depends on is not configured or not reachable — for
+        the user-management endpoints, the Keycloak admin connection (`keycloak.url`
+        and friends). The `error` field says which.
       content:
         application/json:
           schema:

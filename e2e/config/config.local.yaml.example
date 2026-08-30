@@ -1,0 +1,15 @@
+# Copy to config.local.yaml and run:  robot -V config/config.local.yaml tests
+# Only the keys you want to change need to be here; the rest stays as in
+# config.yaml. config.local.yaml is gitignored, so real credentials belong here
+# rather than in the committed defaults.
+
+BASE_URL: https://shift.staging.example
+HEADLESS: false
+
+USERS:
+  admin:
+    username: my.admin
+    password: "change-me"
+  viewer:
+    username: my.viewer
+    password: "change-me"

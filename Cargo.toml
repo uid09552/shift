@@ -33,7 +33,9 @@ async-nats = "0.38"
 # default-features off and only "blocking", i.e. *no* TLS backend, so an https
 # OTLP endpoint fails instantly with "error sending request". Cargo unions the
 # features, so declaring them here is what gives that exporter working TLS.
-reqwest = { version = "0.13", default-features = false, features = ["json", "blocking", "rustls", "http2"] }
+# "query" and "form" are for the Keycloak admin client (services/keycloak.rs):
+# query parameters on the admin API, and the client-credentials token request.
+reqwest = { version = "0.13", default-features = false, features = ["json", "blocking", "rustls", "http2", "query", "form"] }
 base64 = "0.22"
 futures-util = "0.3.32"
 rust_xlsxwriter = "0.96.0"

@@ -71,6 +71,12 @@ services:
       CI_PROJECT_NAME: ${CI_PROJECT_NAME:-shift}
       CI_COMMIT_SHA: ${CI_COMMIT_SHA:-}
       CI_ENVIRONMENT_NAME: ${CI_ENVIRONMENT_NAME:-}
+      # Keycloak admin connection for the user-management endpoints. Reached by
+      # container name, so it works whether or not the gateway is up.
+      SHIFT_KEYCLOAK__URL: ${SHIFT_KEYCLOAK__URL:-http://keycloak:8080/auth}
+      SHIFT_KEYCLOAK__REALM: ${SHIFT_KEYCLOAK__REALM:-shift}
+      SHIFT_KEYCLOAK__CLIENT_ID: ${SHIFT_KEYCLOAK__CLIENT_ID:-shift-gateway}
+      SHIFT_KEYCLOAK__CLIENT_SECRET: ${MCP_OAUTH_CLIENT_SECRET:-shift-gateway-secret}
     ports:
       - "8081:8080"
     depends_on:

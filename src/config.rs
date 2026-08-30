@@ -8,6 +8,7 @@ pub struct Config {
     pub broker: BrokerConfig,
     pub optimizer: OptimizerConfig,
     pub tenant: TenantConfig,
+    pub keycloak: KeycloakConfig,
     pub otel: OtelConfig,
 }
 
@@ -24,6 +25,19 @@ pub struct TenantConfig {
     pub dev_mode: bool,
     /// Default tenant used in dev mode. Later this will come from the auth token instead.
     pub tenant_id: String,
+}
+
+/// Keycloak admin connection used by the user-management endpoints. Empty `url`
+/// means "no Keycloak": the server still starts, and `/users` answers 503.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KeycloakConfig {
+    /// Base URL including Keycloak's relative path, e.g. `http://localhost:8080/auth`.
+    pub url: String,
+    pub realm: String,
+    /// Confidential client whose service account carries the `realm-management`
+    /// roles — `shift-gateway` in the shipped realm.
+    pub client_id: String,
+    pub client_secret: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,6 +159,14 @@ impl Default for Config {
                 dev_mode: false,
                 tenant_id: "0".to_string(),
             },
+            // Deliberately empty: user management is off until a deployment says
+            // where its Keycloak is.
+            keycloak: KeycloakConfig {
+                url: String::new(),
+                realm: "shift".to_string(),
+                client_id: "shift-gateway".to_string(),
+                client_secret: String::new(),
+            },
             // Empty strings mean "take it from the environment" — see
             // OtelConfig::with_env_fallbacks. An empty endpoint disables OTel.
             otel: OtelConfig {
@@ -172,7 +194,9 @@ impl Config {
         }
 
         figment = figment
-            .merge(Env::prefixed("SHIFT_"))
+            // `__` separates the levels, so a nested setting has an environment
+            // variable: SHIFT_KEYCLOAK__CLIENT_SECRET -> keycloak.client_secret.
+            .merge(Env::prefixed("SHIFT_").split("__"))
             .merge(Env::raw());
 
         // Override with CLI args if provided
@@ -218,6 +242,18 @@ impl Config {
         if let Some(tenant_id) = args.tenant_id.clone() {
             figment = figment.merge(("tenant.tenant_id", tenant_id));
         }
+        if let Some(keycloak_url) = args.keycloak_url.clone() {
+            figment = figment.merge(("keycloak.url", keycloak_url));
+        }
+        if let Some(keycloak_realm) = args.keycloak_realm.clone() {
+            figment = figment.merge(("keycloak.realm", keycloak_realm));
+        }
+        if let Some(keycloak_client_id) = args.keycloak_client_id.clone() {
+            figment = figment.merge(("keycloak.client_id", keycloak_client_id));
+        }
+        if let Some(keycloak_client_secret) = args.keycloak_client_secret.clone() {
+            figment = figment.merge(("keycloak.client_secret", keycloak_client_secret));
+        }
         if let Some(otel_endpoint) = args.otel_endpoint.clone() {
             figment = figment.merge(("otel.endpoint", otel_endpoint));
         }
@@ -250,6 +286,10 @@ pub struct CliArgs {
     pub optimizer_url: Option<String>,
     pub dev_mode: bool,
     pub tenant_id: Option<String>,
+    pub keycloak_url: Option<String>,
+    pub keycloak_realm: Option<String>,
+    pub keycloak_client_id: Option<String>,
+    pub keycloak_client_secret: Option<String>,
     pub otel_endpoint: Option<String>,
     pub otel_protocol: Option<String>,
     pub otel_service_name: Option<String>,

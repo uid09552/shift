@@ -26,6 +26,7 @@ use crate::services::{
     shift_wish::ShiftWishService,
     tenant,
     unavailability::UnavailabilityService,
+    user_management::UserManagementService,
     wish_settings::WishSettingsService,
     workstation::WorkstationService,
     workstation_unavailability::WorkstationUnavailabilityService,
@@ -53,6 +54,13 @@ pub fn create_router(state: AppState) -> Router {
     let api_v1 = Router::new()
         // Self (current user from OIDC token)
         .route("/self", get(auth::get_self))
+        // Users of the caller's organization (Keycloak-backed, shift-admin only)
+        .route(
+            "/users",
+            get(UserManagementService::list_users).post(UserManagementService::create_user),
+        )
+        .route("/users/:user_id", delete(UserManagementService::remove_user))
+        .route("/users/:user_id/roles", put(UserManagementService::update_user_roles))
         // Employees
         .route("/employees", get(EmployeeService::list_employees).post(EmployeeService::create_employee))
         .route("/employees/template", get(EmployeeService::download_template))

@@ -1,7 +1,6 @@
-1) implement a feature which allows the role shift-admin role to set a date-range, in which users are allowed to place whiches.
-a) adjust api spec
-b) create backend (service, router, infrastructure, db)
-c) implement ui
-d) there should be a 3 state  to activate deactive this feature (enable, disable, apply-daterange)
-e) only role shift-admin should be able to do that.
-f) adjust the documentation
+1) create e2e test cases for ui by using robot test framework.
+a) create for overview page first
+b) read in test target url from config file (robot framework native), user credentials also from config file.
+c) structure the test cases
+d) put the tests to e2e folder
+2) implement user management to add users to the organisation where the current user is in and role assignment. only shift-admin must be able to do that.

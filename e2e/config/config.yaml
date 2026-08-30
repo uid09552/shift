@@ -1,0 +1,37 @@
+# Default settings for the e2e suite, read by Robot Framework as a variable file
+# (resources/common.resource imports it). Everything here can be overridden:
+#
+#   robot -V config/config.local.yaml tests          # a whole file of overrides
+#   robot -v BASE_URL:https://staging.example tests  # one value
+#
+# CLI variables win over CLI variable files, which win over this file. Keep real
+# credentials out of here — put them in config.local.yaml, which is gitignored.
+
+# ── Target ──────────────────────────────────────────────────────────
+# Where the gateway is. The Angular app is served under APP_PATH, and the
+# gateway redirects an unauthenticated request there to the Keycloak login.
+BASE_URL: http://localhost
+APP_PATH: /planner/
+# Path that ends the session, so a suite can leave a clean browser behind.
+LOGOUT_PATH: /logout
+
+# ── Browser ─────────────────────────────────────────────────────────
+BROWSER: chromium          # chromium | firefox | webkit
+HEADLESS: true
+VIEWPORT_WIDTH: 1440
+VIEWPORT_HEIGHT: 900
+# How long a keyword waits for an element before it fails.
+TIMEOUT: 20s
+# Shorter: how long to wait to decide whether the login form showed up at all.
+LOGIN_TIMEOUT: 10s
+
+# ── Accounts ────────────────────────────────────────────────────────
+# One entry per role the tests sign in as. The names match the users the shipped
+# realm imports (deploy/iam/realm-shift.json).
+USERS:
+  admin:
+    username: admin
+    password: admin
+  viewer:
+    username: viewer
+    password: viewer

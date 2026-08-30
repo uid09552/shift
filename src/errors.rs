@@ -21,6 +21,11 @@ pub enum AppError {
     #[error("{0}")]
     Forbidden(String),
 
+    /// 503 with what is not configured or not reachable — e.g. the Keycloak
+    /// admin API the user-management endpoints depend on.
+    #[error("{0}")]
+    Unavailable(String),
+
     #[error("Database error")]
     DbError,
 
@@ -46,6 +51,7 @@ impl IntoResponse for AppError {
             AppError::NotFound => (StatusCode::NOT_FOUND, self.to_string()),
             AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
             AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg),
+            AppError::Unavailable(msg) => (StatusCode::SERVICE_UNAVAILABLE, msg),
             AppError::DbError => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
             AppError::Internal => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
         };

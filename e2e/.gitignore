@@ -1,0 +1,5 @@
+# Robot output — regenerated on every run
+results/
+# Local overrides, including credentials
+config.local.yaml
+config/config.local.yaml

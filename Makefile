@@ -22,6 +22,8 @@ help:
 	@echo "  down   Stop and remove docker-compose services"
 	@echo "  check          Check code without building"
 	@echo "  test           Run tests"
+	@echo "  e2e-install    Install the Robot Framework e2e suite (one-time)"
+	@echo "  e2e            Run the e2e UI tests against a running stack"
 	@echo "  clean          Clean build artifacts"
 
 .PHONY: build
@@ -66,6 +68,17 @@ check:
 .PHONY: test
 test:
 	cargo test
+
+# End-to-end UI tests (Robot Framework). Need a running stack — gateway, UI,
+# backend and Keycloak. See e2e/README.md. Pass extra Robot arguments through
+# ARGS, e.g. make e2e ARGS="-v BASE_URL:https://staging.example".
+.PHONY: e2e-install
+e2e-install:
+	$(MAKE) -C e2e install
+
+.PHONY: e2e
+e2e:
+	$(MAKE) -C e2e test $(if $(ARGS),ARGS="$(ARGS)",)
 
 .PHONY: clean
 clean:

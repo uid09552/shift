@@ -1,5 +1,13 @@
 use clap::{Parser, Subcommand};
-use shift::{broker, config::{self, CliArgs}, database, repository::AppState, server, telemetry};
+use shift::{
+    broker,
+    config::{self, CliArgs, KeycloakConfig},
+    database,
+    repository::AppState,
+    server,
+    services::keycloak::{KeycloakAdmin, KeycloakSettings},
+    telemetry,
+};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use url::Url;
@@ -72,6 +80,23 @@ enum Commands {
         #[arg(long)]
         tenant_id: Option<String>,
 
+        /// Keycloak base URL including its relative path, e.g. http://localhost:8080/auth.
+        /// Unset means user management is unavailable.
+        #[arg(long)]
+        keycloak_url: Option<String>,
+
+        /// Keycloak realm holding the users and organizations (default: shift)
+        #[arg(long)]
+        keycloak_realm: Option<String>,
+
+        /// Confidential client whose service account manages users (default: shift-gateway)
+        #[arg(long)]
+        keycloak_client_id: Option<String>,
+
+        /// Secret of that client
+        #[arg(long)]
+        keycloak_client_secret: Option<String>,
+
         /// OTLP endpoint to export traces and metrics to. Unset (and no
         /// OTEL_EXPORTER_OTLP_ENDPOINT) means no telemetry is exported.
         #[arg(long)]
@@ -107,6 +132,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             optimizer_url,
             dev_mode,
             tenant_id,
+            keycloak_url,
+            keycloak_realm,
+            keycloak_client_id,
+            keycloak_client_secret,
             otel_endpoint,
             otel_protocol,
             otel_service_name,
@@ -126,6 +155,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 optimizer_url,
                 dev_mode,
                 tenant_id,
+                keycloak_url,
+                keycloak_realm,
+                keycloak_client_id,
+                keycloak_client_secret,
                 otel_endpoint,
                 otel_protocol,
                 otel_service_name,
@@ -147,6 +180,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             println!("Optimizer: {}", config.optimizer.url);
             println!("Tenant: dev_mode={} tenant_id={}", config.tenant.dev_mode, config.tenant.tenant_id);
             println!(
+                "Keycloak: {}",
+                if keycloak_settings(&config.keycloak).is_some() {
+                    format!("{} (realm {})", config.keycloak.url, config.keycloak.realm)
+                } else {
+                    "not configured — user management is unavailable".to_string()
+                }
+            );
+            println!(
                 "Telemetry: {}",
                 if telemetry.enabled() {
                     format!("{} ({})", config.otel.endpoint, config.otel.protocol)
@@ -166,6 +207,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let mut state = AppState::with_nats(Arc::new(pool), broker_conn.client, broker_conn.jetstream_status, config.optimizer.url.clone());
             state.dev_mode = config.tenant.dev_mode;
             state.default_tenant_id = config.tenant.tenant_id.clone();
+            state.keycloak = keycloak_settings(&config.keycloak)
+                .map(|settings| Arc::new(KeycloakAdmin::new(settings)));
             let addr = format!("{}:{}", config.server.listen, config.server.port).parse::<SocketAddr>()?;
             server::start_server(state, addr).await?;
 
@@ -175,6 +218,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     Ok(())
+}
+
+/// The Keycloak connection to use, or `None` when the deployment configures none.
+/// User management is the only thing that needs it, so a missing configuration
+/// disables that rather than stopping the server.
+fn keycloak_settings(config: &KeycloakConfig) -> Option<KeycloakSettings> {
+    let settings = KeycloakSettings {
+        url: config.url.trim().to_string(),
+        realm: config.realm.trim().to_string(),
+        client_id: config.client_id.trim().to_string(),
+        client_secret: config.client_secret.clone(),
+    };
+    KeycloakAdmin::is_configured(&settings).then_some(settings)
 }
 
 pub fn mask_postgres_url(input: &str) -> Result<String, url::ParseError> {

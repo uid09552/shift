@@ -14,6 +14,7 @@ pub mod wishsettingsrepository;
 use std::sync::Arc;
 use crate::database::DbPool;
 use crate::broker::JetStreamStatus;
+use crate::services::keycloak::KeycloakAdmin;
 use self::employeerepository::{
     DieselCapabilityRepository,
     DieselEmployeeRepository,
@@ -55,6 +56,10 @@ pub struct AppState {
     pub optimizer_url: String,
     pub dev_mode: bool,
     pub default_tenant_id: String,
+    /// Keycloak admin connection backing the user-management endpoints. `None`
+    /// when the deployment configures no Keycloak — those endpoints then answer
+    /// 503 instead of the server refusing to start.
+    pub keycloak: Option<Arc<KeycloakAdmin>>,
 }
 
 impl AppState {
@@ -81,6 +86,7 @@ impl AppState {
             optimizer_url: "http://localhost:8888".to_string(),
             dev_mode: false,
             default_tenant_id: "0".to_string(),
+            keycloak: None,
         }
     }
 
@@ -107,6 +113,7 @@ impl AppState {
             optimizer_url,
             dev_mode: false,
             default_tenant_id: "0".to_string(),
+            keycloak: None,
         }
     }
 }

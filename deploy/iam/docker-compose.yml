@@ -9,6 +9,11 @@
 #   - Client (GW):     shift-gateway   — confidential client for APISIX
 #   - User:            admin / admin
 #
+# The shift-gateway service account carries the realm-management roles the
+# backend's user-management endpoints (/api/v1/users) need: view-realm and
+# manage-realm for the organization endpoints, view/query/manage-users for the
+# accounts and their role mappings.
+#
 # Admin UI:   http://localhost/auth/admin/
 # Admin user: admin / admin
 # Realm UI:   http://localhost/auth/realms/shift/account
