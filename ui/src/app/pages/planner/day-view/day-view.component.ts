@@ -452,17 +452,31 @@ export class DayViewComponent implements OnInit, OnDestroy {
 
   // ── Filters & summary ────────────────────────────────────────────
 
+  /**
+   * Somebody with hours on this day: a shift starting today, or the tail of one
+   * that started yesterday. An absence is not duty, however it is recorded.
+   */
+  private isOnDuty(row: GanttRow): boolean {
+    return row.bars.length > 0;
+  }
+
   private applyFilters(): void {
     const q = this.searchTerm.trim().toLowerCase();
     this.rows = this.allRows.filter((row) => {
       if (q && !row.employeeName.toLowerCase().includes(q)) return false;
-      if (this.onlyScheduled && row.bars.length === 0 && !row.absence) return false;
+      // "Only scheduled" means working, not merely accounted for. A confirmed
+      // plan usually exists for every employee on every day — most of them
+      // marked away — so a row having *an entry* says nothing; it has to have a
+      // shift on it.
+      if (this.onlyScheduled && !this.isOnDuty(row)) return false;
       return true;
     });
   }
 
   get onDutyCount(): number {
-    return this.rows.filter((r) => r.bars.some((b) => !b.continuedFromPrevDay)).length;
+    // The same test the filter uses, so the count in the header always matches
+    // the rows "Only scheduled" leaves on screen.
+    return this.rows.filter((row) => this.isOnDuty(row)).length;
   }
 
   get absentCount(): number {
