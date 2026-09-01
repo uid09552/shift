@@ -1,7 +1,7 @@
 ---
 type: Task Guide
 title: Reading and Adjusting the Schedule
-description: The three calendar views, which question each answers, how to change a single day, and what hand edits survive.
+description: The four calendar views, which question each answers, how to change a single day, and what hand edits survive.
 tags: [user-guide, calendars, roster, editing]
 status: stable
 generated:
@@ -13,17 +13,18 @@ sources:
     last_modified: 2026-07-31
 ---
 
-Once a roster is confirmed it appears in three calendars — the same information
-arranged three ways. Pick whichever answers the question you actually have.
+Once a roster is confirmed it appears in four calendars — the same information
+arranged four ways. Pick whichever answers the question you actually have.
 
 | View | Answers |
 |---|---|
 | **Schedule** | *Who is working, and when?* |
+| **Day View** | *Who is on the ward at three o'clock?* |
 | **Employee Calendar** | *What does one person's month look like?* |
 | **Workstation Calendar** | *Is this place adequately covered?* |
 
-All three are under **Planner**, and all three have an **Export Excel** button
-that saves exactly what you are looking at.
+All four are under **Planner**. The three grid views have an **Export Excel**
+button that saves exactly what you are looking at.
 
 # Schedule — the master roster
 
@@ -46,6 +47,31 @@ proposal.** There is a confirmation step before deleting, but not before changin
 Anything changed here is overwritten if someone later confirms a calculated plan
 covering the same dates. For a few corrections that is fine. For a large reshuffle
 it is safer to fix the underlying data — absences, availability — and recalculate.
+
+# Day View — one day, hour by hour
+
+One row per person, and across the top a 24-hour ruler rather than a row of days.
+Each shift is a coloured bar spanning the hours it actually runs, labelled with
+the shift and the workstation. This is the view for questions about *time of day*
+rather than about dates — who is on the ward mid-afternoon, whether the handover
+between late and night is covered, who is around when the CT list overruns.
+
+* **The bars are drawn from the shift's times for that weekday**, so a shift
+  configured differently on Saturdays is drawn differently on Saturdays.
+* **A shift running past midnight is cut off square at the right edge** and marked
+  ↦; its remainder appears at the left edge of the following day, marked ↤. A
+  night shift is therefore visible on both of the days it touches, which is how
+  the ward actually experiences it.
+* **Absences** stretch across the whole row in their own colour, labelled with the
+  reason.
+* **A red line marks the current time** when the day on screen is today.
+* **Zoom** (− / +) changes how many pixels an hour gets; the chart scrolls
+  sideways at every zoom level, with the name column pinned.
+* **Only scheduled** hides everyone with nothing that day, turning a long staff
+  list into just the people on duty.
+
+The header counts how many are on duty, how many are away, and the total planned
+hours for the day. Searching in the top bar filters the rows by name.
 
 # Employee Calendar — one person's month
 

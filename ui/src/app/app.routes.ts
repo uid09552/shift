@@ -5,6 +5,7 @@ import { AppLayoutComponent } from './shared/layout/app-layout/app-layout.compon
 import { SignInComponent } from './pages/auth-pages/sign-in/sign-in.component';
 import { SignUpComponent } from './pages/auth-pages/sign-up/sign-up.component';
 import { KalenderComponent } from './pages/planner/kalender/kalender.component';
+import { DayViewComponent } from './pages/planner/day-view/day-view.component';
 import { EmployeeCalendarComponent } from './pages/planner/employee-calendar/employee-calendar.component';
 import { WorkstationCalendarComponent } from './pages/planner/workstation-calendar/workstation-calendar.component';
 import { SchedulerComponent } from './pages/planner/scheduler/scheduler.component';
@@ -31,6 +32,11 @@ export const routes: Routes = [
         path:'kalender',
         component:KalenderComponent,
         title:'title.schedule'
+      },
+      {
+        path:'day-view',
+        component:DayViewComponent,
+        title:'title.dayView'
       },
       {
         path:'employee-calendar',

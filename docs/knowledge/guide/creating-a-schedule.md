@@ -1,7 +1,7 @@
 ---
 type: Task Guide
 title: Creating a Schedule
-description: The main workflow — set the period, calculate, review the proposal, fix days by hand, and confirm. Including what Take as Plan overwrites.
+description: The main workflow — set the period, calculate, review the proposal, fix days by hand, have it checked, and confirm. Including what Take as Plan overwrites.
 tags: [user-guide, planning, optimizer, workflow]
 status: stable
 generated:
@@ -24,8 +24,9 @@ flowchart LR
     E -->|No| F[Adjust and<br/>recalculate]
     F --> C
     E -->|Almost| G[Fix single days<br/>by hand]
-    G --> H[Take as Plan]
-    E -->|Yes| H
+    G --> V[Verify Plan]
+    E -->|Yes| V
+    V --> H[Take as Plan]
     H --> I[Confirmed roster]
 ```
 
@@ -108,7 +109,41 @@ Switch to the **Employees** view — hand editing only works there — and
 Right-clicking a *name* edits that person across the plan; a single square edits
 just that day. Edits apply to the proposal, so you can tidy it before confirming.
 
-# Step 6 — Confirm it
+# Step 6 — Have it checked
+
+Press **Verify Plan** and the assistant re-checks the proposal against every rule
+it was supposed to satisfy, and writes up what it finds.
+
+Worth doing on any plan you have hand-edited, because those edits go into the
+proposal without being checked against anything — nothing stops you putting
+someone on a shift they are not qualified for. It is also the quick way to
+understand a run that came back thinner than you expected.
+
+The report opens with a verdict:
+
+| Verdict | Meaning |
+|---|---|
+| **Clean** | Nothing found. Confirm it |
+| **Worth a look** | No rule is broken, but the planner traded something away — a workstation left short, a requested day off overridden, someone well off their hours |
+| **Rules broken** | Something in the plan breaks a hard rule. Fix it before confirming |
+
+Underneath, one entry per rule broken, each with a count and a few named examples
+— *"Too little rest between two shifts ×3 · Anna M. — Late on 12 Aug to Early on
+13 Aug: 8.0 h"* — followed by the assistant's short review of what to do about
+each.
+
+**The counting is exact, not the assistant's opinion.** Every rule is re-derived
+from the same data the planner was given: qualifications, absences, rest between
+shifts, recovery days after nights, consecutive and weekly day limits, staffing
+minimums and maximums. The assistant's part is explaining the result, not finding
+it. Asking the [assistant](/guide/using-the-assistant.md) in chat — *"is the
+latest plan OK?"* — runs the same check.
+
+A **Rules broken** verdict does not lock anything: you can still confirm the plan
+if you have a reason to. Nothing here is a gate, only the second opinion nobody
+has time to do by hand.
+
+# Step 7 — Confirm it
 
 Press **Take as Plan**.
 
@@ -147,6 +182,7 @@ press *Take as Plan*.
 
 # Related
 
+* Which rules are checked: [Constraint model](/solver/constraint-model.md)
 * Why it decided that: [Objective terms](/solver/objective-terms.md)
 * What happens underneath: [Planning pipeline](/architecture/planning-pipeline.md)
 * Something looks wrong: [User troubleshooting](/guide/troubleshooting-playbook.md)

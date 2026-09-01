@@ -1,17 +1,19 @@
 # Reading and adjusting the schedule
 
-Once a roster is confirmed it appears in three calendars. They show the same
-information arranged three different ways — pick whichever answers the
+Once a roster is confirmed it appears in four calendars. They show the same
+information arranged four different ways — pick whichever answers the
 question you actually have.
 
 | View | Answers |
 |---|---|
 | **Schedule** | *Who is working, and when?* |
+| **Day View** | *Who is on the ward at three o'clock?* |
 | **Employee Calendar** | *What does one person's month look like?* |
 | **Workstation Calendar** | *Is this place adequately covered?* |
 
-All three are under **Planner** in the menu, and all three have an **Export
-Excel** button in the top right that saves exactly what you are looking at.
+All four are under **Planner** in the menu. The three grid views have an
+**Export Excel** button in the top right that saves exactly what you are
+looking at.
 
 ---
 
@@ -49,6 +51,33 @@ changing.
     calculated plan covering the same dates. For a few corrections that is
     fine. For a large reshuffle, it is safer to fix the underlying data
     (absences, availability) and recalculate.
+
+---
+
+## Day View — one day, hour by hour
+
+One row per person, and across the top a 24-hour ruler instead of a row of days.
+Each shift is a coloured bar spanning the hours it actually runs, labelled with
+the shift and the workstation.
+
+This is the view for questions about *time of day* rather than dates: who is on
+the ward mid-afternoon, whether the handover between late and night is covered,
+who is around if the CT list overruns.
+
+- **A shift running past midnight** is cut off square at the right-hand edge and
+  marked ↦; the rest of it appears at the left edge of the next day, marked ↤.
+  A night shift is visible on both days it touches, the way the ward experiences
+  it.
+- **Absences** stretch across the whole row in their own colour, with the reason
+  written in.
+- **A red line marks the current time** when you are looking at today.
+- **− and +** zoom the hours in and out; the chart scrolls sideways at any zoom,
+  with the names pinned on the left.
+- **Only scheduled** hides everyone with nothing that day, leaving just the
+  people on duty.
+
+The header counts how many are on duty, how many are away, and the total hours
+planned for the day. The search box in the top bar filters by name.
 
 ---
 

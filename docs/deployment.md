@@ -195,6 +195,43 @@ Dependency List) and `artifacts:reports:container_scanning`. Those widgets are
 GitLab Ultimate features; on other tiers the files are still downloadable as
 ordinary job artifacts, kept for one month.
 
+### Scheduled re-scan of published images
+
+A build-time scan only knows the CVEs that existed the day it ran. An image that
+passed last week can be vulnerable today without a line of code changing, and
+nothing in a commit-triggered pipeline will ever notice — the pipeline only runs
+when someone pushes.
+
+`scan:published` closes that: on a schedule it re-scans the images **already in
+the registry** (`:latest`, i.e. what a deployment following `deploy/Makefile`
+actually runs) against the current vulnerability database.
+
+It does not rebuild, and needs no Docker daemon — Trivy reads the image straight
+out of the registry over the API, so the job runs on the `aquasec/trivy` image
+rather than the dind-based `.build`. It emits no SBOM either: the image has not
+changed, so it would be byte-for-byte the one `build` already published. Only
+the database moved.
+
+Set it up once, in *Build → Pipeline schedules → New schedule*, on the default
+branch:
+
+| Field | Value |
+|---|---|
+| Interval pattern | `0 3 * * *` (nightly at 03:00) |
+| Target branch | the default branch |
+
+**GitLab notifies the schedule's owner when a scheduled pipeline fails — that is
+the entire delivery mechanism.** Hence `RESCAN_EXIT_CODE` defaults to `1`: a
+nightly run that always passes tells nobody anything.
+
+The job is also available as a manual button on the default branch, for when a
+CVE lands in the news and 3am is not soon enough. Started that way it is
+`allow_failure: true`, so an ad-hoc check does not turn the branch red.
+
+On a scheduled run, `build`, `pages` and `docs:build` are skipped — there is
+nothing to rebuild or republish — while `sbom:source` *does* run, under the same
+stricter gate, because the lockfiles' dependencies age the same way.
+
 ### The scan gate
 
 Findings are reported but do **not** fail the pipeline by default:
@@ -203,6 +240,7 @@ Findings are reported but do **not** fail the pipeline by default:
 |---|---|---|
 | `SCAN_SEVERITY` | `HIGH,CRITICAL` | Severities the gate considers. The report and SBOM always cover all severities. |
 | `SCAN_EXIT_CODE` | `0` | `0` reports only; set to `1` to fail the job on a matching finding. |
+| `RESCAN_EXIT_CODE` | `1` | The same, for scheduled re-scans. Defaults to failing on purpose — see above. |
 | `TRIVY_VERSION` | `0.72.0` | Scanner version; bumping it invalidates the cached binary. |
 
 To enforce, set `SCAN_EXIT_CODE` to `1` in the file or as a project CI variable
@@ -222,6 +260,10 @@ Reproduce a job locally:
 ```bash
 trivy image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed shift/backend:latest
 trivy fs --format cyclonedx --output sbom.cdx.json --skip-dirs ui,planner,agent,target .
+
+# What the scheduled re-scan does, against the registry rather than a local image
+trivy image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed \
+  registry.gitlab.com/<group>/<project>/backend:latest
 ```
 
 ### Pages stage

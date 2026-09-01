@@ -14,7 +14,11 @@ Three sources of tools, and the split matters:
   - the roster upload (roster.py), for reading a shift plan out of a file the
     user attached. Its writes still go to the backend through MCP — the tools
     exist because the *grid* must not pass through the model, only the layout
-    it declares for it.
+    it declares for it;
+  - the plan check (validation.py), for *verifying* a proposed plan against the
+    rules it was solved under. Same reason as the roster: counting rest gaps
+    across a month of assignments is arithmetic, and the model's job is to
+    explain the result, not to derive it.
 
 Context: the history of a session grows without bound (every tool result is
 kept), so what goes to the model each turn is capped at the configured window —
@@ -54,6 +58,7 @@ from shift_agent.agent.client import MCPClient
 from shift_agent.agent.clock import build_clock_tools
 from shift_agent.agent.knowledge import build_knowledge_tools
 from shift_agent.agent.roster import build_roster_tools
+from shift_agent.agent.validation import build_validation_tools
 
 logger = logging.getLogger(__name__)
 
@@ -94,8 +99,9 @@ Your remaining tools come from the Shift Planner backend API — one per API \
 operation, named after it. The ones you will need most:
 
 - **navigate**: Send the user's browser to a page in the app (dashboard, schedule, \
-  employee_calendar, workstation_calendar, scheduler, user_profiles, shifts, \
-  workstations, capabilities, planner_settings, wish_settings).
+  day_view, employee_calendar, workstation_calendar, scheduler, user_profiles, \
+  shifts, workstations, capabilities, planner_settings, wish_settings). \
+  day_view is the hour-by-hour Gantt chart of one day — who is on the ward when.
 - **listShifts**: List all configured shift types.
 - **listWorkstations**: List all workstations/departments.
 - **listCapabilities**: List all capabilities/skills.
@@ -111,6 +117,11 @@ operation, named after it. The ones you will need most:
   workstation* per day. Only when the user asks about workstations or \
   departments — it leaves out anyone rostered without a workstation, so its \
   numbers do not add up to the day's head count.
+- **validateOptimizedPlan**: Check a proposed (optimized) plan against the ward's \
+  rules and get back every violation, counted exactly. Use it whenever the user \
+  asks whether a plan is correct, safe or confirmable; get the id from \
+  listOptimizedShifts (newest first) unless they gave you one. Report what comes \
+  back — the counting is already done, so explain and advise rather than recheck.
 - **getPlannerSettings**: Get the current optimizer settings.
 - **updatePlannerSettings**: Update optimizer settings (call getPlannerSettings \
   first to get current values, then change only what the user asked).
@@ -180,7 +191,7 @@ not a documentation lookup.
 """
 
 
-def _build_llm() -> BaseChatModel:
+def build_llm() -> BaseChatModel:
     """Build the chat model based on the configured provider."""
     provider = settings.llm_provider
 
@@ -355,6 +366,7 @@ def build_graph(knowledge_path: str | None = None) -> Any:
     local_tools = [
         *build_clock_tools(),
         *build_roster_tools(mcp_client.call_sync),
+        *build_validation_tools(mcp_client.call_sync),
         *knowledge_tools,
     ]
 
@@ -388,7 +400,7 @@ async def connect_mcp(state: dict) -> Any:
     tools = [*local_tools, *mcp_tools]
 
     # Build the LLM with tools bound
-    llm = _build_llm()
+    llm = build_llm()
     llm_with_tools = llm.bind_tools(tools)
 
     # Wire up the graph

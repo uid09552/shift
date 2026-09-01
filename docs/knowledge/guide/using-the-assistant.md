@@ -20,7 +20,7 @@ menus.
 # What it can do
 
 The assistant uses the same functions the screens use, and it can read this
-documentation, so requests fall into five sorts:
+documentation, so requests fall into six sorts:
 
 **Take me somewhere.**
 > *"Open the planner settings."* · *"Show me the workstation calendar."*
@@ -39,6 +39,14 @@ The page changes underneath the chat window.
 > people, the dates and the shifts, shows you what it read, and asks before
 > taking it as shift assignments. See [Importing a
 > roster](/guide/importing-a-roster.md).
+
+**Check a plan for me.**
+> *"Is the latest plan OK?"* · *"Does anything in that plan break a rule?"*
+
+It re-checks a proposed plan against every rule the planner was solving under and
+reports what it finds — the same check the **Verify Plan** button on the Schedule
+Optimizer runs, and the same numbers, because both call the same code. See
+[Creating a schedule](/guide/creating-a-schedule.md).
 
 **Explain something.**
 > *"How do I confirm a plan?"* · *"What does 'soft minimum' actually mean?"* · *"Why would the planner call a week infeasible?"* · *"What is the difference between a shift wish and an available shift?"*
@@ -73,6 +81,8 @@ Honest limits:
   [Gateway and identity](/architecture/gateway-and-identity.md).
 * **It cannot calculate a roster faster than the planner can.** Asking it to plan
   runs the same calculation, which takes as long as it takes.
+* **Its plan check counts, it does not judge.** It reports the rules a plan
+  breaks; whether a thin Sunday is acceptable on your ward is still your call.
 * **It only knows what is in the system.** No access to your email, your paper
   notes or last month's messages.
 * **Its explanations are only as current as the documentation.** If a page here

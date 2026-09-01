@@ -39,8 +39,8 @@ import { TranslatePipe } from '../../../i18n/translate.pipe';
 })
 export class CalendarNavComponent {
   @Input() label = '';
-  /** `week` or `month` — names the period the arrows step through. */
-  @Input() periodType: 'week' | 'month' = 'week';
+  /** `day`, `week` or `month` — names the period the arrows step through. */
+  @Input() periodType: 'day' | 'week' | 'month' = 'week';
   @Output() prev = new EventEmitter<void>();
   @Output() next = new EventEmitter<void>();
   @Output() today = new EventEmitter<void>();
@@ -48,10 +48,14 @@ export class CalendarNavComponent {
   // Separate keys per period rather than one parameterized phrase: German
   // adjective endings depend on the noun's gender.
   get previousLabelKey(): string {
-    return this.periodType === 'month' ? 'common.previousMonth' : 'common.previousWeek';
+    if (this.periodType === 'month') return 'common.previousMonth';
+    if (this.periodType === 'day') return 'common.previousDay';
+    return 'common.previousWeek';
   }
 
   get nextLabelKey(): string {
-    return this.periodType === 'month' ? 'common.nextMonth' : 'common.nextWeek';
+    if (this.periodType === 'month') return 'common.nextMonth';
+    if (this.periodType === 'day') return 'common.nextDay';
+    return 'common.nextWeek';
   }
 }

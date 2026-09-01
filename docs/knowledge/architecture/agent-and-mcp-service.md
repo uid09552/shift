@@ -35,18 +35,25 @@ Its main local capability is *this bundle*: three read-only tools over
 written documentation rather than from the model's own recollection. State comes
 from the API; explanation comes from here.
 
-The other local capability is the roster upload — reading a shift plan out of a
-file the user attached. Its writes still go through MCP; the local part exists
-because the file's *grid* must not pass through the model, only the layout the
-model declares for it.
+Two more local capabilities follow the same rule, for the same reason — the bulk
+data stays out of the model, and only the judgement goes in:
+
+* the **roster upload**, reading a shift plan out of a file the user attached. Its
+  writes still go through MCP; the local part exists because the file's *grid*
+  must not pass through the model, only the layout the model declares for it.
+* the **plan check** (`validation.py`), re-deriving every rule a proposed plan was
+  solved under and counting what it breaks. The model explains the findings; it
+  does not find them.
 
 ```mermaid
 flowchart TB
-    W["Chat widget<br/>POST /api/v1/chat<br/>POST /api/v1/chat/upload"] --> S["agent/server.py<br/>Flask + Keycloak verification"]
+    W["Chat widget · Scheduler page<br/>POST /api/v1/chat<br/>POST /api/v1/chat/upload<br/>POST /api/v1/plan/validate"] --> S["agent/server.py<br/>Flask + Keycloak verification"]
     S --> G["agent/graph.py<br/>ReAct loop, MemorySaver"]
     G <--> K["agent/knowledge.py<br/>this bundle, in-process"]
     G <--> D["agent/roster.py<br/>uploaded grid, per session"]
+    G <--> V["agent/validation.py<br/>rules re-derived, counted"]
     D --> C
+    V --> C
     G <--> C["agent/client.py<br/>MCP client"]
     C -->|"streamable HTTP<br/>Authorization: Bearer"| M["mcp/server.py<br/>FastMCP.from_openapi()"]
     M --> B["Rust backend REST API"]
@@ -62,6 +69,7 @@ flowchart TB
 | `knowledge.py` | The agent's own tools over this bundle — `searchKnowledge`, `readKnowledgeDoc`, `listKnowledgeTopics`. |
 | `documents.py` | Reduces an uploaded PDF/CSV/XLSX to sheets of cell strings. Interprets nothing. |
 | `roster.py` | `previewRosterUpload` / `interpretRosterUpload` / `applyRosterUpload`, over a per-session store of uploaded grids. |
+| `validation.py` | `validateOptimizedPlan`, and the `POST /plan/validate` endpoint behind the scheduler's **Verify Plan** button. Checks a proposed plan against the rules; no LLM in the checking. |
 | `server.py` | HTTP surface. Verifies the caller's token against Keycloak's JWKS, then stores it in a contextvar for the duration of the call. |
 | `auth.py` | Keycloak verification plus the contextvar holding the token. |
 
@@ -73,6 +81,17 @@ to `POST /shift-assignments/import` through the MCP client, first with `dry_run`
 so the agent can show its reading and ask, then for real once the user agrees.
 See [Importing a roster](/guide/importing-a-roster.md) for the user's view and
 [Shift assignment](/concepts/shift-assignment.md) for what gets created.
+
+`validation.py` fetches two things through MCP — the stored result
+(`getOptimizedShift`) and the rules for its period (`preparePlan`, the same
+payload the optimizer was handed) — and re-derives every hard constraint of the
+CP-SAT model from them in Python: one shift a day, qualifications, absences,
+minimum rest, recovery days, consecutive and weekly day limits, staffing
+maximums. The soft ones the solver may trade away — staffing minimums, preferred
+days off, hours targets — come back as warnings rather than breaches. Only then
+is the finished report handed to a plain LLM call (no tools, no history) to be
+written up, so a check run twice on an unchanged plan cannot disagree with
+itself. The same code serves the chat tool and the button.
 
 One design point worth understanding: `client.py` opens a **fresh short-lived MCP
 session per tool call**. A long-lived session would fix its headers at connect

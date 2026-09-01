@@ -179,6 +179,27 @@
               <span>{{ 'scheduler.takeAsPlan' | t }}</span>
             }
           </button>
+
+          <!-- Have the assistant check the plan against the ward's rules -->
+          <button
+            (click)="verifyPlan()"
+            [disabled]="validating"
+            class="flex items-center gap-2 rounded-lg border border-violet-300 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-violet-700 dark:bg-violet-500/10 dark:text-violet-400 dark:hover:bg-violet-500/20"
+            [title]="'scheduler.verifyPlanTitle' | t"
+          >
+            @if (validating) {
+              <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+                <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
+              </svg>
+              <span>{{ 'scheduler.verifying' | t }}</span>
+            } @else {
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline>
+              </svg>
+              <span>{{ 'scheduler.verifyPlan' | t }}</span>
+            }
+          </button>
         }
 
         <button (click)="showTaskList = !showTaskList" class="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]" [class.bg-gray-50]="showTaskList">
@@ -463,6 +484,153 @@
         >
           {{ 'common.save' | t }}
         </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Plan verification report -->
+@if (showValidation) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" (click)="closeValidation()">
+    <div class="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-xl bg-white shadow-xl dark:bg-gray-900" (click)="$event.stopPropagation()">
+      <!-- Header -->
+      <div class="flex items-start justify-between border-b border-gray-100 px-6 py-4 dark:border-white/[0.05]">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'scheduler.verifyHeading' | t }}</h3>
+          @if (validationReport) {
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ 'scheduler.period' | t: {
+                from: formatDateLabel(validationReport.planning_period.start_date),
+                to: formatDateLabel(validationReport.planning_period.end_date)
+              } }}
+            </p>
+          }
+        </div>
+        <div class="flex items-center gap-3">
+          @if (validationReport) {
+            <span
+              class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+              [class.bg-green-100]="validationReport.verdict === 'valid'"
+              [class.text-green-800]="validationReport.verdict === 'valid'"
+              [class.dark:bg-green-900/30]="validationReport.verdict === 'valid'"
+              [class.dark:text-green-400]="validationReport.verdict === 'valid'"
+              [class.bg-amber-100]="validationReport.verdict === 'issues'"
+              [class.text-amber-800]="validationReport.verdict === 'issues'"
+              [class.dark:bg-amber-900/30]="validationReport.verdict === 'issues'"
+              [class.dark:text-amber-400]="validationReport.verdict === 'issues'"
+              [class.bg-red-100]="validationReport.verdict === 'invalid'"
+              [class.text-red-800]="validationReport.verdict === 'invalid'"
+              [class.dark:bg-red-900/30]="validationReport.verdict === 'invalid'"
+              [class.dark:text-red-400]="validationReport.verdict === 'invalid'"
+            >{{ verdictKey | t }}</span>
+          }
+          <button (click)="closeValidation()" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800" [attr.aria-label]="'common.close' | t">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div class="flex-1 overflow-y-auto px-6 py-5">
+        @if (validating) {
+          <div class="flex items-center justify-center gap-2 py-16 text-gray-400 dark:text-gray-500">
+            <svg class="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+              <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
+            </svg>
+            <span class="text-sm">{{ 'scheduler.verifyRunning' | t }}</span>
+          </div>
+        } @else if (validationError) {
+          <div class="flex items-center gap-2 rounded-lg bg-red-50 px-4 py-3 dark:bg-red-500/10">
+            <svg class="h-5 w-5 shrink-0 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span class="text-sm text-red-600 dark:text-red-400">{{ validationError }}</span>
+          </div>
+        } @else if (validationReport) {
+          <!-- Counts -->
+          <div class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div class="rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-700">
+              <div class="text-lg font-semibold text-red-600 dark:text-red-400">{{ validationReport.error_count }}</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">{{ 'scheduler.verifyErrors' | t }}</div>
+            </div>
+            <div class="rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-700">
+              <div class="text-lg font-semibold text-amber-600 dark:text-amber-400">{{ validationReport.warning_count }}</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">{{ 'scheduler.verifyWarnings' | t }}</div>
+            </div>
+            <div class="rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-700">
+              <div class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ validationReport.stats.assignments }}</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">{{ 'scheduler.verifyAssignments' | t }}</div>
+            </div>
+            <div class="rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-700">
+              <div class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ validationReport.stats.wishes_fulfilled }}/{{ validationReport.stats.wishes_total }}</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">{{ 'scheduler.verifyWishes' | t }}</div>
+            </div>
+          </div>
+
+          <!-- The assistant's review -->
+          @if (validationSummaryHtml) {
+            <div class="mb-5 rounded-lg border border-violet-200 bg-violet-50/60 px-4 py-3 dark:border-violet-800 dark:bg-violet-500/10">
+              <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">{{ 'scheduler.verifyReview' | t }}</div>
+              <div class="validation-review text-sm text-gray-700 dark:text-gray-300" [innerHTML]="validationSummaryHtml"></div>
+            </div>
+          }
+
+          <!-- Findings -->
+          @if (validationReport.findings.length === 0) {
+            <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-800 dark:bg-green-500/10 dark:text-green-400">
+              {{ 'scheduler.verifyNoFindings' | t }}
+            </div>
+          } @else {
+            <div class="space-y-3">
+              @for (finding of validationReport.findings; track finding.rule) {
+                <div
+                  class="rounded-lg border-l-4 border border-gray-200 px-4 py-3 dark:border-gray-700"
+                  [class.border-l-red-500]="finding.severity === 'error'"
+                  [class.border-l-amber-500]="finding.severity === 'warning'"
+                >
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <span class="text-sm font-semibold text-gray-800 dark:text-white/90">{{ finding.title }}</span>
+                    <span
+                      class="rounded-full px-2 py-0.5 text-xs font-medium"
+                      [class.bg-red-100]="finding.severity === 'error'"
+                      [class.text-red-700]="finding.severity === 'error'"
+                      [class.dark:bg-red-900/30]="finding.severity === 'error'"
+                      [class.dark:text-red-400]="finding.severity === 'error'"
+                      [class.bg-amber-100]="finding.severity === 'warning'"
+                      [class.text-amber-700]="finding.severity === 'warning'"
+                      [class.dark:bg-amber-900/30]="finding.severity === 'warning'"
+                      [class.dark:text-amber-400]="finding.severity === 'warning'"
+                    >{{ finding.count }}×</span>
+                  </div>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ finding.detail }}</p>
+                  <ul class="mt-2 space-y-1">
+                    @for (example of finding.examples; track example) {
+                      <li class="text-xs text-gray-600 dark:text-gray-300">· {{ example }}</li>
+                    }
+                    @if (finding.more) {
+                      <li class="text-xs italic text-gray-400 dark:text-gray-500">{{ 'scheduler.verifyMore' | t: { count: finding.more } }}</li>
+                    }
+                  </ul>
+                </div>
+              }
+            </div>
+          }
+        }
+      </div>
+
+      <!-- Footer -->
+      <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-white/[0.05]">
+        <button (click)="closeValidation()" class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]">
+          {{ 'common.close' | t }}
+        </button>
+        @if (validationReport && validationReport.verdict !== 'invalid') {
+          <button (click)="closeValidation(); takeAsPlan()" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700">
+            {{ 'scheduler.takeAsPlan' | t }}
+          </button>
+        }
       </div>
     </div>
   </div>

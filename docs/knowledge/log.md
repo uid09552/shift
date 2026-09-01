@@ -1,5 +1,29 @@
 # Bundle Update Log
 
+## 2026-08-31
+
+* **Change**: A proposed plan can now be checked before it is confirmed. New
+  agent module `agent/shift_agent/agent/validation.py` re-derives every hard
+  constraint of the CP-SAT model from `getOptimizedShift` plus `preparePlan` and
+  counts what the plan breaks; the model only writes the findings up. Reached
+  from the **Verify Plan** button on the Schedule Optimizer
+  (`POST /api/v1/plan/validate` on the agent), from the chat
+  (`validateOptimizedPlan`), and from the terminal (`shift-agent validate`).
+* **Change**: New **Day View** calendar (`/day-view`) — one day as an hourly
+  Gantt chart, people down the left, shifts as coloured bars across a 24-hour
+  ruler, night shifts drawn on both days they touch.
+* **Revision**: [Creating a schedule](/guide/creating-a-schedule.md) — the check
+  as step 6, the three verdicts, and why the counting is not the assistant's
+  opinion.
+* **Revision**: [Reading calendars](/guide/reading-calendars.md) — the day view
+  as a fourth calendar, and what its bars and midnight markers mean.
+* **Revision**: [Using the assistant](/guide/using-the-assistant.md) — "check a
+  plan for me" as a sixth kind of request, plus the limit that it counts rather
+  than judges.
+* **Revision**: [Agent and MCP service](/architecture/agent-and-mcp-service.md) —
+  the third local capability, and the split between counting in Python and
+  explaining in the model.
+
 ## 2026-08-23
 
 * **Change**: The chat assistant can now read an existing roster out of an

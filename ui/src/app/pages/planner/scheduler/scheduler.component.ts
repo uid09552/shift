@@ -24,6 +24,11 @@ import {
   DailyPlanEntry,
 } from '../../../shared/services/planner.service';
 import { Subscription, interval, forkJoin, of } from 'rxjs';
+import { Marked } from 'marked';
+import {
+  PlanValidationService,
+  PlanValidationReport,
+} from '../../../shared/services/plan-validation.service';
 import { switchMap, takeWhile, startWith } from 'rxjs/operators';
 import {
   EmployeeService,
@@ -49,6 +54,10 @@ interface CellDetail {
   date: Date;
   cell: CalendarTableCellData;
 }
+
+// The assistant answers in markdown; its own instance rather than the `marked`
+// singleton so these options stay local to this screen.
+const markdown = new Marked({ gfm: true, breaks: true });
 
 @Component({
   selector: 'app-scheduler',
@@ -135,6 +144,14 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   // Mass selection (employee view rows) for bulk edit operations
   editSelectedIds = new Set<string>();
 
+  // ── Verification (assistant) ─────────────────────────────────────
+  validating = false;
+  showValidation = false;
+  validationReport: PlanValidationReport | null = null;
+  /** The assistant's markdown review, rendered for [innerHTML]. */
+  validationSummaryHtml = '';
+  validationError: string | null = null;
+
   // Edit assignment modal
   showEditAssignment = false;
   editingAssignment: {
@@ -152,6 +169,7 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     private globalSearchService: GlobalSearchService,
     private shiftService: ShiftService,
     private workstationService: WorkstationService,
+    private planValidationService: PlanValidationService,
     private contextMenuService: ContextMenuService,
     private confirmDialogService: ConfirmDialogService,
     private translations: TranslationService,
@@ -621,6 +639,49 @@ export class SchedulerComponent implements OnInit, OnDestroy {
         this.takePlanError = err?.error?.error ?? 'Failed to take this result as the confirmed plan.';
       },
     });
+  }
+
+  // ── Verification (assistant) ─────────────────────────────────────
+
+  /**
+   * Has the assistant check the displayed plan against the ward's rules.
+   *
+   * Runs against whatever is stored for this result — edits are persisted as
+   * they are made (see commitScheduleChange), so the check always covers what
+   * is on screen rather than the solver's original answer.
+   */
+  verifyPlan(): void {
+    if (!this.selectedResult || this.validating) return;
+
+    this.validating = true;
+    this.validationError = null;
+    this.validationReport = null;
+    this.validationSummaryHtml = '';
+    this.showValidation = true;
+
+    this.planValidationService.validatePlan(this.selectedResult.id).subscribe({
+      next: (report) => {
+        this.validating = false;
+        this.validationReport = report;
+        this.validationSummaryHtml = report.summary
+          ? (markdown.parse(report.summary, { async: false }) as string)
+          : '';
+      },
+      error: (err: { error?: { error?: string } }) => {
+        this.validating = false;
+        // The agent explains what it could not reach in words worth passing on.
+        this.validationError = err?.error?.error ?? this.translations.t('scheduler.verifyFailed');
+      },
+    });
+  }
+
+  closeValidation(): void {
+    this.showValidation = false;
+  }
+
+  /** Translation key for the verdict badge. */
+  get verdictKey(): string {
+    return `scheduler.verdict.${this.validationReport?.verdict ?? 'valid'}`;
   }
 
   // ── Modal ─────────────────────────────────────────────────────────

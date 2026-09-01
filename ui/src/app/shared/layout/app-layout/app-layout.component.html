@@ -3,8 +3,12 @@
     <app-sidebar></app-sidebar>
     <app-backdrop></app-backdrop>
   </div>
+  <!-- min-w-0: a flex item's automatic minimum size is its content's, which lets a
+       wide page (the day view's Gantt chart, a monthly grid) stretch the whole
+       layout and hand the browser a page-level horizontal scrollbar instead of
+       letting the page's own scroll container do its job. -->
   <div
-      class="flex-1 transition-all duration-300 ease-in-out"
+      class="min-w-0 flex-1 transition-all duration-300 ease-in-out"
       [ngClass]="{
         'xl:ml-[290px]': (isExpanded$ | async) || (isHovered$ | async),
         'xl:ml-[90px]': !(isExpanded$ | async) && !(isHovered$ | async),

@@ -6,11 +6,13 @@ HTTP API server that the website talks to.
 Usage:
     shift-agent chat
     shift-agent api --host 0.0.0.0 --port 8899
+    shift-agent validate <optimizer-result-id>
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import sys
 
@@ -160,6 +162,54 @@ def knowledge(query, knowledge_path, limit):
     for entry in results:
         click.echo(f"\n{entry['score']:>7}  {entry['path']} — {entry['title']}")
         click.echo(f"         {entry['snippet']}")
+
+
+@cli.command()
+@click.argument("result_id")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Print the raw report instead of a summary.")
+@click.option("--explain/--no-explain", default=True, help="Have the LLM write up the findings (default: on).")
+def validate(result_id, as_json, explain):
+    """Check a proposed shift plan (RESULT_ID) against the ward's rules.
+
+    The same check the scheduler page's "Verify Plan" button runs — useful for
+    inspecting a plan without a browser, or for seeing what the agent would
+    report. Needs the MCP server reachable (MCP_SERVER_URL) and a token to
+    reach the backend with (BACKEND_ACCESS_TOKEN).
+    """
+    from shift_agent.agent import validation
+    from shift_agent.agent.client import MCPClient
+
+    client = MCPClient()
+    try:
+        rules, result, capability_names = validation.collect(client.call_sync, result_id)
+    except validation.ValidationError as exc:
+        raise click.ClickException(str(exc))
+
+    report = validation.validate(rules, result, capability_names)
+    report["result_id"] = result_id
+    report["headline"] = validation.headline(report)
+
+    if explain:
+        from shift_agent.agent.graph import build_llm
+
+        try:
+            report["summary"] = validation.narrate(report, build_llm())
+        except Exception as exc:
+            logger.warning("No LLM for the write-up: %s", exc)
+
+    if as_json:
+        click.echo(json.dumps(report, indent=2, default=str))
+        return
+
+    click.echo(f"\n{report['verdict'].upper()}: {report['headline']}")
+    for finding in report["findings"]:
+        click.echo(f"\n[{finding['severity']}] {finding['rule']} ×{finding['count']} — {finding['title']}")
+        for example in finding["examples"]:
+            click.echo(f"    · {example}")
+        if finding.get("more"):
+            click.echo(f"    … and {finding['more']} more")
+    if report.get("summary"):
+        click.echo(f"\n{report['summary']}")
 
 
 @cli.command()

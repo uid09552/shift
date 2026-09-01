@@ -15,8 +15,9 @@ becomes available to the agent without a line of agent code.
 Two sub-packages, one process each, and only a token crossing between them:
 
 ```
-Website chat widget
+Website chat widget · scheduler page
         │  POST /api/v1/chat  { message, session_id }
+        │  POST /api/v1/plan/validate  { result_id }
         │  Authorization: Bearer <keycloak-token>
         │  X-Access-Token: <token>  (set by APISIX in front of this route)
         ▼
@@ -65,6 +66,19 @@ Website chat widget
   session can't work, since its headers are fixed at connect time while the
   graph is a process-wide singleton shared by every user.
 
+- **`validation.py`** — checking a *proposed* plan against the rules it was
+  solved under: `POST /api/v1/plan/validate` behind the scheduler page's **Verify
+  Plan** button, and `validateOptimizedPlan` for the chat. It fetches the stored
+  result (`getOptimizedShift`) and the rules for its period (`preparePlan` — the
+  same payload the optimizer gets) through MCP, then re-derives every hard
+  constraint of the CP-SAT model in Python: one shift a day, qualifications,
+  absences, minimum rest, recovery days, consecutive and weekly day limits,
+  staffing maximums. Soft constraints the solver may trade away — staffing
+  minimums, preferred days off, hours targets — come back as warnings. **The
+  counting never goes near the model**; only the finished report does, in one
+  plain LLM call that writes it up. Two checks of an unchanged plan therefore
+  cannot disagree about what is wrong with it.
+
 - **`server.py`** — the HTTP surface the website talks to. Validates the
   caller's token against Keycloak's JWKS endpoint, then puts it in `auth.py`'s
   per-request contextvar for the duration of the agent call.
@@ -90,7 +104,8 @@ Website chat widget
 
 - **`cli.py`** — `shift-agent chat` for local testing, `shift-agent api` to
   start the chat server, `shift-agent mcp` to start the MCP server,
-  `shift-agent knowledge` to inspect the documentation bundle.
+  `shift-agent knowledge` to inspect the documentation bundle,
+  `shift-agent validate` to check a plan from the terminal.
 
 ## Knowledge base
 
@@ -251,6 +266,26 @@ curl -X POST http://localhost:8899/api/v1/chat \
   -d '{"message": "what are the current optimizer settings?"}'
 ```
 
+### Checking a plan
+
+```bash
+curl -X POST http://localhost:8899/api/v1/plan/validate \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"result_id": "0f2c…"}'
+# { "verdict": "issues", "error_count": 0, "warning_count": 4,
+#   "findings": [ … ], "headline": "…", "summary": "…" }
+```
+
+`verdict` is `valid` (nothing found), `issues` (soft warnings only) or `invalid`
+(a hard rule is broken). Each finding collapses every breach of one rule into a
+count plus up to five named examples. Same thing from the terminal:
+
+```bash
+uv run shift-agent validate <result-id>          # readable summary
+uv run shift-agent validate <result-id> --json   # the raw report
+```
+
 In dev mode (no Keycloak configured), the endpoint accepts requests without
 authentication.
 
@@ -263,6 +298,9 @@ authentication.
   you've set an allowlist).
 - **New navigable page**: add it to `mcp/server.py`'s `KNOWN_PAGES` and to
   `ui/src/app/app.routes.ts`.
+- **New rule checked in a plan**: add a `_check_*` method to `_Validator` in
+  `agent/validation.py` and call it from `run()`, mirroring the constraint it
+  comes from in `../planner/shift_planner/optimizer.py`.
 - **Persistent conversation history**: swap `MemorySaver` in `agent/graph.py`
   for `langgraph.checkpoint.sqlite.SqliteSaver` or
   `langgraph.checkpoint.postgres.PostgresSaver`.

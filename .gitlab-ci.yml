@@ -17,6 +17,9 @@
 #
 # Security scanning: Trivy scans each image inside its build job, and the
 # `sbom:source` jobs scan the committed lockfiles. Both emit CycloneDX SBOMs.
+# A build-time scan only reflects what was known that day, so `scan:published`
+# re-scans the images already in the registry on a schedule — see the block
+# above that job.
 
 stages:
   - build
@@ -33,12 +36,20 @@ variables:
   # finding at SCAN_SEVERITY fail the job — for `build`, that means failing
   # before the image is pushed.
   SCAN_EXIT_CODE: "0"
+  # The same gate, for scheduled re-scans only. Defaulted to 1 on purpose: a
+  # nightly run that always passes tells nobody anything, and a failed
+  # scheduled pipeline is what GitLab actually notifies on. It fires only on
+  # fixable findings (--ignore-unfixed), i.e. ones a rebuild would resolve.
+  RESCAN_EXIT_CODE: "1"
   # Deliberately *not* named TRIVY_SEVERITY / TRIVY_EXIT_CODE: Trivy reads
   # those from the environment automatically, which would silently apply the
   # gate's severity filter to the full report and SBOM as well.
 
 workflow:
   rules:
+    # Scheduled re-scans, first so they cannot be caught by the
+    # $CI_OPEN_MERGE_REQUESTS rule below and dropped.
+    - if: $CI_PIPELINE_SOURCE == "schedule"
     # Merge request pipelines...
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     # ...but no duplicate branch pipeline while an MR is open for it.
@@ -46,6 +57,27 @@ workflow:
       when: never
     - if: $CI_COMMIT_BRANCH
     - if: $CI_COMMIT_TAG
+
+# The registry path both the build and the re-scan address. CI_REGISTRY_IMAGE is
+# only defined when the *project's* Container Registry is enabled (Settings >
+# General > Visibility). CI_REGISTRY is defined whenever the instance has one,
+# so login can succeed while CI_REGISTRY_IMAGE is still empty — which silently
+# produced the invalid tag "/$COMPONENT:$sha". Derive the base from CI_REGISTRY
+# and the project path when it is missing, and refuse to go on if neither is
+# available. Sets $IMAGE for the job that references it.
+.registry-base:
+  script:
+    - |
+      REGISTRY_BASE="${CI_REGISTRY_IMAGE:-${CI_REGISTRY:+$CI_REGISTRY/$CI_PROJECT_PATH}}"
+      # Docker references must be lowercase; CI_PROJECT_PATH need not be.
+      REGISTRY_BASE="$(echo "$REGISTRY_BASE" | tr '[:upper:]' '[:lower:]')"
+      if [ -z "$REGISTRY_BASE" ]; then
+        echo "Neither CI_REGISTRY_IMAGE nor CI_REGISTRY is set." >&2
+        echo "Enable the project's Container Registry under Settings > General > Visibility." >&2
+        exit 1
+      fi
+      export IMAGE="$REGISTRY_BASE/$COMPONENT"
+      echo "Target image: $IMAGE"
 
 .build:
   stage: build
@@ -118,22 +150,15 @@ workflow:
       # scan steps below.
       export PATH="$TRIVY_BIN_DIR:$PATH"
       trivy --version
+  # Scheduled pipelines exist to re-scan what is already published; rebuilding
+  # the same commit every night would only burn runner minutes.
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - when: on_success
   script:
-    # CI_REGISTRY_IMAGE is only defined when the *project's* Container Registry
-    # is enabled (Settings > General > Visibility). CI_REGISTRY is defined
-    # whenever the instance has one, so login can succeed while
-    # CI_REGISTRY_IMAGE is still empty — which silently produced the invalid
-    # tag "/$COMPONENT:$sha". Derive the base from CI_REGISTRY and the project
-    # path when it is missing, and refuse to build if neither is available.
+    - !reference [.registry-base, script]
     - |
-      REGISTRY_BASE="${CI_REGISTRY_IMAGE:-${CI_REGISTRY:+$CI_REGISTRY/$CI_PROJECT_PATH}}"
-      # Docker references must be lowercase; CI_PROJECT_PATH need not be.
-      REGISTRY_BASE="$(echo "$REGISTRY_BASE" | tr '[:upper:]' '[:lower:]')"
-      if [ -z "$REGISTRY_BASE" ]; then
-        echo "Neither CI_REGISTRY_IMAGE nor CI_REGISTRY is set." >&2
-        echo "Enable the project's Container Registry under Settings > General > Visibility." >&2
-        exit 1
-      fi
       if [ -z "$CI_REGISTRY_IMAGE" ]; then
         echo "WARNING: CI_REGISTRY_IMAGE is unset — using the derived path below." >&2
         echo "WARNING: this almost always means the project's Container Registry" >&2
@@ -141,8 +166,6 @@ workflow:
         echo "WARNING: 'insufficient_scope: authorization failed'." >&2
         echo "WARNING: Fix: Settings > General > Visibility > Container registry." >&2
       fi
-      export IMAGE="$REGISTRY_BASE/$COMPONENT"
-      echo "Target image: $IMAGE"
     # Warm the layer cache from the last published image; harmless if absent.
     - docker pull "$IMAGE:latest" || true
     # The Dockerfiles COPY from the repo root (e.g. `COPY ui/ .`), so the
@@ -280,6 +303,15 @@ sbom:source:
         SKIP_DIRS: ".venv"
   script:
     - mkdir -p security
+    # On a schedule this job is a re-scan: the lockfiles have not changed, the
+    # vulnerability database has. Reporting silently would defeat the point, so
+    # scheduled runs use the stricter gate.
+    - |
+      GATE_EXIT_CODE="$SCAN_EXIT_CODE"
+      if [ "$CI_PIPELINE_SOURCE" = "schedule" ]; then
+        GATE_EXIT_CODE="$RESCAN_EXIT_CODE"
+        echo "Scheduled re-scan: failing on $SCAN_SEVERITY findings (exit code $GATE_EXIT_CODE)."
+      fi
     - |
       trivy fs \
         --cache-dir "$CI_PROJECT_DIR/.cache/trivy" \
@@ -297,7 +329,7 @@ sbom:source:
         --no-progress \
         --skip-dirs "$SKIP_DIRS" \
         --severity "$SCAN_SEVERITY" \
-        --exit-code "$SCAN_EXIT_CODE" \
+        --exit-code "$GATE_EXIT_CODE" \
         "$SOURCE_PATH"
   artifacts:
     when: always
@@ -306,6 +338,101 @@ sbom:source:
       - security/
     reports:
       cyclonedx: security/gl-sbom-*.cdx.json
+
+# ---------------------------------------------------------------------------
+# Scheduled re-scan of the published images
+#
+# A build-time scan only knows the CVEs that existed the day it ran. An image
+# that passed last week can be vulnerable today without a single line of code
+# changing — so this re-scans what is *already in the registry*, on a schedule,
+# and fails when something fixable has appeared.
+#
+# It does not rebuild and needs no Docker daemon: Trivy reads the image straight
+# out of the registry over the API, which is why this job uses the aquasec/trivy
+# image rather than the dind-based `.build`. No SBOM is emitted either — the
+# image has not changed, so it would be byte-for-byte the one `build` already
+# published; only the vulnerability database moved.
+#
+# Set it up once: Build > Pipeline schedules > New schedule (e.g. `0 3 * * *`)
+# on the default branch. GitLab notifies the schedule's owner when a scheduled
+# pipeline fails, which is the whole delivery mechanism here.
+#
+# It can also be started by hand from the default branch, for when a CVE lands
+# in the news and waiting for 3am is not good enough.
+# ---------------------------------------------------------------------------
+
+scan:published:
+  stage: scan
+  needs: []
+  image:
+    name: "aquasec/trivy:$TRIVY_VERSION"
+    # The image's ENTRYPOINT is trivy itself, which GitLab would use to run the
+    # shell — clear it so `script:` executes normally.
+    entrypoint: [""]
+  cache:
+    - key: trivy-db
+      paths:
+        - .cache/trivy/db
+  variables:
+    # Registry credentials for Trivy's remote image fetch. Passed through the
+    # environment on purpose — the names Trivy reads by itself — so the token
+    # never lands on a command line and into the job log. (Contrast the note on
+    # TRIVY_SEVERITY at the top: there the automatic pickup is the hazard, here
+    # it is the point.)
+    TRIVY_USERNAME: "$CI_REGISTRY_USER"
+    TRIVY_PASSWORD: "$CI_REGISTRY_PASSWORD"
+  parallel:
+    matrix:
+      - COMPONENT:
+          - backend
+          - planner
+          - ui
+          - agent
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    # A button on the default branch. `allow_failure` so an ad-hoc re-scan
+    # reports without turning the branch's pipeline red.
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+      allow_failure: true
+  script:
+    - !reference [.registry-base, script]
+    - mkdir -p security
+    # `:latest` is what the default branch publishes, i.e. what a deployment
+    # following deploy/Makefile actually runs.
+    - |
+      TARGET="$IMAGE:${RESCAN_TAG:-latest}"
+      echo "Re-scanning $TARGET (built $(date -u +%F) or earlier) against today's database."
+    # Full report, all severities, in GitLab's container-scanning schema. The
+    # official image keeps the contrib templates at /contrib.
+    - |
+      trivy image \
+        --scanners vuln \
+        --cache-dir "$CI_PROJECT_DIR/.cache/trivy" \
+        --no-progress \
+        --format template \
+        --template "@/contrib/gitlab.tpl" \
+        --output "security/gl-container-scanning-report.json" \
+        "$TARGET"
+    # Human-readable summary, and the gate. --ignore-unfixed keeps it to
+    # findings a rebuild on a newer base image would actually resolve.
+    - |
+      trivy image \
+        --scanners vuln \
+        --cache-dir "$CI_PROJECT_DIR/.cache/trivy" \
+        --no-progress \
+        --severity "$SCAN_SEVERITY" \
+        --ignore-unfixed \
+        --exit-code "$RESCAN_EXIT_CODE" \
+        "$TARGET"
+  artifacts:
+    # `when: always` so the evidence survives the failure that is the point.
+    when: always
+    expire_in: 1 month
+    paths:
+      - security/
+    reports:
+      container_scanning: security/gl-container-scanning-report.json
 
 # ---------------------------------------------------------------------------
 # Documentation (MkDocs -> GitLab Pages)
@@ -353,4 +480,7 @@ pages:
     paths:
       - public
   rules:
+    # Nothing to republish on a scheduled re-scan.
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

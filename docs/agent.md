@@ -35,6 +35,7 @@ flowchart TB
 | `clock.py` | The agent's other local tool, `currentDateTime` — see [Telling the time](#telling-the-time). |
 | `documents.py` | Parses an uploaded PDF/CSV/XLSX into sheets of cell strings. Interprets nothing — see [Roster uploads](#roster-uploads). |
 | `roster.py` | `previewRosterUpload`, `interpretRosterUpload`, `applyRosterUpload`, plus the per-session store the uploaded grid lives in. |
+| `validation.py` | `validateOptimizedPlan` and the `POST /api/v1/plan/validate` endpoint — checking a proposed plan against the rules it was solved under. See [Plan verification](#plan-verification). |
 | `server.py` | The HTTP surface. Validates the caller's token against Keycloak's JWKS, then stores it in a contextvar for the duration of the agent call. |
 | `auth.py` | Keycloak verification plus the contextvar holding the token. |
 
@@ -141,6 +142,54 @@ shift. The agent is told to use it as it stands, because the two things it would
 otherwise have to do — counting roster rows and matching employee ids to names —
 are exactly what a small model gets wrong. For the same reason
 `getStaffingPerDay` must be in `MCP_TOOLS` if you set that allowlist.
+
+## Plan verification
+
+`POST /api/v1/plan/validate` answers the question a planner has in front of a
+proposed roster: *does this break any of my rules?* It is what the scheduler
+page's **Verify Plan** button calls, and `validateOptimizedPlan` gives the chat
+agent the same check.
+
+```bash
+curl -X POST http://localhost:8899/api/v1/plan/validate \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"result_id": "0f2c…"}'
+```
+
+Two MCP calls gather the inputs, both as the signed-in user:
+
+| Call | For |
+|---|---|
+| `getOptimizedShift(result_id)` | the proposal, including any hand edits already saved to it |
+| `preparePlan(start_date, end_date)` | the rules — the same `TaskDTO` the optimizer is handed |
+
+`validation.py` then re-derives each hard constraint of the CP-SAT model
+(`planner/shift_planner/optimizer.py`) from those two payloads:
+
+| Checked | Severity |
+|---|---|
+| One shift per employee per day; shift runs that weekday; employee may work it and is not absent; workstation runs that shift and is open; required qualifications held (with the same `skill_group` downgrade rule) | error |
+| Recovery days after a shift, minimum rest between consecutive days, maximum consecutive days, maximum working days per seven-day block | error |
+| Shift and workstation `max_employees` | error |
+| Shift and workstation `min_employees`, `preferred_off`, monthly-hours deviation, skill downgrades | warning — the solver may pay these penalties, so they are not breaches |
+
+Breaches of one rule collapse into one finding with a count and up to five named
+examples. The verdict is `invalid` if anything errored, `issues` if only
+warnings, else `valid`.
+
+**No model is involved in the counting.** Only the finished report goes to the
+LLM — one plain call, no tools, no history — which returns `summary`, the
+written review shown under the counts. If no provider is reachable the report
+still comes back, with `headline` standing in for the prose.
+
+From the terminal:
+
+```bash
+uv run shift-agent validate <result-id>            # summary
+uv run shift-agent validate <result-id> --json     # the raw report
+uv run shift-agent validate <result-id> --no-explain
+```
 
 ## Roster uploads
 
@@ -288,5 +337,6 @@ tenant — the agent has no privileges of its own.
 |---|---|
 | New backend capability | Add it to `api/openapi.yaml` and the Rust backend. The MCP server picks it up automatically; add the name to `MCP_TOOLS` if you use an allowlist. |
 | New navigable page | Add it to `KNOWN_PAGES` in `mcp/server.py` and to `ui/src/app/app.routes.ts`. |
+| New rule to check in a plan | Add a `_check_*` method to `_Validator` in `agent/shift_agent/agent/validation.py` and call it from `run()`. Keep it in step with the constraint in `planner/shift_planner/optimizer.py` it mirrors. |
 | Persistent history | Swap `MemorySaver` in `agent/graph.py` for `SqliteSaver` or `PostgresSaver`. |
 | Streaming replies | Use `graph.astream(...)` instead of `graph.ainvoke(...)` in `agent/server.py`, returned as chunked or SSE. |

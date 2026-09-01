@@ -1,0 +1,205 @@
+<app-page-breadcrumb pageTitle="nav.dayView" />
+
+<div class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+  <!-- Header -->
+  <div class="border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex flex-wrap items-center gap-3">
+        <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'dayView.heading' | t }}</h3>
+        @if (!loading) {
+          <span class="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+            {{ 'dayView.onDuty' | t: { count: onDutyCount } }}
+          </span>
+          @if (absentCount > 0) {
+            <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
+              {{ 'dayView.absent' | t: { count: absentCount } }}
+            </span>
+          }
+          <span class="text-xs text-gray-500 dark:text-gray-400">{{ 'dayView.plannedHours' | t: { hours: plannedHours } }}</span>
+        }
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 dark:border-gray-700">
+          <input
+            type="checkbox"
+            [ngModel]="onlyScheduled"
+            (ngModelChange)="toggleOnlyScheduled()"
+            class="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+          />
+          <span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ 'dayView.onlyScheduled' | t }}</span>
+        </label>
+
+        <div class="flex items-center rounded-lg border border-gray-200 p-0.5 dark:border-gray-700">
+          <button
+            type="button"
+            (click)="zoomOut()"
+            [disabled]="!canZoomOut"
+            class="flex h-7 w-7 items-center justify-center rounded text-gray-500 transition hover:bg-gray-50 disabled:opacity-40 dark:text-gray-400 dark:hover:bg-white/[0.05]"
+            [attr.aria-label]="'dayView.zoomOut' | t"
+            [title]="'dayView.zoomOut' | t"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
+          <button
+            type="button"
+            (click)="zoomIn()"
+            [disabled]="!canZoomIn"
+            class="flex h-7 w-7 items-center justify-center rounded text-gray-500 transition hover:bg-gray-50 disabled:opacity-40 dark:text-gray-400 dark:hover:bg-white/[0.05]"
+            [attr.aria-label]="'dayView.zoomIn' | t"
+            [title]="'dayView.zoomIn' | t"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
+        </div>
+
+        <app-calendar-nav
+          [label]="dayLabel"
+          periodType="day"
+          (prev)="prevDay()"
+          (next)="nextDay()"
+          (today)="goToday()"
+        />
+      </div>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="flex items-center justify-center px-5 py-6 sm:px-6">
+      <div class="flex items-center gap-2 rounded-lg bg-red-50 px-4 py-3 dark:bg-red-500/10">
+        <svg class="h-5 w-5 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span class="text-sm text-red-600 dark:text-red-400">{{ error | t }}</span>
+      </div>
+    </div>
+  } @else if (loading) {
+    <div class="flex items-center justify-center py-20 text-gray-400 dark:text-gray-500">
+      <svg class="mr-2 h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+        <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
+      </svg>
+      {{ 'common.loading' | t }}
+    </div>
+  } @else if (rows.length === 0) {
+    <div class="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
+      <svg class="mb-4 h-12 w-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 14"></polyline>
+      </svg>
+      <p class="text-sm">{{ 'dayView.empty' | t }}</p>
+    </div>
+  } @else {
+    <!-- The chart's own scrollbar would sit under a long list of people, so the
+         horizontal scroll is driven from here instead; the two mirror each
+         other (onRailScroll / onChartScroll). -->
+    <div #scrollRail class="gantt-rail" (scroll)="onRailScroll()">
+      <div [style.width.px]="chartWidth"></div>
+    </div>
+
+    <div #chartScroll class="day-gantt" (scroll)="onChartScroll()">
+      <div class="min-w-max">
+        <!-- Hour ruler -->
+        <div class="gantt-head flex border-b border-gray-100 dark:border-white/[0.05]">
+          <div class="gantt-label sticky left-0 z-20 flex items-center bg-white px-5 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:bg-gray-900 dark:text-gray-400 sm:px-6" [style.width.px]="labelWidth">
+            {{ 'common.employee' | t }}
+          </div>
+          <div class="relative flex" [style.width.px]="trackWidth">
+            @for (hour of hours; track hour) {
+              <div
+                class="gantt-hour shrink-0 border-l border-gray-100 py-2 pl-1.5 text-[11px] font-medium text-gray-400 dark:border-white/[0.05] dark:text-gray-500"
+                [style.width.px]="hourWidth"
+              >{{ hourLabel(hour) }}</div>
+            }
+            @if (nowHour !== null) {
+              <div class="gantt-now-head" [style.left.px]="nowHour * hourWidth"></div>
+            }
+          </div>
+        </div>
+
+        <!-- One row per employee -->
+        @for (row of rows; track row.employeeId) {
+          <div class="gantt-row flex border-b border-gray-50 last:border-b-0 dark:border-white/[0.03]">
+            <div class="gantt-label sticky left-0 z-10 flex items-center gap-2 bg-white px-5 dark:bg-gray-900 sm:px-6" [style.width.px]="labelWidth">
+              <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-600 dark:bg-brand-900/30 dark:text-brand-400">
+                {{ row.initial }}
+              </div>
+              <div class="min-w-0">
+                <div class="truncate text-sm font-medium text-gray-700 dark:text-gray-300" [title]="row.employeeName">{{ row.employeeName }}</div>
+                @if (row.hours > 0) {
+                  <div class="text-[11px] text-gray-400 dark:text-gray-500">{{ 'dayView.hoursShort' | t: { hours: row.hours } }}</div>
+                }
+              </div>
+            </div>
+
+            <div
+              class="gantt-track relative shrink-0"
+              [style.width.px]="trackWidth"
+              [style.background-size]="hourWidth + 'px 100%'"
+            >
+              @if (row.absence) {
+                <div
+                  class="gantt-absence absolute inset-y-1.5 left-0 flex items-center justify-center rounded-md text-xs font-medium"
+                  [style.width.px]="trackWidth"
+                  [class.absence-sick]="row.absence.category === 'sick'"
+                  [class.absence-planned]="row.absence.category === 'planned'"
+                  [class.absence-free]="row.absence.category === 'free'"
+                >{{ row.absence.labelKey | t }}</div>
+              }
+
+              @for (bar of row.bars; track bar.shiftId + '-' + bar.startHour) {
+                <div
+                  class="gantt-bar absolute inset-y-1.5 flex items-center gap-1.5 overflow-hidden rounded-md px-2"
+                  [style.left.px]="bar.startHour * hourWidth"
+                  [style.width.px]="(bar.endHour - bar.startHour) * hourWidth"
+                  [style.backgroundColor]="bar.color"
+                  [style.color]="bar.textColor"
+                  [class.continues-next-day]="bar.continuesNextDay"
+                  [class.continued-from-prev-day]="bar.continuedFromPrevDay"
+                  [title]="barTooltip(row, bar)"
+                >
+                  @if (bar.continuedFromPrevDay) {
+                    <span class="shrink-0 text-[11px] opacity-80">↤</span>
+                  }
+                  <span class="truncate text-xs font-semibold">{{ bar.shiftName }}</span>
+                  @if (bar.workstationName) {
+                    <span class="truncate text-xs opacity-90">· {{ bar.workstationName }}</span>
+                  }
+                  <span class="ml-auto shrink-0 text-[11px] opacity-80">{{ bar.timeLabel }}</span>
+                  @if (bar.continuesNextDay) {
+                    <span class="shrink-0 text-[11px] opacity-80">↦</span>
+                  }
+                </div>
+              }
+
+              @if (nowHour !== null) {
+                <div class="gantt-now" [style.left.px]="nowHour * hourWidth"></div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>
+
+<!-- Shift legend -->
+@if (legendShifts.length > 0) {
+  <div class="mt-4 rounded-xl border border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-white/[0.03]">
+    <div class="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{{ 'scheduler.shiftLegend' | t }}</div>
+    <div class="flex flex-wrap gap-3">
+      @for (shift of legendShifts; track shift.id) {
+        <div class="flex items-center gap-1.5">
+          <div class="h-3 w-3 rounded" [style.backgroundColor]="shift.color"></div>
+          <span class="text-xs text-gray-600 dark:text-gray-400">{{ shift.name }}</span>
+        </div>
+      }
+      <div class="flex items-center gap-1.5">
+        <span class="text-xs text-gray-400 dark:text-gray-500">↤ / ↦ {{ 'dayView.crossesMidnight' | t }}</span>
+      </div>
+    </div>
+  </div>
+}

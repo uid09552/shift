@@ -85,6 +85,7 @@ backend/
 │       │   ├── dashboard/   # Main dashboard
 │       │   ├── planner/     # Scheduling components
 │       │   │   ├── kalender/        # Weekly schedule view
+│       │   │   ├── day-view/        # One day as an hourly Gantt chart
 │       │   │   ├── scheduler/       # Optimization UI
 │       │   │   ├── employee-calendar/
 │       │   │   └── workstation-calendar/
@@ -175,6 +176,8 @@ Base URL: `http://localhost:8080/api/v1`
 - `PUT /users/{id}/roles` - Replace a user's shift roles (`shift-admin` only)
 - `DELETE /users/{id}` - Remove a user from the organization (`shift-admin` only)
 - `POST /planner/optimize` - Trigger shift optimization
+- `POST /agent/plan/validate` - Check a proposed plan against the rules it was
+  solved under (served by the agent, not the Rust backend — see `agent/`)
 - `GET/POST /shift-assignments` - Fixed shift assignments
 - `GET/POST /confirmed-shift-plans` - Confirmed monthly plans
 - `GET /analysis/*` - Analysis and summary endpoints

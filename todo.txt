@@ -1,6 +1,2 @@
-1) create e2e test cases for ui by using robot test framework.
-a) create for overview page first
-b) read in test target url from config file (robot framework native), user credentials also from config file.
-c) structure the test cases
-d) put the tests to e2e folder
-2) implement user management to add users to the organisation where the current user is in and role assignment. only shift-admin must be able to do that.
+1) today view must show continious flow of days, so next day, previos day.
+2) center the day switch and today button.

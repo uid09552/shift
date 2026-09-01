@@ -17,6 +17,12 @@ Token forwarding:
     Authorization: Bearer, which forwards it to the backend, so every call
     runs as the signed-in user.
 
+Plan verification:
+  - POST /api/v1/plan/validate takes an optimizer result id, re-derives every
+    rule the plan was solved under (validation.py) and answers with the
+    findings plus a short written review. The counting never goes near the
+    model; only the explanation does.
+
 File uploads:
   - POST /api/v1/chat/upload takes a roster document (PDF/CSV/XLSX) as
     multipart, parses it to a grid (documents.py), stages it for the session
@@ -57,8 +63,8 @@ from shift_agent.agent.documents import (
     DocumentError,
     parse_document,
 )
-from shift_agent.agent.graph import build_graph, connect_mcp, disconnect_mcp
-from shift_agent.agent import roster
+from shift_agent.agent.graph import build_graph, build_llm, connect_mcp, disconnect_mcp
+from shift_agent.agent import roster, validation
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -76,6 +82,10 @@ _graph: Any = None
 # Knowledge bundle root chosen at startup by create_app() (shift-agent api
 # --knowledge-path); None = whatever SHIFT_AGENT_KNOWLEDGE_PATH resolves to.
 _knowledge_path: str | None = None
+# The narration model for POST /plan/validate, built on first use. Separate
+# from the graph's: this call binds no tools and holds no conversation, it just
+# turns a finished report into prose.
+_narrator: Any = None
 
 
 def _get_or_create_graph():
@@ -97,6 +107,20 @@ def _get_or_create_graph():
 
     logger.info("Agent graph ready")
     return _graph
+
+
+def _get_narrator():
+    """The plain LLM used to write up a validation report, or None if the
+    provider is unreachable/unconfigured — in which case the report still goes
+    out, with its own plain-language headline instead."""
+    global _narrator
+    if _narrator is None:
+        try:
+            _narrator = build_llm()
+        except Exception:
+            logger.exception("No LLM for validation narration — reporting findings only")
+            _narrator = False
+    return _narrator or None
 
 
 # ---------------------------------------------------------------------------
@@ -275,6 +299,69 @@ def create_app(knowledge_path: str | None = None) -> Flask:
             return jsonify({"error": "Missing 'message' (string)"}), 400
 
         return _run_turn(message, session_id)
+
+    # ---- Plan verification (auth-protected) ----
+    @app.route("/api/v1/plan/validate", methods=["POST"])
+    @require_auth
+    def validate_plan():
+        """Check a proposed shift plan against the rules it was solved under.
+
+        Body: { "result_id": str }
+        Response: the validation report — verdict, counts, one entry per rule
+        broken, and `summary`, a short written review of them.
+
+        The checks are arithmetic (validation.py) and run on every request; the
+        model only writes them up, so two calls on an unchanged plan cannot
+        disagree about what is wrong with it.
+        """
+        if not request.is_json:
+            return jsonify({"error": "Content-Type must be application/json"}), 415
+
+        data = request.get_json(silent=True) or {}
+        result_id = data.get("result_id")
+        if not result_id or not isinstance(result_id, str):
+            return jsonify({"error": "Missing 'result_id' (string)"}), 400
+
+        # The rules and the plan are fetched through MCP as the signed-in user,
+        # exactly as a chat tool call would be.
+        reset_token = set_forwarded_token(_request_token())
+        started = time.perf_counter()
+        try:
+            with telemetry.span("agent.validate_plan", **{"agent.result_id": result_id}):
+                try:
+                    graph = _get_or_create_graph()
+                except Exception:
+                    logger.exception("Graph build / MCP connection failed")
+                    return jsonify({"error": "Agent backend unavailable"}), 503
+
+                try:
+                    rules, result, capability_names = validation.collect(
+                        graph.mcp_client.call_sync, result_id
+                    )
+                    report = validation.validate(rules, result, capability_names)
+                except validation.ValidationError as exc:
+                    # Either the plan/rules could not be fetched, or what came
+                    # back is not something this check can be run against.
+                    return jsonify({"error": str(exc)}), 404
+                except Exception:
+                    logger.exception("Could not check plan %s", result_id)
+                    return jsonify({"error": "The plan could not be checked."}), 502
+
+                report["result_id"] = result_id
+                report["headline"] = validation.headline(report)
+                report["summary"] = validation.narrate(report, _get_narrator())
+        finally:
+            reset_forwarded_token(reset_token)
+
+        logger.info(
+            "Validated plan %s in %.1fs — %s (%d error(s), %d warning(s))",
+            result_id,
+            time.perf_counter() - started,
+            report["verdict"],
+            report["error_count"],
+            report["warning_count"],
+        )
+        return jsonify(report)
 
     # ---- Roster file upload (auth-protected) ----
     @app.route("/api/v1/chat/upload", methods=["POST"])

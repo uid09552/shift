@@ -1,0 +1,191 @@
+/* Daily Gantt chart: a sticky employee column plus a 24-hour track that scrolls
+   horizontally. Bar geometry lives in the template (hours × hourWidth); this
+   file only carries what CSS can express better than a style binding. */
+
+.gantt-label {
+  /* Width is bound from the component (LABEL_WIDTH), so the scroll rail above
+     the chart can span exactly the same total. */
+  flex: none;
+  /* The column is sticky over scrolling track content, so it needs an opaque
+     background and an edge of its own. */
+  box-shadow: 1px 0 0 rgb(0 0 0 / 0.06);
+}
+
+.dark .gantt-label {
+  box-shadow: 1px 0 0 rgb(255 255 255 / 0.06);
+}
+
+.gantt-head .gantt-label,
+.gantt-head .gantt-hour {
+  height: 36px;
+}
+
+.gantt-row {
+  height: 52px;
+}
+
+/* Hourly grid lines, drawn as a repeating background so the zoom control only
+   has to change background-size. */
+.gantt-track {
+  background-image: linear-gradient(to right, rgb(0 0 0 / 0.06) 0 1px, transparent 1px);
+  background-repeat: repeat-x;
+}
+
+.dark .gantt-track {
+  background-image: linear-gradient(to right, rgb(255 255 255 / 0.07) 0 1px, transparent 1px);
+}
+
+.gantt-row:hover .gantt-track {
+  background-color: rgb(59 130 246 / 0.04);
+}
+
+.gantt-bar {
+  min-width: 0;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+  transition: filter 0.15s ease;
+}
+
+.gantt-bar:hover {
+  filter: brightness(1.06);
+}
+
+/* A shift that runs past midnight is cut off at the edge of the day rather than
+   ending there — the flat edge says so. */
+.gantt-bar.continues-next-day {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.gantt-bar.continued-from-prev-day {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.gantt-absence {
+  border: 1px dashed transparent;
+}
+
+.absence-sick {
+  background-color: rgb(254 242 242);
+  border-color: rgb(252 165 165);
+  color: rgb(185 28 28);
+}
+
+.absence-planned {
+  background-color: rgb(255 251 235);
+  border-color: rgb(252 211 77);
+  color: rgb(180 83 9);
+}
+
+.absence-free {
+  background-color: rgb(248 250 252);
+  border-color: rgb(203 213 225);
+  color: rgb(100 116 139);
+}
+
+.dark .absence-sick {
+  background-color: rgb(239 68 68 / 0.1);
+  border-color: rgb(239 68 68 / 0.4);
+  color: rgb(248 113 113);
+}
+
+.dark .absence-planned {
+  background-color: rgb(245 158 11 / 0.1);
+  border-color: rgb(245 158 11 / 0.4);
+  color: rgb(251 191 36);
+}
+
+.dark .absence-free {
+  background-color: rgb(255 255 255 / 0.04);
+  border-color: rgb(255 255 255 / 0.12);
+  color: rgb(148 163 184);
+}
+
+/* "Now" marker — only rendered while the chart shows today. */
+.gantt-now,
+.gantt-now-head {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: rgb(239 68 68);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.gantt-now-head::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background-color: rgb(239 68 68);
+}
+
+/* The chart scrolls sideways, but its scrollbar is hidden: with thirty people
+   on screen that bar ends up far below the chart, or off the bottom of the page
+   entirely. The rail above drives it instead — while the wheel, trackpad and
+   keyboard still scroll this element directly. */
+.day-gantt {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.day-gantt::-webkit-scrollbar {
+  height: 0;
+}
+
+/* The rail: a scrollbar and nothing else, sitting where it is wanted. Its child
+   is an empty box as wide as the chart, which is what gives it something to
+   scroll. */
+.gantt-rail {
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* Enough room for the bar itself on platforms that reserve space for one. */
+  height: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.gantt-rail > div {
+  height: 1px;
+}
+
+/* Explicit dimensions keep the bar drawn even where the platform would rather
+   use an overlay scrollbar that fades out when idle. */
+.gantt-rail::-webkit-scrollbar {
+  height: 8px;
+}
+
+.gantt-rail::-webkit-scrollbar-track {
+  background-color: rgb(0 0 0 / 0.04);
+  border-radius: 4px;
+}
+
+.gantt-rail::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 4px;
+}
+
+.gantt-rail::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+.dark .gantt-rail {
+  scrollbar-color: #4b5563 transparent;
+}
+
+.dark .gantt-rail::-webkit-scrollbar-track {
+  background-color: rgb(255 255 255 / 0.04);
+}
+
+.dark .gantt-rail::-webkit-scrollbar-thumb {
+  background-color: #4b5563;
+}
+
+.dark .gantt-rail::-webkit-scrollbar-thumb:hover {
+  background-color: #6b7280;
+}

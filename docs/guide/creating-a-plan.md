@@ -16,8 +16,9 @@ flowchart LR
     E -->|No| F[Adjust and<br/>recalculate]
     F --> C
     E -->|Almost| G[Fix single days<br/>by hand]
-    G --> H[Take as Plan]
-    E -->|Yes| H
+    G --> V[Verify Plan]
+    E -->|Yes| V
+    V --> H[Take as Plan]
     H --> I[Confirmed roster]
 ```
 
@@ -140,7 +141,41 @@ right-clicking a single square edits just that day.
 Hand edits apply to the proposal you are looking at, so you can tidy it up
 before confirming.
 
-## Step 6 — Confirm it
+## Step 6 — Have it checked
+
+Press **Verify Plan**. The assistant re-checks the proposal against every rule
+it was supposed to satisfy and writes up what it finds.
+
+This is worth doing on any plan you have hand-edited: those edits go into the
+proposal without being checked against anything, and nothing stops you putting
+someone on a shift they are not qualified for.
+
+The report opens with a verdict:
+
+| Verdict | Meaning |
+|---|---|
+| **Clean** | Nothing found. Go ahead and confirm. |
+| **Worth a look** | No rule is broken, but the planner traded something away — a workstation left short, a requested day off overridden, someone well off their contracted hours. |
+| **Rules broken** | Something breaks a hard rule. Fix it before confirming. |
+
+Below that comes one entry per rule broken, each with a count and a few named
+examples — *"Too little rest between two shifts ×3 · Anna M. — Late on 12 Aug to
+Early on 13 Aug: 8.0 h"* — and the assistant's short review of what to do about
+them.
+
+!!! note "The counting is exact"
+    Every rule is re-derived from the same data the planner was given:
+    qualifications, absences, rest between shifts, recovery days after nights,
+    consecutive and weekly day limits, staffing minimums and maximums. The
+    assistant explains the result; it does not work it out by reading. Asking it
+    in chat — *"is the latest plan OK?"* — runs the same check.
+
+Nothing here blocks you. A **Rules broken** verdict is a warning, not a gate:
+you can still confirm the plan if you have a reason to.
+
+---
+
+## Step 7 — Confirm it
 
 Press **Take as Plan**.
 

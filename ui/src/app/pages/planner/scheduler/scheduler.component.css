@@ -104,3 +104,49 @@
     transform: translateY(0) scale(1);
   }
 }
+
+/* The assistant's plan review is markdown rendered into [innerHTML], so it sits
+   outside this component's emulated encapsulation — ::ng-deep is what reaches it. */
+::ng-deep .validation-review > *:first-child {
+  margin-top: 0;
+}
+
+::ng-deep .validation-review > *:last-child {
+  margin-bottom: 0;
+}
+
+::ng-deep .validation-review p {
+  margin: 0 0 0.5rem;
+}
+
+::ng-deep .validation-review ul,
+::ng-deep .validation-review ol {
+  margin: 0 0 0.5rem;
+  padding-left: 1.1rem;
+  list-style: disc;
+}
+
+::ng-deep .validation-review ol {
+  list-style: decimal;
+}
+
+::ng-deep .validation-review li {
+  margin-bottom: 0.2rem;
+}
+
+::ng-deep .validation-review h3,
+::ng-deep .validation-review h4 {
+  margin: 0.75rem 0 0.35rem;
+  font-weight: 600;
+}
+
+::ng-deep .validation-review code {
+  border-radius: 4px;
+  background-color: rgb(0 0 0 / 0.06);
+  padding: 0 0.25rem;
+  font-size: 0.85em;
+}
+
+::ng-deep .dark .validation-review code {
+  background-color: rgb(255 255 255 / 0.1);
+}

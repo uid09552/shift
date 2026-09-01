@@ -119,6 +119,7 @@ def _build_auth() -> MultiAuth | None:
 KNOWN_PAGES = {
     "dashboard": "/",
     "schedule": "/kalender",
+    "day_view": "/day-view",
     "employee_calendar": "/employee-calendar",
     "workstation_calendar": "/workstation-calendar",
     "scheduler": "/scheduler",
@@ -143,7 +144,7 @@ def _register_navigation(mcp: FastMCP) -> None:
         """Send the user's browser to a page in the app.
 
         Args:
-            page: One of: dashboard, schedule, employee_calendar,
+            page: One of: dashboard, schedule, day_view, employee_calendar,
                 workstation_calendar, scheduler, user_profiles, shifts,
                 workstations, capabilities, planner_settings, wish_settings.
         """
