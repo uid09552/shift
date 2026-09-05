@@ -40,6 +40,30 @@
           {{ 'common.monthly' | t }}
         </button>
       </div>
+      @if (viewMode === 'week') {
+        <!-- Which side of the plan to read it from. Employee stays editable;
+             the other two are read-only lenses over the same assignments. -->
+        <div
+          class="inline-flex items-center rounded-lg border border-gray-200 p-0.5 dark:border-gray-700"
+          role="group"
+          [attr.aria-label]="'schedule.groupBy' | t"
+        >
+          @for (option of groupOptions; track option.mode) {
+            <button
+              type="button"
+              (click)="setGroupMode(option.mode)"
+              [attr.aria-pressed]="groupMode === option.mode"
+              class="rounded-md px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+              [class.bg-brand-500]="groupMode === option.mode"
+              [class.text-white]="groupMode === option.mode"
+              [class.text-gray-600]="groupMode !== option.mode"
+              [class.dark:text-gray-400]="groupMode !== option.mode"
+            >
+              {{ option.labelKey | t }}
+            </button>
+          }
+        </div>
+      }
       @if (viewMode === 'month') {
         <button
           type="button"
@@ -125,332 +149,253 @@
         {{ 'schedule.noEmployees' | t }}
       </div>
     } @else {
-      <table class="kalender-table w-full min-w-[900px] border-collapse">
-        <!-- Header row: empty corner + day columns -->
-        <thead>
-          <tr
-            class="border-b border-gray-100 dark:border-white/[0.05]"
-          >
-            <th
-              class="employee-col relative sticky left-0 top-0 z-20 border-r border-gray-100 bg-white px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500 dark:border-white/[0.05] dark:bg-white/[0.03] dark:text-gray-400"
-              [style.width.px]="employeeColWidth"
-              [style.minWidth.px]="employeeColWidth"
-              [style.maxWidth.px]="employeeColWidth"
-            >
-              <div class="flex items-center justify-between">
-                <span>{{ 'common.employee' | t }}</span>
-                <div
-                  class="col-resize-handle"
-                  (mousedown)="onResizeStart($event)"
-                  (click)="$event.stopPropagation()"
-                ></div>
-              </div>
-            </th>
-            @for (day of days; track day.date.getTime()) {
-              <th
-                class="day-col sticky top-0 z-10 border-r border-gray-100 py-3 text-center text-xs font-semibold uppercase last:border-r-0 dark:border-white/[0.05]"
-                [class.day-col-compact]="viewMode === 'month'"
-                [class.px-2]="viewMode === 'week'"
-                [class.px-0.5]="viewMode === 'month'"
-                [class.bg-brand-50]="day.isToday"
-                [class.dark:bg-brand-500/10]="day.isToday"
-                [class.bg-white]="!day.isToday"
-                [class.dark:bg-white/5]="!day.isToday"
-              >
-                <div
-                  [class.text-brand-600]="day.isToday"
-                  [class.dark:text-brand-400]="day.isToday"
-                >
-                  {{ day.label }}
-                </div>
-                <div
-                  class="mt-0.5 font-bold"
-                  [class.text-lg]="viewMode === 'week'"
-                  [class.text-sm]="viewMode === 'month'"
-                  [class.text-brand-600]="day.isToday"
-                  [class.dark:text-brand-400]="day.isToday"
-                  [class.text-gray-800]="!day.isToday"
-                  [class.dark:text-white/90]="!day.isToday"
-                >
-                  {{ day.dayNum }}
-                </div>
-              </th>
-            }
-          </tr>
-        </thead>
-
-        <!-- Body: one row per employee -->
-        <tbody>
-          @for (
-            employee of employees;
-            track employee.id;
-            let last = $last
-          ) {
+      @if (groupMode === 'employee') {
+        <table class="kalender-table w-full min-w-[900px] border-collapse">
+          <!-- Header row: empty corner + day columns -->
+          <thead>
             <tr
-              class="group border-b border-gray-100 transition-colors hover:bg-gray-50/50 dark:border-white/[0.05] dark:hover:bg-white/[0.02]"
-              [class.border-b-0]="last"
+              class="border-b border-gray-100 dark:border-white/[0.05]"
             >
-              <!-- Employee name (sticky left) -->
-              <td
-                class="employee-col sticky left-0 z-10 border-r border-gray-100 bg-white px-4 py-2.5 dark:border-white/[0.05] dark:bg-white/[0.03]"
+              <th
+                class="employee-col relative sticky left-0 top-0 z-20 border-r border-gray-100 bg-white px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500 dark:border-white/[0.05] dark:bg-white/[0.03] dark:text-gray-400"
                 [style.width.px]="employeeColWidth"
                 [style.minWidth.px]="employeeColWidth"
                 [style.maxWidth.px]="employeeColWidth"
               >
-                <div
-                  class="flex items-center gap-2.5"
-                >
+                <div class="flex items-center justify-between">
+                  <span>{{ 'common.employee' | t }}</span>
                   <div
-                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-200"
-                  >
-                    {{ employee.name.charAt(0).toUpperCase() }}
-                  </div>
-                  <span
-                    class="cursor-pointer whitespace-nowrap text-sm font-medium text-gray-800 transition-colors hover:text-brand-600 dark:text-white/90 dark:hover:text-brand-400"
-                    (dblclick)="goToEmployeeCalendar(employee.id)"
-                    [title]="'schedule.openEmployeeCalendar' | t"
-                  >
-                    {{ employee.name }}
-                  </span>
+                    class="col-resize-handle"
+                    (mousedown)="onResizeStart($event)"
+                    (click)="$event.stopPropagation()"
+                  ></div>
                 </div>
-              </td>
-
-              <!-- Day cells -->
+              </th>
               @for (day of days; track day.date.getTime()) {
-                @let cell = getCell(employee.id, day);
-                @let dateStr = formatDate(day.date);
-                <td
-                  class="day-col cell-container relative border-r border-gray-100 py-1.5 last:border-r-0 dark:border-white/[0.05]"
+                <th
+                  class="day-col sticky top-0 z-10 border-r border-gray-100 py-3 text-center text-xs font-semibold uppercase last:border-r-0 dark:border-white/[0.05]"
                   [class.day-col-compact]="viewMode === 'month'"
                   [class.px-2]="viewMode === 'week'"
                   [class.px-0.5]="viewMode === 'month'"
-                  [class.bg-brand-50/40]="day.isToday"
-                  [class.dark:bg-brand-500/5]="day.isToday"
+                  [class.bg-brand-50]="day.isToday"
+                  [class.dark:bg-brand-500/10]="day.isToday"
+                  [class.bg-white]="!day.isToday"
+                  [class.dark:bg-white/5]="!day.isToday"
                 >
-                  @if (wishesOnly) {
-                    <!-- Wishes-only view: the requested shift, read-only -->
-                    @let wishCell = getWishCell(employee.id, day);
-                    @if (wishCell.wish) {
-                      <div
-                        class="wish-chip flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-center"
-                        [style.backgroundColor]="getShiftBg(wishCell.shift)"
-                        [style.border]="'1px dashed ' + getShiftColor(wishCell.shift)"
-                        [title]="'schedule.wishTooltip' | t: { shift: wishCell.shift?.name ?? ('schedule.unknownShift' | t) }"
-                      >
-                        <span
-                          class="text-xs font-bold leading-tight"
-                          [style.color]="getShiftColor(wishCell.shift)"
-                        >
-                          {{ getShiftShortName(wishCell.shift) }}
-                        </span>
-                      </div>
-                    } @else {
-                      <div class="flex h-full items-center justify-center py-1">
-                        <span class="text-xs text-gray-300 dark:text-gray-700">·</span>
-                      </div>
-                    }
-                  } @else if (cell.plan && cell.isPresent) {
-                    <!-- Cell with an assigned shift -->
+                  <div
+                    [class.text-brand-600]="day.isToday"
+                    [class.dark:text-brand-400]="day.isToday"
+                  >
+                    {{ day.label }}
+                  </div>
+                  <div
+                    class="mt-0.5 font-bold"
+                    [class.text-lg]="viewMode === 'week'"
+                    [class.text-sm]="viewMode === 'month'"
+                    [class.text-brand-600]="day.isToday"
+                    [class.dark:text-brand-400]="day.isToday"
+                    [class.text-gray-800]="!day.isToday"
+                    [class.dark:text-white/90]="!day.isToday"
+                  >
+                    {{ day.dayNum }}
+                  </div>
+                </th>
+              }
+            </tr>
+          </thead>
+
+          <!-- Body: one row per employee -->
+          <tbody>
+            @for (
+              employee of employees;
+              track employee.id;
+              let last = $last
+            ) {
+              <tr
+                class="group border-b border-gray-100 transition-colors hover:bg-gray-50/50 dark:border-white/[0.05] dark:hover:bg-white/[0.02]"
+                [class.border-b-0]="last"
+              >
+                <!-- Employee name (sticky left) -->
+                <td
+                  class="employee-col sticky left-0 z-10 border-r border-gray-100 bg-white px-4 py-2.5 dark:border-white/[0.05] dark:bg-white/[0.03]"
+                  [style.width.px]="employeeColWidth"
+                  [style.minWidth.px]="employeeColWidth"
+                  [style.maxWidth.px]="employeeColWidth"
+                >
+                  <div
+                    class="flex items-center gap-2.5"
+                  >
                     <div
-                      class="shift-chip group/chip relative flex w-full flex-col items-center gap-0.5 rounded-lg text-center transition-shadow hover:shadow-sm"
-                      [class.px-2]="viewMode === 'week'"
-                      [class.py-1.5]="viewMode === 'week'"
-                      [class.px-1]="viewMode === 'month'"
-                      [class.py-1]="viewMode === 'month'"
-                      [style.backgroundColor]="getShiftBg(cell.shift)"
-                      [style.borderLeft]="'3px solid ' + getShiftColor(cell.shift)"
-                      [title]="viewMode === 'month' && cell.workstation ? getWorkstationName(cell.workstation) : null"
+                      class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-200"
                     >
-                      <span
-                        class="text-xs font-bold leading-tight"
-                        [style.color]="getShiftColor(cell.shift)"
-                      >
-                        {{ getShiftShortName(cell.shift) }}
-                      </span>
-                      @if (cell.workstation && viewMode === 'week') {
-                        <span
-                          class="w-full truncate text-[10px] leading-tight text-gray-500 cursor-pointer hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
-                          [title]="'schedule.changeWorkstation' | t: { workstation: getWorkstationName(cell.workstation) }"
-                          (click)="startEdit(employee.id, day, $event)"
-                        >
-                          {{ getWorkstationName(cell.workstation) }}
-                        </span>
-                      }
-
-                      <!-- Action buttons (visible on hover) -->
-                      <div
-                        class="cell-actions absolute -top-1 right-0 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/chip:opacity-100"
-                        (click)="$event.stopPropagation()"
-                      >
-                        <button
-                          (click)="startEdit(employee.id, day, $event)"
-                          class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 shadow-sm ring-1 ring-gray-200 transition hover:text-brand-600 hover:ring-brand-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-brand-400 dark:hover:ring-brand-600"
-                          [title]="'schedule.changeShiftType' | t"
-                        >
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
-                          </svg>
-                        </button>
-                        <button
-                          (click)="startDelete(employee.id, day, cell.plan!.id, $event)"
-                          class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 shadow-sm ring-1 ring-gray-200 transition hover:text-red-600 hover:ring-red-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-red-400 dark:hover:ring-red-600"
-                          [title]="'schedule.deleteAssignment' | t"
-                        >
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-                          </svg>
-                        </button>
-                      </div>
+                      {{ employee.name.charAt(0).toUpperCase() }}
                     </div>
+                    <span
+                      class="cursor-pointer whitespace-nowrap text-sm font-medium text-gray-800 transition-colors hover:text-brand-600 dark:text-white/90 dark:hover:text-brand-400"
+                      (dblclick)="goToEmployeeCalendar(employee.id)"
+                      [title]="'schedule.openEmployeeCalendar' | t"
+                    >
+                      {{ employee.name }}
+                    </span>
+                  </div>
+                </td>
 
-                    <!-- Shift type dropdown (edit mode) -->
-                    @if (isEditing(employee.id, dateStr)) {
-                      <div
-                        class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
-                        (click)="$event.stopPropagation()"
-                      >
-                        <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
-                          {{ 'schedule.changeShift' | t }}
-                        </div>
-                        @for (shift of shifts; track shift.id) {
-                          <button
-                            (click)="onShiftSelect(employee.id, day, shift.id)"
-                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                            [class.bg-brand-50]="cell.plan.shift_id === shift.id"
-                            [class.dark:bg-brand-500/10]="cell.plan.shift_id === shift.id"
-                          >
-                            <span
-                              class="inline-block h-3 w-3 rounded-sm"
-                              [style.backgroundColor]="shift.color"
-                            ></span>
-                            <span
-                              class="font-medium"
-                              [class.text-brand-600]="cell.plan.shift_id === shift.id"
-                              [class.dark:text-brand-400]="cell.plan.shift_id === shift.id"
-                            >
-                              {{ shift.short_name }}
-                            </span>
-                            <span class="text-gray-400 dark:text-gray-500">–</span>
-                            <span class="text-gray-500 dark:text-gray-400">{{ shift.name }}</span>
-                          </button>
-                        }
-                        <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                        <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
-                          {{ 'common.workstation' | t }}
-                        </div>
-                        @for (ws of workstations; track ws.id) {
-                          <button
-                            (click)="onWorkstationSelect(employee.id, day, ws.id)"
-                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                            [class.bg-brand-50]="cell.plan!.workstation_id === ws.id"
-                            [class.dark:bg-brand-500/10]="cell.plan!.workstation_id === ws.id"
-                          >
-                            <span
-                              class="font-medium"
-                              [class.text-brand-600]="cell.plan!.workstation_id === ws.id"
-                              [class.dark:text-brand-400]="cell.plan!.workstation_id === ws.id"
-                            >
-                              {{ ws.name }}
-                            </span>
-                          </button>
-                        }
-                        <button
-                          (click)="onWorkstationSelect(employee.id, day, null)"
-                          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-500 transition hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/50"
-                          [class.bg-brand-50]="!cell.plan!.workstation_id"
-                          [class.dark:bg-brand-500/10]="!cell.plan!.workstation_id"
+                <!-- Day cells -->
+                @for (day of days; track day.date.getTime()) {
+                  @let cell = getCell(employee.id, day);
+                  @let dateStr = formatDate(day.date);
+                  <td
+                    class="day-col cell-container relative border-r border-gray-100 py-1.5 last:border-r-0 dark:border-white/[0.05]"
+                    [class.day-col-compact]="viewMode === 'month'"
+                    [class.px-2]="viewMode === 'week'"
+                    [class.px-0.5]="viewMode === 'month'"
+                    [class.bg-brand-50/40]="day.isToday"
+                    [class.dark:bg-brand-500/5]="day.isToday"
+                  >
+                    @if (wishesOnly) {
+                      <!-- Wishes-only view: the requested shift, read-only -->
+                      @let wishCell = getWishCell(employee.id, day);
+                      @if (wishCell.wish) {
+                        <div
+                          class="wish-chip flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-center"
+                          [style.backgroundColor]="getShiftBg(wishCell.shift)"
+                          [style.border]="'1px dashed ' + getShiftColor(wishCell.shift)"
+                          [title]="'schedule.wishTooltip' | t: { shift: wishCell.shift?.name ?? ('schedule.unknownShift' | t) }"
                         >
-                          <span class="italic">{{ 'common.none' | t }}</span>
-                        </button>
-                        <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                        <button
-                          (click)="cancelEdit()"
-                          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-500 transition hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/50"
-                        >
-                          {{ 'common.cancel' | t }}
-                        </button>
-                      </div>
-                    }
-
-                    <!-- Delete confirmation -->
-                    @if (isDeleting(employee.id, dateStr)) {
-                      <div
-                        class="delete-confirm absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-red-200 bg-white p-2 shadow-lg dark:border-red-800 dark:bg-gray-800"
-                        (click)="$event.stopPropagation()"
-                      >
-                        <p class="mb-2 text-xs text-gray-600 dark:text-gray-300">
-                          {{ 'schedule.deleteAssignmentConfirm' | t }}
-                        </p>
-                        <div class="flex items-center gap-2">
-                          <button
-                            (click)="confirmDelete()"
-                            class="flex-1 rounded-md bg-red-500 px-2 py-1 text-xs font-medium text-white transition hover:bg-red-600"
+                          <span
+                            class="text-xs font-bold leading-tight"
+                            [style.color]="getShiftColor(wishCell.shift)"
                           >
-                            {{ 'common.delete' | t }}
-                          </button>
-                          <button
-                            (click)="cancelDelete()"
-                            class="flex-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
-                          >
-                            {{ 'common.cancel' | t }}
-                          </button>
+                            {{ getShiftShortName(wishCell.shift) }}
+                          </span>
                         </div>
-                      </div>
-                    }
-
-                    <!-- Processing spinner -->
-                    @if (isProcessing(employee.id, dateStr)) {
-                      <div class="absolute inset-0 z-20 flex items-center justify-center rounded-lg bg-white/60 dark:bg-gray-900/60">
-                        <svg class="h-4 w-4 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none">
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
-                          <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
-                        </svg>
-                      </div>
-                    }
-                  } @else if (cell.absenceType) {
-                    <div class="group/chip relative">
+                      } @else {
+                        <div class="flex h-full items-center justify-center py-1">
+                          <span class="text-xs text-gray-300 dark:text-gray-700">·</span>
+                        </div>
+                      }
+                    } @else if (cell.plan && cell.isPresent) {
+                      <!-- Cell with an assigned shift -->
                       <div
-                        class="absence-cell flex w-full items-center justify-center overflow-hidden rounded-lg"
+                        class="shift-chip group/chip relative flex w-full flex-col items-center gap-0.5 rounded-lg text-center transition-shadow hover:shadow-sm"
                         [class.px-2]="viewMode === 'week'"
                         [class.py-1.5]="viewMode === 'week'"
                         [class.px-1]="viewMode === 'month'"
                         [class.py-1]="viewMode === 'month'"
-                        [class.bg-red-50]="absenceCategory(cell.absenceType) === 'sick'"
-                        [class.dark:bg-red-500/10]="absenceCategory(cell.absenceType) === 'sick'"
-                        [class.bg-amber-50]="absenceCategory(cell.absenceType) === 'planned'"
-                        [class.dark:bg-amber-500/10]="absenceCategory(cell.absenceType) === 'planned'"
-                        [class.bg-slate-50]="absenceCategory(cell.absenceType) === 'free'"
-                        [class.dark:bg-slate-800]="absenceCategory(cell.absenceType) === 'free'"
-                        [title]="viewMode === 'month' ? (absenceLabelKey(cell.absenceType) | t) : null"
+                        [style.backgroundColor]="getShiftBg(cell.shift)"
+                        [style.borderLeft]="'3px solid ' + getShiftColor(cell.shift)"
+                        [title]="viewMode === 'month' && cell.workstation ? getWorkstationName(cell.workstation) : null"
                       >
                         <span
-                          class="w-full truncate text-center text-xs font-medium"
-                          [class.text-red-600]="absenceCategory(cell.absenceType) === 'sick'"
-                          [class.dark:text-red-400]="absenceCategory(cell.absenceType) === 'sick'"
-                          [class.text-amber-600]="absenceCategory(cell.absenceType) === 'planned'"
-                          [class.dark:text-amber-400]="absenceCategory(cell.absenceType) === 'planned'"
-                          [class.text-slate-500]="absenceCategory(cell.absenceType) === 'free'"
-                          [class.dark:text-slate-400]="absenceCategory(cell.absenceType) === 'free'"
+                          class="text-xs font-bold leading-tight"
+                          [style.color]="getShiftColor(cell.shift)"
                         >
-                          {{ absenceLabelKey(cell.absenceType) | t }}
+                          {{ getShiftShortName(cell.shift) }}
                         </span>
+                        @if (cell.workstation && viewMode === 'week') {
+                          <span
+                            class="w-full truncate text-[10px] leading-tight text-gray-500 cursor-pointer hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
+                            [title]="'schedule.changeWorkstation' | t: { workstation: getWorkstationName(cell.workstation) }"
+                            (click)="startEdit(employee.id, day, $event)"
+                          >
+                            {{ getWorkstationName(cell.workstation) }}
+                          </span>
+                        }
+
+                        <!-- Action buttons (visible on hover) -->
+                        <div
+                          class="cell-actions absolute -top-1 right-0 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/chip:opacity-100"
+                          (click)="$event.stopPropagation()"
+                        >
+                          <button
+                            (click)="startEdit(employee.id, day, $event)"
+                            class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 shadow-sm ring-1 ring-gray-200 transition hover:text-brand-600 hover:ring-brand-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-brand-400 dark:hover:ring-brand-600"
+                            [title]="'schedule.changeShiftType' | t"
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                            </svg>
+                          </button>
+                          <button
+                            (click)="startDelete(employee.id, day, cell.plan!.id, $event)"
+                            class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 shadow-sm ring-1 ring-gray-200 transition hover:text-red-600 hover:ring-red-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-red-400 dark:hover:ring-red-600"
+                            [title]="'schedule.deleteAssignment' | t"
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                              <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                            </svg>
+                          </button>
+                        </div>
                       </div>
 
-                      <!-- Action buttons (visible on hover) -->
-                      <div
-                        class="cell-actions absolute -top-1 right-0 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/chip:opacity-100"
-                        (click)="$event.stopPropagation()"
-                      >
-                        <button
-                          (click)="startDelete(employee.id, day, cell.plan!.id, $event)"
-                          class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 shadow-sm ring-1 ring-gray-200 transition hover:text-red-600 hover:ring-red-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-red-400 dark:hover:ring-red-600"
-                          [title]="'schedule.deleteAbsence' | t"
+                      <!-- Shift type dropdown (edit mode) -->
+                      @if (isEditing(employee.id, dateStr)) {
+                        <div
+                          class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                          (click)="$event.stopPropagation()"
                         >
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-                          </svg>
-                        </button>
-                      </div>
+                          <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+                            {{ 'schedule.changeShift' | t }}
+                          </div>
+                          @for (shift of shifts; track shift.id) {
+                            <button
+                              (click)="onShiftSelect(employee.id, day, shift.id)"
+                              class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                              [class.bg-brand-50]="cell.plan.shift_id === shift.id"
+                              [class.dark:bg-brand-500/10]="cell.plan.shift_id === shift.id"
+                            >
+                              <span
+                                class="inline-block h-3 w-3 rounded-sm"
+                                [style.backgroundColor]="shift.color"
+                              ></span>
+                              <span
+                                class="font-medium"
+                                [class.text-brand-600]="cell.plan.shift_id === shift.id"
+                                [class.dark:text-brand-400]="cell.plan.shift_id === shift.id"
+                              >
+                                {{ shift.short_name }}
+                              </span>
+                              <span class="text-gray-400 dark:text-gray-500">–</span>
+                              <span class="text-gray-500 dark:text-gray-400">{{ shift.name }}</span>
+                            </button>
+                          }
+                          <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
+                          <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+                            {{ 'common.workstation' | t }}
+                          </div>
+                          @for (ws of workstations; track ws.id) {
+                            <button
+                              (click)="onWorkstationSelect(employee.id, day, ws.id)"
+                              class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                              [class.bg-brand-50]="cell.plan!.workstation_id === ws.id"
+                              [class.dark:bg-brand-500/10]="cell.plan!.workstation_id === ws.id"
+                            >
+                              <span
+                                class="font-medium"
+                                [class.text-brand-600]="cell.plan!.workstation_id === ws.id"
+                                [class.dark:text-brand-400]="cell.plan!.workstation_id === ws.id"
+                              >
+                                {{ ws.name }}
+                              </span>
+                            </button>
+                          }
+                          <button
+                            (click)="onWorkstationSelect(employee.id, day, null)"
+                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-500 transition hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/50"
+                            [class.bg-brand-50]="!cell.plan!.workstation_id"
+                            [class.dark:bg-brand-500/10]="!cell.plan!.workstation_id"
+                          >
+                            <span class="italic">{{ 'common.none' | t }}</span>
+                          </button>
+                          <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
+                          <button
+                            (click)="cancelEdit()"
+                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-500 transition hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/50"
+                          >
+                            {{ 'common.cancel' | t }}
+                          </button>
+                        </div>
+                      }
 
                       <!-- Delete confirmation -->
                       @if (isDeleting(employee.id, dateStr)) {
@@ -459,7 +404,7 @@
                           (click)="$event.stopPropagation()"
                         >
                           <p class="mb-2 text-xs text-gray-600 dark:text-gray-300">
-                            {{ 'schedule.deleteAbsenceConfirm' | t }}
+                            {{ 'schedule.deleteAssignmentConfirm' | t }}
                           </p>
                           <div class="flex items-center gap-2">
                             <button
@@ -487,88 +432,178 @@
                           </svg>
                         </div>
                       }
-                    </div>
-                  } @else {
-                    <div
-                      class="empty-cell group/empty flex h-full cursor-pointer items-center justify-center rounded-lg px-2 py-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-white/[0.05]"
-                      (click)="startEdit(employee.id, day, $event)"
-                    >
-                      <span
-                        class="text-xs text-gray-300 transition-colors group-hover/empty:text-gray-400 dark:text-gray-700 dark:group-hover/empty:text-gray-500"
-                      >
-                        +
-                      </span>
-                    </div>
+                    } @else if (cell.absenceType) {
+                      <div class="group/chip relative">
+                        <div
+                          class="absence-cell flex w-full items-center justify-center overflow-hidden rounded-lg"
+                          [class.px-2]="viewMode === 'week'"
+                          [class.py-1.5]="viewMode === 'week'"
+                          [class.px-1]="viewMode === 'month'"
+                          [class.py-1]="viewMode === 'month'"
+                          [class.bg-red-50]="absenceCategory(cell.absenceType) === 'sick'"
+                          [class.dark:bg-red-500/10]="absenceCategory(cell.absenceType) === 'sick'"
+                          [class.bg-amber-50]="absenceCategory(cell.absenceType) === 'planned'"
+                          [class.dark:bg-amber-500/10]="absenceCategory(cell.absenceType) === 'planned'"
+                          [class.bg-slate-50]="absenceCategory(cell.absenceType) === 'free'"
+                          [class.dark:bg-slate-800]="absenceCategory(cell.absenceType) === 'free'"
+                          [title]="viewMode === 'month' ? (absenceLabelKey(cell.absenceType) | t) : null"
+                        >
+                          <span
+                            class="w-full truncate text-center text-xs font-medium"
+                            [class.text-red-600]="absenceCategory(cell.absenceType) === 'sick'"
+                            [class.dark:text-red-400]="absenceCategory(cell.absenceType) === 'sick'"
+                            [class.text-amber-600]="absenceCategory(cell.absenceType) === 'planned'"
+                            [class.dark:text-amber-400]="absenceCategory(cell.absenceType) === 'planned'"
+                            [class.text-slate-500]="absenceCategory(cell.absenceType) === 'free'"
+                            [class.dark:text-slate-400]="absenceCategory(cell.absenceType) === 'free'"
+                          >
+                            {{ absenceLabelKey(cell.absenceType) | t }}
+                          </span>
+                        </div>
 
-                    <!-- Shift type dropdown for empty cell (add mode) -->
-                    @if (isEditing(employee.id, dateStr)) {
-                      <div
-                        class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
-                        (click)="$event.stopPropagation()"
-                      >
-                        <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
-                          {{ 'schedule.assignShift' | t }}
-                        </div>
-                        @for (shift of shifts; track shift.id) {
-                          <button
-                            (click)="onShiftSelect(employee.id, day, shift.id)"
-                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                          >
-                            <span
-                              class="inline-block h-3 w-3 rounded-sm"
-                              [style.backgroundColor]="shift.color"
-                            ></span>
-                            <span class="font-medium">
-                              {{ shift.short_name }}
-                            </span>
-                            <span class="text-gray-400 dark:text-gray-500">–</span>
-                            <span class="text-gray-500 dark:text-gray-400">{{ shift.name }}</span>
-                          </button>
-                        }
-                        <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                        <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
-                          {{ 'common.workstation' | t }}
-                        </div>
-                        @for (ws of workstations; track ws.id) {
-                          <button
-                            (click)="onWorkstationSelect(employee.id, day, ws.id)"
-                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                            [class.bg-brand-50]="pendingWorkstationId === ws.id"
-                            [class.dark:bg-brand-500/10]="pendingWorkstationId === ws.id"
-                          >
-                            <span
-                              class="font-medium"
-                              [class.text-brand-600]="pendingWorkstationId === ws.id"
-                              [class.dark:text-brand-400]="pendingWorkstationId === ws.id"
-                            >
-                              {{ ws.name }}
-                            </span>
-                          </button>
-                        }
-                        <button
-                          (click)="onWorkstationSelect(employee.id, day, null)"
-                          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-500 transition hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/50"
-                          [class.bg-brand-50]="!pendingWorkstationId"
-                          [class.dark:bg-brand-500/10]="!pendingWorkstationId"
+                        <!-- Action buttons (visible on hover) -->
+                        <div
+                          class="cell-actions absolute -top-1 right-0 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/chip:opacity-100"
+                          (click)="$event.stopPropagation()"
                         >
-                          <span class="italic">{{ 'common.none' | t }}</span>
-                        </button>
-                        <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                        <button
-                          (click)="cancelEdit()"
-                          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-500 transition hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/50"
-                        >
-                          {{ 'common.cancel' | t }}
-                        </button>
+                          <button
+                            (click)="startDelete(employee.id, day, cell.plan!.id, $event)"
+                            class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 shadow-sm ring-1 ring-gray-200 transition hover:text-red-600 hover:ring-red-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-red-400 dark:hover:ring-red-600"
+                            [title]="'schedule.deleteAbsence' | t"
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                              <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                            </svg>
+                          </button>
+                        </div>
+
+                        <!-- Delete confirmation -->
+                        @if (isDeleting(employee.id, dateStr)) {
+                          <div
+                            class="delete-confirm absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-red-200 bg-white p-2 shadow-lg dark:border-red-800 dark:bg-gray-800"
+                            (click)="$event.stopPropagation()"
+                          >
+                            <p class="mb-2 text-xs text-gray-600 dark:text-gray-300">
+                              {{ 'schedule.deleteAbsenceConfirm' | t }}
+                            </p>
+                            <div class="flex items-center gap-2">
+                              <button
+                                (click)="confirmDelete()"
+                                class="flex-1 rounded-md bg-red-500 px-2 py-1 text-xs font-medium text-white transition hover:bg-red-600"
+                              >
+                                {{ 'common.delete' | t }}
+                              </button>
+                              <button
+                                (click)="cancelDelete()"
+                                class="flex-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
+                              >
+                                {{ 'common.cancel' | t }}
+                              </button>
+                            </div>
+                          </div>
+                        }
+
+                        <!-- Processing spinner -->
+                        @if (isProcessing(employee.id, dateStr)) {
+                          <div class="absolute inset-0 z-20 flex items-center justify-center rounded-lg bg-white/60 dark:bg-gray-900/60">
+                            <svg class="h-4 w-4 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none">
+                              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+                              <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
+                            </svg>
+                          </div>
+                        }
                       </div>
+                    } @else {
+                      <div
+                        class="empty-cell group/empty flex h-full cursor-pointer items-center justify-center rounded-lg px-2 py-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-white/[0.05]"
+                        (click)="startEdit(employee.id, day, $event)"
+                      >
+                        <span
+                          class="text-xs text-gray-300 transition-colors group-hover/empty:text-gray-400 dark:text-gray-700 dark:group-hover/empty:text-gray-500"
+                        >
+                          +
+                        </span>
+                      </div>
+
+                      <!-- Shift type dropdown for empty cell (add mode) -->
+                      @if (isEditing(employee.id, dateStr)) {
+                        <div
+                          class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                          (click)="$event.stopPropagation()"
+                        >
+                          <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+                            {{ 'schedule.assignShift' | t }}
+                          </div>
+                          @for (shift of shifts; track shift.id) {
+                            <button
+                              (click)="onShiftSelect(employee.id, day, shift.id)"
+                              class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                            >
+                              <span
+                                class="inline-block h-3 w-3 rounded-sm"
+                                [style.backgroundColor]="shift.color"
+                              ></span>
+                              <span class="font-medium">
+                                {{ shift.short_name }}
+                              </span>
+                              <span class="text-gray-400 dark:text-gray-500">–</span>
+                              <span class="text-gray-500 dark:text-gray-400">{{ shift.name }}</span>
+                            </button>
+                          }
+                          <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
+                          <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+                            {{ 'common.workstation' | t }}
+                          </div>
+                          @for (ws of workstations; track ws.id) {
+                            <button
+                              (click)="onWorkstationSelect(employee.id, day, ws.id)"
+                              class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                              [class.bg-brand-50]="pendingWorkstationId === ws.id"
+                              [class.dark:bg-brand-500/10]="pendingWorkstationId === ws.id"
+                            >
+                              <span
+                                class="font-medium"
+                                [class.text-brand-600]="pendingWorkstationId === ws.id"
+                                [class.dark:text-brand-400]="pendingWorkstationId === ws.id"
+                              >
+                                {{ ws.name }}
+                              </span>
+                            </button>
+                          }
+                          <button
+                            (click)="onWorkstationSelect(employee.id, day, null)"
+                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-500 transition hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/50"
+                            [class.bg-brand-50]="!pendingWorkstationId"
+                            [class.dark:bg-brand-500/10]="!pendingWorkstationId"
+                          >
+                            <span class="italic">{{ 'common.none' | t }}</span>
+                          </button>
+                          <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
+                          <button
+                            (click)="cancelEdit()"
+                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-500 transition hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/50"
+                          >
+                            {{ 'common.cancel' | t }}
+                          </button>
+                        </div>
+                      }
                     }
-                  }
-                </td>
-              }
-            </tr>
-          }
-        </tbody>
-      </table>
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else {
+        <app-grouped-plan-view
+          [mode]="groupMode === 'workstation' ? 'workstation' : 'shift'"
+          [days]="days"
+          [workstationRows]="workstationRows"
+          [shiftRows]="shiftRows"
+          [labelColWidth]="employeeColWidth"
+          (cellSelect)="openDetail($event)"
+        />
+      }
     }
   </div>
 
@@ -587,6 +622,12 @@
         <span class="text-xs text-gray-600 dark:text-gray-400">{{ 'schedule.wishLegend' | t }}</span>
       </div>
     }
+    @if (groupMode !== 'employee') {
+      <div class="flex items-center gap-1.5">
+        <span class="text-xs font-semibold text-warning-600 dark:text-warning-400">2/3</span>
+        <span class="text-xs text-gray-600 dark:text-gray-400">{{ 'schedule.understaffedLegend' | t }}</span>
+      </div>
+    }
     @for (shift of shifts; track shift.id) {
       <div class="flex items-center gap-1.5">
         <div
@@ -602,3 +643,81 @@
     }
   </div>
 </div>
+
+<!-- Who is on this station / shift on this day -->
+<app-modal
+  [isOpen]="detail !== null"
+  className="max-w-[560px] m-4"
+  (close)="closeDetail()"
+>
+  @if (detail) {
+    <div class="p-5 sm:p-6">
+      <div class="flex items-center gap-2.5 pr-10">
+        @if (detail.color) {
+          <span class="h-5 w-1.5 shrink-0 rounded-full" [style.backgroundColor]="detail.color"></span>
+        }
+        <h4 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ detail.title }}</h4>
+      </div>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        {{ detailDateLabel(detail.day) }} · {{ 'schedule.assignedCount' | t: { count: detail.total } }}
+      </p>
+
+      <div class="mt-5 max-h-[60vh] space-y-4 overflow-y-auto">
+        @for (bucket of detail.buckets; track bucket.shift?.id ?? 'none') {
+          <div>
+            <div class="flex items-baseline gap-2 border-b border-gray-100 pb-1.5 dark:border-white/[0.08]">
+              <span
+                class="text-sm font-semibold"
+                [style.color]="getShiftColor(bucket.shift)"
+              >
+                {{ bucket.shift?.name ?? ('schedule.unknownShift' | t) }}
+              </span>
+              <span class="text-xs tabular-nums text-gray-400 dark:text-gray-500">
+                {{ bucketTimeLabel(bucket, detail.day.date) }}
+              </span>
+              <span
+                class="ml-auto text-xs font-semibold tabular-nums"
+                [class]="bucketShort(bucket)
+                  ? 'text-warning-600 dark:text-warning-400'
+                  : 'text-gray-500 dark:text-gray-400'"
+              >
+                {{ bucket.required ? bucket.people.length + '/' + bucket.required : bucket.people.length }}
+              </span>
+            </div>
+
+            <ul class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+              @for (person of bucket.people; track person.employeeId) {
+                <li>
+                  <button
+                    type="button"
+                    (click)="goToEmployeeCalendar(person.employeeId)"
+                    class="flex w-full items-center gap-3 py-2 text-left transition-colors hover:text-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 dark:hover:text-brand-400"
+                    [title]="'schedule.openEmployeeCalendarClick' | t"
+                  >
+                    <span
+                      class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-200"
+                    >
+                      {{ person.employeeName.charAt(0).toUpperCase() }}
+                    </span>
+                    <span class="truncate text-sm font-medium text-gray-800 dark:text-white/90">
+                      {{ person.employeeName }}
+                    </span>
+                    <span class="ml-auto shrink-0 text-xs text-gray-500 dark:text-gray-400">
+                      {{ person.workstation?.name ?? ('schedule.noWorkstation' | t) }}
+                    </span>
+                  </button>
+                </li>
+              }
+            </ul>
+
+            @if (bucketShort(bucket)) {
+              <p class="mt-1.5 text-xs text-warning-600 dark:text-warning-400">
+                {{ 'schedule.understaffedBy' | t: { count: bucket.required - bucket.people.length } }}
+              </p>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  }
+</app-modal>

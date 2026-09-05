@@ -304,6 +304,15 @@ components:
           description: >
             Reward for fulfilling an employee's shift wish (see
             `Employee.wishes`).  0 disables wish handling.
+        min_staffing_mode:
+          type: string
+          enum: [soft, hard]
+          default: soft
+          description: >
+            How `min_employees` (per shift/day and per workstation/shift/day)
+            is enforced.  `soft` penalises a shortfall so a plan always
+            exists; `hard` forbids one, which returns `infeasible` when there
+            are not enough eligible employees.
         solver_time_limit_seconds:
           type: number
           minimum: 1

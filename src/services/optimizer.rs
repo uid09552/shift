@@ -243,8 +243,18 @@ impl OptimizerService {
         })
     }
 
+    /// A shift counts as a night shift when any of its weekday times runs past
+    /// midnight — `end_time` at or before `start_time` is how an overnight
+    /// shift is stored (see `shift_weekday_times`). The optimizer uses the flag
+    /// for the forced recovery days after a night shift and for the fatigue
+    /// multiplier, so getting it wrong silently disables both.
+    fn is_night_shift(shift: &Shift) -> bool {
+        shift.weekday_times.iter().any(|wt| wt.end_time <= wt.start_time)
+    }
+
     fn build_shift_tasks(shifts: Vec<Shift>) -> Vec<ShiftTask> {
         shifts.into_iter().map(|shift| {
+            let is_night_shift = Self::is_night_shift(&shift);
             let weekday_times = shift.weekday_times.iter().map(|wt| ShiftWeekdayTimeTask {
                 weekday: wt.weekday.to_string(),
                 start_time: wt.start_time.to_string(),
@@ -256,7 +266,7 @@ impl OptimizerService {
             ShiftTask {
                 id: shift.id.to_string(),
                 name: shift.name,
-                is_night_shift: false,
+                is_night_shift,
                 weekday_times,
             }
         }).collect()
@@ -461,6 +471,7 @@ async fn build_constraints(
                 shift_continuity_weight: Some(s.shift_continuity_weight),
                 shift_continuity_week_bonus: Some(s.shift_continuity_week_bonus),
                 wish_weight: Some(s.wish_weight),
+                min_staffing_mode: Some(s.min_staffing_mode.as_str().to_string()),
             }
         }
         Err(e) => {
@@ -750,5 +761,64 @@ pub async fn prepare(
             eprintln!("Failed to prepare task DTO: {}", e);
             Err(AppError::Internal)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::NaiveTime;
+
+    fn time(h: u32, m: u32) -> NaiveTime {
+        NaiveTime::from_hms_opt(h, m, 0).unwrap()
+    }
+
+    fn shift_with(times: &[(u32, u32, u32, u32)]) -> Shift {
+        Shift {
+            id: Uuid::new_v4(),
+            name: "Test".into(),
+            short_name: "T".into(),
+            color: "#000000".into(),
+            order: 0,
+            weekday_times: times
+                .iter()
+                .enumerate()
+                .map(|(i, &(sh, sm, eh, em))| WeekdayTime {
+                    weekday: i as i16,
+                    start_time: time(sh, sm),
+                    end_time: time(eh, em),
+                    min_employees: 1,
+                    max_employees: None,
+                    free_days_after_shift: 0,
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn day_shift_is_not_a_night_shift() {
+        assert!(!OptimizerService::is_night_shift(&shift_with(&[(6, 0, 14, 0), (8, 0, 16, 30)])));
+    }
+
+    #[test]
+    fn shift_running_past_midnight_is_a_night_shift() {
+        // 22:00 → 06:00 stores an end_time earlier than its start_time.
+        assert!(OptimizerService::is_night_shift(&shift_with(&[(22, 0, 6, 0)])));
+    }
+
+    #[test]
+    fn one_overnight_weekday_makes_the_whole_shift_a_night_shift() {
+        assert!(OptimizerService::is_night_shift(&shift_with(&[(8, 0, 16, 0), (20, 0, 4, 0)])));
+    }
+
+    #[test]
+    fn shift_ending_exactly_at_midnight_is_a_night_shift() {
+        // 20:00 → 00:00 ends on the next calendar day, same as any wrap.
+        assert!(OptimizerService::is_night_shift(&shift_with(&[(20, 0, 0, 0)])));
+    }
+
+    #[test]
+    fn shift_without_weekday_times_is_not_a_night_shift() {
+        assert!(!OptimizerService::is_night_shift(&shift_with(&[])));
     }
 }

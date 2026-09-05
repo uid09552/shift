@@ -334,6 +334,9 @@ The system integrates with a Python-based optimization service for shift schedul
 - `equality_weight`: int (default 50000)
 - `priority_weights`: dict (default {"high":10000,"medium":1000,"low":100})
 - `wish_weight`: int (default 20000, 0=disabled) — reward for fulfilling an employee shift wish
+- `min_staffing_mode`: "soft" | "hard" (default "soft") — whether each shift's
+  and workstation's `min_employees` is a penalised target or a requirement the
+  solver may not break (hard can return `infeasible`)
 - `solver_time_limit_seconds`: float (default 120.0)
 - `solver_num_workers`: int (default 8)
 

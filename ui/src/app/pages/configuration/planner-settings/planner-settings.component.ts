@@ -388,6 +388,29 @@ const DEFAULT_BAND: { min: number; max: number } = { min: 30, max: 45 };
           </div>
           <div class="divide-y divide-gray-100 border-t border-gray-100 dark:divide-white/[0.05] dark:border-white/[0.05]">
             <app-setting-row
+              controlId="minStaffingMode"
+              [label]="'plannerSettings.minStaffingMode.label' | t"
+              [description]="'plannerSettings.minStaffingMode.hint' | t"
+              [tooltip]="'plannerSettings.minStaffingMode.tooltip' | t"
+            >
+              <app-level-select
+                id="minStaffingMode"
+                [options]="minStaffingOptions"
+                [value]="form.min_staffing_mode"
+                [meterFilled]="form.min_staffing_mode === 'hard' ? 5 : 2"
+                (valueChange)="onMinStaffingModeChange($event)"
+              />
+            </app-setting-row>
+            @if (form.min_staffing_mode === 'hard') {
+              <div class="flex items-start gap-2.5 bg-warning-50 px-5 py-3 text-xs leading-relaxed text-warning-700 dark:bg-warning-500/10 dark:text-warning-400 sm:px-6">
+                <svg class="mt-px shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>
+                </svg>
+                <span>{{ 'plannerSettings.minStaffingMode.hardWarning' | t }}</span>
+              </div>
+            }
+
+            <app-setting-row
               controlId="priorityWeights"
               [label]="'plannerSettings.priorityWeights' | t"
               [description]="'plannerSettings.priorityHint' | t"
@@ -547,6 +570,7 @@ export class PlannerSettingsComponent implements OnInit {
     night_shift_fatigue_multiplier: 2,
     shift_continuity_weight: 500,
     shift_continuity_week_bonus: 2000,
+    min_staffing_mode: 'soft',
   };
 
   ngOnInit(): void {
@@ -726,6 +750,19 @@ export class PlannerSettingsComponent implements OnInit {
     if (field === 'weekly_max_hours' && this.form.weekly_min_hours !== null && value < this.form.weekly_min_hours) {
       this.form.weekly_min_hours = value;
     }
+  }
+
+  // ── Minimum staffing: target or requirement ───────────────────
+
+  get minStaffingOptions(): LevelOption[] {
+    return [
+      { value: 'soft', label: this.translations.t('plannerSettings.minStaffingMode.soft') },
+      { value: 'hard', label: this.translations.t('plannerSettings.minStaffingMode.hard') },
+    ];
+  }
+
+  onMinStaffingModeChange(value: string): void {
+    this.form.min_staffing_mode = value === 'hard' ? 'hard' : 'soft';
   }
 
   // ── Workstation priority ──────────────────────────────────────

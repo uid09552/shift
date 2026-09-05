@@ -3,7 +3,7 @@ Data models for shift planning with validation using Pydantic.
 """
 
 from datetime import date, time
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -238,6 +238,13 @@ class ConstraintConfig(BaseModel):
     # goal from balancing total hours. 0 disables fatigue tracking.
     fatigue_weight: int = Field(default=100, ge=0)
     night_shift_fatigue_multiplier: float = Field(default=2.0, ge=1.0)
+
+    # How `min_employees` (per shift/day and per workstation/shift/day) is
+    # enforced. "soft" penalises a shortfall so a plan always exists; "hard"
+    # forbids one, which is what a tenant wants when a station legally cannot
+    # run understaffed — at the price of an infeasible answer when there are
+    # not enough eligible employees.
+    min_staffing_mode: Literal["soft", "hard"] = "soft"
 
     # Solver time limit in seconds
     solver_time_limit_seconds: float = Field(default=120.0, gt=0)

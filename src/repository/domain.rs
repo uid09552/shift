@@ -407,6 +407,37 @@ pub struct PlannerSettingsDomain {
     pub shift_continuity_weight: i32,
     pub shift_continuity_week_bonus: i32,
     pub wish_weight: i32,
+    pub min_staffing_mode: MinStaffingMode,
+}
+
+/// Whether `min_employees` (per shift/day and per workstation/shift/day) is a
+/// target the solver may miss at a penalty, or a floor it must respect.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MinStaffingMode {
+    /// Shortfall is penalised — a plan always exists, it just costs.
+    Soft,
+    /// Shortfall is forbidden; a period that cannot be staffed comes back infeasible.
+    Hard,
+}
+
+impl MinStaffingMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MinStaffingMode::Soft => "soft",
+            MinStaffingMode::Hard => "hard",
+        }
+    }
+
+    /// Parses the stored column value. Anything unexpected — only reachable by
+    /// writing to the database directly, the CHECK constraint rules out the
+    /// rest — falls back to `Soft` rather than silently making plans infeasible.
+    pub fn from_db(value: &str) -> Self {
+        match value {
+            "hard" => MinStaffingMode::Hard,
+            _ => MinStaffingMode::Soft,
+        }
+    }
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -442,6 +473,8 @@ pub struct UpdatePlannerSettings {
     pub shift_continuity_week_bonus: i32,
     #[serde(default = "default_wish_weight")]
     pub wish_weight: i32,
+    #[serde(default = "default_min_staffing_mode")]
+    pub min_staffing_mode: MinStaffingMode,
 }
 
 fn default_weekly_hours_target_weight() -> i32 { 1000 }
@@ -452,6 +485,7 @@ fn default_night_shift_fatigue_multiplier() -> f64 { 2.0 }
 fn default_shift_continuity_weight() -> i32 { 500 }
 fn default_shift_continuity_week_bonus() -> i32 { 2000 }
 fn default_wish_weight() -> i32 { 20000 }
+fn default_min_staffing_mode() -> MinStaffingMode { MinStaffingMode::Soft }
 
 #[async_trait]
 pub trait PlannerSettingsRepository {

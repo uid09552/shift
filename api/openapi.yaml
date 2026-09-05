@@ -2801,6 +2801,15 @@ components:
             never forces the assignment). 0 ignores wishes entirely; raising it
             towards equality_weight makes wishes near-mandatory.
           example: 20000
+        min_staffing_mode:
+          type: string
+          enum: [soft, hard]
+          description: >
+            How each shift's and workstation's min_employees is enforced.
+            soft (default) penalises a shortfall so a plan always exists;
+            hard forbids one, so a period that cannot be staffed comes back
+            infeasible instead of understaffed.
+          example: soft
         skill_downgrade_weight:
           type: integer
           minimum: 0
@@ -2901,6 +2910,10 @@ components:
           type: integer
           minimum: 0
           default: 20000
+        min_staffing_mode:
+          type: string
+          enum: [soft, hard]
+          default: soft
         skill_downgrade_weight:
           type: integer
           minimum: 0
@@ -3827,6 +3840,10 @@ components:
           type: integer
           minimum: 0
           description: Reward for fulfilling an employee's shift wish (0 disables wish handling)
+        min_staffing_mode:
+          type: string
+          enum: [soft, hard]
+          description: Whether min_employees is a penalised target (soft) or a requirement (hard)
 
     Error:
       type: object

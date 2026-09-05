@@ -111,6 +111,7 @@ _DEFAULT_CONSTRAINTS = {
     "skill_downgrade_weight": 200,  # Penalty for covering a slot with a higher-level skill
     "fatigue_weight": 100,  # Weight on worst-off employee's accumulated fatigue
     "night_shift_fatigue_multiplier": 2.0,
+    "min_staffing_mode": "soft",  # or "hard" — see ConstraintConfig
     "solver_time_limit_seconds": 120.0,
     "solver_num_workers": 8,
 }
@@ -209,6 +210,7 @@ class ShiftPlanner:
         self.skill_downgrade_w = cfg["skill_downgrade_weight"]
         self.fatigue_w = cfg["fatigue_weight"]
         self.night_fatigue_mult = cfg["night_shift_fatigue_multiplier"]
+        self.min_staffing_hard = cfg["min_staffing_mode"] == "hard"
         self.time_limit = cfg["solver_time_limit_seconds"]
         self.num_workers = cfg["solver_num_workers"]
         logger.info("Constraint config: %s", cfg)
@@ -393,8 +395,9 @@ class ShiftPlanner:
     # ---- Hard constraints --------------------------------------------------
 
     def _add_hard_constraints(self) -> None:
-        # strong but not blocking
+        # strong but not blocking (soft mode only — see _require_min_staffing)
         self.min_emp_penalty = max(self.prio_weights.values()) * 20
+        self.hard_staffing_count = 0
         self._limit_one_workstation_per_shift()
         self._limit_workstation_staffing()
         self._limit_one_shift_per_day()
@@ -410,21 +413,20 @@ class ShiftPlanner:
             self.model.Add(sum(terms) <= 1)
 
     def _limit_workstation_staffing(self) -> None:
-        """2) Minimum (soft) and maximum (hard) employees per (day, shift,
-        workstation). Multiple employees may be assigned to the same
-        workstation+shift, bounded by the workstation's configured staffing
-        limits (max_employees=None means no explicit cap beyond what other
-        constraints allow)."""
+        """2) Minimum and maximum employees per (day, shift, workstation).
+        Multiple employees may be assigned to the same workstation+shift,
+        bounded by the workstation's configured staffing limits
+        (max_employees=None means no explicit cap beyond what other constraints
+        allow). The minimum is soft or hard per `min_staffing_mode`; the maximum
+        is always hard."""
         for (d_idx, s_idx, w_idx), terms in self.vars_by_day_shift_ws.items():
             wid = self.workstations[w_idx]["id"]
             min_emp = self.ws_min_emp.get(wid, 1)
             max_emp = self.ws_max_emp.get(wid)
             if min_emp > 0:
-                shortfall = self.model.NewIntVar(
-                    0, min_emp, f"ws_shortfall_{w_idx}_{d_idx}_{s_idx}"
+                self._require_min_staffing(
+                    terms, min_emp, f"ws_shortfall_{w_idx}_{d_idx}_{s_idx}"
                 )
-                self.model.Add(shortfall >= min_emp - sum(terms))
-                self.staffing_shortfall_terms.append(self.min_emp_penalty * shortfall)
             if max_emp is not None:
                 self.model.Add(sum(terms) <= max_emp)
 
@@ -433,29 +435,50 @@ class ShiftPlanner:
         for terms in self.vars_by_emp_day.values():
             self.model.Add(sum(terms) <= 1)
 
+    def _require_min_staffing(self, terms, min_emp: int, name: str) -> None:
+        """Enforce `min_emp` over `terms`, the way `min_staffing_mode` asks for.
+
+        Hard: the sum may not fall below the minimum, so a period that cannot be
+        staffed comes back infeasible rather than quietly understaffed. Soft
+        (the default): a shortfall variable is priced into the objective, so the
+        solver still returns the best plan it can.
+        """
+        if self.min_staffing_hard:
+            self.model.Add(sum(terms) >= min_emp)
+            self.hard_staffing_count += 1
+            return
+        shortfall = self.model.NewIntVar(0, min_emp, name)
+        self.model.Add(shortfall >= min_emp - sum(terms))
+        self.staffing_shortfall_terms.append(self.min_emp_penalty * shortfall)
+
     def _limit_shift_staffing(self) -> None:
-        """3b) Minimum (soft) and maximum (hard) employees per (day, shift),
-        summed across all workstations operating that shift. min_employees is
-        enforced as a soft penalty so the solver can always find a feasible
-        solution even when not enough eligible employees are available.
-        max_employees remains a hard constraint."""
+        """3b) Minimum and maximum employees per (day, shift), summed across all
+        workstations operating that shift. The minimum follows
+        `min_staffing_mode` (see `_require_min_staffing`); max_employees is
+        always a hard constraint."""
         for (d_idx, s_idx), shift_day_terms in self.vars_by_day_shift.items():
             sid = self.shifts[s_idx]["id"]
             wday = self.day_wd[d_idx]
             min_emp = self._shift_min_emp(sid, wday)
             max_emp = self._shift_max_emp(sid, wday)
             if min_emp > 0:
-                # Soft: shortfall = max(0, min_emp - assigned)
-                shortfall = self.model.NewIntVar(0, min_emp, f"shortfall_{s_idx}_{d_idx}")
-                self.model.Add(shortfall >= min_emp - sum(shift_day_terms))
-                self.staffing_shortfall_terms.append(self.min_emp_penalty * shortfall)
+                self._require_min_staffing(
+                    shift_day_terms, min_emp, f"shortfall_{s_idx}_{d_idx}"
+                )
             if max_emp is not None:
                 self.model.Add(sum(shift_day_terms) <= max_emp)
 
-        logger.info(
-            "Soft staffing minimum: %d penalty terms (penalty/slot=%d)",
-            len(self.staffing_shortfall_terms), self.min_emp_penalty,
-        )
+        if self.min_staffing_hard:
+            logger.info(
+                "Hard staffing minimum: %d mandatory coverage constraints "
+                "(a period that cannot be staffed will come back infeasible)",
+                self.hard_staffing_count,
+            )
+        else:
+            logger.info(
+                "Soft staffing minimum: %d penalty terms (penalty/slot=%d)",
+                len(self.staffing_shortfall_terms), self.min_emp_penalty,
+            )
 
     def _add_recovery_days(self) -> None:
         """4) Per-shift forced recovery days (night-shift recovery generalized
@@ -496,11 +519,15 @@ class ShiftPlanner:
                     self.model.Add(sum(terms) <= self.max_weekly)
 
     def _limit_min_rest(self) -> None:
-        """6) Minimum rest between shifts on consecutive days (configurable,
-        0 = disabled)."""
-        if self.min_rest <= 0:
-            return
+        """6) Minimum rest between shifts on consecutive days (configurable).
 
+        A shift whose end_time is at or before its start_time runs past
+        midnight, so it eats into the following day: its end lies at
+        end_time + 24h counted from the day it started. Rest is measured
+        between that absolute end and the next day's absolute start, which also
+        makes a straight overlap (negative rest) visible. Overlaps are forbidden
+        even with min_rest disabled — nobody works two shifts at once.
+        """
         # Start/end times are per-weekday, so forbidden shift-to-shift
         # transitions are cached per (weekday1, weekday2) pair rather than
         # computed once globally.
@@ -513,16 +540,29 @@ class ShiftPlanner:
             pairs = []
             for s1_idx, s1 in enumerate(self.shifts):
                 sid1 = s1["id"]
-                if self.shift_is_night[sid1] or (sid1, wd1) not in self.shift_wt:
-                    continue  # night shifts already handled by recovery constraint
-                end1 = _parse_time_minutes(self.shift_wt[(sid1, wd1)]["end_time"])
+                if (sid1, wd1) not in self.shift_wt:
+                    continue
+                if self._shift_recovery_days(sid1, wd1) > 0:
+                    # Already covered, and more strictly: the next day is off
+                    # entirely. Shifts with no forced recovery — including a
+                    # night shift when night_shift_recovery_days is 0 — still
+                    # need the rest check.
+                    continue
+                wt1 = self.shift_wt[(sid1, wd1)]
+                start1 = _parse_time_minutes(wt1["start_time"])
+                end1 = _parse_time_minutes(wt1["end_time"])
+                if end1 <= start1:
+                    end1 += 24 * 60  # runs into the next day
                 for s2_idx, s2 in enumerate(self.shifts):
                     sid2 = s2["id"]
                     if (sid2, wd2) not in self.shift_wt:
                         continue
-                    start2 = _parse_time_minutes(self.shift_wt[(sid2, wd2)]["start_time"])
-                    rest_hours = (24 * 60 - end1 + start2) / 60.0
-                    if rest_hours < self.min_rest:
+                    # Day 2 starts 24h after day 1.
+                    start2 = 24 * 60 + _parse_time_minutes(
+                        self.shift_wt[(sid2, wd2)]["start_time"]
+                    )
+                    rest_hours = (start2 - end1) / 60.0
+                    if rest_hours < self.min_rest or rest_hours < 0:
                         pairs.append((s1_idx, s2_idx))
             forbidden_cache[key] = pairs
             return pairs
@@ -542,7 +582,8 @@ class ShiftPlanner:
 
         if total_forbidden:
             logger.info(
-                "Added %d forbidden shift-transition constraints (rest < %.1fh)",
+                "Added %d forbidden shift-transition constraints "
+                "(rest < %.1fh, or the shifts overlap past midnight)",
                 total_forbidden, self.min_rest,
             )
 
@@ -986,9 +1027,17 @@ class ShiftPlanner:
         solver, status = self._run_solver()
 
         if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            # Mandatory minimum staffing is the constraint most likely to have
+            # caused this, and the one a planner can act on, so name it.
+            hint = (
+                " Minimum staffing is set to 'hard', so every shift and "
+                "workstation must reach its min_employees — switch it back to "
+                "'soft' to allow understaffed slots."
+                if self.min_staffing_hard else ""
+            )
             return self._infeasible_output(
                 "No feasible schedule found. "
-                "Relax constraints or add more employees."
+                "Relax constraints or add more employees." + hint
             )
         return self._build_output(solver, status)
 

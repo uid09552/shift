@@ -1,16 +1,17 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Observable, forkJoin } from 'rxjs';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
 import { CalendarNavComponent } from '../../../shared/components/ui/calendar-nav/calendar-nav.component';
 import { DateRangePickerComponent, MarkedDay } from '../../../shared/components/ui/date-range-picker/date-range-picker.component';
+import { TabItem, TabsComponent } from '../../../shared/components/ui/tabs/tabs.component';
 import {
   EmployeeService,
   Employee,
 } from '../../../shared/services/employee.service';
-import { ShiftService, Shift } from '../../../shared/services/shift.service';
+import { ShiftService, Shift, WeekdayTime } from '../../../shared/services/shift.service';
 import {
   WorkstationService,
   Workstation,
@@ -32,6 +33,8 @@ import {
   WishSettingsService,
   wishAllowedOn,
 } from '../../../shared/services/wish-settings.service';
+import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
+import { ModalComponent } from '../../../shared/components/ui/modal/modal.component';
 import { ThemeService } from '../../../shared/services/theme.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
@@ -59,11 +62,65 @@ interface CalendarDay {
   wishShiftColor: string | null;
 }
 
-interface CalendarWeek {
-  days: CalendarDay[];
+/**
+ * Consecutive days of the same absence type, shown as one row.
+ *
+ * Absences are stored one row per day; a week of holiday is seven of them.
+ * Listing them raw turns a handful of absences into dozens of lines nobody can
+ * scan, so they are folded back into the ranges they were entered as.
+ */
+interface LeaveGroup {
+  key: string;
+  type: LeaveEntry['type'];
+  start: string;
+  end: string;
+  days: number;
+  entries: LeaveEntry[];
 }
 
+interface CalendarWeek {
+  days: CalendarDay[];
+  /** ISO week number, the way a duty roster is talked about ("KW 14"). */
+  weekNumber: number;
+}
+
+/**
+ * Everything known about one day, gathered for the details panel.
+ *
+ * The grid cell only has room for a shift name and a workstation; the rest —
+ * the hours actually worked, where the entry came from, who else is on, whether
+ * a wish was met — lives here, one click away.
+ */
+interface DayDetail {
+  date: Date;
+  dateStr: string;
+  plan: ConfirmedShiftPlan | null;
+  shift: Shift | null;
+  workstation: Workstation | null;
+  weekdayTime: WeekdayTime | null;
+  hours: number;
+  wish: ShiftWish | null;
+  wishShift: Shift | null;
+  isUnavailable: boolean;
+}
+
+/** Someone else working the same shift that day. */
+interface Coworker {
+  employeeId: string;
+  name: string;
+  workstationName: string | null;
+}
+
+/** The sections of this screen, in tab order. */
+type Section = 'calendar' | 'hours' | 'absences';
+
+const SECTIONS: Section[] = ['calendar', 'hours', 'absences'];
+
+/** Sections that show one month; the absence list is not month-scoped. */
+const MONTH_SCOPED: Section[] = ['calendar', 'hours'];
+
 interface WeeklyHoursSummary {
+  weekNumber: number;
   weekLabel: string;
   hours: number;
 }
@@ -85,6 +142,8 @@ interface ShiftHoursSummary {
     PageBreadcrumbComponent,
     CalendarNavComponent,
     DateRangePickerComponent,
+    TabsComponent,
+    ModalComponent,
     TranslatePipe,
   ],
   templateUrl: './employee-calendar.component.html',
@@ -101,6 +160,14 @@ export class EmployeeCalendarComponent implements OnInit {
 
   weeks: CalendarWeek[] = [];
   monthLabel: string = '';
+
+  /** The visible section. Mirrored in the URL so a link opens where it left off. */
+  activeTab: Section = 'calendar';
+
+  /** The day whose details are open, if any. */
+  dayDetail: DayDetail | null = null;
+  coworkers: Coworker[] = [];
+  loadingCoworkers = false;
 
   loading = false;
   loadingPlans = false;
@@ -146,6 +213,9 @@ export class EmployeeCalendarComponent implements OnInit {
 
   // ── Unified leave & unavailability panel ─────────────────────────
   leaveEntries: LeaveEntry[] = [];
+  /** Ranges still to come (soonest first) and ranges already over (most recent first). */
+  upcomingLeave: LeaveGroup[] = [];
+  pastLeave: LeaveGroup[] = [];
   leaveType: 'unavailable' | 'day_off' | 'sick' = 'unavailable';
   pickerRange: { start: string; end: string } | null = null;
   pickerResetKey = 0;
@@ -178,6 +248,8 @@ export class EmployeeCalendarComponent implements OnInit {
     private wishSettingsService: WishSettingsService,
     private translations: TranslationService,
     private route: ActivatedRoute,
+    private router: Router,
+    private confirmDialog: ConfirmDialogService,
     private themeService: ThemeService,
   ) {
     const now = new Date();
@@ -191,6 +263,11 @@ export class EmployeeCalendarComponent implements OnInit {
     this.loadWishSettings();
 
     this.route.queryParams.subscribe((params) => {
+      const tab = params['tab'];
+      if (SECTIONS.includes(tab)) {
+        this.activeTab = tab;
+      }
+
       const employeeId = params['employeeId'];
       if (employeeId && !this.selectedEmployeeId) {
         this.selectedEmployeeId = employeeId;
@@ -199,6 +276,65 @@ export class EmployeeCalendarComponent implements OnInit {
           this.loadLeaveEntries();
         }
       }
+    });
+  }
+
+  /** The selected employee's contracted monthly hours — what overtime is measured against. */
+  get targetHours(): number {
+    return this.employees.find((e) => e.id === this.selectedEmployeeId)?.monthly_working_hours ?? 0;
+  }
+
+  // ── Sections ─────────────────────────────────────────────────────
+
+  /** Tabs with a badge each, so the numbers are visible without opening them. */
+  get tabItems(): TabItem[] {
+    const chosen = !!this.selectedEmployeeId;
+    return [
+      {
+        id: 'calendar',
+        label: this.translations.t('employeeCalendar.tabCalendar'),
+      },
+      {
+        id: 'hours',
+        label: this.translations.t('employeeCalendar.tabHours'),
+        badge: chosen && this.monthlyHours > 0
+          ? this.translations.t('employeeCalendar.hoursBadge', {
+              value: Math.round(this.monthlyHours * 10) / 10,
+            })
+          : null,
+      },
+      {
+        id: 'absences',
+        label: this.translations.t('employeeCalendar.tabAbsences'),
+        badge: chosen && this.leaveEntries.length > 0 ? this.leaveEntries.length : null,
+      },
+    ];
+  }
+
+  /** Whether the visible section is about the selected month. */
+  get isMonthScoped(): boolean {
+    return MONTH_SCOPED.includes(this.activeTab);
+  }
+
+  setTab(tab: string): void {
+    if (!SECTIONS.includes(tab as Section)) return;
+    this.activeTab = tab as Section;
+    this.editingCell = null;
+    this.deletingCell = null;
+    this.deletingWish = null;
+    this.syncUrl();
+  }
+
+  /** Keeps employee and section in the URL, so reload and back land where you were. */
+  private syncUrl(): void {
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {
+        employeeId: this.selectedEmployeeId || null,
+        tab: this.activeTab === 'calendar' ? null : this.activeTab,
+      },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
     });
   }
 
@@ -238,7 +374,10 @@ export class EmployeeCalendarComponent implements OnInit {
   }
 
   onEmployeeChange(): void {
+    this.syncUrl();
     this.leaveEntries = [];
+    this.upcomingLeave = [];
+    this.pastLeave = [];
     this.pickerRange = null;
     this.leaveError = null;
     this.wishes = [];
@@ -310,6 +449,7 @@ export class EmployeeCalendarComponent implements OnInit {
     if (!this.selectedEmployeeId) {
       this.unavailabilities = [];
       this.leaveEntries = [];
+      this.buildLeaveGroups();
       return;
     }
     this.loadingUnavailabilities = true;
@@ -341,6 +481,7 @@ export class EmployeeCalendarComponent implements OnInit {
           }));
         this.leaveEntries = [...unavailEntries, ...absenceEntries]
           .sort((a, b) => a.date.localeCompare(b.date));
+        this.buildLeaveGroups();
 
         this.loadingUnavailabilities = false;
         this.applyPlansToCalendar();
@@ -349,6 +490,20 @@ export class EmployeeCalendarComponent implements OnInit {
         this.loadingUnavailabilities = false;
       },
     });
+  }
+
+  /**
+   * ISO-8601 week number: weeks start on Monday and week 1 is the one holding
+   * the first Thursday of the year. It is how duty rosters are referred to
+   * ("KW 14"), which is why the grid carries it.
+   */
+  private isoWeekNumber(date: Date): number {
+    const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    // Shift onto the week's Thursday: that day's year is the ISO week-year.
+    target.setDate(target.getDate() + 3 - ((target.getDay() + 6) % 7));
+    const firstThursday = new Date(target.getFullYear(), 0, 4);
+    firstThursday.setDate(firstThursday.getDate() + 3 - ((firstThursday.getDay() + 6) % 7));
+    return 1 + Math.round((target.getTime() - firstThursday.getTime()) / (7 * 86400000));
   }
 
   private buildCalendar(): void {
@@ -367,11 +522,19 @@ export class EmployeeCalendarComponent implements OnInit {
     const today = new Date();
     const todayStr = this.formatDate(today);
 
+    // Only the weeks the month actually spans — a fixed six rows leaves a
+    // trailing row of greyed-out days most months, which every calendar people
+    // are used to (Google, Outlook) omits.
+    const lastOfMonth = new Date(this.currentYear, this.currentMonth + 1, 0);
+    const spannedDays =
+      Math.round((lastOfMonth.getTime() - calendarStart.getTime()) / 86400000) + 1;
+    const weekCount = Math.ceil(spannedDays / 7);
+
     this.weeks = [];
     let current = new Date(calendarStart);
 
-    for (let w = 0; w < 6; w++) {
-      const week: CalendarWeek = { days: [] };
+    for (let w = 0; w < weekCount; w++) {
+      const week: CalendarWeek = { days: [], weekNumber: this.isoWeekNumber(current) };
 
       for (let d = 0; d < 7; d++) {
         const dateStr = this.formatDate(current);
@@ -492,7 +655,7 @@ export class EmployeeCalendarComponent implements OnInit {
         first.getTime() === last.getTime()
           ? this.formatShortDate(first)
           : `${this.formatShortDate(first)} – ${this.formatShortDate(last)}`;
-      weekly.push({ weekLabel, hours: weekHours });
+      weekly.push({ weekNumber: week.weekNumber, weekLabel, hours: weekHours });
     }
 
     this.weeklyHoursSummaries = weekly;
@@ -525,6 +688,131 @@ export class EmployeeCalendarComponent implements OnInit {
     const end = toMinutes(wt.end_time);
     const minutes = end > start ? end - start : 24 * 60 - start + end; // handles overnight shifts
     return minutes / 60;
+  }
+
+  // ── Day details ──────────────────────────────────────────────────
+
+  /**
+   * Opens the details panel for a day. Everything shown is already in memory
+   * except who else is on that shift, which is fetched once the panel is open.
+   */
+  openDayDetail(day: CalendarDay, event?: Event): void {
+    event?.stopPropagation();
+    if (!day.isCurrentMonth) return;
+
+    const dateStr = this.formatDate(day.date);
+    const plan = this.planMap.get(dateStr) ?? null;
+    const wish = this.wishMap.get(dateStr) ?? null;
+    const shift = plan?.shift_id ? this.shiftMap.get(plan.shift_id) ?? null : null;
+
+    this.editingCell = null;
+    this.deletingCell = null;
+    this.dayDetail = {
+      date: day.date,
+      dateStr,
+      plan,
+      shift,
+      workstation: plan?.workstation_id
+        ? this.workstationMap.get(plan.workstation_id) ?? null
+        : null,
+      weekdayTime: shift ? this.weekdayTimeFor(shift, day.date) : null,
+      hours: plan?.shift_id && plan.is_present
+        ? this.getShiftDurationHours(plan.shift_id, day.date)
+        : 0,
+      wish,
+      wishShift: wish ? this.shiftMap.get(wish.shift_id) ?? null : null,
+      isUnavailable: day.isUnavailable,
+    };
+
+    this.coworkers = [];
+    if (plan?.shift_id && plan.is_present) {
+      this.loadCoworkers(dateStr, plan.shift_id);
+    }
+  }
+
+  closeDayDetail(): void {
+    this.dayDetail = null;
+    this.coworkers = [];
+  }
+
+  /** Who else works this shift on this day — the one thing worth a request. */
+  private loadCoworkers(dateStr: string, shiftId: string): void {
+    this.loadingCoworkers = true;
+    this.confirmedShiftPlanService
+      .getConfirmedShiftPlans(dateStr, dateStr, 500, 0)
+      .subscribe({
+        next: (res) => {
+          // A late response for a day the user already moved on from is dropped.
+          if (this.dayDetail?.dateStr !== dateStr) return;
+          this.coworkers = res.data
+            .filter(
+              (p) =>
+                p.shift_id === shiftId &&
+                p.is_present &&
+                p.employee_id !== this.selectedEmployeeId,
+            )
+            .map((p) => ({
+              employeeId: p.employee_id,
+              name: this.employees.find((e) => e.id === p.employee_id)?.name ?? '—',
+              workstationName: p.workstation_id
+                ? this.workstationMap.get(p.workstation_id)?.name ?? null
+                : null,
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+          this.loadingCoworkers = false;
+        },
+        error: () => {
+          this.loadingCoworkers = false;
+        },
+      });
+  }
+
+  /** That weekday's configured times for a shift, or null when it does not run then. */
+  private weekdayTimeFor(shift: Shift, date: Date): WeekdayTime | null {
+    // Stored weekdays run 0 = Monday … 6 = Sunday; JavaScript's run 0 = Sunday.
+    const weekday = (date.getDay() + 6) % 7;
+    return shift.weekday_times?.find((w) => w.weekday === weekday) ?? null;
+  }
+
+  /**
+   * "22:00 – 06:00 +1" — the `+1` marks a shift that ends the next day, which
+   * is how an end_time at or before the start_time is stored.
+   */
+  detailTimeLabel(detail: DayDetail): string {
+    const wt = detail.weekdayTime;
+    if (!wt) return '';
+    const start = wt.start_time.substring(0, 5);
+    const end = wt.end_time.substring(0, 5);
+    return end <= start ? `${start} – ${end} +1` : `${start} – ${end}`;
+  }
+
+  /** Whether the day's plan is the shift the employee wished for. */
+  detailWishMatched(detail: DayDetail): boolean {
+    return !!detail.wish && detail.plan?.shift_id === detail.wish.shift_id;
+  }
+
+  /** Jumps from the details panel into the existing inline edit for that day. */
+  editFromDetail(detail: DayDetail): void {
+    const dateStr = detail.dateStr;
+    this.closeDayDetail();
+    this.editingCell = { dateStr };
+  }
+
+  deleteFromDetail(detail: DayDetail): void {
+    if (!detail.plan) return;
+    const { dateStr } = detail;
+    const planId = detail.plan.id;
+    this.closeDayDetail();
+    this.deletingCell = { dateStr, planId };
+  }
+
+  /** A spoken-form date for screen readers on the day cells' controls. */
+  longDate(d: Date): string {
+    return d.toLocaleDateString(this.translations.locale, {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
   }
 
   private formatShortDate(d: Date): string {
@@ -878,6 +1166,79 @@ export class EmployeeCalendarComponent implements OnInit {
     });
   }
 
+  /** Folds the day rows into ranges, split into what is still ahead and what is past. */
+  private buildLeaveGroups(): void {
+    const groups: LeaveGroup[] = [];
+    for (const entry of this.leaveEntries) {
+      const open = groups[groups.length - 1];
+      if (open && open.type === entry.type && this.isNextDay(open.end, entry.date)) {
+        open.end = entry.date;
+        open.days += 1;
+        open.entries.push(entry);
+        continue;
+      }
+      groups.push({
+        key: `${entry.type}-${entry.date}`,
+        type: entry.type,
+        start: entry.date,
+        end: entry.date,
+        days: 1,
+        entries: [entry],
+      });
+    }
+
+    const today = this.formatDate(new Date());
+    this.upcomingLeave = groups.filter((g) => g.end >= today);
+    // Most recent first: the past is looked at backwards from today.
+    this.pastLeave = groups.filter((g) => g.end < today).reverse();
+  }
+
+  private isNextDay(previous: string, candidate: string): boolean {
+    const next = new Date(previous + 'T00:00:00');
+    next.setDate(next.getDate() + 1);
+    return this.formatDate(next) === candidate;
+  }
+
+  /**
+   * "Jul 20 – 27, 2026" in English, "20.–27. Juli 2026" in German — the parts
+   * both ends share are said once, which only `formatRange` gets right per
+   * locale. Falls back to two full dates where it is unavailable.
+   */
+  leaveGroupLabel(group: LeaveGroup): string {
+    const format = new Intl.DateTimeFormat(this.translations.locale, {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+    const start = new Date(group.start + 'T00:00:00');
+    const end = new Date(group.end + 'T00:00:00');
+
+    if (group.days === 1) {
+      return format.format(start);
+    }
+    return format.formatRange
+      ? format.formatRange(start, end)
+      : `${format.format(start)} – ${format.format(end)}`;
+  }
+
+  /** Removes every day of a range; a multi-day range asks first. */
+  async deleteLeaveGroup(group: LeaveGroup): Promise<void> {
+    if (group.days > 1) {
+      const ok = await this.confirmDialog.confirm({
+        message: this.translations.t('employeeCalendar.deleteLeaveConfirm', {
+          days: group.days,
+          range: this.leaveGroupLabel(group),
+        }),
+        confirmLabel: this.translations.t('common.delete'),
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    for (const entry of group.entries) {
+      this.deleteLeaveEntry(entry);
+    }
+  }
+
   deleteLeaveEntry(entry: LeaveEntry): void {
     const obs$: Observable<unknown> = entry.source === 'unavailability'
       ? this.unavailabilityService.deleteUnavailability(entry.id)
@@ -886,6 +1247,7 @@ export class EmployeeCalendarComponent implements OnInit {
     obs$.subscribe({
       next: () => {
         this.leaveEntries = this.leaveEntries.filter(e => e.id !== entry.id);
+        this.buildLeaveGroups();
         if (entry.source === 'unavailability') {
           this.unavailabilities = this.unavailabilities.filter(u => u.id !== entry.id);
           this.applyPlansToCalendar();

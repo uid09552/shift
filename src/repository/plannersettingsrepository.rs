@@ -7,7 +7,7 @@ use crate::database::DbPool;
 use crate::errors::AppError;
 use crate::models::{NewPlannerSettings, PlannerSettings};
 use crate::schema::planner_settings;
-use super::domain::{PlannerSettingsDomain, PlannerSettingsRepository, UpdatePlannerSettings};
+use super::domain::{MinStaffingMode, PlannerSettingsDomain, PlannerSettingsRepository, UpdatePlannerSettings};
 
 #[derive(Clone)]
 pub struct DieselPlannerSettingsRepository {
@@ -38,6 +38,7 @@ fn to_domain(s: PlannerSettings) -> PlannerSettingsDomain {
         shift_continuity_weight: s.shift_continuity_weight,
         shift_continuity_week_bonus: s.shift_continuity_week_bonus,
         wish_weight: s.wish_weight,
+        min_staffing_mode: MinStaffingMode::from_db(&s.min_staffing_mode),
     }
 }
 
@@ -98,6 +99,7 @@ impl PlannerSettingsRepository for DieselPlannerSettingsRepository {
                 shift_continuity_weight: settings.shift_continuity_weight,
                 shift_continuity_week_bonus: settings.shift_continuity_week_bonus,
                 wish_weight: settings.wish_weight,
+                min_staffing_mode: settings.min_staffing_mode.as_str().to_string(),
             };
             let updated: PlannerSettings = diesel::insert_into(planner_settings::table)
                 .values(&new_settings)

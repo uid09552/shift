@@ -2,7 +2,7 @@ use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};
 
 use crate::errors::AppError;
-use crate::repository::domain::{PlannerSettingsDomain, PlannerSettingsRepository, UpdatePlannerSettings};
+use crate::repository::domain::{MinStaffingMode, PlannerSettingsDomain, PlannerSettingsRepository, UpdatePlannerSettings};
 use crate::repository::AppState;
 use crate::services::audit_log::{self, AuditActor};
 use crate::services::tenant::TenantContext;
@@ -36,6 +36,7 @@ pub struct PlannerSettingsResponse {
     pub shift_continuity_weight: i32,
     pub shift_continuity_week_bonus: i32,
     pub wish_weight: i32,
+    pub min_staffing_mode: MinStaffingMode,
 }
 
 impl From<PlannerSettingsDomain> for PlannerSettingsResponse {
@@ -65,6 +66,7 @@ impl From<PlannerSettingsDomain> for PlannerSettingsResponse {
             shift_continuity_weight: s.shift_continuity_weight,
             shift_continuity_week_bonus: s.shift_continuity_week_bonus,
             wish_weight: s.wish_weight,
+            min_staffing_mode: s.min_staffing_mode,
         }
     }
 }
@@ -100,6 +102,8 @@ pub struct UpdatePlannerSettingsRequest {
     pub shift_continuity_week_bonus: i32,
     #[serde(default = "default_wish_weight")]
     pub wish_weight: i32,
+    #[serde(default = "default_min_staffing_mode")]
+    pub min_staffing_mode: MinStaffingMode,
 }
 
 fn default_weekly_hours_target_weight() -> i32 { 1000 }
@@ -110,6 +114,7 @@ fn default_night_shift_fatigue_multiplier() -> f64 { 2.0 }
 fn default_shift_continuity_weight() -> i32 { 500 }
 fn default_shift_continuity_week_bonus() -> i32 { 2000 }
 fn default_wish_weight() -> i32 { 20000 }
+fn default_min_staffing_mode() -> MinStaffingMode { MinStaffingMode::Soft }
 
 pub struct PlannerSettingsService;
 
@@ -152,6 +157,7 @@ impl PlannerSettingsService {
             shift_continuity_weight: body.shift_continuity_weight,
             shift_continuity_week_bonus: body.shift_continuity_week_bonus,
             wish_weight: body.wish_weight,
+            min_staffing_mode: body.min_staffing_mode,
         };
 
         let settings = state.planner_settings_repo.update_planner_settings(&tenant.0, update).await?;

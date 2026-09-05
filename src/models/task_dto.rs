@@ -40,6 +40,10 @@ pub struct ConstraintTask {
     pub shift_continuity_week_bonus: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wish_weight: Option<i32>,
+    /// "soft" (shortfall costs) or "hard" (shortfall forbidden). See
+    /// `MinStaffingMode` and the optimizer's staffing constraints.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_staffing_mode: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

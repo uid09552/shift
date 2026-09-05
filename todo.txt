@@ -1,2 +1,5 @@
-1) today view must show continious flow of days, so next day, previos day.
-2) center the day switch and today button.
+1) shifts have a start date and a duration. the duration can exceed todays boundaries. adjust backend and ui if needed. check if this is implemented.
+2) the min. employee per shift is a hard or soft assignment, make it cofigurable in ui and adjust the optimizer algorithm. if hard then it need to fullfill the min. requirement of a shift for a workstation.
+3) optimize the shift view ui with assigned shifts:
+a) create a workstation view in the weekly view. on click show details
+b) create a shift view, so list shifts as primary object then worksations, then assigned people to the workstation.

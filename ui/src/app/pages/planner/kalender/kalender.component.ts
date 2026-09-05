@@ -24,13 +24,20 @@ import {
 import { GlobalSearchService } from '../../../shared/services/global-search.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
-
-interface DayInfo {
-  date: Date;
-  label: string;
-  dayNum: number;
-  isToday: boolean;
-}
+import { ModalComponent } from '../../../shared/components/ui/modal/modal.component';
+import { GroupedPlanViewComponent } from './grouped-plan-view.component';
+import {
+  AssignedPerson,
+  CellDetail,
+  DayInfo,
+  GroupMode,
+  GroupedCell,
+  ShiftBucket,
+  ShiftRow,
+  WorkstationRow,
+  formatTimeRange,
+  weekdayTimeFor,
+} from './plan-groups';
 
 interface CellData {
   plan: ConfirmedShiftPlan | null;
@@ -48,7 +55,14 @@ interface WishCellData {
 @Component({
   selector: 'app-kalender',
   standalone: true,
-  imports: [CommonModule, PageBreadcrumbComponent, CalendarNavComponent, TranslatePipe],
+  imports: [
+    CommonModule,
+    PageBreadcrumbComponent,
+    CalendarNavComponent,
+    GroupedPlanViewComponent,
+    ModalComponent,
+    TranslatePipe,
+  ],
   templateUrl: './kalender.component.html',
   styleUrl: './kalender.component.css',
 })
@@ -61,6 +75,21 @@ export class KalenderComponent implements OnInit, OnDestroy {
   viewMode: 'week' | 'month' = 'week';
   anchorDate: Date = this.normalizeDate(new Date());
   days: DayInfo[] = [];
+
+  // Which side of the plan the grid is read from. `employee` is the editable
+  // default; the other two are read-only lenses over the same plans, offered in
+  // the week view where a cell has room for a list of people.
+  groupMode: GroupMode = 'employee';
+  readonly groupOptions: { mode: GroupMode; labelKey: string }[] = [
+    { mode: 'employee', labelKey: 'schedule.byEmployee' },
+    { mode: 'workstation', labelKey: 'schedule.byWorkstation' },
+    { mode: 'shift', labelKey: 'schedule.byShift' },
+  ];
+  workstationRows: WorkstationRow[] = [];
+  shiftRows: ShiftRow[] = [];
+
+  /** The cell whose people are shown in the details panel, if any. */
+  detail: CellDetail | null = null;
 
   // Map: employeeId -> dateString (YYYY-MM-DD) -> ConfirmedShiftPlan
   planMap = new Map<string, Map<string, ConfirmedShiftPlan>>();
@@ -130,6 +159,9 @@ export class KalenderComponent implements OnInit, OnDestroy {
         emp.name.toLowerCase().includes(q),
       );
     }
+    // The grouped lenses show the same people the employee grid does, so a
+    // search narrows them too.
+    this.buildGroups();
   }
 
   // ── Week / month navigation ─────────────────────────────────────
@@ -207,14 +239,29 @@ export class KalenderComponent implements OnInit, OnDestroy {
     if (mode !== 'month') {
       this.wishesOnly = false;
     }
+    // A month of workstation or shift rows would leave no room for the people
+    // in a cell, so those lenses are the week view's.
+    if (mode !== 'week') {
+      this.setGroupMode('employee');
+    }
     this.editingCell = null;
     this.deletingCell = null;
     this.computeDays();
     this.loadPeriod();
   }
 
+  setGroupMode(mode: GroupMode): void {
+    if (this.groupMode === mode) return;
+    this.groupMode = mode;
+    this.editingCell = null;
+    this.deletingCell = null;
+    this.detail = null;
+    this.buildGroups();
+  }
+
   toggleWishesOnly(): void {
     this.wishesOnly = !this.wishesOnly;
+    this.detail = null;
     this.editingCell = null;
     this.deletingCell = null;
     this.loadPeriod();
@@ -353,6 +400,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
       }
       inner.set(p.date, p);
     }
+    this.buildGroups();
   }
 
   buildWishMap(wishes: ShiftWish[]): void {
@@ -454,6 +502,202 @@ export class KalenderComponent implements OnInit, OnDestroy {
 
   trackByDayIndex(_index: number, day: DayInfo): number {
     return day.date.getTime();
+  }
+
+  // ── Workstation and shift lenses ─────────────────────────────────
+
+  /**
+   * Re-derives the workstation and shift rows from the confirmed plans.
+   *
+   * Cheap enough to run on every change (visible employees × days), and doing
+   * it here rather than in a template getter keeps the grid out of a per-cell
+   * search on every change-detection pass.
+   */
+  buildGroups(): void {
+    if (this.groupMode === 'employee') {
+      this.workstationRows = [];
+      this.shiftRows = [];
+      return;
+    }
+    const assignments = this.collectAssignments();
+    this.workstationRows = this.buildWorkstationRows(assignments);
+    this.shiftRows = this.buildShiftRows(assignments);
+  }
+
+  /** Every present, shift-bearing plan of the visible employees, by date. */
+  private collectAssignments(): Map<string, AssignedPerson[]> {
+    const byDate = new Map<string, AssignedPerson[]>();
+    for (const day of this.days) {
+      byDate.set(this.formatDate(day.date), []);
+    }
+    for (const employee of this.employees) {
+      const plans = this.planMap.get(employee.id);
+      if (!plans) continue;
+      for (const day of this.days) {
+        const dateStr = this.formatDate(day.date);
+        const plan = plans.get(dateStr);
+        if (!plan || !plan.is_present || !plan.shift_id) continue;
+        byDate.get(dateStr)!.push({
+          employeeId: employee.id,
+          employeeName: employee.name,
+          plan,
+          shift: this.shifts.find((s) => s.id === plan.shift_id) ?? null,
+          workstation: plan.workstation_id
+            ? this.workstations.find((w) => w.id === plan.workstation_id) ?? null
+            : null,
+        });
+      }
+    }
+    return byDate;
+  }
+
+  /** Buckets the people of one cell by shift, in the shifts' configured order. */
+  private bucketByShift(people: AssignedPerson[], required: number): ShiftBucket[] {
+    const buckets = new Map<string, ShiftBucket>();
+    for (const person of people) {
+      const key = person.shift?.id ?? 'none';
+      let bucket = buckets.get(key);
+      if (!bucket) {
+        bucket = { shift: person.shift, people: [], required };
+        buckets.set(key, bucket);
+      }
+      bucket.people.push(person);
+    }
+    return [...buckets.values()].sort(
+      (a, b) => this.shiftOrder(a.shift) - this.shiftOrder(b.shift),
+    );
+  }
+
+  private shiftOrder(shift: Shift | null): number {
+    const index = shift ? this.shifts.findIndex((s) => s.id === shift.id) : -1;
+    return index < 0 ? Number.MAX_SAFE_INTEGER : index;
+  }
+
+  private cell(day: DayInfo, buckets: ShiftBucket[]): GroupedCell {
+    return {
+      dateStr: this.formatDate(day.date),
+      day,
+      buckets,
+      total: buckets.reduce((sum, b) => sum + b.people.length, 0),
+      understaffed: buckets.some((b) => b.required > 0 && b.people.length < b.required),
+    };
+  }
+
+  /**
+   * One row per workstation — including stations nobody is assigned to, since
+   * an empty row is exactly what a planner is looking for. Plans without a
+   * workstation collect in a trailing row, and only when there are any.
+   */
+  private buildWorkstationRows(byDate: Map<string, AssignedPerson[]>): WorkstationRow[] {
+    const rows: WorkstationRow[] = [];
+    const stations: (Workstation | null)[] = [...this.workstations];
+    const hasUnassigned = [...byDate.values()].some((people) =>
+      people.some((p) => !p.workstation),
+    );
+    if (hasUnassigned) {
+      stations.push(null);
+    }
+
+    for (const workstation of stations) {
+      const cells = this.days.map((day) => {
+        const people = (byDate.get(this.formatDate(day.date)) ?? []).filter(
+          (p) => (p.workstation?.id ?? null) === (workstation?.id ?? null),
+        );
+        return this.cell(day, this.bucketByShift(people, workstation?.min_employees ?? 0));
+      });
+      rows.push({
+        key: workstation?.id ?? 'none',
+        workstation,
+        cells,
+        total: cells.reduce((sum, c) => sum + c.total, 0),
+      });
+    }
+    return rows;
+  }
+
+  /**
+   * Shifts as the primary object, each with the workstations it is staffed at
+   * and the people on them. A station appears under a shift when it is
+   * configured to run that shift or when somebody is actually assigned there,
+   * so a station that should be covered but is not still shows up.
+   */
+  private buildShiftRows(byDate: Map<string, AssignedPerson[]>): ShiftRow[] {
+    return this.shifts.map((shift) => {
+      const peopleOn = (day: DayInfo): AssignedPerson[] =>
+        (byDate.get(this.formatDate(day.date)) ?? []).filter((p) => p.shift?.id === shift.id);
+
+      const cells = this.days.map((day) => {
+        const people = peopleOn(day);
+        return this.cell(day, [
+          { shift, people, required: this.shiftMinEmployees(shift, day.date) },
+        ]);
+      });
+
+      const stations: (Workstation | null)[] = this.workstations.filter(
+        (w) =>
+          (w.available && w.active_shift_ids?.includes(shift.id)) ||
+          this.days.some((day) => peopleOn(day).some((p) => p.workstation?.id === w.id)),
+      );
+      if (this.days.some((day) => peopleOn(day).some((p) => !p.workstation))) {
+        stations.push(null);
+      }
+
+      return {
+        key: shift.id,
+        shift,
+        cells,
+        total: cells.reduce((sum, c) => sum + c.total, 0),
+        stations: stations.map((workstation) => {
+          const stationCells = this.days.map((day) => {
+            const people = peopleOn(day).filter(
+              (p) => (p.workstation?.id ?? null) === (workstation?.id ?? null),
+            );
+            return this.cell(day, [
+              { shift, people, required: workstation?.min_employees ?? 0 },
+            ]);
+          });
+          return {
+            key: workstation?.id ?? 'none',
+            workstation,
+            cells: stationCells,
+            total: stationCells.reduce((sum, c) => sum + c.total, 0),
+          };
+        }),
+      };
+    });
+  }
+
+  /** The shift's own minimum for that weekday, 0 when it does not run then. */
+  private shiftMinEmployees(shift: Shift, date: Date): number {
+    return weekdayTimeFor(shift, date)?.min_employees ?? 0;
+  }
+
+  // ── Cell details ─────────────────────────────────────────────────
+
+  openDetail(detail: CellDetail): void {
+    this.detail = detail;
+  }
+
+  closeDetail(): void {
+    this.detail = null;
+  }
+
+  /** The bucket's hours on that day, "+1" when the shift ends the next day. */
+  bucketTimeLabel(bucket: ShiftBucket, date: Date): string {
+    return formatTimeRange(weekdayTimeFor(bucket.shift, date));
+  }
+
+  detailDateLabel(day: DayInfo): string {
+    return day.date.toLocaleDateString(this.translations.locale, {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  }
+
+  bucketShort(bucket: ShiftBucket): boolean {
+    return bucket.required > 0 && bucket.people.length < bucket.required;
   }
 
   // ── Edit / Delete helpers ────────────────────────────────────────
@@ -645,6 +889,13 @@ export class KalenderComponent implements OnInit, OnDestroy {
         month: '2-digit',
       });
 
+    const rowHeader =
+      this.groupMode === 'workstation'
+        ? this.translations.t('common.workstation')
+        : this.groupMode === 'shift'
+          ? this.translations.t('common.shift')
+          : this.translations.t('common.employee');
+
     let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
 <head><meta charset="UTF-8">
 <style>
@@ -652,15 +903,61 @@ export class KalenderComponent implements OnInit, OnDestroy {
   td { border:1px solid #ccc; padding:5px 8px; font-size:12px; vertical-align:middle; }
   tr:nth-child(even) td { background:#f0f4ff; }
   .emp-cell { font-weight:600; background:#EFF6FF; }
+  .group-cell { font-weight:700; background:#E0E7FF; }
   .absent { background:#FEF3C7; color:#92400E; }
   .sick { background:#FEE2E2; color:#991B1B; }
   .empty { color:#9CA3AF; }
 </style></head><body><table>
-<thead><tr><th>${this.translations.t('common.employee')}</th>`;
+<thead><tr><th>${rowHeader}</th>`;
     for (const day of this.days) {
       html += `<th>${fmt(day.date)}</th>`;
     }
     html += `</tr></thead><tbody>`;
+
+    // The grouped lenses export what they show: the people behind each cell.
+    if (this.groupMode !== 'employee') {
+      const cellText = (cell: GroupedCell): string =>
+        cell.total === 0
+          ? `<td class="empty">—</td>`
+          : `<td>${cell.buckets
+              .map(
+                (b) =>
+                  `[${b.shift?.short_name ?? '?'}] ` +
+                  b.people.map((p) => p.employeeName).join(', '),
+              )
+              .join(' | ')}</td>`;
+
+      if (this.groupMode === 'workstation') {
+        for (const row of this.workstationRows) {
+          html += `<tr><td class="emp-cell">${row.workstation?.name ?? this.translations.t('schedule.noWorkstation')}</td>`;
+          html += row.cells.map(cellText).join('');
+          html += `</tr>`;
+        }
+      } else {
+        for (const row of this.shiftRows) {
+          html += `<tr><td class="group-cell">${row.shift?.name ?? '?'}</td>`;
+          html += row.cells.map((c) => `<td class="group-cell">${c.total || ''}</td>`).join('');
+          html += `</tr>`;
+          for (const station of row.stations) {
+            html += `<tr><td class="emp-cell">&nbsp;&nbsp;${station.workstation?.name ?? this.translations.t('schedule.noWorkstation')}</td>`;
+            html += station.cells
+              .map((cell) =>
+                cell.total === 0
+                  ? `<td class="empty">—</td>`
+                  : `<td>${cell.buckets
+                      .flatMap((b) => b.people.map((p) => p.employeeName))
+                      .join(', ')}</td>`,
+              )
+              .join('');
+            html += `</tr>`;
+          }
+        }
+      }
+
+      html += `</tbody></table></body></html>`;
+      this.downloadExport(html, this.groupMode);
+      return;
+    }
 
     for (const emp of this.employees) {
       html += `<tr><td class="emp-cell">${emp.name}</td>`;
@@ -692,12 +989,14 @@ export class KalenderComponent implements OnInit, OnDestroy {
     }
 
     html += `</tbody></table></body></html>`;
+    this.downloadExport(html, this.wishesOnly ? 'wishes' : 'schedule');
+  }
 
+  private downloadExport(html: string, kind: string): void {
     const blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const kind = this.wishesOnly ? 'wishes' : 'schedule';
     a.download = `${kind}-${this.viewMode}-${this.formatDate(this.periodStart)}.xls`;
     a.click();
     URL.revokeObjectURL(url);

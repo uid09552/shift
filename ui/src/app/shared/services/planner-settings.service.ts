@@ -8,6 +8,13 @@ export interface PriorityWeights {
   low: number;
 }
 
+/**
+ * How each shift's and workstation's `min_employees` binds the solver:
+ * `soft` prices a shortfall into the objective, `hard` forbids one — which can
+ * leave a period with no plan at all rather than an understaffed one.
+ */
+export type MinStaffingMode = 'soft' | 'hard';
+
 export interface PlannerSettings {
   night_shift_recovery_days: number;
   min_rest_hours: number;
@@ -29,6 +36,7 @@ export interface PlannerSettings {
   night_shift_fatigue_multiplier: number;
   shift_continuity_weight: number;
   shift_continuity_week_bonus: number;
+  min_staffing_mode: MinStaffingMode;
 }
 
 export type UpdatePlannerSettingsRequest = Omit<PlannerSettings, 'updated_at'>;

@@ -2,11 +2,30 @@
 
 .calendar-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  /* A narrow gutter for the ISO week number, then the seven days. */
+  grid-template-columns: 2.25rem repeat(7, 1fr);
   gap: 1px;
   background-color: #f1f5f9;
   border-radius: 0.5rem;
   overflow: visible;
+}
+
+/* Week number: a quiet index column, not a day — no cell background, so the
+   grid still reads as seven columns of days. */
+.week-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #ffffff;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #94a3b8;
+}
+
+.dark .week-number {
+  background-color: #1a1d21;
+  color: #64748b;
 }
 
 .dark .calendar-grid {
@@ -33,8 +52,10 @@
   background-color: #1a1d21;
 }
 
+/* Days from the neighbouring months: present for continuity, dimmed so the
+   month being planned is what the eye lands on. */
 .calendar-cell.other-month {
-  background-color: #f8fafc;
+  background-color: #fbfcfd;
 }
 
 .dark .calendar-cell.other-month {
@@ -50,38 +71,43 @@
 }
 
 .calendar-cell.today {
-  background-color: #eff6ff;
+  background-color: #f5f8ff;
+  box-shadow: inset 0 0 0 1px rgba(70, 95, 255, 0.35);
 }
 
 .dark .calendar-cell.today {
-  background-color: rgba(59, 130, 246, 0.08);
+  background-color: rgba(70, 95, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(70, 95, 255, 0.45);
 }
 
 .calendar-cell.today .day-number {
-  background-color: #3b82f6;
+  /* brand-500 — the accent the rest of the app marks "now" with. */
+  background-color: #465fff;
   color: #ffffff;
   border-radius: 50%;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
+/* Weekends read as a neutral band, the way every calendar app shades them.
+   Deliberately not a colour: amber and red already mean absence here. */
 .calendar-cell.weekend {
-  background-color: #fefce8;
+  background-color: #f1f5f9;
 }
 
 .dark .calendar-cell.weekend {
-  background-color: rgba(250, 204, 21, 0.03);
+  background-color: rgba(255, 255, 255, 0.04);
 }
 
 .calendar-cell.weekend.other-month {
-  background-color: #f8fafc;
+  background-color: #f6f8fa;
 }
 
 .dark .calendar-cell.weekend.other-month {
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: rgba(255, 255, 255, 0.025);
 }
 
 .day-number {
@@ -246,6 +272,14 @@
 
 /* Responsive adjustments */
 @media (max-width: 640px) {
+  .calendar-grid {
+    grid-template-columns: 1.5rem repeat(7, 1fr);
+  }
+
+  .week-number {
+    font-size: 0.5625rem;
+  }
+
   .calendar-cell {
     min-height: 60px;
     padding: 4px;

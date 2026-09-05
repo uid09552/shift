@@ -124,6 +124,7 @@ const BALANCED: PresetValues = {
   night_shift_fatigue_multiplier: 2,
   shift_continuity_weight: 500,
   shift_continuity_week_bonus: 2000,
+  min_staffing_mode: 'soft',
 };
 
 /** Shallow-copies the base so a preset never shares its priority object. */

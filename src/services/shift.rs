@@ -146,6 +146,17 @@ impl ShiftService {
             .or_else(|_| NaiveTime::parse_from_str(&body.end_time, "%H:%M:%S"))
             .map_err(|_| AppError::Validation("Invalid end_time format, use HH:MM".into()))?;
 
+        // A weekday time is a start plus a duration, and the duration may run
+        // past midnight — `end_time < start_time` means the shift ends on the
+        // next day (see AnalysisRepository's hour maths and the optimizer's
+        // `_shift_duration_hours`). Equal times are the one case that has no
+        // reading: zero hours or a full 24 are indistinguishable.
+        if start_time == end_time {
+            return Err(AppError::Validation(
+                "end_time must differ from start_time; a shift ending after midnight is expressed with an end_time earlier than its start_time".into(),
+            ));
+        }
+
         let min_employees = body.min_employees.unwrap_or(1);
         if min_employees < 0 {
             return Err(AppError::Validation("min_employees must be >= 0".into()));

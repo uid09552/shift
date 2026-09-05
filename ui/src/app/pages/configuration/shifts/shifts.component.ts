@@ -133,15 +133,32 @@ const WEEKDAY_COUNT = 7;
                         className="!h-9"
                       />
                       <span class="text-gray-400 dark:text-gray-500">–</span>
-                      <app-input-field
-                        type="time"
-                        [value]="formWeekdays[day.value].end_time"
-                        (valueChange)="onTimeChange(day.value, 'end_time', $event)"
-                        [disabled]="!formWeekdays[day.value].enabled"
-                        className="!h-9"
-                      />
+                      <div class="relative">
+                        <app-input-field
+                          type="time"
+                          [value]="formWeekdays[day.value].end_time"
+                          (valueChange)="onTimeChange(day.value, 'end_time', $event)"
+                          [disabled]="!formWeekdays[day.value].enabled"
+                          className="!h-9"
+                        />
+                        <!-- A shift may run past midnight; say so where the end time is entered. -->
+                        @if (formWeekdays[day.value].enabled && crossesMidnight(formWeekdays[day.value])) {
+                          <span
+                            class="pointer-events-none absolute -right-1.5 -top-1.5 rounded-full bg-brand-500 px-1.5 py-px text-[10px] font-semibold leading-tight text-white shadow-theme-xs"
+                            [title]="'shifts.nextDayHint' | t"
+                          >{{ 'shifts.nextDay' | t }}</span>
+                        }
+                      </div>
                     </div>
                     @if (formWeekdays[day.value].enabled) {
+                      <span
+                        class="min-w-[4.5rem] text-xs tabular-nums"
+                        [class]="weekdayTimeInvalid(day.value)
+                          ? 'font-medium text-error-600 dark:text-error-400'
+                          : 'text-gray-500 dark:text-gray-400'"
+                      >
+                        {{ durationLabel(formWeekdays[day.value]) }}
+                      </span>
                       <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <span class="whitespace-nowrap">{{ 'shifts.min' | t }}</span>
                         <input
@@ -175,6 +192,12 @@ const WEEKDAY_COUNT = 7;
                 }
               </div>
             </div>
+          }
+
+          @if (formError) {
+            <p class="mb-4 rounded-lg border border-error-200 bg-error-50 px-4 py-2.5 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
+              {{ formError | t }}
+            </p>
           }
 
           <!-- Actions -->
@@ -322,7 +345,12 @@ const WEEKDAY_COUNT = 7;
                           <span
                             class="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-400"
                           >
-                            {{ getWeekdayName(wt.weekday) }} {{ wt.start_time }}–{{ wt.end_time }}
+                            {{ getWeekdayName(wt.weekday) }} {{ trimTime(wt.start_time) }}–{{ trimTime(wt.end_time) }}
+                            @if (crossesMidnight(wt)) {
+                              <span class="ml-0.5 font-semibold" [title]="'shifts.nextDayHint' | t">
+                                {{ 'shifts.nextDay' | t }}
+                              </span>
+                            }
                             <span class="ml-1 text-brand-500 dark:text-brand-500">({{ wt.min_employees }}–{{ wt.max_employees ?? '∞' }})</span>
                             @if (wt.free_days_after_shift > 0) {
                               <span class="ml-1 text-brand-500 dark:text-brand-500">+{{ wt.free_days_after_shift }}d free</span>
@@ -369,6 +397,8 @@ export class ShiftsComponent implements OnInit {
   formShortName = '';
   formColor = '#3B82F6';
   formOrder = 0;
+  /** Translation key of the validation message shown above the form actions. */
+  formError: string | null = null;
 
   // Monday-first weekday labels in the active UI language.
   get weekdayOptions(): { label: string; value: number }[] {
@@ -459,6 +489,7 @@ export class ShiftsComponent implements OnInit {
     this.formColor = '#3B82F6';
     this.formOrder = 0;
     this.resetWeekdayForm();
+    this.formError = null;
     this.showForm = true;
   }
 
@@ -482,12 +513,14 @@ export class ShiftsComponent implements OnInit {
       };
     }
 
+    this.formError = null;
     this.showForm = true;
   }
 
   cancelForm(): void {
     this.showForm = false;
     this.editingShift = null;
+    this.formError = null;
     this.formName = '';
     this.formShortName = '';
     this.formColor = '#3B82F6';
@@ -518,6 +551,51 @@ export class ShiftsComponent implements OnInit {
 
   onTimeChange(weekday: number, field: 'start_time' | 'end_time', value: string | number): void {
     this.formWeekdays[weekday][field] = String(value);
+    this.formError = null;
+  }
+
+  // ── Shift length, including the part after midnight ───────────────
+
+  /** "08:00:00" → "08:00". The API returns seconds; nobody enters them. */
+  trimTime(time: string): string {
+    return time.substring(0, 5);
+  }
+
+  private minutes(time: string): number {
+    const [h, m] = this.trimTime(time).split(':');
+    return parseInt(h, 10) * 60 + parseInt(m, 10);
+  }
+
+  /**
+   * A shift is a start plus a duration, and the duration may run past
+   * midnight — that is stored as an end_time at or before the start_time (a
+   * 22:00–06:00 night shift). Equal times are the one unreadable case: zero
+   * hours and a full day look identical, so they are rejected instead.
+   */
+  crossesMidnight(time: { start_time: string; end_time: string }): boolean {
+    return this.minutes(time.end_time) < this.minutes(time.start_time);
+  }
+
+  /** Hours worked, counting the part that falls on the next day. */
+  durationHours(time: { start_time: string; end_time: string }): number {
+    const start = this.minutes(time.start_time);
+    const end = this.minutes(time.end_time);
+    return ((end > start ? end - start : 24 * 60 - start + end) / 60);
+  }
+
+  durationLabel(time: { start_time: string; end_time: string }): string {
+    if (this.minutes(time.start_time) === this.minutes(time.end_time)) {
+      return this.translations.t('shifts.durationInvalid');
+    }
+    const hours = this.durationHours(time);
+    return this.translations.t('shifts.duration', {
+      value: Number.isInteger(hours) ? hours : hours.toFixed(1),
+    });
+  }
+
+  weekdayTimeInvalid(weekday: number): boolean {
+    const wd = this.formWeekdays[weekday];
+    return wd.enabled && this.minutes(wd.start_time) === this.minutes(wd.end_time);
   }
 
   onMinEmployeesChange(weekday: number, event: Event): void {
@@ -541,6 +619,15 @@ export class ShiftsComponent implements OnInit {
     }
     if (!this.formShortName || !this.formShortName.trim()) {
       return;
+    }
+    // The backend rejects equal start/end times; catch it here so the planner
+    // sees which weekday is wrong instead of a failed request.
+    this.formError = null;
+    for (let i = 0; i < WEEKDAY_COUNT; i++) {
+      if (this.weekdayTimeInvalid(i)) {
+        this.formError = 'shifts.equalTimesError';
+        return;
+      }
     }
 
     if (this.editingShift) {

@@ -186,6 +186,7 @@ diesel::table! {
         shift_continuity_weight -> Int4,
         shift_continuity_week_bonus -> Int4,
         wish_weight -> Int4,
+        min_staffing_mode -> Varchar,
     }
 }
 
