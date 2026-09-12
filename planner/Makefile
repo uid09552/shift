@@ -20,7 +20,8 @@ schedule:
 schedule-custom:
 	uv run shift-planner schedule input_shift.json my_output.json
 
-# Start NATS JetStream subscriber server
+# Start NATS JetStream subscriber server, with the REST API on :8888 alongside
+# (add --no-api to leave it out — e.g. when `make api` runs too)
 nats:
 	uv run shift-planner nats
 
@@ -70,7 +71,7 @@ help:
 	@echo "  make sync           Re-sync dependencies after pyproject.toml changes"
 	@echo "  make schedule       Run scheduler once (input.json → output.json)"
 	@echo "  make schedule-custom  Run with custom files (input_shift.json)"
-	@echo "  make nats           Start NATS JetStream subscriber"
+	@echo "  make nats           Start NATS JetStream subscriber + REST API (:8888)"
 	@echo "  make nats-custom    Start NATS with custom options"
 	@echo "  make api            Start REST API server (0.0.0.0:8888)"
 	@echo "  make api-custom     Start REST API on 127.0.0.1:8080"

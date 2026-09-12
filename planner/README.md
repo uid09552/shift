@@ -164,7 +164,7 @@ uv run python -m shift_planner api --port 8080
 | `make sync` | Re-sync dependencies after pyproject.toml changes |
 | `make schedule` | Run scheduler once (input.json → output.json) |
 | `make schedule-custom` | Run with input_shift.json |
-| `make nats` | Start NATS JetStream subscriber |
+| `make nats` | Start NATS JetStream subscriber + REST API on :8888 (`--no-api` to leave it out) |
 | `make nats-custom` | Start NATS with custom options |
 | `make api` | Start REST API on 0.0.0.0:8888 |
 | `make api-custom` | Start REST API on 127.0.0.1:8080 |

@@ -3,18 +3,20 @@
 Shift Planner CLI - Command-line interface for the scheduling solver.
 
 Provides commands for running the scheduler once, starting the NATS
-JetStream subscriber server, or starting the Flask REST API server.
+JetStream subscriber server (with the REST API alongside, unless --no-api),
+or starting the Flask REST API server on its own.
 
 Usage:
     shift-planner schedule [INPUT_FILE] [OUTPUT_FILE]
-    shift-planner nats --queue-name scheduling --stream-name SCHEDULING --broker-url nats://localhost:4222
-    shift-planner api --host 0.0.0.0 --port 5000
+    shift-planner nats --queue-name scheduling --stream-name SCHEDULING --broker-url nats://localhost:4222 [--api-port 8888 | --no-api]
+    shift-planner api --host 0.0.0.0 --port 8888
 """
 
 import asyncio
 import json
 import logging
 import sys
+import threading
 
 import click
 from pydantic import ValidationError
@@ -121,8 +123,30 @@ def schedule(input_file, output_file):
     default="nats://localhost:4222",
     help="NATS broker URL (default: nats://localhost:4222)",
 )
-def nats(queue_name, stream_name, broker_url):
-    """Start scheduler server in NATS JetStream subscriber mode."""
+@click.option(
+    "--api-host",
+    default="0.0.0.0",
+    help="Host to bind the REST API to (default: 0.0.0.0)",
+)
+@click.option(
+    "--api-port",
+    default=8888,
+    type=int,
+    help="Port for the REST API (default: 8888)",
+)
+@click.option(
+    "--no-api",
+    is_flag=True,
+    default=False,
+    help="Only subscribe to NATS, without the REST API",
+)
+def nats(queue_name, stream_name, broker_url, api_host, api_port, no_api):
+    """Start scheduler server in NATS JetStream subscriber mode.
+
+    The REST API (see `api`) runs alongside it unless --no-api is given: the
+    backend plans through the queue, the agent's optimizeSchedule through
+    POST /api/v1/optimize, and one process serves both.
+    """
     from shift_planner.nats_handler import start_server
 
     telemetry.init_telemetry()
@@ -131,18 +155,40 @@ def nats(queue_name, stream_name, broker_url):
     print(f"  Broker URL : {broker_url}")
     print(f"  Stream name: {stream_name}")
     print(f"  Subject    : {queue_name}")
+    print(f"  REST API   : {'disabled' if no_api else f'http://{api_host}:{api_port}/api/v1/optimize'}")
     print(f"  Telemetry  : {telemetry.endpoint() or 'disabled'}")
     print()
 
+    http = None if no_api else _start_api_thread(api_host, api_port)
     try:
         asyncio.run(start_server(queue_name, broker_url, stream_name))
     except KeyboardInterrupt:
         logger.info("Server stopped by user")
     except Exception as e:
+        # Exiting takes the API down with it, so the container restarts whole
+        # rather than serving HTTP with the queue silently gone.
         logger.error(f"Fatal error: {e}", exc_info=True)
         sys.exit(1)
     finally:
+        if http is not None:
+            http.shutdown()
         telemetry.shutdown()
+
+
+def _start_api_thread(host: str, port: int):
+    """Serve the REST API from a background thread and return its server.
+
+    The socket is bound here, on the calling thread, so a port already in use
+    fails the start instead of dying unnoticed in the thread.
+    """
+    from werkzeug.serving import make_server
+
+    from shift_planner.server import create_app
+
+    http = make_server(host, port, create_app(), threaded=True)
+    threading.Thread(target=http.serve_forever, name="rest-api", daemon=True).start()
+    logger.info(f"REST API listening on http://{host}:{port}")
+    return http
 
 
 @cli.command()
