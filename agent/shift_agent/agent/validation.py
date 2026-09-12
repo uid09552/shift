@@ -296,6 +296,41 @@ def _assignments(result: dict) -> list[Assignment]:
     return rows
 
 
+def compat_gap(employee: dict, workstation: dict, capabilities: dict) -> int | None:
+    """Skill match between one employee and one workstation, with the solver's
+    downgrade rule.
+
+    A requirement is met by holding the capability, or by holding a
+    higher-level one in the same ``skill_group`` (which the solver penalises
+    but allows). The return value is the total number of levels over-qualified
+    — 0 for an exact match — or ``None`` when the pair is incompatible, which
+    is a hard breach. Shared with repair.py, which has to ask the same question
+    about assignments that do not exist yet.
+    """
+    held = set(employee.get("skills") or [])
+    total_gap = 0
+    for required in workstation.get("required_skills") or []:
+        if required in held:
+            continue
+        group = (capabilities.get(required) or {}).get("skill_group")
+        if group is None:
+            return None
+        required_level = (capabilities.get(required) or {}).get("level", 1)
+        best: int | None = None
+        for capability in held:
+            info = capabilities.get(capability) or {}
+            if info.get("skill_group") != group:
+                continue
+            level = info.get("level", 1)
+            if level >= required_level:
+                gap = level - required_level
+                best = gap if best is None else min(best, gap)
+        if best is None:
+            return None
+        total_gap += best
+    return total_gap
+
+
 # ---------------------------------------------------------------------------
 # The checks
 # ---------------------------------------------------------------------------
@@ -522,37 +557,11 @@ class _Validator:
                     continue
 
     def _compat_gap(self, employee_id: str, workstation_id: str) -> int | None:
-        """Skill match, with the solver's downgrade rule.
-
-        A requirement is met by holding the capability, or by holding a
-        higher-level one in the same ``skill_group`` (which the solver
-        penalises but allows). ``None`` means the pair is incompatible — a hard
-        breach.
-        """
-        employee = self.employees.get(employee_id) or {}
-        workstation = self.workstations.get(workstation_id) or {}
-        held = set(employee.get("skills") or [])
-        total_gap = 0
-        for required in workstation.get("required_skills") or []:
-            if required in held:
-                continue
-            group = (self.capabilities.get(required) or {}).get("skill_group")
-            if group is None:
-                return None
-            required_level = (self.capabilities.get(required) or {}).get("level", 1)
-            best: int | None = None
-            for capability in held:
-                info = self.capabilities.get(capability) or {}
-                if info.get("skill_group") != group:
-                    continue
-                level = info.get("level", 1)
-                if level >= required_level:
-                    gap = level - required_level
-                    best = gap if best is None else min(best, gap)
-            if best is None:
-                return None
-            total_gap += best
-        return total_gap
+        return compat_gap(
+            self.employees.get(employee_id) or {},
+            self.workstations.get(workstation_id) or {},
+            self.capabilities,
+        )
 
     def _check_skills(self) -> None:
         """Hard: an employee may only staff a workstation whose required skills

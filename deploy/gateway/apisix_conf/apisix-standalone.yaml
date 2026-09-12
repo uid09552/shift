@@ -337,6 +337,15 @@ routes:
             Strict-Transport-Security: "max-age=31536000; includeSubDomains"
     upstream:
       type: roundrobin
+      # A repair with strategy "resolve" (POST /agent/plan/fix) runs the CP-SAT
+      # solver and waits for it, which the 60s default would cut off — leaving
+      # the caller a 504 while the agent went on to save the plan. The solver's
+      # own limit (planner settings, default 120s) plus the model build has to
+      # fit inside `read`.
+      timeout:
+        connect: 10
+        send: 60
+        read: 600
       nodes:
         agent:8899: 1
 

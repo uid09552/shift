@@ -45,6 +45,12 @@ from shift_agent.config import settings
 logger = logging.getLogger(__name__)
 
 
+# Tools that run the solver rather than reading the database, and so need the
+# long timeout instead of the per-call one. Everything else answers in
+# milliseconds; these are bounded by the optimizer's own time limit.
+LONG_RUNNING_TOOLS = {"optimizeSchedule"}
+
+
 def _as_json(text: str) -> str:
     """Try to pretty-print a JSON string; return as-is on failure."""
     try:
@@ -119,12 +125,22 @@ class MCPClient:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _session(self, token: str | None) -> Client:
-        """A FastMCP client for one session, authenticated as ``token``."""
+    def _session(self, token: str | None, tool_name: str | None = None) -> Client:
+        """A FastMCP client for one session, authenticated as ``token``.
+
+        The timeout is per session, and a session is per call, so a tool that
+        runs a solve gets the long one without slowing down the failure of
+        everything else.
+        """
         headers = {"Authorization": f"Bearer {token}"} if token else {}
+        timeout = (
+            settings.mcp_long_timeout_seconds
+            if tool_name in LONG_RUNNING_TOOLS
+            else settings.mcp_timeout_seconds
+        )
         return Client(
             StreamableHttpTransport(self._url, headers=headers),
-            timeout=settings.mcp_timeout_seconds,
+            timeout=timeout,
         )
 
     def _mcp_to_langchain_tool(self, mcp_tool: Any) -> StructuredTool:
@@ -198,7 +214,7 @@ class MCPClient:
         started = time.perf_counter()
         with telemetry.tool_span(name, **{"server.address": self._url}) as span:
             try:
-                async with self._session(token) as session:
+                async with self._session(token, name) as session:
                     result = await session.call_tool(name, arguments, raise_on_error=False)
             except Exception as exc:
                 logger.exception("MCP tool '%s' call failed", name)

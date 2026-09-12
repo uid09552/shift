@@ -18,7 +18,10 @@ flowchart LR
     E -->|Almost| G[Fix single days<br/>by hand]
     G --> V[Verify Plan]
     E -->|Yes| V
-    V --> H[Take as Plan]
+    V --> X{Rules broken?}
+    X -->|Yes| Y[Fix Plan]
+    Y --> V
+    X -->|No| H[Take as Plan]
     H --> I[Confirmed roster]
 ```
 
@@ -175,6 +178,46 @@ you can still confirm the plan if you have a reason to.
 
 ---
 
+## Step 6b — Have it put right
+
+Underneath the report is a box for **anything the assistant should know**, and a
+**Fix Plan** button.
+
+Press it and the assistant works through the plan: anyone who breaks a hard rule
+is moved somewhere the rules allow — the same shift at another workstation
+first, so the day keeps its shape, then another shift — or taken off the day if
+there is nowhere legal to put them. Then it fills what is left short, highest-
+priority workstations first, offering each opening to whoever has the fewest
+hours so far.
+
+**Type what only you know into the box.** The rules it can read from the system;
+what it cannot read is that Anna rang in sick this morning or that you promised
+the night team a quiet week. Plain sentences are enough:
+
+> *Anna is off sick on the 12th. Leave the night team as it is. Nobody new on
+> the ICU.*
+
+Anything you ask for that would break a rule is refused with the reason rather
+than forced — you will see it listed as such in the result.
+
+Two ways of fixing, chosen with the radio buttons:
+
+| Option | What it does | How long |
+|---|---|---|
+| **Fix what is broken** | Moves people around locally and fills short shifts. Everything that was already fine stays exactly as it is. | Seconds |
+| **Plan the period again** | Hands the whole period back to the optimizer, keeping only what you pinned in the box. Use it when the plan needs rethinking rather than patching. | Minutes, like a fresh calculation |
+
+The repaired plan is **saved to the proposal you are looking at** — not to the
+confirmed roster — and re-checked immediately, so the verdict above updates to
+whatever the fix achieved. Expand *Show all changes* to see every move it made,
+each with the rule it answers.
+
+!!! tip "The assistant can do this in chat too"
+    *"Fix the latest plan, but leave the weekend alone"* runs exactly the same
+    repair.
+
+---
+
 ## Step 7 — Confirm it
 
 Press **Take as Plan**.
@@ -201,7 +244,7 @@ This is how you adopt a recalculated roster for the two departments that
 changed without disturbing the rest of the ward.
 
 Once confirmed, the roster appears in **Schedule**, **Employee Calendar**,
-**Workstation Calendar** and on the dashboard. That is the official plan.
+**Day View** and on the dashboard. That is the official plan.
 
 ---
 

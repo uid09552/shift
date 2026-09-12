@@ -9,11 +9,12 @@ question you actually have.
 | **Schedule** | *Who is working, and when?* |
 | **Day View** | *Who is on the ward at three o'clock?* |
 | **Employee Calendar** | *What does one person's month look like?* |
-| **Workstation Calendar** | *Is this place adequately covered?* |
 
-All four are under **Planner** in the menu. The three grid views have an
-**Export Excel** button in the top right that saves exactly what you are
-looking at.
+*Is this place adequately covered?* is the Schedule view read **By
+workstation** — see [below](#coverage-by-place-the-schedules-workstation-view).
+
+All three are under **Planner** in the menu, and each has an **Export Excel**
+button in the top right that saves exactly what you are looking at.
 
 ---
 
@@ -110,20 +111,25 @@ the same way as in the Schedule view.
 
 ---
 
-## Workstation Calendar — coverage by place
+## Coverage by place — the Schedule's workstation view
 
 ![Coverage per workstation](../assets/screenshots/workstation-calendar.png)
 
-One row per workstation, one column per day. Each cell lists the shifts
-running there that day with the **number of people assigned** to each.
+Switch the Schedule view to **By workstation**: one row per workstation, one
+column per day, each cell listing the shifts running there with the **number of
+people assigned** to each.
 
 This is the view for spotting holes. Reading across a row tells you whether a
 unit is consistently covered; reading down a column tells you how a particular
-day is shaping up.
+day is shaping up. Cells below the **Min** you set on the shift or the
+workstation are marked, so a day showing `1` where you asked for `3` stands out
+as the real shortfall it is.
 
-Compare the numbers here against the **Min** you set on the shift and the
-workstation. A day showing `1` where you asked for `3` is a real shortfall the
-planner could not fill.
+!!! note "There used to be a separate page for this"
+    The standalone *Workstation Calendar* showed the same confirmed plans, read
+    only and for one week at a time. It has been folded into the Schedule view,
+    which does the same thing over the week *or* the month and lets you edit
+    what you find. Old links land on the Schedule page.
 
 ---
 

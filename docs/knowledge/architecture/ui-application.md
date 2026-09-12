@@ -38,15 +38,18 @@ All application routes render inside `AppLayoutComponent` (sidebar + header).
 | Path | Page |
 |---|---|
 | `/` | Dashboard |
-| `/kalender` | Weekly schedule |
+| `/kalender` | Weekly schedule — readable by employee, by workstation or by shift |
+| `/day-view` | One day as an hourly Gantt chart |
 | `/employee-calendar` | Per-employee calendar |
-| `/workstation-calendar` | Per-workstation calendar |
+| `/workstation-calendar` | Redirects to `/kalender`; the standalone per-workstation calendar was removed as a duplicate of its "By workstation" lens |
 | `/scheduler` | Optimization workbench |
 | `/user-profiles` | Employee profiles |
 | `/shifts` | Shift configuration |
 | `/workstations` | Workstation configuration |
 | `/capabilities` | Capability configuration |
 | `/planner-settings` | Solver settings |
+| `/wish-settings` | Shift-wish window |
+| `/users` | Organization users and roles (`shift-admin`) |
 | `/signin`, `/signup` | Auth pages, outside the layout |
 | `**` | Not found |
 
@@ -62,11 +65,11 @@ ui/src/app/
 ├── app.routes.ts
 ├── pages/
 │   ├── dashboard/          landing dashboard
-│   ├── planner/            kalender, employee-calendar, workstation-calendar,
+│   ├── planner/            kalender, day-view, employee-calendar,
 │   │                       scheduler, user-profiles
-│   ├── configuration/      shifts, workstations, capabilities, planner-settings
-│   ├── auth-pages/         sign-in, sign-up
-│   └── …                   template pages
+│   ├── configuration/      shifts, workstations, capabilities, planner-settings,
+│   │                       wish-settings, users
+│   └── auth-pages/         sign-in, sign-up
 └── shared/
     ├── services/           one HTTP service per API resource
     ├── components/         reusable UI

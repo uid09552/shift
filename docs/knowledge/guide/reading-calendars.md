@@ -21,10 +21,11 @@ arranged four ways. Pick whichever answers the question you actually have.
 | **Schedule** | *Who is working, and when?* |
 | **Day View** | *Who is on the ward at three o'clock?* |
 | **Employee Calendar** | *What does one person's month look like?* |
-| **Workstation Calendar** | *Is this place adequately covered?* |
 
-All four are under **Planner**. The three grid views have an **Export Excel**
-button that saves exactly what you are looking at.
+*Is this place adequately covered?* is the Schedule read **By workstation**, one
+of its three lenses over the same confirmed plans (By employee, By workstation,
+By shift). All three views are under **Planner**, and each has an **Export
+Excel** button that saves exactly what you are looking at.
 
 # Schedule — the master roster
 
@@ -90,10 +91,12 @@ This is the view to export when somebody asks "what am I doing next month?"
 Click any empty day for **Assign shift**, **Wish shift (optimizer)** and
 **Workstation** — see [Staff management](/guide/staff-management.md).
 
-# Workstation Calendar — coverage by place
+# Coverage by place — the Schedule's workstation lens
 
-One row per workstation, one column per day; each cell lists the shifts running
-there with the **number of people assigned**.
+Switch the Schedule to **By workstation**: one row per workstation, one column
+per day; each cell lists the shifts running there with the **number of people
+assigned**. (The standalone *Workstation Calendar* page was removed — it showed
+the same plans, read only and one week at a time. Old links redirect here.)
 
 This is the view for spotting holes. Reading across a row tells you whether a unit
 is consistently covered; reading down a column tells you how a particular day is

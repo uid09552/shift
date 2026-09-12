@@ -7,6 +7,7 @@ Usage:
     shift-agent chat
     shift-agent api --host 0.0.0.0 --port 8899
     shift-agent validate <optimizer-result-id>
+    shift-agent fix <optimizer-result-id> --instruction "..."
 """
 
 from __future__ import annotations
@@ -113,6 +114,9 @@ def api(host, port, debug, knowledge_path):
     print()
     print("Endpoints:")
     print(f"  POST http://{host}:{port}/api/v1/chat")
+    print(f"  POST http://{host}:{port}/api/v1/chat/upload")
+    print(f"  POST http://{host}:{port}/api/v1/plan/validate")
+    print(f"  POST http://{host}:{port}/api/v1/plan/fix")
     print(f"  GET  http://{host}:{port}/api/v1/health")
     print()
 
@@ -162,6 +166,79 @@ def knowledge(query, knowledge_path, limit):
     for entry in results:
         click.echo(f"\n{entry['score']:>7}  {entry['path']} — {entry['title']}")
         click.echo(f"         {entry['snippet']}")
+
+
+@cli.command()
+@click.argument("result_id")
+@click.option("--instruction", "-i", default="", help="What you want done, in your own words.")
+@click.option(
+    "--strategy",
+    type=click.Choice(["repair", "resolve"]),
+    default="repair",
+    help="repair: move people around locally (seconds). resolve: re-run the optimizer (minutes).",
+)
+@click.option("--dry-run", is_flag=True, default=False, help="Report what would change without saving it.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Print the raw report instead of a summary.")
+@click.option("--explain/--no-explain", default=True, help="Have the LLM write the result up (default: on).")
+def fix(result_id, instruction, strategy, dry_run, as_json, explain):
+    """Fix a proposed shift plan (RESULT_ID) and save the result.
+
+    The same thing the scheduler page's "Fix" button runs. Every row that
+    breaks a hard rule is moved somewhere legal or removed, and short-staffed
+    shifts are filled from whoever is free and qualified; --instruction carries
+    your own wishes ("take Anna off the 12th") and is read by the LLM.
+    """
+    from shift_agent.agent import repair as repair_module
+    from shift_agent.agent.client import MCPClient
+    from shift_agent.agent.graph import plain_llm
+
+    client = MCPClient()
+    llm = plain_llm() if (instruction or explain) else None
+    try:
+        report = repair_module.fix(
+            client.call_sync,
+            result_id,
+            instruction=instruction,
+            strategy=strategy,
+            llm=llm,
+            persist=not dry_run,
+        )
+    except (validation_error_types()) as exc:
+        raise click.ClickException(str(exc))
+
+    if explain:
+        report["summary"] = repair_module.narrate(report, llm)
+
+    if as_json:
+        click.echo(json.dumps(report, indent=2, default=str))
+        return
+
+    click.echo(f"\n{report['headline']}")
+    if report.get("understood"):
+        click.echo(f"Read as: {report['understood']}")
+    for change in report.get("changes") or []:
+        click.echo(f"  · {change['text']}")
+    for rejected in report.get("rejected") or []:
+        click.echo(f"  ✗ {rejected}")
+    if report.get("optimizer_note"):
+        click.echo(f"\nOptimizer: {report['optimizer_note']}")
+    after = report["after"]
+    click.echo(f"\nNow: {after['verdict'].upper()} — {after['error_count']} error(s), "
+               f"{after['warning_count']} warning(s)")
+    for finding in after["findings"]:
+        click.echo(f"  [{finding['severity']}] {finding['rule']} ×{finding['count']} — {finding['title']}")
+    if report.get("summary"):
+        click.echo(f"\n{report['summary']}")
+    if dry_run:
+        click.echo("\n(dry run — nothing was saved)")
+
+
+def validation_error_types():
+    """The two failures `fix` reports as a clean message rather than a traceback."""
+    from shift_agent.agent import repair as repair_module
+    from shift_agent.agent import validation as validation_module
+
+    return (validation_module.ValidationError, repair_module.RepairError)
 
 
 @cli.command()

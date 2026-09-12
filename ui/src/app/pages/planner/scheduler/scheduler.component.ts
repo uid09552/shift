@@ -28,6 +28,7 @@ import { Marked } from 'marked';
 import {
   PlanValidationService,
   PlanValidationReport,
+  PlanFixReport,
 } from '../../../shared/services/plan-validation.service';
 import { switchMap, takeWhile, startWith } from 'rxjs/operators';
 import {
@@ -151,6 +152,21 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   /** The assistant's markdown review, rendered for [innerHTML]. */
   validationSummaryHtml = '';
   validationError: string | null = null;
+
+  // ── Repair (assistant) ───────────────────────────────────────────
+  // What the planner wants taken into account, in their own words. Optional:
+  // the fix knows the rules, this is for what only they know ("Anna is off
+  // sick Thursday", "leave the night team alone").
+  fixInstruction = '';
+  /** `repair` moves people around locally; `resolve` re-runs the optimizer. */
+  fixStrategy: 'repair' | 'resolve' = 'repair';
+  fixing = false;
+  fixReport: PlanFixReport | null = null;
+  /** The assistant's markdown report of the repair, rendered for [innerHTML]. */
+  fixSummaryHtml = '';
+  fixError: string | null = null;
+  /** Collapsed by default — the change list can run to hundreds of lines. */
+  showFixChanges = false;
 
   // Edit assignment modal
   showEditAssignment = false;
@@ -657,6 +673,9 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     this.validationError = null;
     this.validationReport = null;
     this.validationSummaryHtml = '';
+    this.fixReport = null;
+    this.fixError = null;
+    this.fixSummaryHtml = '';
     this.showValidation = true;
 
     this.planValidationService.validatePlan(this.selectedResult.id).subscribe({
@@ -677,6 +696,55 @@ export class SchedulerComponent implements OnInit, OnDestroy {
 
   closeValidation(): void {
     this.showValidation = false;
+  }
+
+  /**
+   * Has the assistant fix what the check found, and reloads the result.
+   *
+   * The repair is saved server-side (it goes through the same update call the
+   * page's own edits use), so the displayed plan has to come back from the
+   * backend rather than being patched here — which also guarantees the grid
+   * shows exactly what was stored.
+   *
+   * The report it answers with contains a fresh verification of the repaired
+   * plan, so the panel above is replaced with that instead of re-running the
+   * check.
+   */
+  fixPlan(): void {
+    if (!this.selectedResult || this.fixing || this.validating) return;
+
+    const resultId = this.selectedResult.id;
+    this.fixing = true;
+    this.fixError = null;
+    this.fixReport = null;
+    this.fixSummaryHtml = '';
+    this.showFixChanges = false;
+
+    this.planValidationService.fixPlan(resultId, this.fixInstruction.trim(), this.fixStrategy).subscribe({
+      next: (report) => {
+        this.fixing = false;
+        this.fixReport = report;
+        this.fixSummaryHtml = report.summary
+          ? (markdown.parse(report.summary, { async: false }) as string)
+          : '';
+        // The check the report carries covers the plan that was just saved, so
+        // the panel above shows the repaired verdict without a second round
+        // trip. Its written review is dropped: the repair's own is below it.
+        this.validationReport = { ...report.after, summary: '' };
+        this.validationSummaryHtml = '';
+        this.fixInstruction = '';
+        this.loadResultById(resultId);
+      },
+      error: (err: { error?: { error?: string } }) => {
+        this.fixing = false;
+        this.fixError = err?.error?.error ?? this.translations.t('scheduler.fixFailed');
+      },
+    });
+  }
+
+  /** Translation key for a change's action badge. */
+  changeActionKey(change: { action: string }): string {
+    return `scheduler.fixAction.${change.action}`;
   }
 
   /** Translation key for the verdict badge. */

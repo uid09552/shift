@@ -35,11 +35,20 @@ The `shift_planner.models` module provides Pydantic-based data validation for sh
 - **available_shifts**: list[str] (required, min_items=1)
 - **unavailability**: list[date] (default: [])
 
+### LockedAssignment
+An assignment the solver must keep exactly as given, so a re-solve repairs a
+plan instead of replacing it.
+- **employee_id**: str (required, min_length=1)
+- **date**: date (required)
+- **shift_id**: str (required, min_length=1)
+- **workstation_id**: str (required, min_length=1)
+
 ### SchedulingInput (Root Model)
 - **planning_period**: PlanningPeriod (required)
 - **shifts**: list[Shift] (required, min_items=1)
 - **workstations**: list[Workstation] (required, min_items=1)
 - **employees**: list[Employee] (required, min_items=1)
+- **locked_assignments**: list[LockedAssignment] (default: [])
 - **Validation**: All IDs must be unique within their respective lists
 
 ## Usage

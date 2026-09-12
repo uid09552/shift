@@ -55,6 +55,7 @@ worked example. The backend builds this payload from the database — call
 | `workstations` | `id`, `name`, `required_skills`, `priority`, `operating_shifts`, `min/max_employees`, `unavailability[]` |
 | `employees` | `id`, `name`, `skills`, `available_shifts`, `unavailability[]`, `monthly_working_hours`, `preferred_off[]` |
 | `capabilities` | `id`, `level`, `skill_group` — for the skill-downgrade objective |
+| `locked_assignments` | `employee_id`, `date`, `shift_id`, `workstation_id` — rows the solver must keep |
 | `constraints` | the `ConstraintConfig` block below |
 
 Each `weekday_times` entry carries `weekday`, start/end times,
@@ -91,6 +92,15 @@ Violating any of these makes a solution invalid.
 9. **Skills and availability** — an employee is only eligible for a workstation
    whose required skills they hold, in a shift they are available for, on a day
    they are not hard-unavailable, at a workstation that is open.
+10. **Locked assignments** — every row in `locked_assignments` is pinned to 1, so
+    the solver plans *around* the caller's decisions instead of re-taking them.
+    This is what turns a re-solve into a repair: the assistant's **Fix Plan**
+    locks what the planner pinned and hands the rest back to the model (see
+    [Agent & MCP](agent.md)). A locked row the model has no variable for — the
+    person is absent that day, lacks the skill, or the workstation does not run
+    that shift — is dropped and named in `message` rather than failing the run;
+    locked rows that cannot coexist *do* make the plan infeasible, and the
+    message says so.
 
 Note the asymmetry on staffing bands: **maximum is hard, minimum is soft.** If
 minimum staffing were hard, a short-staffed week would return `infeasible` and

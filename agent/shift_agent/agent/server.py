@@ -23,6 +23,14 @@ Plan verification:
     findings plus a short written review. The counting never goes near the
     model; only the explanation does.
 
+Plan repair:
+  - POST /api/v1/plan/fix takes the same result id plus whatever the planner
+    typed alongside the Fix button, moves the plan into shape (repair.py) and
+    saves it. The moves are decided by the rules; the model only reads the
+    planner's sentence and writes the result up. With strategy "resolve" the
+    period goes back to the CP-SAT solver instead, through the MCP server's
+    optimizeSchedule tool.
+
 File uploads:
   - POST /api/v1/chat/upload takes a roster document (PDF/CSV/XLSX) as
     multipart, parses it to a grid (documents.py), stages it for the session
@@ -64,7 +72,7 @@ from shift_agent.agent.documents import (
     parse_document,
 )
 from shift_agent.agent.graph import build_graph, build_llm, connect_mcp, disconnect_mcp
-from shift_agent.agent import roster, validation
+from shift_agent.agent import repair, roster, validation
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -360,6 +368,83 @@ def create_app(knowledge_path: str | None = None) -> Flask:
             report["verdict"],
             report["error_count"],
             report["warning_count"],
+        )
+        return jsonify(report)
+
+    # ---- Plan repair (auth-protected) ----
+    @app.route("/api/v1/plan/fix", methods=["POST"])
+    @require_auth
+    def fix_plan():
+        """Fix a proposed shift plan and save the result.
+
+        Body: { "result_id": str, "instruction": str (optional),
+                "strategy": "repair" | "resolve" (optional) }
+        Response: what the check said before, what was changed, what the check
+        says now, anything that could not be done, and `summary` — a short
+        written report of all of it.
+
+        Everything that moves is decided by re-derived rules, not by the model:
+        the assistant reads the planner's instruction and writes the report,
+        and each move it leads to is refused if it would break a rule. The
+        repaired plan is written back through the same endpoint the scheduler
+        page's own edits use, so the page shows it after a reload.
+        """
+        if not request.is_json:
+            return jsonify({"error": "Content-Type must be application/json"}), 415
+
+        data = request.get_json(silent=True) or {}
+        result_id = data.get("result_id")
+        if not result_id or not isinstance(result_id, str):
+            return jsonify({"error": "Missing 'result_id' (string)"}), 400
+        instruction = data.get("instruction") or ""
+        if not isinstance(instruction, str):
+            return jsonify({"error": "'instruction' must be a string"}), 400
+        strategy = data.get("strategy") or "repair"
+        if strategy not in ("repair", "resolve"):
+            return jsonify({"error": "'strategy' must be 'repair' or 'resolve'"}), 400
+
+        reset_token = set_forwarded_token(_request_token())
+        started = time.perf_counter()
+        try:
+            with telemetry.span(
+                "agent.fix_plan",
+                **{"agent.result_id": result_id, "agent.strategy": strategy},
+            ):
+                try:
+                    graph = _get_or_create_graph()
+                except Exception:
+                    logger.exception("Graph build / MCP connection failed")
+                    return jsonify({"error": "Agent backend unavailable"}), 503
+
+                try:
+                    report = repair.fix(
+                        graph.mcp_client.call_sync,
+                        result_id,
+                        instruction=instruction,
+                        strategy=strategy,
+                        llm=_get_narrator(),
+                    )
+                except validation.ValidationError as exc:
+                    return jsonify({"error": str(exc)}), 404
+                except repair.RepairError as exc:
+                    # The plan could not be re-solved or could not be saved —
+                    # a real answer for the planner, not an internal error.
+                    return jsonify({"error": str(exc)}), 409
+                except Exception:
+                    logger.exception("Could not repair plan %s", result_id)
+                    return jsonify({"error": "The plan could not be repaired."}), 502
+
+                report["summary"] = repair.narrate(report, _get_narrator())
+        finally:
+            reset_forwarded_token(reset_token)
+
+        logger.info(
+            "Repaired plan %s in %.1fs — %s, %s change(s), %d error(s) left",
+            result_id,
+            time.perf_counter() - started,
+            report["strategy"],
+            report.get("change_count"),
+            report["after"]["error_count"],
         )
         return jsonify(report)
 

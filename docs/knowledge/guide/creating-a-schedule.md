@@ -26,7 +26,10 @@ flowchart LR
     E -->|Almost| G[Fix single days<br/>by hand]
     G --> V[Verify Plan]
     E -->|Yes| V
-    V --> H[Take as Plan]
+    V --> X{Rules broken?}
+    X -->|Yes| Y[Fix Plan]
+    Y --> V
+    X -->|No| H[Take as Plan]
     H --> I[Confirmed roster]
 ```
 
@@ -142,6 +145,38 @@ latest plan OK?"* — runs the same check.
 A **Rules broken** verdict does not lock anything: you can still confirm the plan
 if you have a reason to. Nothing here is a gate, only the second opinion nobody
 has time to do by hand.
+
+# Step 6b — Have it put right
+
+Under the report is a box for **anything the assistant should know** and a **Fix
+Plan** button. Pressing it works through the plan: anyone breaking a hard rule is
+moved somewhere the rules allow — the same shift at another workstation first,
+so the day keeps its shape, then another shift — or taken off the day when there
+is nowhere legal to put them. Then what is left short gets filled, high-priority
+workstations first, each opening going to whoever has fewest hours so far.
+
+**The box is for what the system cannot know.** That Anna rang in sick this
+morning; that the night team was promised a quiet week. Plain sentences:
+
+> *Anna is off sick on the 12th. Leave the night team as it is. Nobody new on
+> the ICU.*
+
+Anything asked for that would break a rule is refused with the reason instead of
+forced, and listed as refused in the result.
+
+| Option | What it does | How long |
+|---|---|---|
+| **Fix what is broken** | Local moves plus filling short shifts. Everything already fine is untouched | Seconds |
+| **Plan the period again** | The whole period goes back to the optimizer, keeping only what the box pinned | A solve — minutes |
+
+The repaired plan is saved **to the proposal**, not the confirmed roster, and
+re-checked straight away, so the verdict above updates to whatever the fix
+achieved. *Show all changes* lists every move with the rule it answers.
+
+Like the check, the moves are arithmetic: each one is tested against the same
+constraints the optimizer solves under before it is made. The assistant's part
+is reading the sentence in the box and writing up the result. Asking in chat —
+*"fix the latest plan but leave the weekend alone"* — runs the same repair.
 
 # Step 7 — Confirm it
 

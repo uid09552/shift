@@ -76,6 +76,22 @@ class Settings:
     backend_access_token: str | None = os.environ.get("BACKEND_ACCESS_TOKEN") or None
 
     # ------------------------------------------------------------------
+    # Optimizer (the CP-SAT service — planner/shift_planner/server.py)
+    # ------------------------------------------------------------------
+    # Base URL of the optimizer's REST API, behind the MCP server's
+    # `optimizeSchedule` tool. This is the one backend service the MCP server
+    # talks to directly rather than through the Rust API: the API's own
+    # /planner/plan is asynchronous (NATS, poll for a result id), which a tool
+    # call cannot wait on. In deploy/docker-compose.yml that's the
+    # "planner-api" service; locally, http://localhost:8888.
+    optimizer_url: str = os.environ.get("OPTIMIZER_URL", "http://planner-api:8888")
+    # A solve is bounded by the solver's own time limit (default 120s), so this
+    # has to leave room for it plus the model build on either side.
+    optimizer_timeout_seconds: float = float(
+        os.environ.get("OPTIMIZER_TIMEOUT_SECONDS", "300")
+    )
+
+    # ------------------------------------------------------------------
     # Keycloak / auth (for the chat REST API — server.py)
     # ------------------------------------------------------------------
     keycloak_realm_url: str = os.environ.get(
@@ -97,6 +113,13 @@ class Settings:
     # that's the "mcp" service; locally, http://localhost:8900/mcp.
     mcp_server_url: str = os.environ.get("MCP_SERVER_URL", "http://mcp:8900/mcp")
     mcp_timeout_seconds: float = float(os.environ.get("MCP_TIMEOUT_SECONDS", "30"))
+    # The timeout for tools that run a solve rather than a query — see
+    # client.py's LONG_RUNNING_TOOLS. Thirty seconds is right for a database
+    # read and far too short for CP-SAT, which is bounded by its own
+    # solver_time_limit_seconds (default 120).
+    mcp_long_timeout_seconds: float = float(
+        os.environ.get("MCP_LONG_TIMEOUT_SECONDS", "300")
+    )
     # Optional comma-separated allowlist of MCP tool names to bind to the LLM.
     # Unset = bind everything the server exposes — which for the OpenAPI-generated
     # server is the entire backend API, more than a small local model can handle.

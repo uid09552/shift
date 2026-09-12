@@ -3,7 +3,9 @@ MCP server exposing the Rust backend's REST API (../../../api/openapi.yaml) as M
 tools, one per operation, generated directly from the spec via FastMCP — full,
 unopinionated coverage of the API for use by any MCP client (the chat agent
 itself, Claude Code, Claude Desktop, etc.). Plus `navigate`, the one tool that
-has no REST equivalent because it targets the browser rather than the backend.
+has no REST equivalent because it targets the browser rather than the backend,
+and `optimizeSchedule`, which runs the CP-SAT solver synchronously against the
+optimizer service — the spec's own planning endpoints only queue a job.
 
 Multi-tenant auth: over HTTP transport, connecting MCP clients authenticate
 against Keycloak via the OAuth2 authorization code grant + Dynamic Client
@@ -121,7 +123,10 @@ KNOWN_PAGES = {
     "schedule": "/kalender",
     "day_view": "/day-view",
     "employee_calendar": "/employee-calendar",
-    "workstation_calendar": "/workstation-calendar",
+    # The standalone workstation calendar was removed as a duplicate of the
+    # schedule page's "By workstation" lens; the name still resolves so older
+    # conversations and links don't break.
+    "workstation_calendar": "/kalender",
     "scheduler": "/scheduler",
     "user_profiles": "/user-profiles",
     "shifts": "/shifts",
@@ -156,6 +161,143 @@ def _register_navigation(mcp: FastMCP) -> None:
         return json.dumps({"action": "navigate", "path": path})
 
 
+# Keys of ConstraintConfig (planner/shift_planner/models.py) that may be
+# overridden per call. Anything else in `constraints` is refused rather than
+# silently ignored, so a typo doesn't look like a setting that had no effect.
+OPTIMIZER_CONSTRAINT_KEYS = {
+    "night_shift_recovery_days", "min_rest_hours", "max_consecutive_days",
+    "max_working_days_per_week", "equality_weight", "priority_weights",
+    "shift_continuity_weight", "shift_continuity_week_bonus",
+    "monthly_hours_target_weight", "weekly_min_hours", "weekly_max_hours",
+    "weekly_hours_target_weight", "preference_weight", "wish_weight",
+    "skill_downgrade_weight", "fatigue_weight", "night_shift_fatigue_multiplier",
+    "min_staffing_mode", "solver_time_limit_seconds", "solver_num_workers",
+}
+
+
+def _plan_summary(result: dict) -> dict:
+    """Head-line numbers of a solver answer, without the plan itself."""
+    assignments = 0
+    scheduled = set()
+    for plan in result.get("employee_plans") or []:
+        for entry in plan.get("daily_plan") or []:
+            if entry.get("status") == "assigned" and entry.get("shift_id"):
+                assignments += 1
+                scheduled.add(plan.get("employee_id"))
+    return {
+        "assignments": assignments,
+        "employees_scheduled": len(scheduled),
+        "employees_considered": len(result.get("employee_plans") or []),
+        "days": len(result.get("schedule") or []),
+    }
+
+
+def _register_optimizer(mcp: FastMCP) -> None:
+    """Add `optimizeSchedule` — run the CP-SAT solver and wait for its answer.
+
+    The generated tools cover the backend's own planning endpoints, but those
+    are asynchronous by design: `triggerPlan` queues a job on NATS and hands
+    back a task id to poll, and the plan it eventually stores replaces nothing
+    and keeps nothing. This tool is the synchronous counterpart — it builds the
+    solver's input from the backend (`/planner/prepare`, the same payload
+    `triggerPlan` would send), posts it straight to the optimizer service and
+    returns the schedule it computes.
+
+    Two arguments make it a *repair* tool rather than just a second way to
+    plan: `locked_assignments` pins rows the caller wants kept, so the solver
+    fills in around a plan instead of replacing it, and `constraints` relaxes
+    or tightens a rule for this one run without touching the tenant's saved
+    planner settings.
+    """
+
+    @mcp.tool
+    async def optimizeSchedule(
+        start_date: str,
+        end_date: str,
+        employee_ids: list[str] | None = None,
+        constraints: dict | None = None,
+        locked_assignments: list[dict] | None = None,
+        include_plan: bool = False,
+    ) -> str:
+        """Run the shift optimizer (CP-SAT) for a period and return its schedule.
+
+        Runs the solver now and waits for it, unlike triggerPlan. Nothing is
+        stored: the answer comes back to you. Use it to try a plan out — with a
+        rule relaxed, with part of an existing plan held fixed, or for a subset
+        of the staff — before anything is written.
+
+        Args:
+            start_date: First day of the planning period, YYYY-MM-DD.
+            end_date: Last day of the planning period, YYYY-MM-DD.
+            employee_ids: Only plan for these employees. Omit for everyone.
+            constraints: Per-run overrides of the tenant's planner settings,
+                e.g. {"min_rest_hours": 10, "solver_time_limit_seconds": 30}.
+            locked_assignments: Rows the solver must keep, each
+                {"employee_id", "date", "shift_id", "workstation_id"}. The
+                solver plans around them; any that are impossible are reported
+                in `message` instead of failing the run.
+            include_plan: Return the full schedule as well as the summary.
+                Off by default — a month for a whole ward is a large payload.
+        """
+        if constraints:
+            unknown = sorted(set(constraints) - OPTIMIZER_CONSTRAINT_KEYS)
+            if unknown:
+                return json.dumps({
+                    "error": f"Unknown constraint(s): {', '.join(unknown)}. "
+                             f"Valid: {', '.join(sorted(OPTIMIZER_CONSTRAINT_KEYS))}",
+                })
+
+        request = {"start_date": start_date, "end_date": end_date}
+        if employee_ids:
+            request["employee_ids"] = employee_ids
+
+        # The rules half comes from the backend as the signed-in user, so the
+        # solve covers that tenant's ward and nobody else's.
+        async with _client() as backend:
+            try:
+                prepared = await backend.post("/planner/prepare", json=request)
+                prepared.raise_for_status()
+                payload = prepared.json()
+            except httpx.HTTPError as exc:
+                logger.warning("preparePlan failed for %s..%s: %s", start_date, end_date, exc)
+                return json.dumps({"error": f"Could not build the optimizer input: {exc}"})
+
+        if constraints:
+            payload["constraints"] = {**(payload.get("constraints") or {}), **constraints}
+        if locked_assignments:
+            payload["locked_assignments"] = locked_assignments
+
+        url = f"{settings.optimizer_url.rstrip('/')}/api/v1/optimize"
+        try:
+            async with httpx.AsyncClient(timeout=settings.optimizer_timeout_seconds) as client:
+                response = await client.post(url, json=payload)
+        except httpx.HTTPError as exc:
+            logger.warning("Optimizer at %s unreachable: %s", url, exc)
+            return json.dumps({"error": f"The optimizer could not be reached: {exc}"})
+
+        try:
+            result = response.json()
+        except ValueError:
+            return json.dumps({"error": "The optimizer answered with something that is not JSON."})
+
+        # 422 is the solver's own "no feasible plan" answer, which is a result,
+        # not a transport failure — pass it through as one.
+        if response.status_code >= 400 and result.get("status") not in ("infeasible", "validation_error"):
+            return json.dumps({"error": f"The optimizer failed: {result.get('message') or response.status_code}"})
+
+        answer = {
+            "status": result.get("status"),
+            "objective_value": result.get("objective_value"),
+            "planning_period": result.get("planning_period"),
+            "message": result.get("message"),
+            "summary": _plan_summary(result),
+        }
+        if include_plan:
+            answer["employee_plans"] = result.get("employee_plans") or []
+            answer["schedule"] = result.get("schedule") or []
+        return json.dumps(answer, default=str)
+
+
 class TracingMiddleware(Middleware):
     """One span per tool call, named after the tool.
 
@@ -182,6 +324,7 @@ def build_mcp_server() -> FastMCP:
         auth=_build_auth(),
     )
     _register_navigation(mcp)
+    _register_optimizer(mcp)
     if telemetry.enabled():
         mcp.add_middleware(TracingMiddleware())
     return mcp

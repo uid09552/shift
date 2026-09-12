@@ -60,7 +60,6 @@ export class AppSidebarComponent {
         { name: "nav.schedule", path: "/kalender", pro: false },
         { name: "nav.dayView", path: "/day-view", pro: false },
         { name: "nav.employeeCalendar", path: "/employee-calendar", pro: false },
-        { name: "nav.workstationCalendar", path: "/workstation-calendar", pro: false },
         { name: "nav.scheduleOptimizer", path: "/scheduler", pro: false }
       ],
     },

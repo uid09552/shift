@@ -18,6 +18,7 @@ Two sub-packages, one process each, and only a token crossing between them:
 Website chat widget · scheduler page
         │  POST /api/v1/chat  { message, session_id }
         │  POST /api/v1/plan/validate  { result_id }
+        │  POST /api/v1/plan/fix  { result_id, instruction, strategy }
         │  Authorization: Bearer <keycloak-token>
         │  X-Access-Token: <token>  (set by APISIX in front of this route)
         ▼
@@ -79,6 +80,25 @@ Website chat widget · scheduler page
   plain LLM call that writes it up. Two checks of an unchanged plan therefore
   cannot disagree about what is wrong with it.
 
+- **`repair.py`** — *fixing* a plan, where validation.py stops at reporting it:
+  `POST /api/v1/plan/validate`'s neighbour `POST /api/v1/plan/fix` behind the
+  scheduler page's **Fix Plan** button, and `repairOptimizedPlan` for the chat.
+  The same split as the check, for the same reason. **The moves are arithmetic**
+  — every row that breaks a hard rule is moved somewhere the solver could have
+  put it or removed, and what is left short is filled from whoever is free and
+  qualified, each candidate checked against the re-derived constraints
+  (`_Rules.blocking_reason`). **The user's sentence is the model's** —
+  `parse_instruction` hands the note typed next to the button ("Anna is off sick
+  Thursday", "leave the night team alone") to the LLM as a translation job with
+  the ward's own names in front of it, and whatever comes back is checked like
+  any other move and refused with a reason when it does not hold. Two
+  strategies: `repair` patches locally in seconds; `resolve` hands the period
+  back to CP-SAT through the MCP server's `optimizeSchedule` tool, locking what
+  the planner pinned so their decisions survive. Either way the result goes back
+  through `updateOptimizedShift` — the endpoint the scheduler page's own edits
+  use — and is re-checked with `validation.validate`, so the report afterwards
+  is produced by the same counting as the one before.
+
 - **`server.py`** — the HTTP surface the website talks to. Validates the
   caller's token against Keycloak's JWKS endpoint, then puts it in `auth.py`'s
   per-request contextvar for the duration of the agent call.
@@ -91,8 +111,17 @@ Website chat widget · scheduler page
 - **`server.py`** — generated directly from `../api/openapi.yaml` via FastMCP's
   `FastMCP.from_openapi()`: the whole backend REST API as MCP tools, one per
   operation, for the chat agent and external MCP clients (Claude Code, Claude
-  Desktop) alike. Plus `navigate`, the one tool with no REST equivalent — it
-  targets the browser, and `agent/server.py` turns it into a `ui_action`.
+  Desktop) alike. Plus two tools with no REST equivalent: `navigate`, which
+  targets the browser (`agent/server.py` turns it into a `ui_action`), and
+  `optimizeSchedule`, which runs the CP-SAT solver and waits for it. The spec's
+  own `triggerPlan` queues a job on NATS and hands back a task id to poll, which
+  a tool call cannot wait on; `optimizeSchedule` builds the solver's input from
+  `/planner/prepare` (the same payload `triggerPlan` would send), posts it
+  straight to the optimizer service (`OPTIMIZER_URL`) and returns the schedule.
+  Its `locked_assignments` and per-run `constraints` are what let the repair
+  re-solve a period without losing the planner's decisions, and what answer
+  "what would this look like with the rest rule relaxed?" without saving
+  anything.
 
 - **`auth.py`** — decides which access token the server's backend calls carry:
   whatever the caller presented, else `BACKEND_ACCESS_TOKEN`.
@@ -105,7 +134,8 @@ Website chat widget · scheduler page
 - **`cli.py`** — `shift-agent chat` for local testing, `shift-agent api` to
   start the chat server, `shift-agent mcp` to start the MCP server,
   `shift-agent knowledge` to inspect the documentation bundle,
-  `shift-agent validate` to check a plan from the terminal.
+  `shift-agent validate` to check a plan from the terminal, `shift-agent fix`
+  to repair one.
 
 ## Knowledge base
 
@@ -286,6 +316,33 @@ uv run shift-agent validate <result-id>          # readable summary
 uv run shift-agent validate <result-id> --json   # the raw report
 ```
 
+### Fixing a plan
+
+```bash
+curl -X POST http://localhost:8899/api/v1/plan/fix \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"result_id": "0f2c…",
+       "instruction": "Anna is off sick on the 12th, leave the night team alone",
+       "strategy": "repair"}'
+# { "headline": "Changed 14 assignment(s). 3 hard violation(s) resolved…",
+#   "before": { … }, "after": { …a full validation report… },
+#   "changes": [ … ], "rejected": [ … ], "summary": "…" }
+```
+
+`strategy` is `repair` (local moves, seconds) or `resolve` (the whole period
+re-solved by CP-SAT, minutes, keeping only what the instruction pinned). The
+repaired plan is **saved** — `after` is a fresh check of what was stored, and
+`rejected` lists anything the instruction asked for that the rules would not
+allow. `resolve` needs the optimizer's REST API reachable at `OPTIMIZER_URL`
+(the `planner-api` service in `deploy/docker-compose.yml`; locally
+`cd planner && make api`). From the terminal:
+
+```bash
+uv run shift-agent fix <result-id> -i "take Anna off Thursday"
+uv run shift-agent fix <result-id> --strategy resolve --dry-run
+```
+
 In dev mode (no Keycloak configured), the endpoint accepts requests without
 authentication.
 
@@ -300,7 +357,10 @@ authentication.
   `ui/src/app/app.routes.ts`.
 - **New rule checked in a plan**: add a `_check_*` method to `_Validator` in
   `agent/validation.py` and call it from `run()`, mirroring the constraint it
-  comes from in `../planner/shift_planner/optimizer.py`.
+  comes from in `../planner/shift_planner/optimizer.py`. If it is a *hard*
+  rule, add the same clause to `_Rules.blocking_reason` in `agent/repair.py`
+  and a pattern to `_RULE_PATTERNS` — otherwise the repair will happily
+  reintroduce what the check reports.
 - **Persistent conversation history**: swap `MemorySaver` in `agent/graph.py`
   for `langgraph.checkpoint.sqlite.SqliteSaver` or
   `langgraph.checkpoint.postgres.PostgresSaver`.

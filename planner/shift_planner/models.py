@@ -146,6 +146,23 @@ class Employee(BaseModel):
     wishes: List[ShiftWish] = Field(default_factory=list)
 
 
+class LockedAssignment(BaseModel):
+    """An assignment the solver must keep exactly as given.
+
+    Re-solving a plan that a planner has already worked on would otherwise
+    throw their decisions away. Locking the rows worth keeping turns a fresh
+    solve into a repair: the model is handed those assignments as facts and
+    only fills in the rest. An entry the model cannot represent (the employee
+    is absent that day, the workstation does not run that shift) is reported
+    in the result's ``message`` rather than making the whole solve infeasible.
+    """
+
+    employee_id: str = Field(..., min_length=1)
+    date: date
+    shift_id: str = Field(..., min_length=1)
+    workstation_id: str = Field(..., min_length=1)
+
+
 class CapabilityInfo(BaseModel):
     """Capability catalog entry carrying skill-level metadata.
 
@@ -261,6 +278,9 @@ class SchedulingInput(BaseModel):
     workstations: List[Workstation] = Field(..., min_length=1)
     employees: List[Employee] = Field(..., min_length=1)
     capabilities: List[CapabilityInfo] = Field(default_factory=list)
+    # Assignments the solver may not change. Everything else is solved around
+    # them — see LockedAssignment.
+    locked_assignments: List[LockedAssignment] = Field(default_factory=list)
     constraints: ConstraintConfig = Field(default_factory=ConstraintConfig)
 
     @field_validator("shifts", "workstations", "employees")

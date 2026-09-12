@@ -36,6 +36,7 @@ question of the form "why did the solver decide that".
 | `workstations` | `id`, `name`, `required_skills`, `priority`, `operating_shifts`, `min_employees`, `max_employees`, `unavailability[]` |
 | `employees` | `id`, `name`, `skills`, `available_shifts`, `unavailability[]`, `monthly_working_hours`, `preferred_off[]`, `wishes[]` |
 | `capabilities` | `id`, `level`, `skill_group` — for the skill-downgrade objective |
+| `locked_assignments` | `employee_id`, `date`, `shift_id`, `workstation_id` — rows the solver must keep |
 | `constraints` | The `ConstraintConfig` block |
 
 Each `weekday_times` entry carries `weekday`, `start_time`, `end_time`,
@@ -50,6 +51,15 @@ Two employee fields correspond to the soft/hard split on absences:
 `constraints` mirrors the tenant's [planner settings](/concepts/planner-settings.md);
 every field is optional and falls back to the Pydantic default. Full list in
 [Planner settings reference](/solver/planner-settings-reference.md).
+
+`locked_assignments` is empty in everything the backend publishes; it is the
+repair path's argument. Each entry pins its decision variable to 1, so the
+solver plans *around* those rows instead of re-deciding them — that is what lets
+the assistant re-solve a period without throwing away what a planner already
+settled. A locked row the model has no variable for (the person is absent that
+day, lacks the skill, the workstation does not run that shift) is dropped and
+named in the output's `message`; locked rows that cannot coexist make the run
+`infeasible`, and the message says so.
 
 # Output
 

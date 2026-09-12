@@ -186,9 +186,14 @@ class ShiftPlanner:
         self.employees = data["employees"]
         self.shifts = data["shifts"]
         self.workstations = data["workstations"]
+        self.locked_assignments = data.get("locked_assignments") or []
         self.num_emp = len(self.employees)
         self.num_shifts = len(self.shifts)
         self.num_ws = len(self.workstations)
+        # Entries of locked_assignments the model has no variable for. Carried
+        # to the output rather than raised: a lock that cannot hold is the
+        # caller's problem to see, not a reason to return no plan at all.
+        self.lock_warnings: list[str] = []
 
     def _parse_config(self, data: dict) -> None:
         cfg = _get_constraints(data)
@@ -398,6 +403,7 @@ class ShiftPlanner:
         # strong but not blocking (soft mode only — see _require_min_staffing)
         self.min_emp_penalty = max(self.prio_weights.values()) * 20
         self.hard_staffing_count = 0
+        self._pin_locked_assignments()
         self._limit_one_workstation_per_shift()
         self._limit_workstation_staffing()
         self._limit_one_shift_per_day()
@@ -406,6 +412,52 @@ class ShiftPlanner:
         self._limit_weekly_days()
         self._limit_min_rest()
         self._limit_consecutive_days()
+
+    def _pin_locked_assignments(self) -> None:
+        """0) Assignments the caller fixed: solve around them, don't re-decide them.
+
+        Each locked row forces its decision variable to 1, which every other
+        constraint then has to accommodate — the plan that comes back contains
+        the row, or no plan comes back at all. A row with no variable behind it
+        (the employee is marked absent that day, lacks the skill, or the
+        workstation doesn't run that shift) is impossible by construction: it
+        is dropped with a note instead, so one stale lock cannot cost the
+        caller the whole solve.
+        """
+        if not self.locked_assignments:
+            return
+
+        emp_idx = {e["id"]: i for i, e in enumerate(self.employees)}
+        shift_idx = {s["id"]: i for i, s in enumerate(self.shifts)}
+        ws_idx = {w["id"]: i for i, w in enumerate(self.workstations)}
+
+        pinned = 0
+        for lock in self.locked_assignments:
+            e_idx = emp_idx.get(lock["employee_id"])
+            s_idx = shift_idx.get(lock["shift_id"])
+            w_idx = ws_idx.get(lock["workstation_id"])
+            d_idx = self.day_index.get(parse_date(lock["date"]))
+            where = (
+                f"{lock['employee_id']} on {lock['date']} "
+                f"(shift {lock['shift_id']}, workstation {lock['workstation_id']})"
+            )
+            if None in (e_idx, s_idx, w_idx, d_idx):
+                self.lock_warnings.append(f"{where}: unknown employee, shift, workstation or date")
+                continue
+            var = self.x.get((e_idx, d_idx, s_idx, w_idx))
+            if var is None:
+                self.lock_warnings.append(
+                    f"{where}: not a possible assignment (absence, missing skill, "
+                    f"or the workstation does not run that shift)"
+                )
+                continue
+            self.model.Add(var == 1)
+            pinned += 1
+
+        logger.info(
+            "Locked assignments: %d pinned, %d dropped",
+            pinned, len(self.lock_warnings),
+        )
 
     def _limit_one_workstation_per_shift(self) -> None:
         """1) At most one workstation per (employee, day, shift)."""
@@ -1005,7 +1057,17 @@ class ShiftPlanner:
             planning_period=PlanningPeriod(start_date=self.start, end_date=self.end),
             schedule=self._build_schedule(assigned),
             employee_plans=self._build_employee_plans(assigned),
+            message=self._lock_message(),
         )
+
+    def _lock_message(self) -> str | None:
+        """The locks that could not be honoured, listed for the caller."""
+        if not self.lock_warnings:
+            return None
+        shown = self.lock_warnings[:5]
+        more = len(self.lock_warnings) - len(shown)
+        text = "Ignored locked assignment(s): " + "; ".join(shown)
+        return text + (f"; and {more} more" if more > 0 else "")
 
     # ---- Entry point -------------------------------------------------------
 
@@ -1035,6 +1097,12 @@ class ShiftPlanner:
                 "'soft' to allow understaffed slots."
                 if self.min_staffing_hard else ""
             )
+            if self.locked_assignments:
+                hint += (
+                    f" {len(self.locked_assignments)} assignment(s) were locked; "
+                    "they are enforced as given, so a set of them that cannot "
+                    "coexist makes the whole plan infeasible."
+                )
             return self._infeasible_output(
                 "No feasible schedule found. "
                 "Relax constraints or add more employees." + hint

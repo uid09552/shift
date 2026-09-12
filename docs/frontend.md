@@ -25,7 +25,7 @@ All application routes render inside `AppLayoutComponent` (sidebar + header):
 | `/kalender` | Weekly schedule |
 | `/day-view` | One day as an hourly Gantt chart |
 | `/employee-calendar` | Per-employee calendar |
-| `/workstation-calendar` | Per-workstation calendar |
+| `/workstation-calendar` | Redirects to `/kalender` — the schedule page reads by workstation itself |
 | `/scheduler` | Optimization workbench |
 | `/user-profiles` | Employee profiles |
 | `/shifts` | Shift configuration |
@@ -48,11 +48,10 @@ ui/src/app/
 ├── pages/
 │   ├── dashboard/          landing dashboard
 │   ├── planner/            kalender, day-view, employee-calendar,
-│   │                       workstation-calendar, scheduler, user-profiles
+│   │                       scheduler, user-profiles
 │   ├── configuration/      shifts, workstations, capabilities, planner-settings,
-│   │                       wish-settings
-│   ├── auth-pages/         sign-in, sign-up
-│   └── …                   template pages (charts, forms, tables, ui-elements)
+│   │                       wish-settings, users
+│   └── auth-pages/         sign-in, sign-up
 └── shared/
     ├── services/           one HTTP service per API resource
     ├── components/         reusable UI

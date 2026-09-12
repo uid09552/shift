@@ -18,7 +18,11 @@ Three sources of tools, and the split matters:
   - the plan check (validation.py), for *verifying* a proposed plan against the
     rules it was solved under. Same reason as the roster: counting rest gaps
     across a month of assignments is arithmetic, and the model's job is to
-    explain the result, not to derive it.
+    explain the result, not to derive it;
+  - the plan repair (repair.py), for *fixing* what the check found — moving
+    people to legal places, filling what is short, or handing the period back
+    to the solver. The user's instruction is read by a model; every move it
+    leads to is checked against the rules first.
 
 Context: the history of a session grows without bound (every tool result is
 kept), so what goes to the model each turn is capped at the configured window —
@@ -57,6 +61,7 @@ from shift_agent.config import settings
 from shift_agent.agent.client import MCPClient
 from shift_agent.agent.clock import build_clock_tools
 from shift_agent.agent.knowledge import build_knowledge_tools
+from shift_agent.agent.repair import build_repair_tools
 from shift_agent.agent.roster import build_roster_tools
 from shift_agent.agent.validation import build_validation_tools
 
@@ -99,9 +104,10 @@ Your remaining tools come from the Shift Planner backend API — one per API \
 operation, named after it. The ones you will need most:
 
 - **navigate**: Send the user's browser to a page in the app (dashboard, schedule, \
-  day_view, employee_calendar, workstation_calendar, scheduler, user_profiles, \
-  shifts, workstations, capabilities, planner_settings, wish_settings). \
-  day_view is the hour-by-hour Gantt chart of one day — who is on the ward when.
+  day_view, employee_calendar, scheduler, user_profiles, shifts, workstations, \
+  capabilities, planner_settings, wish_settings). day_view is the hour-by-hour \
+  Gantt chart of one day — who is on the ward when; the schedule page itself \
+  can be read by employee, by workstation or by shift.
 - **listShifts**: List all configured shift types.
 - **listWorkstations**: List all workstations/departments.
 - **listCapabilities**: List all capabilities/skills.
@@ -122,6 +128,16 @@ operation, named after it. The ones you will need most:
   asks whether a plan is correct, safe or confirmable; get the id from \
   listOptimizedShifts (newest first) unless they gave you one. Report what comes \
   back — the counting is already done, so explain and advise rather than recheck.
+- **repairOptimizedPlan**: Fix a plan and save the fix. Every row that breaks a \
+  hard rule is moved somewhere legal or removed, and short-staffed shifts are \
+  filled from whoever is free and qualified. Pass the user's own wishes through \
+  as `instruction`, in their words. It writes to the plan, so say what it will do \
+  and get a yes first. Use strategy "resolve" only when the user asks for the \
+  plan to be worked out again from scratch — it runs the solver over the whole \
+  period and takes minutes.
+- **optimizeSchedule**: Run the optimizer for a period and get its answer back \
+  without saving anything. For "what if" questions — what a plan would look like \
+  with a rule relaxed, or for part of the ward. Takes as long as a solve.
 - **getPlannerSettings**: Get the current optimizer settings.
 - **updatePlannerSettings**: Update optimizer settings (call getPlannerSettings \
   first to get current values, then change only what the user asked).
@@ -237,6 +253,25 @@ def build_llm() -> BaseChatModel:
             f"Unknown LLM provider '{provider}'. "
             f"Expected one of: ollama, ollama-com, openai"
         )
+
+
+# A second model instance with no tools bound and no conversation, for the
+# small translation jobs inside the agent's own tools (reading the user's
+# repair instruction). Built on first use and kept; False records that the
+# provider is unreachable, so the attempt isn't repeated per call.
+_plain_llm: Any = None
+
+
+def plain_llm() -> BaseChatModel | None:
+    """The tool-free model, or None when no provider is configured/reachable."""
+    global _plain_llm
+    if _plain_llm is None:
+        try:
+            _plain_llm = build_llm()
+        except Exception:
+            logger.exception("No LLM available for in-tool language work")
+            _plain_llm = False
+    return _plain_llm or None
 
 
 def _context_budget() -> int:
@@ -367,6 +402,7 @@ def build_graph(knowledge_path: str | None = None) -> Any:
         *build_clock_tools(),
         *build_roster_tools(mcp_client.call_sync),
         *build_validation_tools(mcp_client.call_sync),
+        *build_repair_tools(mcp_client.call_sync, plain_llm),
         *knowledge_tools,
     ]
 

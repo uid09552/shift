@@ -69,6 +69,7 @@ nav:
   - Optimizer: planner.md
   - Agent & MCP: agent.md
   - Frontend: frontend.md
+  - UI Proposals: ui-proposals.md
   - Auth & Multi-Tenancy: auth.md
   - Observability: observability.md
   - Deployment: deployment.md

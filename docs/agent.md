@@ -36,6 +36,7 @@ flowchart TB
 | `documents.py` | Parses an uploaded PDF/CSV/XLSX into sheets of cell strings. Interprets nothing — see [Roster uploads](#roster-uploads). |
 | `roster.py` | `previewRosterUpload`, `interpretRosterUpload`, `applyRosterUpload`, plus the per-session store the uploaded grid lives in. |
 | `validation.py` | `validateOptimizedPlan` and the `POST /api/v1/plan/validate` endpoint — checking a proposed plan against the rules it was solved under. See [Plan verification](#plan-verification). |
+| `repair.py` | `repairOptimizedPlan` and the `POST /api/v1/plan/fix` endpoint — putting right what the check found, and saving it. See [Plan repair](#plan-repair). |
 | `server.py` | The HTTP surface. Validates the caller's token against Keycloak's JWKS, then stores it in a contextvar for the duration of the agent call. |
 | `auth.py` | Keycloak verification plus the contextvar holding the token. |
 
@@ -48,9 +49,21 @@ at connect time, but the graph is a process-wide singleton shared by every user
 
 `server.py` builds the tool surface with `FastMCP.from_openapi()`: every backend
 operation becomes an MCP tool automatically, no hand-written wrappers to drift
-out of date. The one exception is `navigate`, which has no REST equivalent — it
-targets the browser, and `agent/server.py` turns it into a `ui_action` in the
-chat response.
+out of date. Two tools are written by hand, because they have no REST
+equivalent: `navigate`, which targets the browser (`agent/server.py` turns it
+into a `ui_action` in the chat response), and `optimizeSchedule`, which runs the
+CP-SAT solver and waits for the answer.
+
+`optimizeSchedule` exists because the backend's own planning endpoint is
+asynchronous: `triggerPlan` queues a job on NATS and returns a task id to poll,
+which a tool call cannot wait on. The tool builds the solver's input from
+`/planner/prepare` — the same payload `triggerPlan` would send — posts it to the
+optimizer's REST API (`OPTIMIZER_URL`, the `planner-api` service in
+`deploy/docker-compose.yml`) and hands back the schedule without storing
+anything. Its two extra arguments are what make it useful beyond "plan it
+again": `locked_assignments` pins rows the caller wants kept, so the solver
+fills in around an existing plan, and `constraints` relaxes or tightens a rule
+for that one run without touching the tenant's saved planner settings.
 
 `auth.py` decides which token the server's backend calls carry: whatever the
 caller presented, falling back to `BACKEND_ACCESS_TOKEN`.
@@ -189,6 +202,61 @@ From the terminal:
 uv run shift-agent validate <result-id>            # summary
 uv run shift-agent validate <result-id> --json     # the raw report
 uv run shift-agent validate <result-id> --no-explain
+```
+
+## Plan repair
+
+`POST /api/v1/plan/fix` answers the planner's next question: *then put it
+right*. It is what the scheduler page's **Fix Plan** button calls, next to the
+note they can type alongside it, and `repairOptimizedPlan` gives the chat agent
+the same repair.
+
+```bash
+curl -X POST http://localhost:8899/api/v1/plan/fix \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"result_id": "0f2c…",
+       "instruction": "Anna is off sick on the 12th, leave the night team alone",
+       "strategy": "repair"}'
+```
+
+The split is the same as the check's, and for the same reason.
+
+**The moves are arithmetic.** `repair.py` re-derives every hard constraint as a
+question about a single placement (`_Rules.blocking_reason`) and then makes one
+pass over the plan: each row that breaks a rule is moved to a place the solver
+could have chosen — the same shift at another station first, since that keeps
+the day's rhythm, then another shift — and removed when there is none. Because
+removing an assignment can never break a hard rule, one pass is enough to leave
+none behind. A second pass fills what is below its minimum, stations in priority
+order, each opening going to the eligible person with the fewest hours so far —
+the same fairness objective the solver optimises.
+
+**The user's sentence is the model's.** `parse_instruction` hands the note to
+the LLM as a *translation* job, with the ward's own employees, shifts,
+workstations and dates in front of it, and gets back concrete directives:
+unassign, assign, protect, per-run constraint overrides, or "re-solve this". Each
+one is then checked like any other move — an instruction that would break a rule
+is refused with the reason, in `rejected`, rather than forced.
+
+| `strategy` | What happens | Cost |
+|---|---|---|
+| `repair` (default) | Local moves, as above. Rows that were already fine are not touched. | Seconds |
+| `resolve` | The whole period goes back to CP-SAT via `optimizeSchedule`, with only what the planner pinned in `locked_assignments`. | A solve — minutes |
+
+Either way the repaired plan is written back through `updateOptimizedShift` —
+the same endpoint the scheduler page's own edits use — and re-checked with
+`validation.validate`. So `after` in the response is a full verification report
+of what was actually stored, produced by the same counting as the check that
+sent the planner here; the two cannot disagree. `summary` is the LLM's write-up
+of the whole thing, and falls back to `headline` when no provider is reachable.
+
+From the terminal:
+
+```bash
+uv run shift-agent fix <result-id> -i "take Anna off Thursday"
+uv run shift-agent fix <result-id> --strategy resolve --dry-run   # nothing saved
+uv run shift-agent fix <result-id> --json
 ```
 
 ## Roster uploads

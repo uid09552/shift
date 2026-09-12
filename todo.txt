@@ -1,5 +1,3 @@
-1) shifts have a start date and a duration. the duration can exceed todays boundaries. adjust backend and ui if needed. check if this is implemented.
-2) the min. employee per shift is a hard or soft assignment, make it cofigurable in ui and adjust the optimizer algorithm. if hard then it need to fullfill the min. requirement of a shift for a workstation.
-3) optimize the shift view ui with assigned shifts:
-a) create a workstation view in the weekly view. on click show details
-b) create a shift view, so list shifts as primary object then worksations, then assigned people to the workstation.
+1) the validate plan button in optimize view, should also have a "fix button" and a user prompt with additional information which user can provide. Adjust the agent so that the agent can all mcp server can start linear programming optimizer. so create a tool in optimizer (mcp interface) to call and optimize, and also agent should try to move the shift assignment by itself to fix issues and also use users input to optimize.
+2) validate the provided ui, remove dublicate views
+3) propose additional ui eleements and views for ui which are useful and typically availabe in shift planners.

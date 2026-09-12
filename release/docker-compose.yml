@@ -120,6 +120,18 @@ services:
       - dev_backend
     restart: unless-stopped
 
+  # The same optimizer image serving its REST API instead of subscribing to
+  # NATS. The backend plans through the queue above; this is what the MCP
+  # server's `optimizeSchedule` tool calls, which has to wait for its answer.
+  planner-api:
+    image: ${PLANNER_IMAGE:-registry.gitlab.com/uid09552/shift/planner:latest}
+    container_name: shift_planner_api
+    command: ["python", "-m", "shift_planner", "api", "--host", "0.0.0.0", "--port", "8888"]
+    networks:
+      - backend
+      - dev_backend
+    restart: unless-stopped
+
   planner-ui:
     image: ${UI_IMAGE:-registry.gitlab.com/uid09552/shift/ui:latest}
     container_name: shift_planner_ui
@@ -184,8 +196,12 @@ services:
       # that flow too.
       MCP_OAUTH_CLIENT_ID: ""
       MCP_OAUTH_CLIENT_SECRET: ""
+      # The optimizer's synchronous REST API, behind the `optimizeSchedule`
+      # tool. Pinned here because the hostname is this file's own service name.
+      OPTIMIZER_URL: http://planner-api:8888
     depends_on:
       - backend
+      - planner-api
     networks:
       - backend
       - dev_backend

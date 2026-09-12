@@ -618,14 +618,124 @@
               }
             </div>
           }
+
+          <!-- What the fix did, once it has run -->
+          @if (fixReport) {
+            <div class="mt-5 rounded-lg border border-emerald-200 bg-emerald-50/60 px-4 py-3 dark:border-emerald-800 dark:bg-emerald-500/10">
+              <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                {{ 'scheduler.fixResult' | t }}
+              </div>
+              <p class="text-sm text-gray-700 dark:text-gray-300">{{ fixReport.headline }}</p>
+              @if (fixReport.understood) {
+                <p class="mt-1 text-xs italic text-gray-500 dark:text-gray-400">
+                  {{ 'scheduler.fixUnderstood' | t: { text: fixReport.understood } }}
+                </p>
+              }
+              @if (fixSummaryHtml) {
+                <div class="validation-review mt-2 text-sm text-gray-700 dark:text-gray-300" [innerHTML]="fixSummaryHtml"></div>
+              }
+              @if (fixReport.rejected.length) {
+                <ul class="mt-2 space-y-1">
+                  @for (item of fixReport.rejected; track item) {
+                    <li class="text-xs text-red-600 dark:text-red-400">✗ {{ item }}</li>
+                  }
+                </ul>
+              }
+              @if (fixReport.optimizer_note) {
+                <p class="mt-2 text-xs text-amber-700 dark:text-amber-400">{{ fixReport.optimizer_note }}</p>
+              }
+              @if (fixReport.changes.length) {
+                <button
+                  (click)="showFixChanges = !showFixChanges"
+                  class="mt-2 text-xs font-medium text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-300"
+                >
+                  {{ (showFixChanges ? 'scheduler.fixHideChanges' : 'scheduler.fixShowChanges') | t: { count: fixReport.changes.length } }}
+                </button>
+                @if (showFixChanges) {
+                  <ul class="mt-2 max-h-60 space-y-1 overflow-y-auto">
+                    @for (change of fixReport.changes; track change.employee_id + change.date + change.rule) {
+                      <li class="flex items-start gap-2 text-xs text-gray-600 dark:text-gray-300">
+                        <span
+                          class="mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase"
+                          [class.bg-red-100]="change.action === 'cleared'"
+                          [class.text-red-700]="change.action === 'cleared'"
+                          [class.dark:bg-red-900/30]="change.action === 'cleared'"
+                          [class.dark:text-red-400]="change.action === 'cleared'"
+                          [class.bg-blue-100]="change.action === 'moved'"
+                          [class.text-blue-700]="change.action === 'moved'"
+                          [class.dark:bg-blue-900/30]="change.action === 'moved'"
+                          [class.dark:text-blue-400]="change.action === 'moved'"
+                          [class.bg-emerald-100]="change.action === 'added'"
+                          [class.text-emerald-700]="change.action === 'added'"
+                          [class.dark:bg-emerald-900/30]="change.action === 'added'"
+                          [class.dark:text-emerald-400]="change.action === 'added'"
+                        >{{ changeActionKey(change) | t }}</span>
+                        <span>{{ change.text }}</span>
+                      </li>
+                    }
+                  </ul>
+                }
+              }
+            </div>
+          }
+
+          <!-- Ask for a fix: what only the planner knows, plus how hard to try -->
+          <div class="mt-5 rounded-lg border border-gray-200 px-4 py-3 dark:border-gray-700">
+            <label for="fix-instruction" class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              {{ 'scheduler.fixInstructionLabel' | t }}
+            </label>
+            <textarea
+              id="fix-instruction"
+              rows="2"
+              [(ngModel)]="fixInstruction"
+              [disabled]="fixing"
+              [placeholder]="'scheduler.fixInstructionPlaceholder' | t"
+              class="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm transition focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+            ></textarea>
+            <div class="mt-2 flex flex-wrap items-center gap-4">
+              <label class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                <input type="radio" name="fix-strategy" value="repair" [(ngModel)]="fixStrategy" [disabled]="fixing" class="text-brand-500" />
+                {{ 'scheduler.fixStrategyRepair' | t }}
+              </label>
+              <label class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                <input type="radio" name="fix-strategy" value="resolve" [(ngModel)]="fixStrategy" [disabled]="fixing" class="text-brand-500" />
+                {{ 'scheduler.fixStrategyResolve' | t }}
+              </label>
+            </div>
+            <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">
+              {{ (fixStrategy === 'resolve' ? 'scheduler.fixStrategyResolveHint' : 'scheduler.fixStrategyRepairHint') | t }}
+            </p>
+            @if (fixError) {
+              <p class="mt-2 text-xs text-red-600 dark:text-red-400">{{ fixError }}</p>
+            }
+          </div>
         }
       </div>
 
       <!-- Footer -->
-      <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-white/[0.05]">
+      <div class="flex flex-wrap items-center justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-white/[0.05]">
         <button (click)="closeValidation()" class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]">
           {{ 'common.close' | t }}
         </button>
+        @if (validationReport) {
+          <button
+            (click)="fixPlan()"
+            [disabled]="fixing || validating"
+            class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+            [title]="'scheduler.fixPlanTitle' | t"
+            data-testid="scheduler-fix-plan"
+          >
+            @if (fixing) {
+              <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+                <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
+              </svg>
+              <span>{{ 'scheduler.fixRunning' | t }}</span>
+            } @else {
+              <span>{{ 'scheduler.fixPlan' | t }}</span>
+            }
+          </button>
+        }
         @if (validationReport && validationReport.verdict !== 'invalid') {
           <button (click)="closeValidation(); takeAsPlan()" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700">
             {{ 'scheduler.takeAsPlan' | t }}

@@ -114,6 +114,32 @@ services:
       - dev_backend
     restart: unless-stopped
 
+  # The same optimizer image, serving its REST API instead of subscribing to
+  # NATS. The backend plans through the queue above; this is what the MCP
+  # server's `optimizeSchedule` tool calls, which has to wait for its answer
+  # and so cannot go through a queue. Not published to the host — only the
+  # compose network needs it.
+  planner-api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.planner
+    image: shift-planner:local
+    container_name: shift_deploy_planner_api
+    command: ["python", "-m", "shift_planner", "api", "--host", "0.0.0.0", "--port", "8888"]
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+      OTEL_SERVICE_NAME: shift-planner-api
+      CI_PROJECT_ID: ${CI_PROJECT_ID:-}
+      CI_PROJECT_NAME: ${CI_PROJECT_NAME:-shift}
+      CI_COMMIT_SHA: ${CI_COMMIT_SHA:-}
+      CI_ENVIRONMENT_NAME: ${CI_ENVIRONMENT_NAME:-}
+    networks:
+      - backend
+      - dev_backend
+    restart: unless-stopped
+
   planner-ui:
     build:
       context: ..
@@ -194,6 +220,10 @@ services:
       # HTTPS to offer that flow too.
       MCP_OAUTH_CLIENT_ID: ""
       MCP_OAUTH_CLIENT_SECRET: ""
+      # The optimizer's synchronous REST API, behind the `optimizeSchedule`
+      # tool. Pinned here rather than left to .env because the hostname is
+      # this compose file's own service name.
+      OPTIMIZER_URL: http://planner-api:8888
       # Reported separately from the agent so the two show up as distinct
       # services in the trace. See docs/observability.md.
       OTEL_SERVICE_NAME: shift-mcp
@@ -201,6 +231,7 @@ services:
       - "8900:8900"
     depends_on:
       - backend
+      - planner-api
     networks:
       - backend
       - dev_backend

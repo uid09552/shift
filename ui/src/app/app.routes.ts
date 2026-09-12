@@ -7,7 +7,6 @@ import { SignUpComponent } from './pages/auth-pages/sign-up/sign-up.component';
 import { KalenderComponent } from './pages/planner/kalender/kalender.component';
 import { DayViewComponent } from './pages/planner/day-view/day-view.component';
 import { EmployeeCalendarComponent } from './pages/planner/employee-calendar/employee-calendar.component';
-import { WorkstationCalendarComponent } from './pages/planner/workstation-calendar/workstation-calendar.component';
 import { SchedulerComponent } from './pages/planner/scheduler/scheduler.component';
 import { UserProfilesComponent } from './pages/planner/user-profiles/user-profiles.component';
 import { ShiftsComponent } from './pages/configuration/shifts/shifts.component';
@@ -69,9 +68,13 @@ export const routes: Routes = [
         title:'title.capabilities'
       },
       {
+        // The standalone workstation calendar was a read-only week of what the
+        // Schedule page already shows under "By workstation", over the same
+        // confirmed plans. Kept as a redirect so old links and the assistant's
+        // `navigate` page name still land somewhere sensible.
         path:'workstation-calendar',
-        component:WorkstationCalendarComponent,
-        title:'title.workstationCalendar'
+        redirectTo:'kalender',
+        pathMatch:'full'
       },
       {
         path:'planner-settings',

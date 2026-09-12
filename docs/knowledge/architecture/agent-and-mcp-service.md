@@ -44,16 +44,22 @@ data stays out of the model, and only the judgement goes in:
 * the **plan check** (`validation.py`), re-deriving every rule a proposed plan was
   solved under and counting what it breaks. The model explains the findings; it
   does not find them.
+* the **plan repair** (`repair.py`), putting right what the check found. Every
+  move is tested against the same re-derived rules before it is made; the model's
+  only job is turning the planner's sentence ("Anna is off sick on the 12th")
+  into directives, which are then checked like any other move.
 
 ```mermaid
 flowchart TB
-    W["Chat widget · Scheduler page<br/>POST /api/v1/chat<br/>POST /api/v1/chat/upload<br/>POST /api/v1/plan/validate"] --> S["agent/server.py<br/>Flask + Keycloak verification"]
+    W["Chat widget · Scheduler page<br/>POST /api/v1/chat<br/>POST /api/v1/chat/upload<br/>POST /api/v1/plan/validate<br/>POST /api/v1/plan/fix"] --> S["agent/server.py<br/>Flask + Keycloak verification"]
     S --> G["agent/graph.py<br/>ReAct loop, MemorySaver"]
     G <--> K["agent/knowledge.py<br/>this bundle, in-process"]
     G <--> D["agent/roster.py<br/>uploaded grid, per session"]
     G <--> V["agent/validation.py<br/>rules re-derived, counted"]
+    G <--> P["agent/repair.py<br/>moves checked against the same rules"]
     D --> C
     V --> C
+    P --> C
     G <--> C["agent/client.py<br/>MCP client"]
     C -->|"streamable HTTP<br/>Authorization: Bearer"| M["mcp/server.py<br/>FastMCP.from_openapi()"]
     M --> B["Rust backend REST API"]
@@ -70,6 +76,7 @@ flowchart TB
 | `documents.py` | Reduces an uploaded PDF/CSV/XLSX to sheets of cell strings. Interprets nothing. |
 | `roster.py` | `previewRosterUpload` / `interpretRosterUpload` / `applyRosterUpload`, over a per-session store of uploaded grids. |
 | `validation.py` | `validateOptimizedPlan`, and the `POST /plan/validate` endpoint behind the scheduler's **Verify Plan** button. Checks a proposed plan against the rules; no LLM in the checking. |
+| `repair.py` | `repairOptimizedPlan`, and the `POST /plan/fix` endpoint behind the scheduler's **Fix Plan** button. Moves the plan into shape and saves it; no LLM in the moving. |
 | `server.py` | HTTP surface. Verifies the caller's token against Keycloak's JWKS, then stores it in a contextvar for the duration of the call. |
 | `auth.py` | Keycloak verification plus the contextvar holding the token. |
 
@@ -92,6 +99,18 @@ days off, hours targets — come back as warnings rather than breaches. Only the
 is the finished report handed to a plain LLM call (no tools, no history) to be
 written up, so a check run twice on an unchanged plan cannot disagree with
 itself. The same code serves the chat tool and the button.
+
+`repair.py` starts from the same two payloads and the same check, then makes one
+pass over the plan: a row breaking a hard rule is moved to a place the solver
+could have chosen (same shift, another workstation, before another shift) or
+removed when there is none, and a second pass fills what is below its minimum
+from whoever is free, qualified and has the fewest hours. Because removing an
+assignment can never break a hard rule, one pass leaves none behind. The
+alternative strategy hands the period back to CP-SAT through the MCP server's
+`optimizeSchedule` tool with the planner's pinned rows as `locked_assignments`.
+Either way the result goes back through `updateOptimizedShift` and is re-checked
+by `validation.validate`, so the report after a repair is produced by the same
+counting as the one before it.
 
 One design point worth understanding: `client.py` opens a **fresh short-lived MCP
 session per tool call**. A long-lived session would fix its headers at connect

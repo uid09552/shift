@@ -1,7 +1,7 @@
 ---
 type: API Surface
 title: MCP Tool Surface
-description: One MCP tool per OpenAPI operation plus the hand-written navigate tool — transports, allowlisting, auth and registration.
+description: One MCP tool per OpenAPI operation plus two hand-written tools (navigate, optimizeSchedule) — transports, allowlisting, auth and registration.
 resource: agent/shift_agent/mcp/server.py
 tags: [interfaces, mcp, agent, tools]
 status: stable
@@ -18,8 +18,8 @@ sources:
 ---
 
 `FastMCP.from_openapi()` turns `api/openapi.yaml` into one MCP tool per operation
-at startup — roughly 70 of them. Nothing is hand-written except `navigate`. The
-reasoning is in
+at startup — roughly 70 of them. Only `navigate` and `optimizeSchedule` are
+hand-written. The reasoning is in
 [Spec-driven tool surface](/architecture/spec-driven-tool-surface.md).
 
 # What the tools are
@@ -32,7 +32,7 @@ Names follow the OpenAPI `operationId`s, so the surface mirrors the
 Adding an operation to the spec adds a tool. Removing one removes a tool. There is
 no separate registry to keep in step.
 
-# The one exception
+# The two exceptions
 
 `navigate` has no REST equivalent — it targets the browser. `agent/server.py`
 converts a `navigate` call into a `ui_action` in the chat response:
@@ -43,6 +43,29 @@ converts a `navigate` call into a `ui_action` in the chat response:
 
 Its destinations come from `KNOWN_PAGES` in `agent/shift_agent/mcp/server.py`,
 which must be kept in step with `ui/src/app/app.routes.ts` by hand.
+
+`optimizeSchedule` has a REST equivalent that cannot be used from a tool call:
+`triggerPlan` queues a solve on NATS and returns a task id to poll for
+(see [Planning pipeline](/architecture/planning-pipeline.md)). The tool is the
+synchronous path — it builds the solver's input from `/planner/prepare`, the
+same payload the queued job would carry, posts it straight to the optimizer's
+REST API (`OPTIMIZER_URL`, the `planner-api` service in Compose) and returns the
+schedule. Nothing is stored.
+
+```
+optimizeSchedule(start_date, end_date, employee_ids?, constraints?,
+                 locked_assignments?, include_plan?)
+  -> { status, objective_value, planning_period, message, summary,
+       employee_plans?, schedule? }
+```
+
+Two arguments carry the weight. `constraints` overrides the tenant's
+[planner settings](/concepts/planner-settings.md) for that one run, so "what
+would this look like with ten hours' rest instead of eleven" costs a solve and
+changes nothing. `locked_assignments` pins rows the solver must keep, which is
+what lets a re-solve repair a plan rather than replace it — see
+[Optimizer contract](/interfaces/optimizer-contract.md) and the repair behind
+the scheduler page's **Fix Plan** button.
 
 # Transports
 
