@@ -55,7 +55,8 @@ export class AppSidebarComponent {
         { name: "nav.capabilities", path: "/capabilities", pro: false },
         { name: "nav.plannerSettings", path: "/planner-settings", pro: false },
         { name: "nav.wishSettings", path: "/wish-settings", pro: false, adminOnly: true },
-        { name: "nav.users", path: "/users", pro: false, adminOnly: true }
+        { name: "nav.users", path: "/users", pro: false, adminOnly: true },
+        { name: "nav.auditLog", path: "/audit-log", pro: false }
       ],
     },
     {

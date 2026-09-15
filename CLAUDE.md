@@ -92,6 +92,7 @@ backend/
 │       │       ├── shifts/
 │       │       ├── workstations/
 │       │       ├── capabilities/
+│       │       ├── audit-log/       # Who changed what, with a diff per entry
 │       │       └── users/           # Organization users & role assignment
 │       └── shared/
 │           ├── services/    # HTTP services for API calls
@@ -200,6 +201,11 @@ Base URL: `http://localhost:8080/api/v1`
 - `GET/POST /confirmed-shift-plans` - Confirmed monthly plans
 - `GET /analysis/*` - Analysis and summary endpoints (`/analysis/fairness`: per
   employee nights, weekends, hours vs target, wishes — the Fairness page)
+- `GET /audit-logs` - Who changed what: filter by `actor` (any part, case-insensitive),
+  `action`, `entity_type` + `entity_id` (one item's history) and date range. A
+  delete's `changes` holds `{"name": …}` of what was deleted; creates and updates
+  hold the new state, so the Audit log page diffs against the item's previous entry
+- `GET /audit-logs/facets` - The actions, item types and actors on record
 - `GET /info` - Version, commit and build date of the running backend (baked in
   by GitLab CI, overridable by the `build` config section; see `services/info.rs`)
 

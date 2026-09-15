@@ -237,11 +237,12 @@ impl EmployeeService {
         Path(employee_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
+        let name = state.employee_repo.get_employee(&tenant.0, employee_id).await.ok().flatten().map(|x| x.name);
         state
             .employee_repo
             .delete_employee(&tenant.0, employee_id)
             .await?;
-        audit_log::record(&state, &tenant.0, actor.0, "employee.delete", "employee", Some(employee_id.to_string()), None).await;
+        audit_log::record(&state, &tenant.0, actor.0, "employee.delete", "employee", Some(employee_id.to_string()), audit_log::deleted_name(name)).await;
         Ok(Json(serde_json::json!({ "message": "Employee deleted successfully" })))
     }
 

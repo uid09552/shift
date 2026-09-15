@@ -176,8 +176,9 @@
 
     <!-- Recent Activity -->
     <div class="flex-1 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]" data-testid="overview-activity">
-      <div class="px-5 py-4 sm:px-6">
+      <div class="flex items-center justify-between gap-3 px-5 py-4 sm:px-6">
         <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'dashboard.recentActivity' | t }}</h3>
+        <a routerLink="/audit-log" class="text-sm font-medium text-brand-600 hover:text-brand-700 hover:underline dark:text-brand-400" data-testid="activity-view-all">{{ 'dashboard.viewAll' | t }}</a>
       </div>
       <div class="border-t border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
         @if (loadingActivity) {

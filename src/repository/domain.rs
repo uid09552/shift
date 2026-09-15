@@ -414,25 +414,36 @@ pub trait AuditLogRepository {
         entity_id: Option<String>,
         changes: Option<String>,
     ) -> Result<AuditLogDomain, AppError>;
-    #[allow(clippy::too_many_arguments)]
     async fn list_audit_logs(
         &self,
         tenant_id: &str,
-        action: Option<&str>,
-        entity_type: Option<&str>,
-        from_date: Option<chrono::NaiveDateTime>,
-        to_date: Option<chrono::NaiveDateTime>,
+        filter: AuditLogFilter,
         limit: Option<i64>,
         offset: Option<i64>,
     ) -> Result<Vec<AuditLogDomain>, AppError>;
-    async fn count_audit_logs(
-        &self,
-        tenant_id: &str,
-        action: Option<&str>,
-        entity_type: Option<&str>,
-        from_date: Option<chrono::NaiveDateTime>,
-        to_date: Option<chrono::NaiveDateTime>,
-    ) -> Result<i64, AppError>;
+    async fn count_audit_logs(&self, tenant_id: &str, filter: AuditLogFilter) -> Result<i64, AppError>;
+    /// The distinct actions, entity types and actors on record — what the
+    /// audit log page's filters can offer.
+    async fn audit_facets(&self, tenant_id: &str) -> Result<AuditFacetsDomain, AppError>;
+}
+
+/// Which audit entries to return. Every set field narrows the result.
+#[derive(Debug, Clone, Default)]
+pub struct AuditLogFilter {
+    pub action: Option<String>,
+    pub entity_type: Option<String>,
+    pub entity_id: Option<String>,
+    /// Case-insensitive part of the actor, e.g. "anna" finds anna.mueller@….
+    pub actor: Option<String>,
+    pub from_date: Option<chrono::NaiveDateTime>,
+    pub to_date: Option<chrono::NaiveDateTime>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct AuditFacetsDomain {
+    pub actions: Vec<String>,
+    pub entity_types: Vec<String>,
+    pub actors: Vec<String>,
 }
 
 /// Per-tenant configuration for the optimizer (CP-SAT) algorithm.

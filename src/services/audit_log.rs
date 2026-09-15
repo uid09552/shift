@@ -11,7 +11,7 @@ use serde_json::Value;
 use std::convert::Infallible;
 
 use crate::errors::AppError;
-use crate::repository::domain::AuditLogRepository;
+use crate::repository::domain::{AuditLogFilter, AuditLogRepository};
 use crate::repository::AppState;
 use crate::services::auth::UserInfo;
 use crate::services::tenant::TenantContext;
@@ -66,6 +66,12 @@ pub async fn record(
     }
 }
 
+/// The `changes` of a delete entry: the name the thing had, so "who deleted
+/// that workstation?" can still be answered once the row is gone.
+pub fn deleted_name(name: Option<String>) -> Option<String> {
+    name.map(|n| serde_json::json!({ "name": n }).to_string())
+}
+
 #[derive(Serialize)]
 pub struct PaginatedResponse<T: Serialize> {
     pub data: Vec<T>,
@@ -78,6 +84,9 @@ pub struct PaginatedResponse<T: Serialize> {
 pub struct ListAuditLogsQuery {
     pub action: Option<String>,
     pub entity_type: Option<String>,
+    pub entity_id: Option<String>,
+    /// Case-insensitive part of who did it.
+    pub actor: Option<String>,
     pub from_date: Option<String>,
     pub to_date: Option<String>,
     pub limit: Option<i32>,
@@ -98,37 +107,51 @@ fn parse_query_date(s: &str, end_of_day: bool) -> Result<NaiveDateTime, AppError
     Ok(NaiveDateTime::new(date, time))
 }
 
+/// Largest page `GET /audit-logs` returns.
+const MAX_PAGE: i32 = 500;
+
 pub struct AuditLogService;
 
 impl AuditLogService {
     /// GET /audit-logs
     /// Lists audit log events for the current tenant, most recent first. Supports optional
-    /// filtering by action, entity_type, and a from_date/to_date range.
+    /// filtering by action, entity type and id, actor (substring), and a from_date/to_date range.
     pub async fn list_audit_logs(
         tenant: TenantContext,
         Query(q): Query<ListAuditLogsQuery>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
-        let from_date = q.from_date.as_deref().map(|s| parse_query_date(s, false)).transpose()?;
-        let to_date = q.to_date.as_deref().map(|s| parse_query_date(s, true)).transpose()?;
-        let limit = q.limit.map(|l| l as i64).or(Some(50));
-        let offset = q.offset.map(|o| o as i64);
+        // An empty filter field — what a cleared form control sends — means "any".
+        let given = |v: Option<String>| v.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+        let filter = AuditLogFilter {
+            action: given(q.action),
+            entity_type: given(q.entity_type),
+            entity_id: given(q.entity_id),
+            actor: given(q.actor),
+            from_date: given(q.from_date).as_deref().map(|s| parse_query_date(s, false)).transpose()?,
+            to_date: given(q.to_date).as_deref().map(|s| parse_query_date(s, true)).transpose()?,
+        };
+        let limit = q.limit.map(|l| l.clamp(1, MAX_PAGE) as i64).unwrap_or(50);
+        let offset = q.offset.map(|o| o.max(0) as i64).unwrap_or(0);
 
         let logs = state
             .audit_log_repo
-            .list_audit_logs(&tenant.0, q.action.as_deref(), q.entity_type.as_deref(), from_date, to_date, limit, offset)
+            .list_audit_logs(&tenant.0, filter.clone(), Some(limit), Some(offset))
             .await?;
-        let total = state
-            .audit_log_repo
-            .count_audit_logs(&tenant.0, q.action.as_deref(), q.entity_type.as_deref(), from_date, to_date)
-            .await?;
+        let total = state.audit_log_repo.count_audit_logs(&tenant.0, filter).await?;
 
-        let response = PaginatedResponse {
-            data: logs,
-            total,
-            limit: limit.unwrap_or(50),
-            offset: offset.unwrap_or(0),
-        };
+        let response = PaginatedResponse { data: logs, total, limit, offset };
         Ok(Json(serde_json::to_value(response).unwrap()))
+    }
+
+    /// GET /audit-logs/facets
+    /// The actions, entity types and actors that occur in the tenant's audit log, sorted —
+    /// what a filter can usefully offer.
+    pub async fn audit_facets(
+        tenant: TenantContext,
+        State(state): State<AppState>,
+    ) -> Result<Json<Value>, AppError> {
+        let facets = state.audit_log_repo.audit_facets(&tenant.0).await?;
+        Ok(Json(serde_json::to_value(facets).unwrap()))
     }
 }

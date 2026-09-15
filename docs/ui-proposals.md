@@ -18,6 +18,7 @@ things come first.
 | Planning | Schedule Optimizer (`/scheduler`), in tabs: **Calculate** (with the coverage check), **Proposal** (hand edits, *Take as Plan*), **Check & fix**, **Compare**, **Runs** |
 | Fairness | Fairness (`/fairness`) — per person over a period: shifts, hours against target, nights, weekends, wishes, absences; sortable |
 | Rotations | Rotations (`/rotations`) — rhythms like *early, early, late, late, night, off, off, off*, checked against the planner's rules, applied to people with a stagger and a preview; the planner keeps them first |
+| Audit log | Audit log (`/audit-log`) — every change, filtered by who, what, item and date; an entry opens onto what it changed against the item's previous version, a deletion onto the name and last state of what was deleted; filters live in the URL, so one item's history is a link |
 | Configuration | Shifts, workstations, capabilities, employees, planner settings, wish window, users & roles |
 | Assistant | Chat widget over the whole API, roster file import, plan check and repair |
 
@@ -35,13 +36,12 @@ endpoint or two, **L** = new tables and a workflow.
 | # | Proposal | Answers | Needs | Effort |
 |---|---|---|---|---|
 | 1 | [Hours account](#1-hours-account-zeitkonto) | "Am I over or under my contract?" | One analysis endpoint | S |
-| 2 | [Audit log page](#2-audit-log-page) | "Who changed this, and when?" | Nothing new — `listAuditLogs` exists | S |
-| 3 | [Compliance view over the confirmed roster](#3-compliance-over-the-confirmed-roster) | "Does the roster we are actually working break any rule?" | Validate a date range, not just a proposal | M |
-| 4 | [Absence requests and approval](#4-absence-requests-and-approval) | "Can I have the 12th off?" | Status + approver on `unavailabilities`, entitlements | L |
-| 5 | [Publish and notify](#5-publish-and-notify) | "Who needs to be told their shift moved?" | Plan versions + a notification channel | L |
-| 6 | [Shift swaps and open shifts](#6-shift-swaps-and-open-shifts) | "Will anyone take my Saturday?" | An offers table and a workflow | L |
-| 7 | [Qualification matrix and expiry](#7-qualification-matrix-and-expiry) | "Whose certificate runs out in March?" | Matrix is free; expiry needs a column | S → M |
-| 8 | [Self-service roster feed](#8-self-service-roster-feed) | "My shifts, in my phone's calendar" | A signed ICS endpoint | M |
+| 2 | [Compliance view over the confirmed roster](#2-compliance-over-the-confirmed-roster) | "Does the roster we are actually working break any rule?" | Validate a date range, not just a proposal | M |
+| 3 | [Absence requests and approval](#3-absence-requests-and-approval) | "Can I have the 12th off?" | Status + approver on `unavailabilities`, entitlements | L |
+| 4 | [Publish and notify](#4-publish-and-notify) | "Who needs to be told their shift moved?" | Plan versions + a notification channel | L |
+| 5 | [Shift swaps and open shifts](#5-shift-swaps-and-open-shifts) | "Will anyone take my Saturday?" | An offers table and a workflow | L |
+| 6 | [Qualification matrix and expiry](#6-qualification-matrix-and-expiry) | "Whose certificate runs out in March?" | Matrix is free; expiry needs a column | S → M |
+| 7 | [Self-service roster feed](#7-self-service-roster-feed) | "My shifts, in my phone's calendar" | A signed ICS endpoint | M |
 
 ---
 
@@ -63,14 +63,7 @@ alongside the existing `/analysis/*` family.
 The Employee Calendar already shows this for one person for one month; this is
 the ward-wide, year-long version, and it is what a works council asks for.
 
-### 2. Audit log page
-
-`GET /audit-logs` exists and the dashboard shows the last few entries. A full
-page with filters (actor, entity type, date range) and a diff rendering of the
-stored `changes` JSON costs a view and nothing else — and it is the first thing
-asked for after "who deleted that workstation?".
-
-### 3. Compliance over the confirmed roster
+### 2. Compliance over the confirmed roster
 
 The plan check today answers for a *proposal*. Nobody checks the roster people
 are actually working — which is the one that matters when a rest-period breach
@@ -87,7 +80,7 @@ Then: a standing "Compliance" page per month, with the same findings the
 scheduler modal shows, and the **Fix Plan** repair pointed at the confirmed
 roster instead of a proposal.
 
-### 4. Absence requests and approval
+### 3. Absence requests and approval
 
 Today an absence is a fact somebody types in. In most products it is a request
 with a state: *requested → approved / rejected*, with an entitlement to draw
@@ -101,7 +94,7 @@ the conflict shown at decision time — *approving this leaves the ICU one short
 the 14th* is a question `_Rules.blocking_reason` in `repair.py` can already
 answer.
 
-### 5. Publish and notify
+### 4. Publish and notify
 
 *Take as Plan* overwrites the confirmed roster silently. Nobody is told, and
 there is no "what changed since you last looked".
@@ -115,7 +108,7 @@ calendar.
 This is the biggest missing piece of process, and the one wards notice on day
 one.
 
-### 6. Shift swaps and open shifts
+### 5. Shift swaps and open shifts
 
 An employee offers a confirmed shift; colleagues see it on a board; one claims
 it; a planner approves. The same board carries shifts nobody is on yet.
@@ -125,7 +118,7 @@ check "may this person take this shift" is already implemented as
 `_Rules.blocking_reason`, so an offer can be shown only to people it would be
 legal for, and an approval can be refused with a reason rather than by feel.
 
-### 7. Qualification matrix and expiry
+### 6. Qualification matrix and expiry
 
 A grid of employees × capabilities with the gaps visible is a page over data that
 exists — worth building on its own, since it is how a ward manager spots that
@@ -135,7 +128,7 @@ Expiry is the follow-up and needs `valid_from` / `valid_until` on
 `employee_capabilities`, after which the matrix colours what is about to lapse
 and the optimizer stops counting a qualification nobody has renewed.
 
-### 8. Self-service roster feed
+### 7. Self-service roster feed
 
 The Employee Calendar is already a good personal view. What is missing is getting
 it *out*: a signed, per-employee ICS URL that phones subscribe to, so a changed
@@ -189,8 +182,8 @@ These are hours rather than days, and several would be felt daily.
 
 1. **Hours account** — a page over data that already exists, answering a
    question the product is currently silent on.
-2. **Violation markers in the grid** and the **audit log page** — small, and they
-   make work already done visible.
+2. **Violation markers in the grid** — small, and it makes work already done
+   visible.
 3. **Compliance over the confirmed roster** — a small change to the validation
    entry point turns the whole checking and repair machinery on the roster that
    actually matters.

@@ -211,11 +211,12 @@ impl ShiftService {
         Path(shift_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
+        let name = state.shift_repo.get_shift(&tenant.0, shift_id).await.ok().flatten().map(|x| x.name);
         state
             .shift_repo
             .delete_shift(&tenant.0, shift_id)
             .await?;
-        audit_log::record(&state, &tenant.0, actor.0, "shift.delete", "shift", Some(shift_id.to_string()), None).await;
+        audit_log::record(&state, &tenant.0, actor.0, "shift.delete", "shift", Some(shift_id.to_string()), audit_log::deleted_name(name)).await;
         Ok(Json(serde_json::json!({ "message": "Shift deleted successfully" })))
     }
 

@@ -117,12 +117,13 @@ impl CapabilityService {
         Path(capability_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
+        let name = state.capability_repo.get_capability(&tenant.0, capability_id).await.ok().flatten().map(|x| x.name);
         state
             .capability_repo
             .delete_capability(&tenant.0, capability_id)
             .await
             .map_err(|_| AppError::Internal)?;
-        audit_log::record(&state, &tenant.0, actor.0, "capability.delete", "capability", Some(capability_id.to_string()), None).await;
+        audit_log::record(&state, &tenant.0, actor.0, "capability.delete", "capability", Some(capability_id.to_string()), audit_log::deleted_name(name)).await;
         Ok(Json(serde_json::json!({ "message": "Capability deleted successfully" })))
     }
 

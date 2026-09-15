@@ -1,0 +1,6 @@
+1) validate URL/IP for uri/url scheme
+2) if I click on device open a new view showing, tab applications and tab settings on device view
+3) create icon for industrial edge app, in petrol color
+4) change the onboard icon, place it as hover on + button either to onboard or add
+5) store the device infomation in sqlite db and also settings.
+6) username passwords should be encrypted by the master key of platform capabilities.

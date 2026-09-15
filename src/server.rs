@@ -205,6 +205,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/analysis/fairness", get(AnalysisService::get_fairness))
         // Audit Logs
         .route("/audit-logs", get(AuditLogService::list_audit_logs))
+        .route("/audit-logs/facets", get(AuditLogService::audit_facets))
         // What is running — version, commit, build date
         .route("/info", get(crate::services::info::get_info))
         // Resolve the request's tenant and roles from the x-access-token JWT (or the

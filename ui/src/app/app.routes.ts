@@ -16,6 +16,7 @@ import { WorkstationsComponent } from './pages/configuration/workstations/workst
 import { CapabilitiesComponent } from './pages/configuration/capabilities/capabilities.component';
 import { PlannerSettingsComponent } from './pages/configuration/planner-settings/planner-settings.component';
 import { WishSettingsComponent } from './pages/configuration/wish-settings/wish-settings.component';
+import { AuditLogComponent } from './pages/configuration/audit-log/audit-log.component';
 import { UsersComponent } from './pages/configuration/users/users.component';
 
 export const routes: Routes = [
@@ -102,6 +103,11 @@ export const routes: Routes = [
         path:'users',
         component:UsersComponent,
         title:'title.users'
+      },
+      {
+        path:'audit-log',
+        component:AuditLogComponent,
+        title:'title.auditLog'
       },
     ]
   },

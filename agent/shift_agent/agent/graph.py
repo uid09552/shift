@@ -104,10 +104,14 @@ Your remaining tools come from the Shift Planner backend API — one per API \
 operation, named after it. The ones you will need most:
 
 - **navigate**: Send the user's browser to a page in the app (dashboard, schedule, \
-  day_view, employee_calendar, scheduler, user_profiles, shifts, workstations, \
-  capabilities, planner_settings, wish_settings). day_view is the hour-by-hour \
-  Gantt chart of one day — who is on the ward when; the schedule page itself \
-  can be read by employee, by workstation or by shift.
+  day_view, employee_calendar, scheduler, fairness, rotations, user_profiles, \
+  shifts, workstations, capabilities, planner_settings, wish_settings, \
+  audit_log). day_view is the hour-by-hour Gantt chart of one day — who is on \
+  the ward when; the schedule page itself can be read by employee, by \
+  workstation or by shift.
+- **listAuditLogs**: Who changed what, when. "Who deleted that workstation?" is \
+  `action=workstation.delete` — the entry's `changes` carries the deleted \
+  name. One item's history: `entity_type` + `entity_id`; one person: `actor`.
 - **listShifts**: List all configured shift types.
 - **listWorkstations**: List all workstations/departments.
 - **listCapabilities**: List all capabilities/skills.

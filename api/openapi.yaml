@@ -2597,7 +2597,7 @@ paths:
       tags:
         - Audit Logs
       summary: List audit log events
-      description: Returns audit log events for the current tenant, most recent first. Events are recorded for employee add/remove, configuration changes (shifts, workstations, capabilities), and scheduler optimize requests. Supports optional filtering by action, entity_type, and a from_date/to_date range, plus pagination.
+      description: 'Returns audit log events for the current tenant, most recent first. Events are recorded for employee add/remove, configuration changes (shifts, workstations, capabilities), and scheduler optimize requests. Supports optional filtering by action, entity type and id, actor, and a from_date/to_date range, plus pagination. A delete entry''s `changes` holds the deleted item''s name (`{"name": ...}`); other entries hold the new state.'
       operationId: listAuditLogs
       parameters:
         - name: action
@@ -2610,6 +2610,18 @@ paths:
           in: query
           required: false
           description: "Filter by entity type, e.g. employee, shift, workstation, capability, planning_task"
+          schema:
+            type: string
+        - name: entity_id
+          in: query
+          required: false
+          description: Only events about this entity — with entity_type, one item's full history
+          schema:
+            type: string
+        - name: actor
+          in: query
+          required: false
+          description: "Who made the change: any part of the name, case-insensitive (e.g. anna finds anna.mueller@clinic.org)"
           schema:
             type: string
         - name: from_date
@@ -2630,6 +2642,8 @@ paths:
           schema:
             type: integer
             default: 50
+            minimum: 1
+            maximum: 500
         - name: offset
           in: query
           required: false
@@ -2645,6 +2659,33 @@ paths:
                 $ref: '#/components/schemas/PaginatedAuditLogsResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /audit-logs/facets:
+    get:
+      tags:
+        - Audit Logs
+      summary: What the audit log can be filtered by
+      description: The distinct actions, entity types and actors in the tenant's audit log, sorted — the values a filter can usefully offer.
+      operationId: getAuditLogFacets
+      responses:
+        '200':
+          description: Distinct values
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  actions:
+                    type: array
+                    items: { type: string }
+                  entity_types:
+                    type: array
+                    items: { type: string }
+                  actors:
+                    type: array
+                    items: { type: string }
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -5132,7 +5173,7 @@ components:
           example: "550e8400-e29b-41d4-a716-446655440000"
         changes:
           type: string
-          description: Freeform description of what changed, typically the JSON request body that triggered the event
+          description: 'What changed, as JSON: usually the new state the event produced; for a delete, `{"name": ...}` of what was deleted'
           nullable: true
         created_at:
           type: string
