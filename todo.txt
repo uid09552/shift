@@ -1,9 +1,10 @@
 1) what features to add additionally, print here
 
    UI ideas are already collected in docs/ui-proposals.md (hours account, scenario
-   comparison, coverage forecast, fairness dashboard, absence requests, swaps,
-   publish/notify, ...). Start there with #3 "coverage forecast": it would have
-   shown before planning that nobody can work "Rufdienst" (see note under 2).
+   comparison, fairness dashboard, absence requests, swaps, publish/notify, ...).
+   DONE from that list: the coverage forecast — "Check coverage" on the
+   Schedule Optimizer page, before calculating. On the current data it names the
+   "Rufdienst" gap straight away (see note under 2).
 
    Not in that doc, ordered by value for a hospital roster:
 

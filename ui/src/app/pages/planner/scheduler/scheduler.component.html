@@ -54,7 +54,7 @@
           <div class="flex items-center rounded-md border border-gray-200 p-0.5 dark:border-gray-700">
             <button
               type="button"
-              (click)="planningMode = 'weeks'"
+              (click)="planningMode = 'weeks'; planInputsChanged()"
               class="rounded px-2 py-0.5 text-xs font-medium transition-colors"
               [class.bg-gray-100]="planningMode === 'weeks'"
               [class.dark:bg-gray-700]="planningMode === 'weeks'"
@@ -65,7 +65,7 @@
             >{{ 'scheduler.modeWeeks' | t }}</button>
             <button
               type="button"
-              (click)="planningMode = 'range'"
+              (click)="planningMode = 'range'; planInputsChanged()"
               class="rounded px-2 py-0.5 text-xs font-medium transition-colors"
               [class.bg-gray-100]="planningMode === 'range'"
               [class.dark:bg-gray-700]="planningMode === 'range'"
@@ -78,7 +78,7 @@
 
           @if (planningMode === 'weeks') {
             <span class="text-xs text-gray-500 dark:text-gray-400">{{ 'scheduler.plan' | t }}</span>
-            <select [(ngModel)]="planningWeeks" class="border-0 bg-transparent py-0 text-sm font-medium text-gray-700 focus:ring-0 dark:text-gray-300">
+            <select [(ngModel)]="planningWeeks" (ngModelChange)="planInputsChanged()" class="border-0 bg-transparent py-0 text-sm font-medium text-gray-700 focus:ring-0 dark:text-gray-300">
               @for (w of WEEK_OPTIONS; track w) {
                 <option [value]="w">{{ w }}w</option>
               }
@@ -87,6 +87,7 @@
             <input
               type="date"
               [(ngModel)]="customStartDate"
+              (ngModelChange)="planInputsChanged()"
               [max]="customEndDate"
               class="border-0 bg-transparent py-0 text-sm font-medium text-gray-700 focus:ring-0 dark:text-gray-300 dark:[color-scheme:dark]"
             />
@@ -94,6 +95,7 @@
             <input
               type="date"
               [(ngModel)]="customEndDate"
+              (ngModelChange)="planInputsChanged()"
               [min]="customStartDate"
               class="border-0 bg-transparent py-0 text-sm font-medium text-gray-700 focus:ring-0 dark:text-gray-300 dark:[color-scheme:dark]"
             />
@@ -137,6 +139,24 @@
             </div>
           }
         </div>
+
+        <!-- Who could work each shift, before calculating -->
+        <button
+          type="button"
+          (click)="toggleCoverage()"
+          [attr.aria-expanded]="showCoverage"
+          data-testid="coverage-toggle"
+          class="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
+          [class.bg-gray-50]="showCoverage"
+          [class.dark:bg-white/[0.05]]="showCoverage"
+          [title]="'scheduler.coverage.buttonTitle' | t"
+        >
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect>
+            <rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 17.5h7M17.5 14v7"></path>
+          </svg>
+          <span>{{ 'scheduler.coverage.button' | t }}</span>
+        </button>
 
         <button (click)="triggerPlan()" [disabled]="isPlanning" class="flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50">
           @if (isPlanning) {
@@ -215,6 +235,169 @@
       </div>
     </div>
   </div>
+
+  <!-- Coverage forecast: required against who could work, per day and shift -->
+  @if (showCoverage) {
+    <section class="border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6" data-testid="coverage-forecast">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90">{{ 'scheduler.coverage.title' | t }}</h4>
+          <p class="mt-0.5 max-w-3xl text-xs text-gray-500 dark:text-gray-400">{{ 'scheduler.coverage.intro' | t }}</p>
+        </div>
+        <button
+          type="button"
+          (click)="showCoverage = false"
+          [attr.aria-label]="'common.close' | t"
+          class="shrink-0 rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/[0.05] dark:hover:text-gray-300"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      @if (coverageError) {
+        <p class="mt-3 text-sm text-error-600 dark:text-error-400" role="alert">{{ coverageError | t }}</p>
+      } @else if (!coverage) {
+        <p class="mt-3 text-sm text-gray-400 dark:text-gray-500">{{ 'scheduler.coverage.loading' | t }}</p>
+      } @else {
+        <div class="transition-opacity" [class.opacity-50]="coverageLoading">
+          <!-- The two numbers that answer "can this period be staffed at all?" -->
+          <div class="mt-3 flex flex-wrap gap-x-8 gap-y-1 text-sm">
+            <span
+              [class]="coverage.shortDays ? 'font-medium text-error-600 dark:text-error-400' : 'text-gray-700 dark:text-gray-300'"
+              data-testid="coverage-short-days"
+            >
+              {{ (coverage.shortDays ? 'scheduler.coverage.shortDays' : 'scheduler.coverage.noShortDays') | t: { count: coverage.shortDays, total: coverage.days.length } }}
+            </span>
+            <span
+              [class]="coverage.capacity < coverage.requiredShifts ? 'font-medium text-error-600 dark:text-error-400' : 'text-gray-700 dark:text-gray-300'"
+            >
+              {{ 'scheduler.coverage.capacity' | t: { required: coverage.requiredShifts, capacity: coverage.capacity } }}
+            </span>
+          </div>
+
+          @if (coverage.setupGaps.length) {
+            <div
+              class="mt-3 rounded-lg border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300"
+              data-testid="coverage-setup-gaps"
+            >
+              <p class="font-medium">{{ 'scheduler.coverage.setupGapsTitle' | t }}</p>
+              <ul class="mt-1 list-disc space-y-0.5 pl-5">
+                @for (gap of coverage.setupGaps; track gap.workstationName + gap.shiftName) {
+                  <li>
+                    {{ 'scheduler.coverage.setupGap' | t: {
+                      shift: gap.shiftName,
+                      workstation: gap.workstationName,
+                      holdSkills: gap.holdSkills,
+                      workShift: gap.workShift
+                    } }}
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+
+          <div class="mt-4 max-w-full overflow-x-auto pb-1">
+            <table class="border-separate border-spacing-0 text-xs">
+              <thead>
+                <tr>
+                  <th class="sticky left-0 z-10 min-w-[120px] bg-white pr-3 dark:bg-gray-900"></th>
+                  @for (day of coverage.days; track day.date; let first = $first) {
+                    @let label = coverageDayLabel(day.date, first);
+                    <th
+                      class="min-w-[40px] px-0.5 pb-1 text-center font-normal"
+                      [class.text-gray-400]="day.weekday >= 5"
+                      [class.text-gray-500]="day.weekday < 5"
+                    >
+                      <div class="h-3.5 text-[10px] font-medium text-gray-400 dark:text-gray-500">{{ label.month }}</div>
+                      <div class="text-[10px]">{{ label.weekday }}</div>
+                      <div class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ label.day }}</div>
+                    </th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of coverage.rows; track row.shiftId) {
+                  <tr>
+                    <th scope="row" class="sticky left-0 z-10 max-w-[160px] truncate bg-white py-0.5 pr-3 text-left font-medium text-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                      {{ row.shiftName }}
+                    </th>
+                    @for (cell of row.cells; track cell.date) {
+                      <td class="p-0.5">
+                        @if (cell.runs && cell.required > 0) {
+                          <button
+                            type="button"
+                            (click)="selectCoverageCell(cell, row.shiftName)"
+                            class="w-full rounded-md px-1 py-1 text-center tabular-nums leading-tight transition-colors"
+                            [ngClass]="{
+                              'bg-error-50 text-error-700 hover:bg-error-100 dark:bg-error-500/15 dark:text-error-300': cell.level === 'short',
+                              'bg-warning-50 text-warning-700 hover:bg-warning-100 dark:bg-warning-500/15 dark:text-warning-300': cell.level === 'tight',
+                              'bg-gray-50 text-gray-600 hover:bg-gray-100 dark:bg-white/[0.04] dark:text-gray-400': cell.level === 'ok',
+                              'ring-2 ring-brand-500/60': selectedCoverage?.cell === cell
+                            }"
+                            [attr.aria-label]="('scheduler.coverage.cellSummary' | t: { required: cell.required, available: cell.available }) + ' · ' + row.shiftName"
+                          >
+                            <span class="font-semibold">{{ cell.required }}</span><span class="opacity-60">/{{ cell.available }}</span>
+                          </button>
+                        } @else if (cell.runs) {
+                          <!-- Runs, but nothing to fill: no minimum, or every station closed. -->
+                          <span class="block text-center text-gray-300 dark:text-gray-700">–</span>
+                        }
+                      </td>
+                    }
+                  </tr>
+                }
+                <tr>
+                  <th scope="row" class="sticky left-0 z-10 bg-white pt-1.5 pr-3 text-left font-semibold text-gray-800 dark:bg-gray-900 dark:text-white/90">
+                    {{ 'scheduler.coverage.dayTotal' | t }}
+                  </th>
+                  @for (day of coverage.days; track day.date) {
+                    <td class="px-0.5 pt-1.5 text-center tabular-nums leading-tight">
+                      @if (day.required > 0) {
+                        <span
+                          class="font-semibold"
+                          [class.text-error-600]="day.level === 'short'"
+                          [class.dark:text-error-400]="day.level === 'short'"
+                          [class.text-warning-600]="day.level === 'tight'"
+                          [class.dark:text-warning-400]="day.level === 'tight'"
+                          [class.text-gray-700]="day.level === 'ok'"
+                          [class.dark:text-gray-300]="day.level === 'ok'"
+                        >{{ day.required }}</span><span class="text-gray-400 dark:text-gray-500">/{{ day.available }}</span>
+                      }
+                    </td>
+                  }
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          @if (selectedCoverage; as sel) {
+            <div class="mt-3 rounded-lg border border-gray-200 px-4 py-3 text-sm dark:border-gray-700" data-testid="coverage-detail">
+              <p class="font-medium text-gray-800 dark:text-white/90">
+                {{ formatDateLabel(sel.cell.date) }} · {{ sel.shiftName }} —
+                {{ 'scheduler.coverage.cellSummary' | t: { required: sel.cell.required, available: sel.cell.available } }}
+              </p>
+              <ul class="mt-1.5 space-y-0.5">
+                @for (station of sel.cell.stations; track station.workstationId) {
+                  <li
+                    [class]="station.qualified < station.need ? 'text-error-600 dark:text-error-400' : 'text-gray-600 dark:text-gray-400'"
+                  >
+                    {{ station.name }}: {{ 'scheduler.coverage.stationLine' | t: { need: station.need, qualified: station.qualified } }}
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+
+          <p class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+            <span><span class="font-semibold text-gray-700 dark:text-gray-300">3</span>/5 = {{ 'scheduler.coverage.legendCell' | t }}</span>
+            <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-error-100 dark:bg-error-500/30"></span>{{ 'scheduler.coverage.legendShort' | t }}</span>
+            <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-warning-100 dark:bg-warning-500/30"></span>{{ 'scheduler.coverage.legendTight' | t }}</span>
+            <span>{{ 'scheduler.coverage.legendBound' | t }}</span>
+          </p>
+        </div>
+      }
+    </section>
+  }
 
   <!-- Error / take-plan feedback -->
   @if (error || takePlanError) {

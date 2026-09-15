@@ -61,6 +61,30 @@ calculated.
     more room to even out the workload, but everything beyond a few weeks
     tends to be invalidated by real life anyway.
 
+### Check coverage before you calculate
+
+**Check coverage** opens a grid for the period and staff you have chosen: for
+every shift on every day, how many people it needs against how many *could*
+take it — people with the right qualifications, the shift among their
+available shifts, and no absence that day. It follows the toolbar, so change
+the period or the staff and it updates.
+
+- A **red** cell has fewer candidates than places. That day will come out
+  short, whatever the planner does. Click it to see which workstation is the
+  problem.
+- An **amber** cell has exactly enough. One sick call and it is short.
+- A yellow box above the grid lists workstation-and-shift pairs **nobody can
+  ever** work — for example, only nurses without the emergency qualification
+  have the on-call shift. That is a setup problem: fix the qualifications or
+  available shifts, not the plan.
+- The line *"348 shifts to fill · the staff can work at most 640"* compares
+  the whole period's demand with what the staff can work under the
+  days-per-week cap.
+
+The counts leave out rest rules and the days-per-week cap per day, so they are
+an upper bound: a red cell is certainly short, a grey one can still come out
+thin.
+
 ## Step 3 — Calculate
 
 Press **Calculate Plan**. The button changes to *Calculating…*.

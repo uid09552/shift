@@ -23,14 +23,15 @@ import {
   EmployeeDailyPlan,
   DailyPlanEntry,
 } from '../../../shared/services/planner.service';
-import { Subscription, interval, forkJoin, of } from 'rxjs';
+import { Subject, Subscription, interval, forkJoin, of } from 'rxjs';
 import { Marked } from 'marked';
 import {
   PlanValidationService,
   PlanValidationReport,
   PlanFixReport,
 } from '../../../shared/services/plan-validation.service';
-import { switchMap, takeWhile, startWith, catchError } from 'rxjs/operators';
+import { switchMap, takeWhile, startWith, catchError, debounceTime } from 'rxjs/operators';
+import { CoverageCell, CoverageForecast, forecastCoverage } from './coverage-forecast';
 import {
   EmployeeService,
   Employee,
@@ -136,6 +137,17 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   // Task list
   planningTasks: PlanningTaskItem[] = [];
 
+  // ── Coverage forecast (before planning) ──────────────────────────
+  showCoverage = false;
+  coverageLoading = false;
+  coverageError: string | null = null;
+  coverage: CoverageForecast | null = null;
+  selectedCoverage: { cell: CoverageCell; shiftName: string } | null = null;
+  /** Period or staff selection changed; reloads the open forecast once the changes settle. */
+  private coverageInputs$ = new Subject<void>();
+  private coverageInputSub: Subscription | null = null;
+  private coverageLoadSub: Subscription | null = null;
+
   // Take as plan
   takingAsPlan = false;
   takePlanSuccess = false;
@@ -205,6 +217,9 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     this.loadEmployees();
     this.loadShiftsAndWorkstations();
     this.startTaskListPolling();
+    this.coverageInputSub = this.coverageInputs$
+      .pipe(debounceTime(300))
+      .subscribe(() => { if (this.showCoverage) this.loadCoverage(); });
     this.searchSub = this.globalSearchService.searchTerm.subscribe(term => {
       this.currentSearchTerm = term;
       this.applySearchFilter(term);
@@ -215,6 +230,8 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     this.pollSub?.unsubscribe();
     this.taskListSub?.unsubscribe();
     this.searchSub?.unsubscribe();
+    this.coverageInputSub?.unsubscribe();
+    this.coverageLoadSub?.unsubscribe();
   }
 
   // ── View toggle ───────────────────────────────────────────────────
@@ -515,10 +532,18 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     const i = this.selectedEmployeeIds.indexOf(id);
     if (i > -1) this.selectedEmployeeIds.splice(i, 1);
     else this.selectedEmployeeIds.push(id);
+    this.planInputsChanged();
   }
 
-  selectAllEmployees(): void { this.selectedEmployeeIds = this.employees.map(e => e.id); }
-  clearEmployeeSelection(): void { this.selectedEmployeeIds = []; }
+  selectAllEmployees(): void {
+    this.selectedEmployeeIds = this.employees.map(e => e.id);
+    this.planInputsChanged();
+  }
+
+  clearEmployeeSelection(): void {
+    this.selectedEmployeeIds = [];
+    this.planInputsChanged();
+  }
 
   get selectedEmployeesLabel(): string {
     if (!this.selectedEmployeeIds.length) return this.translations.t('scheduler.allEmployees');
@@ -552,6 +577,61 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     const end = new Date(today);
     end.setDate(end.getDate() + this.planningWeeks * 7 - 1);
     return { startDate: this.formatDate(today), endDate: this.formatDate(end) };
+  }
+
+  // ── Coverage forecast ─────────────────────────────────────────────
+
+  /** Period, mode or staff selection changed. */
+  planInputsChanged(): void {
+    this.coverageInputs$.next();
+  }
+
+  toggleCoverage(): void {
+    this.showCoverage = !this.showCoverage;
+    if (this.showCoverage) this.loadCoverage();
+  }
+
+  /** Builds the forecast from the same input a calculation would use now. */
+  loadCoverage(): void {
+    if (this.planningMode === 'range' && (!this.customStartDate || !this.customEndDate || this.customEndDate < this.customStartDate)) {
+      this.coverage = null;
+      this.coverageError = 'scheduler.error.endBeforeStart';
+      return;
+    }
+    const { startDate, endDate } = this.getPlanningDates();
+    const employeeIds = this.selectedEmployeeIds.length ? this.selectedEmployeeIds : undefined;
+
+    this.coverageLoadSub?.unsubscribe();
+    this.coverageLoading = true;
+    this.coverageError = null;
+    this.coverageLoadSub = this.plannerService.preparePlan(employeeIds, startDate, endDate).subscribe({
+      next: (plan) => {
+        this.coverage = forecastCoverage(plan);
+        this.selectedCoverage = null;
+        this.coverageLoading = false;
+      },
+      error: () => {
+        this.coverage = null;
+        this.coverageError = 'scheduler.coverage.loadFailed';
+        this.coverageLoading = false;
+      },
+    });
+  }
+
+  selectCoverageCell(cell: CoverageCell, shiftName: string): void {
+    const same = this.selectedCoverage?.cell === cell;
+    this.selectedCoverage = same || cell.level === 'none' ? null : { cell, shiftName };
+  }
+
+  /** Column heading: weekday initial and day of month; the month name on the 1st and in the first column. */
+  coverageDayLabel(date: string, first: boolean): { weekday: string; day: string; month: string | null } {
+    const d = new Date(date + 'T00:00:00');
+    const locale = this.translations.locale;
+    return {
+      weekday: d.toLocaleDateString(locale, { weekday: 'narrow' }),
+      day: String(d.getDate()),
+      month: first || d.getDate() === 1 ? d.toLocaleDateString(locale, { month: 'short' }) : null,
+    };
   }
 
   triggerPlan(): void {

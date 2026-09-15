@@ -86,6 +86,54 @@ export interface PlanRequest {
   monthly_hours_target_weight?: number;
 }
 
+// ── The solver's input, as POST /planner/prepare builds it ────────────────────
+// Weekdays are strings "0" (Monday) … "6"; skills and required_skills are
+// capability names, and so is a capability's `id` here.
+
+export interface PreparedWeekdayTime {
+  weekday: string;
+  start_time: string;
+  end_time: string;
+  min_employees: number;
+  max_employees?: number | null;
+}
+
+export interface PreparedShift {
+  id: string;
+  name: string;
+  is_night_shift: boolean;
+  weekday_times: PreparedWeekdayTime[];
+}
+
+export interface PreparedWorkstation {
+  id: string;
+  name: string;
+  required_skills: string[];
+  priority: string;
+  operating_shifts: string[];
+  min_employees: number;
+  max_employees?: number | null;
+  unavailability: { from_date: string; to_date: string }[];
+}
+
+export interface PreparedEmployee {
+  id: string;
+  name: string;
+  skills: string[];
+  available_shifts: string[];
+  /** Hard absences, YYYY-MM-DD. */
+  unavailability: string[];
+}
+
+export interface PreparedPlan {
+  planning_period: PlanningPeriodResult;
+  shifts: PreparedShift[];
+  workstations: PreparedWorkstation[];
+  employees: PreparedEmployee[];
+  capabilities?: { id: string; level?: number; skill_group?: string | null }[];
+  constraints?: { max_working_days_per_week?: number | null } | null;
+}
+
 export interface PlanningTaskItem {
   id: string;
   status: 'scheduled' | 'done' | 'error';
@@ -124,6 +172,18 @@ export class PlannerService {
     if (endDate) body.end_date = endDate;
     if (monthlyHoursWeight && monthlyHoursWeight > 0) body.monthly_hours_target_weight = monthlyHoursWeight;
     return this.http.post<PlanTaskResponse>(`${this.apiUrl}/plan`, body);
+  }
+
+  /**
+   * POST /planner/prepare
+   * The exact input a plan would be calculated from, without calculating it.
+   */
+  preparePlan(employeeIds?: string[], startDate?: string, endDate?: string): Observable<PreparedPlan> {
+    const body: PlanRequest = {};
+    if (employeeIds && employeeIds.length > 0) body.employee_ids = employeeIds;
+    if (startDate) body.start_date = startDate;
+    if (endDate) body.end_date = endDate;
+    return this.http.post<PreparedPlan>(`${this.apiUrl}/prepare`, body);
   }
 
   /**
