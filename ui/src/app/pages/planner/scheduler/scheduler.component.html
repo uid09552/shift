@@ -222,6 +222,25 @@
           </button>
         }
 
+        <!-- Two stored runs side by side -->
+        @if (allResults.length >= 2) {
+          <button
+            type="button"
+            (click)="toggleCompare()"
+            [attr.aria-expanded]="showCompare"
+            data-testid="compare-toggle"
+            class="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
+            [class.bg-gray-50]="showCompare"
+            [class.dark:bg-white/[0.05]]="showCompare"
+            [title]="'scheduler.compare.buttonTitle' | t"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 3v18M16 3v18"></path><path d="M3 8h5M3 16h5M16 12h5"></path>
+            </svg>
+            <span>{{ 'scheduler.compare.button' | t }}</span>
+          </button>
+        }
+
         <button (click)="showTaskList = !showTaskList" class="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]" [class.bg-gray-50]="showTaskList">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line>
@@ -395,6 +414,205 @@
             <span>{{ 'scheduler.coverage.legendBound' | t }}</span>
           </p>
         </div>
+      }
+    </section>
+  }
+
+  <!-- Scenario comparison: two stored runs, a summary and the days that differ -->
+  @if (showCompare) {
+    <section class="border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6" data-testid="compare-panel">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90">{{ 'scheduler.compare.title' | t }}</h4>
+          <p class="mt-0.5 max-w-3xl text-xs text-gray-500 dark:text-gray-400">{{ 'scheduler.compare.intro' | t }}</p>
+        </div>
+        <button
+          type="button"
+          (click)="showCompare = false"
+          [attr.aria-label]="'common.close' | t"
+          class="shrink-0 rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/[0.05] dark:hover:text-gray-300"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="mt-3 flex flex-wrap items-end gap-3">
+        <label class="flex min-w-[240px] flex-1 flex-col gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
+          {{ 'scheduler.compare.planA' | t }}
+          <select
+            [(ngModel)]="compareAId"
+            (ngModelChange)="runComparison()"
+            data-testid="compare-a"
+            class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+          >
+            @for (r of allResults; track r.id) {
+              <option [ngValue]="r.id">{{ resultLabel(r) }}</option>
+            }
+          </select>
+        </label>
+        <button
+          type="button"
+          (click)="swapCompare()"
+          [attr.aria-label]="'scheduler.compare.swap' | t"
+          [title]="'scheduler.compare.swap' | t"
+          class="mb-0.5 rounded-lg border border-gray-200 p-2 text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
+        >
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7 7h13l-3-3M17 17H4l3 3"></path>
+          </svg>
+        </button>
+        <label class="flex min-w-[240px] flex-1 flex-col gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
+          {{ 'scheduler.compare.planB' | t }}
+          <select
+            [(ngModel)]="compareBId"
+            (ngModelChange)="runComparison()"
+            data-testid="compare-b"
+            class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+          >
+            @for (r of allResults; track r.id) {
+              <option [ngValue]="r.id">{{ resultLabel(r) }}</option>
+            }
+          </select>
+        </label>
+      </div>
+
+      @if (compareError) {
+        <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">{{ compareError | t }}</p>
+      } @else if (comparison; as cmp) {
+        <!-- How good each is -->
+        <div class="mt-4 max-w-full overflow-x-auto">
+          <table class="text-sm" data-testid="compare-summary">
+            <thead>
+              <tr class="text-left text-xs text-gray-500 dark:text-gray-400">
+                <th class="py-1.5 pr-8 font-medium"></th>
+                <th class="py-1.5 pr-8 font-medium">{{ 'scheduler.compare.planA' | t }}</th>
+                <th class="py-1.5 pr-8 font-medium">{{ 'scheduler.compare.planB' | t }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 tabular-nums dark:divide-white/[0.05]">
+              <ng-template #deltaCell let-d="d">
+                <span
+                  class="ml-2 text-xs"
+                  [class.text-success-600]="d.tone === 'better'"
+                  [class.dark:text-success-400]="d.tone === 'better'"
+                  [class.text-error-600]="d.tone === 'worse'"
+                  [class.dark:text-error-400]="d.tone === 'worse'"
+                  [class.text-gray-400]="d.tone === 'same' || d.tone === 'neutral'"
+                >{{ d.text }}</span>
+              </ng-template>
+              <tr>
+                <th class="py-1.5 pr-8 text-left font-normal text-gray-600 dark:text-gray-400">{{ 'scheduler.compare.placesShort' | t }}</th>
+                <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">{{ cmp.a.placesShort }}</td>
+                <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">
+                  {{ cmp.b.placesShort }}
+                  <ng-container [ngTemplateOutlet]="deltaCell" [ngTemplateOutletContext]="{ d: compareDelta(cmp.a.placesShort, cmp.b.placesShort, 'lower') }" />
+                </td>
+              </tr>
+              <tr>
+                <th class="py-1.5 pr-8 text-left font-normal text-gray-600 dark:text-gray-400">{{ 'scheduler.compare.wishes' | t }}</th>
+                <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">{{ cmp.a.wishesMet }} / {{ cmp.a.wishesTotal }}</td>
+                <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">
+                  {{ cmp.b.wishesMet }} / {{ cmp.b.wishesTotal }}
+                  <ng-container [ngTemplateOutlet]="deltaCell" [ngTemplateOutletContext]="{ d: compareDelta(cmp.a.wishesMet, cmp.b.wishesMet, 'higher') }" />
+                </td>
+              </tr>
+              <tr>
+                <th class="py-1.5 pr-8 text-left font-normal text-gray-600 dark:text-gray-400">
+                  {{ 'scheduler.compare.hoursSpread' | t }}
+                  <span class="block text-[11px] text-gray-400 dark:text-gray-500">{{ 'scheduler.compare.hoursSpreadNote' | t }}</span>
+                </th>
+                <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">
+                  {{ cmp.a.hoursSpread }} h
+                  <span class="ml-1 text-xs text-gray-400 dark:text-gray-500">({{ cmp.a.hoursMin }}–{{ cmp.a.hoursMax }} h)</span>
+                </td>
+                <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">
+                  {{ cmp.b.hoursSpread }} h
+                  <span class="ml-1 text-xs text-gray-400 dark:text-gray-500">({{ cmp.b.hoursMin }}–{{ cmp.b.hoursMax }} h)</span>
+                  <ng-container [ngTemplateOutlet]="deltaCell" [ngTemplateOutletContext]="{ d: compareDelta(cmp.a.hoursSpread, cmp.b.hoursSpread, 'lower') }" />
+                </td>
+              </tr>
+              <tr>
+                <th class="py-1.5 pr-8 text-left font-normal text-gray-600 dark:text-gray-400">{{ 'scheduler.compare.assignments' | t }}</th>
+                <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">{{ cmp.a.assignments }}</td>
+                <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">
+                  {{ cmp.b.assignments }}
+                  <ng-container [ngTemplateOutlet]="deltaCell" [ngTemplateOutletContext]="{ d: compareDelta(cmp.a.assignments, cmp.b.assignments, null) }" />
+                </td>
+              </tr>
+              <tr>
+                <th class="py-1.5 pr-8 text-left font-normal text-gray-600 dark:text-gray-400">
+                  {{ 'scheduler.compare.score' | t }}
+                  <span class="block text-[11px] text-gray-400 dark:text-gray-500">{{ 'scheduler.compare.scoreNote' | t }}</span>
+                </th>
+                <td class="py-1.5 pr-8 align-top text-gray-800 dark:text-white/90">{{ cmp.a.objective | number: '1.0-0' }} <span class="text-xs text-gray-400">· {{ cmp.a.status }}</span></td>
+                <td class="py-1.5 pr-8 align-top text-gray-800 dark:text-white/90">{{ cmp.b.objective | number: '1.0-0' }} <span class="text-xs text-gray-400">· {{ cmp.b.status }}</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- What differs, per employee and day -->
+        <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
+          <p class="text-sm text-gray-700 dark:text-gray-300" data-testid="compare-changes">
+            @if (!cmp.dates.length) {
+              {{ 'scheduler.compare.noOverlap' | t }}
+            } @else if (cmp.changedCells === 0) {
+              {{ 'scheduler.compare.identical' | t }}
+            } @else {
+              {{ 'scheduler.compare.changes' | t: { cells: cmp.changedCells, employees: cmp.changedEmployees } }}
+            }
+            @if (cmp.dates.length && !cmp.samePeriod) {
+              <span class="text-xs text-gray-500 dark:text-gray-400"> — {{ 'scheduler.compare.overlapOnly' | t: { days: cmp.dates.length } }}</span>
+            }
+          </p>
+          @if (cmp.changedCells > 0) {
+            <label class="flex cursor-pointer items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+              <input type="checkbox" [(ngModel)]="compareOnlyChanged" class="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500" />
+              {{ 'scheduler.compare.onlyChanged' | t }}
+            </label>
+          }
+        </div>
+
+        @if (cmp.changedCells > 0) {
+          <div class="mt-2 max-h-[420px] max-w-full overflow-auto pb-1">
+            <table class="border-separate border-spacing-0 text-xs" data-testid="compare-diff">
+              <thead>
+                <tr>
+                  <th class="sticky left-0 top-0 z-20 min-w-[140px] bg-white pr-3 dark:bg-gray-900"></th>
+                  @for (date of cmp.dates; track date; let first = $first) {
+                    @let label = coverageDayLabel(date, first);
+                    <th class="sticky top-0 z-10 min-w-[44px] bg-white px-0.5 pb-1 text-center font-normal text-gray-500 dark:bg-gray-900">
+                      <div class="h-3.5 text-[10px] font-medium text-gray-400 dark:text-gray-500">{{ label.month }}</div>
+                      <div class="text-[10px]">{{ label.weekday }}</div>
+                      <div class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ label.day }}</div>
+                    </th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of compareRows; track row.employeeId) {
+                  <tr>
+                    <th scope="row" class="sticky left-0 z-10 max-w-[180px] truncate bg-white py-0.5 pr-3 text-left font-medium text-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                      {{ row.employeeName }}
+                      <span class="ml-1 font-normal tabular-nums text-gray-400 dark:text-gray-500">{{ row.changes.size || '' }}</span>
+                    </th>
+                    @for (date of cmp.dates; track date) {
+                      <td class="p-0.5">
+                        @if (row.changes.get(date); as change) {
+                          <span
+                            class="block whitespace-nowrap rounded-md bg-brand-50 px-1 py-1 text-center font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
+                            [title]="changeTitle(change)"
+                          >{{ changeLabel(change) }}</span>
+                        }
+                      </td>
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ 'scheduler.compare.legend' | t }}</p>
+        }
       }
     </section>
   }

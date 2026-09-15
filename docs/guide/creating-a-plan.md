@@ -284,9 +284,27 @@ just that team's members. Note that the planner will then only see those
 people, and will report shortfalls at every workstation the others normally
 cover.
 
-**Comparing two options.** Calculate a plan, look at it, change one setting,
-calculate again. Both runs are kept and listed under **Jobs**; neither affects
-the confirmed roster until you press *Take as Plan*.
+**Comparing two options.** Calculate a plan, change one setting, calculate
+again. Both runs are kept and listed under **Jobs**; neither affects the
+confirmed roster until you press *Take as Plan*.
+
+Then press **Compare** (it appears once there are two runs) and pick *Plan A*
+and *Plan B*. A summary puts the two side by side, with B's difference to A in
+green when it is better and red when it is worse:
+
+| Figure | What it tells you |
+|---|---|
+| **Places short** | People missing against minimum staffing, over the whole period. Fewer is better. |
+| **Wishes granted** | Shift wishes the plan fulfils, out of those in its period. |
+| **Hours gap between staff** | The difference between whoever works the fewest and the most hours. Smaller is fairer. |
+| **Shifts assigned** | How many shifts are given out in total. |
+| **Score** | The planner's own score. Only comparable between runs with the same settings — which is why the figures above are there. |
+
+Below it, a grid shows every day that differs, per person: `F→S` means an early
+shift in A and a late one in B, `–` is a day off, and `⇄` means the same shift
+at another workstation. Hover a cell for the details. The figures are measured
+against your setup as it is now, so a plan calculated before a workstation
+closed is judged by today's rules.
 
 ## Next
 

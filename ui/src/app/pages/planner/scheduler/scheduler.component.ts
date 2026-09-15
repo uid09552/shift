@@ -32,6 +32,8 @@ import {
 } from '../../../shared/services/plan-validation.service';
 import { switchMap, takeWhile, startWith, catchError, debounceTime } from 'rxjs/operators';
 import { CoverageCell, CoverageForecast, forecastCoverage } from './coverage-forecast';
+import { CellChange, PlanComparison, Slot, comparePlans } from './plan-comparison';
+import { ShiftWishService, ShiftWish } from '../../../shared/services/shift-wish.service';
 import {
   EmployeeService,
   Employee,
@@ -148,6 +150,18 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   private coverageInputSub: Subscription | null = null;
   private coverageLoadSub: Subscription | null = null;
 
+  // ── Scenario comparison ───────────────────────────────────────────
+  showCompare = false;
+  compareAId: string | null = null;
+  compareBId: string | null = null;
+  comparison: PlanComparison | null = null;
+  compareError: string | null = null;
+  /** Hide employees whose days are the same in both plans. */
+  compareOnlyChanged = true;
+  /** Wishes for the dates last compared, so switching plans over the same period needs no request. */
+  private compareWishes: { range: string; wishes: ShiftWish[] } | null = null;
+  private compareSub: Subscription | null = null;
+
   // Take as plan
   takingAsPlan = false;
   takePlanSuccess = false;
@@ -205,6 +219,7 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     private shiftService: ShiftService,
     private workstationService: WorkstationService,
     private workstationUnavailabilityService: WorkstationUnavailabilityService,
+    private shiftWishService: ShiftWishService,
     private planValidationService: PlanValidationService,
     private contextMenuService: ContextMenuService,
     private confirmDialogService: ConfirmDialogService,
@@ -232,6 +247,7 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     this.searchSub?.unsubscribe();
     this.coverageInputSub?.unsubscribe();
     this.coverageLoadSub?.unsubscribe();
+    this.compareSub?.unsubscribe();
   }
 
   // ── View toggle ───────────────────────────────────────────────────
@@ -577,6 +593,107 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     const end = new Date(today);
     end.setDate(end.getDate() + this.planningWeeks * 7 - 1);
     return { startDate: this.formatDate(today), endDate: this.formatDate(end) };
+  }
+
+  // ── Scenario comparison ───────────────────────────────────────────
+
+  toggleCompare(): void {
+    this.showCompare = !this.showCompare;
+    if (!this.showCompare) return;
+    // Default: the plan on screen against the run before it.
+    const a = this.selectedResult?.id ?? this.allResults[0]?.id ?? null;
+    if (!this.compareAId || !this.allResults.some((r) => r.id === this.compareAId)) this.compareAId = a;
+    if (!this.compareBId || this.compareBId === this.compareAId || !this.allResults.some((r) => r.id === this.compareBId)) {
+      this.compareBId = this.allResults.find((r) => r.id !== this.compareAId)?.id ?? null;
+    }
+    this.runComparison();
+  }
+
+  swapCompare(): void {
+    [this.compareAId, this.compareBId] = [this.compareBId, this.compareAId];
+    this.runComparison();
+  }
+
+  runComparison(): void {
+    const a = this.allResults.find((r) => r.id === this.compareAId);
+    const b = this.allResults.find((r) => r.id === this.compareBId);
+    this.compareError = null;
+    if (!a || !b || a.id === b.id) {
+      this.comparison = null;
+      this.compareError = 'scheduler.compare.pickTwo';
+      return;
+    }
+
+    // Wishes for both periods, so each plan's "wishes granted" is counted on its own dates.
+    const from = [a, b].map((r) => r.result.planning_period.start_date).sort()[0];
+    const to = [a, b].map((r) => r.result.planning_period.end_date).sort().reverse()[0];
+    const range = `${from}|${to}`;
+    const compute = (wishes: ShiftWish[]) => {
+      this.comparison = comparePlans(a.result, b.result, {
+        shifts: this.shifts,
+        workstations: this.workstations,
+        closures: this.closures,
+        wishes,
+      });
+    };
+    if (this.compareWishes?.range === range) {
+      compute(this.compareWishes.wishes);
+      return;
+    }
+    this.compareSub?.unsubscribe();
+    this.compareSub = this.shiftWishService
+      .getShiftWishes(undefined, from, to)
+      .pipe(catchError(() => of([] as ShiftWish[])))
+      .subscribe((wishes) => {
+        this.compareWishes = { range, wishes };
+        compute(wishes);
+      });
+  }
+
+  /** "15 Sep, 06:40 · Aug 31 – Sep 27": when it was calculated, and for which period. */
+  resultLabel(result: OptimizedShiftResultResponse): string {
+    const created = new Date(result.creation_date).toLocaleString(this.translations.locale, {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const { start_date, end_date } = result.result.planning_period;
+    return `${created} · ${this.formatDateLabel(start_date)} – ${this.formatDateLabel(end_date)}`;
+  }
+
+  /** B against A, and whether that is better: fewer places short, more wishes, a smaller hours gap. */
+  compareDelta(a: number, b: number, better: 'lower' | 'higher' | null): { text: string; tone: 'better' | 'worse' | 'same' | 'neutral' } {
+    const d = Math.round((b - a) * 10) / 10;
+    if (d === 0) return { text: '±0', tone: 'same' };
+    const text = (d > 0 ? '+' : '−') + Math.abs(d).toLocaleString(this.translations.locale);
+    if (!better) return { text, tone: 'neutral' };
+    return { text, tone: (d < 0) === (better === 'lower') ? 'better' : 'worse' };
+  }
+
+  get compareRows() {
+    const rows = this.comparison?.rows ?? [];
+    return this.compareOnlyChanged ? rows.filter((r) => r.changes.size > 0) : rows;
+  }
+
+  /** "F→S", "F→–", "–→N"; "F" alone when only the station moved. */
+  changeLabel(change: CellChange): string {
+    const short = (slot: Slot | null) => (slot ? this.shifts.find((s) => s.id === slot.shiftId)?.short_name ?? '?' : '–');
+    if (change.kind === 'changed' && change.before!.shiftId === change.after!.shiftId) {
+      return `${short(change.before)} ⇄`;
+    }
+    return `${short(change.before)}→${short(change.after)}`;
+  }
+
+  /** Spelled out for the tooltip: shift and station before and after. */
+  changeTitle(change: CellChange): string {
+    const describe = (slot: Slot | null) => {
+      if (!slot) return this.translations.t('scheduler.compare.off');
+      const shift = this.shifts.find((s) => s.id === slot.shiftId)?.name ?? slot.shiftId;
+      const station = slot.workstationId ? this.workstations.find((w) => w.id === slot.workstationId)?.name : null;
+      return station ? `${shift} · ${station}` : shift;
+    };
+    return `A: ${describe(change.before)}  →  B: ${describe(change.after)}`;
   }
 
   // ── Coverage forecast ─────────────────────────────────────────────
