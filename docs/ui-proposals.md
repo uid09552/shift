@@ -15,7 +15,9 @@ things come first.
 | The roster | Schedule (`/kalender`), week or month, read by employee / workstation / shift, editable, Excel export |
 | One day in detail | Day View (`/day-view`) — hour-by-hour Gantt of who is on the ward |
 | One person in detail | Employee Calendar (`/employee-calendar`) — month, wishes, absences, hours summary |
-| Planning | Scheduler (`/scheduler`) — **Check coverage** before calculating, runs, proposals, **Compare** two runs, hand edits, **Verify Plan**, **Fix Plan**, *Take as Plan* |
+| Planning | Schedule Optimizer (`/scheduler`), in tabs: **Calculate** (with the coverage check), **Proposal** (hand edits, *Take as Plan*), **Check & fix**, **Compare**, **Runs** |
+| Fairness | Fairness (`/fairness`) — per person over a period: shifts, hours against target, nights, weekends, wishes, absences; sortable |
+| Rotations | Rotations (`/rotations`) — rhythms like *early, early, late, late, night, off, off, off*, checked against the planner's rules, applied to people with a stagger and a preview; the planner keeps them first |
 | Configuration | Shifts, workstations, capabilities, employees, planner settings, wish window, users & roles |
 | Assistant | Chat widget over the whole API, roster file import, plan check and repair |
 
@@ -33,15 +35,13 @@ endpoint or two, **L** = new tables and a workflow.
 | # | Proposal | Answers | Needs | Effort |
 |---|---|---|---|---|
 | 1 | [Hours account](#1-hours-account-zeitkonto) | "Am I over or under my contract?" | One analysis endpoint | S |
-| 2 | [Fairness dashboard](#2-fairness-dashboard) | "Who keeps getting the weekends?" | One analysis endpoint | S |
-| 3 | [Audit log page](#3-audit-log-page) | "Who changed this, and when?" | Nothing new — `listAuditLogs` exists | S |
-| 4 | [Compliance view over the confirmed roster](#4-compliance-over-the-confirmed-roster) | "Does the roster we are actually working break any rule?" | Validate a date range, not just a proposal | M |
-| 5 | [Absence requests and approval](#5-absence-requests-and-approval) | "Can I have the 12th off?" | Status + approver on `unavailabilities`, entitlements | L |
-| 6 | [Rotation patterns](#6-rotation-patterns) | "Put Team B on the usual six-week rhythm" | Pattern storage; writes existing shift assignments | M |
-| 7 | [Publish and notify](#7-publish-and-notify) | "Who needs to be told their shift moved?" | Plan versions + a notification channel | L |
-| 8 | [Shift swaps and open shifts](#8-shift-swaps-and-open-shifts) | "Will anyone take my Saturday?" | An offers table and a workflow | L |
-| 9 | [Qualification matrix and expiry](#9-qualification-matrix-and-expiry) | "Whose certificate runs out in March?" | Matrix is free; expiry needs a column | S → M |
-| 10 | [Self-service roster feed](#10-self-service-roster-feed) | "My shifts, in my phone's calendar" | A signed ICS endpoint | M |
+| 2 | [Audit log page](#2-audit-log-page) | "Who changed this, and when?" | Nothing new — `listAuditLogs` exists | S |
+| 3 | [Compliance view over the confirmed roster](#3-compliance-over-the-confirmed-roster) | "Does the roster we are actually working break any rule?" | Validate a date range, not just a proposal | M |
+| 4 | [Absence requests and approval](#4-absence-requests-and-approval) | "Can I have the 12th off?" | Status + approver on `unavailabilities`, entitlements | L |
+| 5 | [Publish and notify](#5-publish-and-notify) | "Who needs to be told their shift moved?" | Plan versions + a notification channel | L |
+| 6 | [Shift swaps and open shifts](#6-shift-swaps-and-open-shifts) | "Will anyone take my Saturday?" | An offers table and a workflow | L |
+| 7 | [Qualification matrix and expiry](#7-qualification-matrix-and-expiry) | "Whose certificate runs out in March?" | Matrix is free; expiry needs a column | S → M |
+| 8 | [Self-service roster feed](#8-self-service-roster-feed) | "My shifts, in my phone's calendar" | A signed ICS endpoint | M |
 
 ---
 
@@ -63,25 +63,14 @@ alongside the existing `/analysis/*` family.
 The Employee Calendar already shows this for one person for one month; this is
 the ward-wide, year-long version, and it is what a works council asks for.
 
-### 2. Fairness dashboard
-
-Per employee, over a period: weekends worked, night shifts, wishes granted vs
-asked, hours against target, and the spread across the team. Sortable, so
-"who has had the most nights this quarter" is one click.
-
-Wards argue about exactly this, and the solver already optimises for it
-(`equality_weight`, `wish_weight`) — the UI simply cannot show what it achieved.
-The wish counting exists in `validate()`'s `stats`; the rest is one analysis
-endpoint over confirmed plans.
-
-### 3. Audit log page
+### 2. Audit log page
 
 `GET /audit-logs` exists and the dashboard shows the last few entries. A full
 page with filters (actor, entity type, date range) and a diff rendering of the
 stored `changes` JSON costs a view and nothing else — and it is the first thing
 asked for after "who deleted that workstation?".
 
-### 4. Compliance over the confirmed roster
+### 3. Compliance over the confirmed roster
 
 The plan check today answers for a *proposal*. Nobody checks the roster people
 are actually working — which is the one that matters when a rest-period breach
@@ -98,7 +87,7 @@ Then: a standing "Compliance" page per month, with the same findings the
 scheduler modal shows, and the **Fix Plan** repair pointed at the confirmed
 roster instead of a proposal.
 
-### 5. Absence requests and approval
+### 4. Absence requests and approval
 
 Today an absence is a fact somebody types in. In most products it is a request
 with a state: *requested → approved / rejected*, with an entitlement to draw
@@ -112,18 +101,7 @@ the conflict shown at decision time — *approving this leaves the ICU one short
 the 14th* is a question `_Rules.blocking_reason` in `repair.py` can already
 answer.
 
-### 6. Rotation patterns
-
-Hospitals plan in rhythms: *early, early, late, late, night, night, off, off*.
-Here, every recurring commitment is entered one assignment at a time.
-
-A pattern is a named sequence of shift slots plus a cycle length. The page: pick
-a pattern, pick people, pick a start date and a horizon, preview the grid it
-would produce, write it. The writes are ordinary
-`employee_shift_assignments` — the table and the import endpoint already exist —
-so this is a generator and a preview, not a new subsystem.
-
-### 7. Publish and notify
+### 5. Publish and notify
 
 *Take as Plan* overwrites the confirmed roster silently. Nobody is told, and
 there is no "what changed since you last looked".
@@ -137,7 +115,7 @@ calendar.
 This is the biggest missing piece of process, and the one wards notice on day
 one.
 
-### 8. Shift swaps and open shifts
+### 6. Shift swaps and open shifts
 
 An employee offers a confirmed shift; colleagues see it on a board; one claims
 it; a planner approves. The same board carries shifts nobody is on yet.
@@ -147,7 +125,7 @@ check "may this person take this shift" is already implemented as
 `_Rules.blocking_reason`, so an offer can be shown only to people it would be
 legal for, and an approval can be refused with a reason rather than by feel.
 
-### 9. Qualification matrix and expiry
+### 7. Qualification matrix and expiry
 
 A grid of employees × capabilities with the gaps visible is a page over data that
 exists — worth building on its own, since it is how a ward manager spots that
@@ -157,7 +135,7 @@ Expiry is the follow-up and needs `valid_from` / `valid_until` on
 `employee_capabilities`, after which the matrix colours what is about to lapse
 and the optimizer stops counting a qualification nobody has renewed.
 
-### 10. Self-service roster feed
+### 8. Self-service roster feed
 
 The Employee Calendar is already a good personal view. What is missing is getting
 it *out*: a signed, per-employee ICS URL that phones subscribe to, so a changed

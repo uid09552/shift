@@ -8,6 +8,8 @@ import { KalenderComponent } from './pages/planner/kalender/kalender.component';
 import { DayViewComponent } from './pages/planner/day-view/day-view.component';
 import { EmployeeCalendarComponent } from './pages/planner/employee-calendar/employee-calendar.component';
 import { SchedulerComponent } from './pages/planner/scheduler/scheduler.component';
+import { FairnessComponent } from './pages/planner/fairness/fairness.component';
+import { RotationsComponent } from './pages/planner/rotations/rotations.component';
 import { UserProfilesComponent } from './pages/planner/user-profiles/user-profiles.component';
 import { ShiftsComponent } from './pages/configuration/shifts/shifts.component';
 import { WorkstationsComponent } from './pages/configuration/workstations/workstations.component';
@@ -46,6 +48,16 @@ export const routes: Routes = [
         path:'scheduler',
         component:SchedulerComponent,
         title:'title.scheduleOptimizer'
+      },
+      {
+        path:'rotations',
+        component:RotationsComponent,
+        title:'title.rotations'
+      },
+      {
+        path:'fairness',
+        component:FairnessComponent,
+        title:'title.fairness'
       },
       {
         path:'user-profiles',

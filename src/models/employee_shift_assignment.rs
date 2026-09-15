@@ -10,7 +10,8 @@ use crate::schema::employee_shift_assignments;
 pub struct EmployeeShiftAssignment {
     pub id: Uuid,
     pub employee_id: Uuid,
-    pub shift_id: Uuid,
+    /// None = a fixed day off.
+    pub shift_id: Option<Uuid>,
     pub date: NaiveDate,
     pub tenant_id: String,
 }
@@ -19,7 +20,7 @@ pub struct EmployeeShiftAssignment {
 #[diesel(table_name = employee_shift_assignments)]
 pub struct NewEmployeeShiftAssignment {
     pub employee_id: Uuid,
-    pub shift_id: Uuid,
+    pub shift_id: Option<Uuid>,
     pub date: NaiveDate,
     pub tenant_id: String,
 }

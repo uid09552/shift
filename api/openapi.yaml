@@ -1889,6 +1889,244 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /shift-assignments:
+    get:
+      tags:
+        - Shift Assignments
+      summary: List fixed assignments in a period
+      description: Everyone's fixed assignments between two dates (at most a year), or only the listed employees'. A null shift_id is a fixed day off.
+      operationId: listShiftAssignments
+      parameters:
+        - name: from_date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: to_date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: employee_ids
+          in: query
+          description: Comma-separated employee ids; everyone when omitted
+          schema: { type: string }
+      responses:
+        '200':
+          description: Fixed assignments, by employee then date
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EmployeeShiftAssignment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /shift-assignments/clear:
+    post:
+      tags:
+        - Shift Assignments
+      summary: Remove fixed assignments in a period
+      description: Deletes these employees' fixed shifts and days off between two dates, so the planner decides those days again.
+      operationId: clearShiftAssignments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employee_ids, from_date, to_date]
+              properties:
+                employee_ids:
+                  type: array
+                  items: { type: string, format: uuid }
+                from_date: { type: string, format: date }
+                to_date: { type: string, format: date }
+      responses:
+        '200':
+          description: How many were removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted: { type: integer }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /rotation-patterns:
+    get:
+      tags:
+        - Rotation Patterns
+      summary: List rotation patterns
+      description: Named rhythms — one slot per day of the cycle, a shift id or null for a day off.
+      operationId: listRotationPatterns
+      responses:
+        '200':
+          description: Patterns, by name
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RotationPattern'
+    post:
+      tags:
+        - Rotation Patterns
+      summary: Create a rotation pattern
+      description: 'A cycle of 1–56 days with at least one working day, e.g. early, early, late, late, night, off, off, off. Names are unique per organisation.'
+      operationId: createRotationPattern
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RotationPatternRequest'
+      responses:
+        '200':
+          description: The created pattern
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RotationPattern'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /rotation-patterns/{patternId}:
+    put:
+      tags:
+        - Rotation Patterns
+      summary: Update a rotation pattern
+      operationId: updateRotationPattern
+      parameters:
+        - name: patternId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RotationPatternRequest'
+      responses:
+        '200':
+          description: The updated pattern
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RotationPattern'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Rotation Patterns
+      summary: Delete a rotation pattern
+      description: Deletes the pattern only; fixed assignments already written from it stay.
+      operationId: deleteRotationPattern
+      parameters:
+        - name: patternId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /rotation-patterns/{patternId}/apply:
+    post:
+      tags:
+        - Rotation Patterns
+      summary: Apply a rotation pattern to people over a period
+      description: |
+        Writes the pattern as fixed assignments — a shift for each working slot,
+        a fixed day off (null shift) for each off slot — for every listed
+        employee and day, in one transaction. `offset_step` staggers the team:
+        each next employee (in the order given) starts that many days later in
+        the cycle. A day already fixed differently is kept and reported as a
+        conflict unless `replace_existing`; a working slot on a day the employee
+        is absent is skipped. With `dry_run` nothing is written and the response
+        is the preview of exactly what would be.
+      operationId: applyRotationPattern
+      parameters:
+        - name: patternId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employee_ids, start_date, end_date]
+              properties:
+                employee_ids:
+                  type: array
+                  items: { type: string, format: uuid }
+                start_date: { type: string, format: date }
+                end_date: { type: string, format: date }
+                offset_step:
+                  type: integer
+                  default: 0
+                replace_existing:
+                  type: boolean
+                  default: false
+                dry_run:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: The grid, per employee and day, with a status per cell (new, same, replace, conflict, absent) and a summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dry_run: { type: boolean }
+                  pattern_id: { type: string, format: uuid }
+                  cycle_length: { type: integer }
+                  from_date: { type: string, format: date }
+                  to_date: { type: string, format: date }
+                  summary:
+                    type: object
+                    properties:
+                      written: { type: integer }
+                      replaced: { type: integer }
+                      unchanged: { type: integer }
+                      conflicts: { type: integer }
+                      on_absence: { type: integer }
+                  rows:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        employee_id: { type: string, format: uuid }
+                        employee_name: { type: string }
+                        offset: { type: integer }
+                        cells:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              date: { type: string, format: date }
+                              shift_id: { type: string, nullable: true }
+                              status:
+                                type: string
+                                enum: [new, same, replace, conflict, absent]
+                              existing:
+                                type: object
+                                nullable: true
+                                properties:
+                                  shift_id: { type: string, nullable: true }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /shift-assignments/import:
     post:
       tags:
@@ -2305,6 +2543,54 @@ paths:
                     type: string
                     description: ISO 8601; empty when unknown
                     example: "2026-09-15T08:00:00Z"
+
+  /analysis/fairness:
+    get:
+      tags:
+        - Analysis
+      summary: Get each employee's share of the roster
+      description: "Per employee over the period, from confirmed plans: shifts and hours worked, hours against the monthly target scaled to the period, night shifts (shifts running past midnight), weekend days and weekends worked, shift wishes granted of those asked, and days absent (sick, leave, holiday — not a plain day off). Everyone in the organisation is listed, including people with nothing, since who got the fewest is half of a fairness question. Answers questions like \"who had the most nights this quarter\". At most one year per request."
+      operationId: getFairness
+      parameters:
+        - name: from_date
+          in: query
+          required: true
+          description: First day of the period (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          required: true
+          description: Last day of the period, inclusive (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: One row per employee
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [from_date, to_date, days, employees]
+                properties:
+                  from_date:
+                    type: string
+                    format: date
+                  to_date:
+                    type: string
+                    format: date
+                  days:
+                    type: integer
+                  employees:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EmployeeFairness'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /audit-logs:
     get:
@@ -3816,6 +4102,23 @@ components:
           description: >
             Shifts the employee wishes to work on specific dates. Soft — the
             optimizer rewards fulfilling them (wish_weight), never forces them.
+        fixed_shifts:
+          type: array
+          description: >
+            Fixed assignments in the period — a shift, or null for a day off.
+            Rotation patterns write them. The optimizer keeps them ahead of
+            every other goal and names in its message any it cannot keep; they
+            never make a plan infeasible.
+          items:
+            type: object
+            required: [date]
+            properties:
+              date:
+                type: string
+                format: date
+              shift_id:
+                type: string
+                nullable: true
 
     ShiftWishTask:
       type: object
@@ -3966,6 +4269,30 @@ components:
           items:
             $ref: '#/components/schemas/ImportRowError'
 
+    RotationPattern:
+      type: object
+      required: [id, name, slots, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        slots:
+          type: array
+          description: One entry per day of the cycle — a shift id, or null for a day off
+          items: { type: string, format: uuid, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    RotationPatternRequest:
+      type: object
+      required: [name, slots]
+      properties:
+        name: { type: string }
+        slots:
+          type: array
+          minItems: 1
+          maxItems: 56
+          items: { type: string, format: uuid, nullable: true }
+
     EmployeeShiftAssignment:
       type: object
       required:
@@ -3985,7 +4312,8 @@ components:
         shift_id:
           type: string
           format: uuid
-          description: ID of the assigned shift
+          nullable: true
+          description: ID of the assigned shift; null for a fixed day off
         date:
           type: string
           format: date
@@ -4001,7 +4329,8 @@ components:
         shift_id:
           type: string
           format: uuid
-          description: ID of the shift to assign
+          nullable: true
+          description: ID of the shift to assign; null for a fixed day off
         date:
           type: string
           format: date
@@ -4655,6 +4984,41 @@ components:
           description: Number of employees planned for this workstation on this date
           example: 2
 
+    EmployeeFairness:
+      type: object
+      required: [employee_id, employee_name, shifts, hours, night_shifts, weekend_days, weekends, wishes_asked, wishes_granted, days_absent]
+      properties:
+        employee_id:
+          type: string
+          format: uuid
+        employee_name:
+          type: string
+        shifts:
+          type: integer
+          description: Shifts worked
+        hours:
+          type: number
+          description: Hours worked
+        target_hours:
+          type: number
+          nullable: true
+          description: Monthly working hours scaled to the period (× days / 30); null without a target
+        night_shifts:
+          type: integer
+          description: Shifts that run past midnight
+        weekend_days:
+          type: integer
+          description: Saturdays and Sundays worked
+        weekends:
+          type: integer
+          description: Weekends with at least one day worked
+        wishes_asked:
+          type: integer
+        wishes_granted:
+          type: integer
+        days_absent:
+          type: integer
+          description: Days marked sick, on leave or holiday — not a plain day off
     DailyStaffing:
       type: object
       required:

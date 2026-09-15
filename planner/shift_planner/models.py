@@ -137,6 +137,15 @@ class ShiftWish(BaseModel):
     shift_id: str = Field(..., min_length=1)
 
 
+class FixedShift(BaseModel):
+    """A fixed assignment: work this shift on this day — or, with no shift,
+    be off. Rotation patterns write these. The solver keeps them ahead of
+    every other goal and reports any it cannot; it never fails because of them."""
+
+    date: date
+    shift_id: Optional[str] = None
+
+
 class Employee(BaseModel):
     """Employee definition with skills and availability."""
 
@@ -148,6 +157,7 @@ class Employee(BaseModel):
     monthly_working_hours: float = Field(default=0.0, ge=0)
     preferred_off: List[PreferredOff] = Field(default_factory=list)
     wishes: List[ShiftWish] = Field(default_factory=list)
+    fixed_shifts: List[FixedShift] = Field(default_factory=list)
 
 
 class LockedAssignment(BaseModel):

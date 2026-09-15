@@ -127,7 +127,7 @@ anywhere.
 
 ## The calculation never finishes
 
-Press **Jobs** on the Schedule Optimizer to see the run and its status. A job
+Open the **Runs** tab on the Schedule Optimizer to see the run and its status. A job
 that failed will show an error message there.
 
 Runs stuck for a very long time are cleaned up automatically. If they

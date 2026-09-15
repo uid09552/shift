@@ -453,6 +453,7 @@ class _Validator:
         self._check_min_rest()
         self._check_consecutive_days()
         self._check_preferences()
+        self._check_fixed_assignments()
         self._check_hours()
         return self.findings.all()
 
@@ -815,6 +816,39 @@ class _Validator:
                         "A soft preference the solver may override when it has to.",
                         self._where(a),
                     )
+
+    def _check_fixed_assignments(self) -> None:
+        """Fixed assignments (rotation patterns write them) the plan does not
+        keep. The solver keeps them before anything else, so one left out means
+        a rule stood in the way — or someone edited the proposal by hand."""
+        for employee_id, employee in self.employees.items():
+            if employee_id not in self.scope_ids:
+                continue
+            for fixed in employee.get("fixed_shifts") or []:
+                try:
+                    day = _parse_date(fixed["date"])
+                except (KeyError, ValueError):
+                    continue
+                if not (self.start <= day <= self.end):
+                    continue
+                shift_id = fixed.get("shift_id")
+                worked = [a.shift_id for a in self.by_emp_day.get((employee_id, day), [])]
+                if shift_id is None and worked:
+                    detail = f"{self._shift_name(worked[0])} instead of the fixed day off"
+                elif shift_id is not None and shift_id not in worked:
+                    detail = (
+                        f"{self._shift_name(worked[0])} instead of {self._shift_name(shift_id)}"
+                        if worked else f"off instead of {self._shift_name(shift_id)}"
+                    )
+                else:
+                    continue
+                self.findings.add(
+                    "fixed_assignment_not_kept", SEVERITY_WARNING,
+                    "A fixed assignment is not kept",
+                    "Fixed assignments — rotations, recurring commitments — come first in "
+                    "the solver; one left out clashed with a rule or was edited by hand.",
+                    f"{self._emp_name(employee_id)} · {day.isoformat()} — {detail}",
+                )
 
     def _check_hours(self) -> None:
         """Soft: hours worked against the employee's monthly target, scaled to

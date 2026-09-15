@@ -50,6 +50,8 @@ import { ContextMenuService, ContextMenuItem } from '../../../shared/components/
 import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
+import { TabItem, TabsComponent } from '../../../shared/components/ui/tabs/tabs.component';
+import { ActivatedRoute, Router } from '@angular/router';
 
 interface DayInfo {
   date: Date;
@@ -68,10 +70,18 @@ interface CellDetail {
 // singleton so these options stay local to this screen.
 const markdown = new Marked({ gfm: true, breaks: true });
 
+/** The optimizer's sections, in the order a planner works through them. */
+const OPTIMIZER_TABS = ['calculate', 'proposal', 'check', 'compare', 'runs'] as const;
+type OptimizerTab = (typeof OPTIMIZER_TABS)[number];
+
+function isOptimizerTab(value: string | null): value is OptimizerTab {
+  return !!value && (OPTIMIZER_TABS as readonly string[]).includes(value);
+}
+
 @Component({
   selector: 'app-scheduler',
   standalone: true,
-  imports: [CommonModule, FormsModule, PageBreadcrumbComponent, CalendarNavComponent, CalendarTableComponent, TranslatePipe],
+  imports: [CommonModule, FormsModule, PageBreadcrumbComponent, CalendarNavComponent, CalendarTableComponent, TabsComponent, TranslatePipe],
   templateUrl: './scheduler.component.html',
   styleUrl: './scheduler.component.css',
 })
@@ -107,7 +117,6 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   loading = false;
   isPlanning = false;
   planningTaskId: string | null = null;
-  showTaskList = false;
   error: string | null = null;
   deletingResultId: string | null = null;
 
@@ -139,7 +148,13 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   // Task list
   planningTasks: PlanningTaskItem[] = [];
 
+  // ── Tabs ──────────────────────────────────────────────────────────
+  activeTab: OptimizerTab = 'proposal';
+  /** Set once the URL names a tab, so the no-result default does not override it. */
+  private tabFromUrl = false;
+
   // ── Coverage forecast (before planning) ──────────────────────────
+  /** True while the Calculate tab is open: the forecast follows its inputs only then. */
   showCoverage = false;
   coverageLoading = false;
   coverageError: string | null = null;
@@ -151,7 +166,6 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   private coverageLoadSub: Subscription | null = null;
 
   // ── Scenario comparison ───────────────────────────────────────────
-  showCompare = false;
   compareAId: string | null = null;
   compareBId: string | null = null;
   comparison: PlanComparison | null = null;
@@ -180,7 +194,8 @@ export class SchedulerComponent implements OnInit, OnDestroy {
 
   // ── Verification (assistant) ─────────────────────────────────────
   validating = false;
-  showValidation = false;
+  /** The result the report below belongs to — a report never outlives a switch of result. */
+  private validatedResultId: string | null = null;
   validationReport: PlanValidationReport | null = null;
   /** The assistant's markdown review, rendered for [innerHTML]. */
   validationSummaryHtml = '';
@@ -224,9 +239,16 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     private contextMenuService: ContextMenuService,
     private confirmDialogService: ConfirmDialogService,
     private translations: TranslationService,
+    private route: ActivatedRoute,
+    private router: Router,
   ) {}
 
   ngOnInit(): void {
+    const tab = this.route.snapshot.queryParamMap.get('tab');
+    if (isOptimizerTab(tab)) {
+      this.tabFromUrl = true;
+      this.setTab(tab, false);
+    }
     this.computeDays();
     this.loadLatestResult();
     this.loadEmployees();
@@ -248,6 +270,46 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     this.coverageInputSub?.unsubscribe();
     this.coverageLoadSub?.unsubscribe();
     this.compareSub?.unsubscribe();
+  }
+
+  // ── Tabs ──────────────────────────────────────────────────────────
+
+  /** Badges say what a tab holds without opening it. */
+  get tabItems(): TabItem[] {
+    const t = (key: string) => this.translations.t(key);
+    const report = this.validationReport;
+    const open = report ? report.error_count + report.warning_count : 0;
+    const running = this.planningTasks.filter((task) => task.status === 'scheduled').length;
+    return [
+      { id: 'calculate', label: t('scheduler.tab.calculate') },
+      { id: 'proposal', label: t('scheduler.tab.proposal') },
+      { id: 'check', label: t('scheduler.tab.check'), badge: report ? (open || '✓') : null },
+      { id: 'compare', label: t('scheduler.tab.compare'), disabled: this.allResults.length < 2 },
+      {
+        id: 'runs',
+        label: t('scheduler.tab.runs'),
+        badge: running
+          ? this.translations.t('scheduler.tab.runningBadge', { count: running })
+          : this.allResults.length || null,
+      },
+    ];
+  }
+
+  setTab(tab: string, updateUrl = true): void {
+    if (!isOptimizerTab(tab)) return;
+    this.activeTab = tab;
+    // The forecast only follows the inputs while it is on screen.
+    this.showCoverage = tab === 'calculate';
+    if (tab === 'calculate') this.loadCoverage();
+    if (tab === 'compare') this.openCompare();
+    if (updateUrl) {
+      this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { tab: tab === 'proposal' ? null : tab },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+    }
   }
 
   // ── View toggle ───────────────────────────────────────────────────
@@ -329,6 +391,8 @@ export class SchedulerComponent implements OnInit, OnDestroy {
         if (response.data?.length) {
           this.latestResult = response.data[0];
           this.setResult(this.latestResult);
+        } else if (!this.tabFromUrl) {
+          this.setTab('calculate', false); // nothing to look at yet
         }
         this.loadAllResults();
       },
@@ -341,7 +405,10 @@ export class SchedulerComponent implements OnInit, OnDestroy {
 
   loadAllResults(): void {
     this.plannerService.getOptimizedShifts(20, 0, false).subscribe({
-      next: (r) => { this.allResults = r.data || []; },
+      next: (r) => {
+        this.allResults = r.data || [];
+        if (this.activeTab === 'compare') this.openCompare(); // opened from the URL before the runs arrived
+      },
       error: (e) => console.error('Error loading all results:', e),
     });
   }
@@ -377,6 +444,14 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   }
 
   setResult(result: OptimizedShiftResultResponse): void {
+    if (this.validatedResultId !== result.id) {
+      this.validationReport = null;
+      this.validationError = null;
+      this.validationSummaryHtml = '';
+      this.fixReport = null;
+      this.fixError = null;
+      this.validatedResultId = null;
+    }
     this.selectedResult = result;
     this.scheduleData = result.result.schedule || [];
     this.buildTableData();
@@ -399,24 +474,49 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     ).subscribe({
       next: () => {
         this.deletingResultId = null;
-        if (task.result_id && this.selectedResult?.id === task.result_id) {
-          this.selectedResult = null;
-          this.latestResult = null;
-          this.scheduleData = [];
-          this.calendarTableRows = [];
-          this.calendarTableCellMap = new Map();
-          this.employeeCalendarRows = [];
-          this.employeeCalendarCellMap = new Map();
-          this.filteredRows = [];
-          this.filteredCellMap = new Map();
-        }
+        if (task.result_id) this.forgetResult(task.result_id);
         this.planningTasks = this.planningTasks.filter(t => t.id !== task.id);
-        if (task.result_id) {
-          this.allResults = this.allResults.filter(r => r.id !== task.result_id);
-        }
       },
       error: () => { this.deletingResultId = null; },
     });
+  }
+
+  /**
+   * Runs tab: delete one stored proposal — whoever made it (a calculation here,
+   * the assistant, a fix). Irreversible, so it asks first.
+   */
+  async deleteProposal(result: OptimizedShiftResultResponse): Promise<void> {
+    const ok = await this.confirmDialogService.confirm({
+      title: this.translations.t('scheduler.runs.deleteTitle'),
+      message: this.translations.t('scheduler.runs.deleteMessage', { label: this.resultLabel(result) }),
+      confirmLabel: this.translations.t('common.delete'),
+      danger: true,
+    });
+    if (!ok) return;
+    this.deletingResultId = result.id;
+    this.plannerService.deleteOptimizedShift(result.id).subscribe({
+      next: () => {
+        this.deletingResultId = null;
+        this.forgetResult(result.id);
+      },
+      error: () => { this.deletingResultId = null; },
+    });
+  }
+
+  /** Drops a deleted result from the lists, and from the screen if it was on it. */
+  private forgetResult(resultId: string): void {
+    if (this.selectedResult?.id === resultId) {
+      this.selectedResult = null;
+      this.latestResult = null;
+      this.scheduleData = [];
+      this.calendarTableRows = [];
+      this.calendarTableCellMap = new Map();
+      this.employeeCalendarRows = [];
+      this.employeeCalendarCellMap = new Map();
+      this.filteredRows = [];
+      this.filteredCellMap = new Map();
+    }
+    this.allResults = this.allResults.filter(r => r.id !== resultId);
   }
 
   // ── Workstation-centric table data ───────────────────────────────
@@ -597,10 +697,8 @@ export class SchedulerComponent implements OnInit, OnDestroy {
 
   // ── Scenario comparison ───────────────────────────────────────────
 
-  toggleCompare(): void {
-    this.showCompare = !this.showCompare;
-    if (!this.showCompare) return;
-    // Default: the plan on screen against the run before it.
+  /** Opening the Compare tab: the plan on screen against the run before it, unless a pair is already picked. */
+  openCompare(): void {
     const a = this.selectedResult?.id ?? this.allResults[0]?.id ?? null;
     if (!this.compareAId || !this.allResults.some((r) => r.id === this.compareAId)) this.compareAId = a;
     if (!this.compareBId || this.compareBId === this.compareAId || !this.allResults.some((r) => r.id === this.compareBId)) {
@@ -703,11 +801,6 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     this.coverageInputs$.next();
   }
 
-  toggleCoverage(): void {
-    this.showCoverage = !this.showCoverage;
-    if (this.showCoverage) this.loadCoverage();
-  }
-
   /** Builds the forecast from the same input a calculation would use now. */
   loadCoverage(): void {
     if (this.planningMode === 'range' && (!this.customStartDate || !this.customEndDate || this.customEndDate < this.customStartDate)) {
@@ -776,7 +869,6 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     this.plannerService.triggerPlan(employeeIds, startDate, endDate, monthlyWeight).subscribe({
       next: (response) => {
         this.planningTaskId = response.task_id;
-        this.showTaskList = true;
         this.startPolling(response.task_id);
       },
       error: () => {
@@ -800,6 +892,7 @@ export class SchedulerComponent implements OnInit, OnDestroy {
               this.latestResult = result;
               this.setResult(result);
               this.loadAllResults();
+              this.setTab('proposal'); // the new plan is what everyone wants to see next
             },
             error: () => { this.error = 'scheduler.error.loadResult'; },
           });
@@ -838,6 +931,12 @@ export class SchedulerComponent implements OnInit, OnDestroy {
       },
       error: () => { this.error = 'scheduler.error.loadResult'; },
     });
+  }
+
+  /** Runs tab: open a run's result in the Proposal tab. */
+  viewRun(resultId: string): void {
+    this.loadResultById(resultId);
+    this.setTab('proposal');
   }
 
   // Translation key of a planning task's status; unknown statuses show as-is.
@@ -891,7 +990,7 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     this.fixReport = null;
     this.fixError = null;
     this.fixSummaryHtml = '';
-    this.showValidation = true;
+    this.validatedResultId = this.selectedResult.id;
 
     this.planValidationService.validatePlan(this.selectedResult.id).subscribe({
       next: (report) => {
@@ -909,8 +1008,12 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     });
   }
 
-  closeValidation(): void {
-    this.showValidation = false;
+  /** From the Proposal tab: open Check & fix and run the check, unless a report for this result is already there. */
+  openCheck(): void {
+    this.setTab('check');
+    if (!this.validationReport || this.validatedResultId !== this.selectedResult?.id) {
+      this.verifyPlan();
+    }
   }
 
   /**

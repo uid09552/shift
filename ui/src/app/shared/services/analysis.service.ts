@@ -39,6 +39,30 @@ export interface DailyStaffing {
   per_shift: ShiftDailyStaffing[];
 }
 
+/** One person's share of the confirmed roster over a period. */
+export interface EmployeeFairness {
+  employee_id: string;
+  employee_name: string;
+  shifts: number;
+  hours: number;
+  /** Monthly target scaled to the period; null without a target. */
+  target_hours: number | null;
+  night_shifts: number;
+  weekend_days: number;
+  weekends: number;
+  wishes_asked: number;
+  wishes_granted: number;
+  /** Sick, leave or holiday — not a plain day off. */
+  days_absent: number;
+}
+
+export interface FairnessReport {
+  from_date: string;
+  to_date: string;
+  days: number;
+  employees: EmployeeFairness[];
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -86,5 +110,13 @@ export class AnalysisService {
     return this.http.get<DailyStaffing[]>(`${this.apiUrl}/analysis/staffing-per-day`, {
       params,
     });
+  }
+
+  /** Each employee's share of the confirmed roster over the range — nights, weekends, hours, wishes. */
+  getFairness(fromDate: string, toDate: string): Observable<FairnessReport> {
+    const params = new HttpParams()
+      .set('from_date', fromDate)
+      .set('to_date', toDate);
+    return this.http.get<FairnessReport>(`${this.apiUrl}/analysis/fairness`, { params });
   }
 }

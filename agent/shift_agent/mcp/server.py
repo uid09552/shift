@@ -128,6 +128,8 @@ KNOWN_PAGES = {
     # conversations and links don't break.
     "workstation_calendar": "/kalender",
     "scheduler": "/scheduler",
+    "fairness": "/fairness",
+    "rotations": "/rotations",
     "user_profiles": "/user-profiles",
     "shifts": "/shifts",
     "workstations": "/workstations",
@@ -150,7 +152,7 @@ def _register_navigation(mcp: FastMCP) -> None:
 
         Args:
             page: One of: dashboard, schedule, day_view, employee_calendar,
-                workstation_calendar, scheduler, user_profiles, shifts,
+                workstation_calendar, scheduler, fairness, rotations, user_profiles, shifts,
                 workstations, capabilities, planner_settings, wish_settings.
         """
         path = KNOWN_PAGES.get(page)

@@ -86,7 +86,7 @@ backend/
 │       │   ├── planner/     # Scheduling components
 │       │   │   ├── kalender/        # Weekly schedule view
 │       │   │   ├── day-view/        # One day as an hourly Gantt chart
-│       │   │   ├── scheduler/       # Optimization UI (verify + fix a proposal)
+│       │   │   ├── scheduler/       # Optimizer, in tabs: Calculate · Proposal · Check & fix · Compare · Runs
 │       │   │   └── employee-calendar/
 │       │   └── configuration/  # Admin settings
 │       │       ├── shifts/
@@ -128,8 +128,14 @@ backend/
 - Active shifts assigned per workstation
 
 ### Shift Assignments
-- Fixed assignments of employees to specific shifts
-- Used for recurring schedules
+- Fixed assignments: an employee works this shift on this day — or, with
+  `shift_id` null, has this day off
+- Written by **rotation patterns** (`/rotation-patterns`, the Rotations page:
+  a named cycle of shifts and days off, applied to people with a stagger) or
+  one at a time / by import
+- The optimizer receives them as `employees[].fixed_shifts` and keeps them
+  ahead of every other goal (not hard: one a rule forbids is reported in
+  `message`, never makes the plan infeasible)
 
 ### Confirmed Shift Plans
 - Monthly confirmed schedules per employee
@@ -187,9 +193,13 @@ Base URL: `http://localhost:8080/api/v1`
   planner's own instruction where the rules allow. `strategy` is `repair`
   (local moves) or `resolve` (re-solve the period, keeping what was pinned).
   Also served by the agent — see `agent/shift_agent/agent/repair.py`
-- `GET/POST /shift-assignments` - Fixed shift assignments
+- `GET /shift-assignments`, `POST /shift-assignments/clear` - Fixed shift
+  assignments in a period (per employee: `/employees/{id}/shift-assignments`)
+- `GET/POST /rotation-patterns`, `POST /rotation-patterns/{id}/apply` - Rotation
+  patterns; apply writes fixed assignments (`dry_run` = preview)
 - `GET/POST /confirmed-shift-plans` - Confirmed monthly plans
-- `GET /analysis/*` - Analysis and summary endpoints
+- `GET /analysis/*` - Analysis and summary endpoints (`/analysis/fairness`: per
+  employee nights, weekends, hours vs target, wishes — the Fairness page)
 - `GET /info` - Version, commit and build date of the running backend (baked in
   by GitLab CI, overridable by the `build` config section; see `services/info.rs`)
 
@@ -296,6 +306,8 @@ The system integrates with a Python-based optimization service for shift schedul
 **Location**: `planner/` directory
 
 **Features**:
+- **Fixed assignments first** — `fixed_shifts` (rotations) are kept before
+  coverage; any a rule forbids is listed in `message`
 - **Coverage first** — minimum staffing is solved for before anything else;
   balance, wishes and fatigue are optimised afterwards without un-filling a slot.
   Slots still short are listed in the output `message` (tests: `planner/tests/`)

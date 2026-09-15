@@ -142,4 +142,17 @@ pub struct EmployeeTask {
     // optimizer rewards fulfilling them via wish_weight, never forces them).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub wishes: Vec<ShiftWishTask>,
+    // Fixed assignments in the period (employee_shift_assignments — rotation
+    // patterns write them): work this shift that day, or with no shift, be
+    // off. The optimizer keeps them ahead of every other goal and reports any
+    // it cannot.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fixed_shifts: Vec<FixedShiftTask>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FixedShiftTask {
+    pub date: String,
+    /// None = a fixed day off.
+    pub shift_id: Option<String>,
 }

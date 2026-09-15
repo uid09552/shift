@@ -190,6 +190,11 @@ class ShiftPlanner:
         # (day, shift[, workstation]) slot with a minimum. Coverage is solved
         # for first, over exactly these — see _solve.
         self.shortfall_vars: list = []
+        # Fixed assignments the model can hold: (e_idx, d_idx, s_idx or None
+        # for a day off, violation expression, label). Kept first — see _solve.
+        self.fixed_terms: list = []
+        # Fixed assignments no plan could keep (absent, not qualified, …).
+        self.fixed_warnings: list[str] = []
 
     # ---- Input parsing -----------------------------------------------------
 
@@ -250,6 +255,7 @@ class ShiftPlanner:
         self.emp_avail_shifts = {e["id"]: set(e["available_shifts"]) for e in employees}
         self.emp_preferred_off = {e["id"]: e.get("preferred_off", []) for e in employees}
         self.emp_wishes = {e["id"]: e.get("wishes", []) for e in employees}
+        self.emp_fixed = {e["id"]: e.get("fixed_shifts") or [] for e in employees}
 
         self.ws_req_skills = {w["id"]: set(w["required_skills"]) for w in workstations}
         self.ws_op_shifts = {w["id"]: set(w["operating_shifts"]) for w in workstations}
@@ -435,6 +441,7 @@ class ShiftPlanner:
         self.min_emp_penalty = max(self.prio_weights.values()) * 20
         self.hard_staffing_count = 0
         self._pin_locked_assignments()
+        self._add_fixed_assignments()
         self._limit_one_workstation_per_shift()
         self._limit_workstation_staffing()
         self._limit_one_shift_per_day()
@@ -493,6 +500,57 @@ class ShiftPlanner:
             pinned, len(self.lock_warnings),
         )
 
+    def _add_fixed_assignments(self) -> None:
+        """0b) Fixed assignments — rotations, recurring commitments.
+
+        Not hard constraints: a typical rotation (six working days out of
+        eight) breaks the weekly day cap somewhere, and one clash must not cost
+        the whole plan. Each becomes a violation term instead, which _solve
+        minimises before anything else — so every fixed assignment that can be
+        kept is kept, and the rest are named in the result.
+        """
+        shift_index = {s["id"]: i for i, s in enumerate(self.shifts)}
+        for e_idx, emp in enumerate(self.employees):
+            for fixed in self.emp_fixed.get(emp["id"], []):
+                day = parse_date(fixed["date"])
+                d_idx = self.day_index.get(day)
+                if d_idx is None:
+                    continue  # outside the period — not this plan's concern
+                sid = fixed.get("shift_id")
+                if sid is None:
+                    day_vars = self.vars_by_emp_day.get((e_idx, d_idx))
+                    if day_vars:  # nothing to keep off when they cannot work anyway
+                        label = f"{emp['name']} {day} off"
+                        self.fixed_terms.append((e_idx, d_idx, None, sum(day_vars), label))
+                    continue
+                s_idx = shift_index.get(sid)
+                shift_name = self.shifts[s_idx]["name"] if s_idx is not None else sid
+                label = f"{emp['name']} {day} {shift_name}"
+                works = self._works_var(e_idx, d_idx, s_idx) if s_idx is not None else None
+                if works is None:
+                    self.fixed_warnings.append(f"{label} ({self._why_not(emp, day, d_idx, sid)})")
+                    continue
+                self.fixed_terms.append((e_idx, d_idx, s_idx, 1 - works, label))
+        if self.fixed_terms or self.fixed_warnings:
+            logger.info(
+                "Fixed assignments: %d to keep, %d impossible",
+                len(self.fixed_terms), len(self.fixed_warnings),
+            )
+
+    def _why_not(self, emp: dict, day, d_idx: int, sid: str) -> str:
+        """Why no variable exists for this employee on this shift that day."""
+        if sid not in self.shift_weekdays:
+            return "unknown shift"
+        if day in self.emp_unavail[emp["id"]]:
+            return "absent that day"
+        if sid not in self.emp_avail_shifts[emp["id"]]:
+            return "the shift is not among their available shifts"
+        if self.day_wd[d_idx] not in self.shift_weekdays[sid]:
+            return "the shift does not run on that weekday"
+        if not self._shift_open_somewhere(sid, day):
+            return "every workstation running that shift is closed"
+        return "no workstation running that shift needs their capabilities"
+
     def _limit_one_workstation_per_shift(self) -> None:
         """1) At most one workstation per (employee, day, shift)."""
         for terms in self.vars_by_emp_day_shift.values():
@@ -538,7 +596,7 @@ class ShiftPlanner:
             return
         shortfall = self.model.NewIntVar(0, min_emp, name)
         self.model.Add(shortfall >= min_emp - sum(terms))
-        self.shortfall_vars.append((shortfall, weight))
+        self.shortfall_vars.append((shortfall, weight, min_emp))
 
     def _limit_shift_staffing(self) -> None:
         """3b) Minimum and maximum employees per (day, shift), summed across all
@@ -715,8 +773,12 @@ class ShiftPlanner:
         Coverage is already settled before this objective runs (see _solve);
         the penalty only matters when that first phase stopped short of its
         optimum, and then it keeps pushing the shortfall further down."""
-        for shortfall, _weight in self.shortfall_vars:
+        for shortfall, _weight, _ub in self.shortfall_vars:
             self.obj_terms.append(-self.min_emp_penalty * shortfall)
+        # Settled in phase 1 as well; this only keeps pushing if that phase
+        # stopped short of its optimum.
+        for _e, _d, _s, violation, _label in self.fixed_terms:
+            self.obj_terms.append(-self.min_emp_penalty * violation)
 
     def _reward_coverage(self) -> None:
         """1) Coverage: reward assignments weighted by workstation priority."""
@@ -1024,18 +1086,25 @@ class ShiftPlanner:
         long shift (a 24h on-call, a night) can cost more there than filling
         its slot earns — and the solver leaves the slot empty. Instead:
 
-        1. Minimise the priority-weighted shortfall against every minimum.
+        1. Minimise broken fixed assignments, then the priority-weighted
+           shortfall against every minimum.
         2. Pin that result (never more shortfall than phase 1 found) and hint
            its plan, then optimise balance, wishes, fatigue, continuity, …
 
-        Hard mode has no shortfall to minimise, so it goes straight to phase 2.
+        Hard mode has no shortfall to minimise; without fixed assignments
+        either, it goes straight to phase 2.
         """
         started = time.perf_counter()
         fallback = None  # phase-1 plan, if phase 2 finds nothing in time
         coverage_proven = True
 
-        if self.shortfall_vars:
-            weighted = sum(w * v for v, w in self.shortfall_vars)
+        if self.shortfall_vars or self.fixed_terms:
+            # Fixed assignments first, then coverage: one broken fixed
+            # assignment outweighs the largest shortfall the model allows.
+            shortfall = sum(w * v for v, w, _ub in self.shortfall_vars)
+            fixed_weight = sum(w * ub for _v, w, ub in self.shortfall_vars) + 1
+            broken = sum(violation for *_, violation, _label in self.fixed_terms)
+            weighted = fixed_weight * broken + shortfall
             self.model.Minimize(weighted)
             solver, status = self._run_solver(
                 self.time_limit * _COVERAGE_TIME_SHARE, "coverage"
@@ -1221,7 +1290,16 @@ class ShiftPlanner:
             logger.warning("Plan leaves %d slot(s) below minimum staffing", len(gaps))
             for line in gaps:
                 logger.warning("Understaffed — %s", line)
+        not_kept = self.fixed_warnings + [
+            f"{label} (clashes with rest rules or day limits)"
+            for e_idx, d_idx, s_idx, _violation, label in self.fixed_terms
+            if (assigned.get((e_idx, d_idx)) is not None) != (s_idx is not None)
+            or (s_idx is not None and assigned[(e_idx, d_idx)][0] != s_idx)
+        ]
+        if not_kept:
+            logger.warning("Fixed assignments not kept: %d", len(not_kept))
         parts = [
+            _listing("Fixed assignment(s) not kept", not_kept),
             _listing("Ignored locked assignment(s)", self.lock_warnings),
             _listing("Below minimum staffing", gaps),
             note,

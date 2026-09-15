@@ -18,6 +18,11 @@ type NavItem = {
   subItems?: { name: string; path: string; pro?: boolean; new?: boolean; adminOnly?: boolean }[];
 };
 
+/** The URL without query string or fragment: `/scheduler?tab=runs` is still the scheduler's entry. */
+function routePath(url: string): string {
+  return url.split(/[?#]/)[0];
+}
+
 @Component({
   selector: 'app-sidebar',
   imports: [
@@ -60,7 +65,9 @@ export class AppSidebarComponent {
         { name: "nav.schedule", path: "/kalender", pro: false },
         { name: "nav.dayView", path: "/day-view", pro: false },
         { name: "nav.employeeCalendar", path: "/employee-calendar", pro: false },
-        { name: "nav.scheduleOptimizer", path: "/scheduler", pro: false }
+        { name: "nav.rotations", path: "/rotations", pro: false },
+        { name: "nav.scheduleOptimizer", path: "/scheduler", pro: false },
+        { name: "nav.fairness", path: "/fairness", pro: false }
       ],
     },
   ];
@@ -154,7 +161,7 @@ export class AppSidebarComponent {
   }
 
   isActive(path: string): boolean {
-    return this.router.url === path;
+    return routePath(this.router.url) === path;
   }
 
   toggleSubmenu(section: string, index: number) {
@@ -194,7 +201,7 @@ export class AppSidebarComponent {
       group.items.forEach((nav, i) => {
         if (nav.subItems) {
           nav.subItems.forEach(subItem => {
-            if (currentUrl === subItem.path) {
+            if (routePath(currentUrl) === subItem.path) {
               const key = `${group.prefix}-${i}`;
               this.openSubmenu = key;
 

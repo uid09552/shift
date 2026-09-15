@@ -116,7 +116,7 @@ diesel::table! {
     employee_shift_assignments (id) {
         id -> Uuid,
         employee_id -> Uuid,
-        shift_id -> Uuid,
+        shift_id -> Nullable<Uuid>,
         date -> Date,
         tenant_id -> Varchar,
     }
@@ -214,6 +214,17 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    rotation_patterns (id) {
+        id -> Uuid,
+        tenant_id -> Varchar,
+        name -> Varchar,
+        slots -> Jsonb,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
 diesel::joinable!(planning_tasks -> optimized_shift_results (result_id));
 diesel::joinable!(employee_available_shifts -> employees (employee_id));
 diesel::joinable!(employee_available_shifts -> shifts (shift_id));
@@ -252,4 +263,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     audit_logs,
     planner_settings,
     wish_settings,
+    rotation_patterns,
 );

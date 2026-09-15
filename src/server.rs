@@ -21,6 +21,7 @@ use crate::services::{
     employee::EmployeeService,
     optimizer,
     planner_settings::PlannerSettingsService,
+    rotation_pattern::RotationPatternService,
     shift::ShiftService,
     shift_assignment::ShiftAssignmentService,
     shift_wish::ShiftWishService,
@@ -149,6 +150,15 @@ pub fn create_router(state: AppState) -> Router {
         .route("/planner/optimized-shifts", get(optimizer::list_optimized_shifts))
         .route("/planner/optimized-shifts/:result_id", get(optimizer::get_optimized_shift).put(optimizer::update_optimized_shift).delete(optimizer::delete_optimized_shift))
         .route("/planner/optimized-shifts/:result_id/take-as-plan", post(optimizer::take_as_plan))
+        // Rotation patterns: a rhythm applied to people as fixed assignments
+        .route("/rotation-patterns", get(RotationPatternService::list_patterns).post(RotationPatternService::create_pattern))
+        .route(
+            "/rotation-patterns/:pattern_id",
+            put(RotationPatternService::update_pattern).delete(RotationPatternService::delete_pattern),
+        )
+        .route("/rotation-patterns/:pattern_id/apply", post(RotationPatternService::apply_pattern))
+        .route("/shift-assignments", get(RotationPatternService::list_assignments))
+        .route("/shift-assignments/clear", post(RotationPatternService::clear_assignments))
         .route(
             "/planner-settings",
             get(PlannerSettingsService::get_planner_settings).put(PlannerSettingsService::update_planner_settings),
@@ -192,6 +202,7 @@ pub fn create_router(state: AppState) -> Router {
             "/analysis/staffing-per-day",
             get(AnalysisService::get_staffing_per_day),
         )
+        .route("/analysis/fairness", get(AnalysisService::get_fairness))
         // Audit Logs
         .route("/audit-logs", get(AuditLogService::list_audit_logs))
         // What is running — version, commit, build date

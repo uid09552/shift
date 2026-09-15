@@ -47,8 +47,8 @@ Every term this application uses, in plain language. Sorted alphabetically.
   wrong](troubleshooting.md#the-status-says-infeasible).
 
 **Job**
-: One calculation run. The **Jobs** button on the Schedule Optimizer lists
-  them with their status.
+: One calculation run. The **Runs** tab on the Schedule Optimizer lists them
+  with their status.
 
 **Max staffing**
 : The ceiling on how many people may be on a shift or at a workstation. Never

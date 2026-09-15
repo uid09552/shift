@@ -16,5 +16,6 @@ pub mod user_management;
 pub mod tenant;
 pub mod xlsx_io;
 pub mod planner_settings;
+pub mod rotation_pattern;
 pub mod shift_wish;
 pub mod wish_settings;

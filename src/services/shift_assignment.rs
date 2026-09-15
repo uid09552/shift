@@ -161,12 +161,17 @@ impl ShiftAssignmentService {
         State(state): State<AppState>,
         Json(body): Json<Value>,
     ) -> Result<Json<Value>, AppError> {
-        let shift_id = body
-            .get("shift_id")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| AppError::Validation("Missing 'shift_id'".into()))?
-            .parse::<Uuid>()
-            .map_err(|_| AppError::Validation("Invalid 'shift_id' UUID".into()))?;
+        // A shift id, or an explicit null for a fixed day off.
+        let shift_id = match body.get("shift_id") {
+            None => return Err(AppError::Validation("Missing 'shift_id' (null for a day off)".into())),
+            Some(v) if v.is_null() => None,
+            Some(v) => Some(
+                v.as_str()
+                    .ok_or_else(|| AppError::Validation("Invalid 'shift_id', expected UUID string or null".into()))?
+                    .parse::<Uuid>()
+                    .map_err(|_| AppError::Validation("Invalid 'shift_id' UUID".into()))?,
+            ),
+        };
 
         let date_str = body
             .get("date")
@@ -329,7 +334,7 @@ impl ShiftAssignmentService {
             let new_assignment = || EmployeeShiftAssignment {
                 id: Uuid::new_v4(), // replaced by the DB-generated id
                 employee_id,
-                shift_id,
+                shift_id: Some(shift_id),
                 date,
             };
 

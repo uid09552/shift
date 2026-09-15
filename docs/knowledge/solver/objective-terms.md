@@ -19,10 +19,14 @@ sources:
 
 The solver works in two phases.
 
-1. **Coverage.** It minimises the shortfall against every `min_employees` —
-   per workstation slot, weighted by that workstation's `priority_weights`
-   entry, and per shift, weighted as `high`. Nothing else is in play, so no
-   other goal can buy a slot empty.
+1. **Fixed assignments, then coverage.** It minimises broken fixed
+   assignments (`fixed_shifts` — rotations write them), each weighted above the
+   largest possible total shortfall, and then the shortfall against every
+   `min_employees` — per workstation slot, weighted by that workstation's
+   `priority_weights` entry, and per shift, weighted as `high`. Nothing else is
+   in play, so no other goal can buy a slot empty or move a fixed day. Fixed
+   assignments are not hard constraints: one a rule forbids is left out and
+   named in `message` instead of making the plan infeasible.
 2. **Everything else.** It pins the shortfall at what phase 1 reached and
    maximises the weighted sum below, starting from phase 1's roster. Every term
    in the table is traded off against every other — but none of them against
@@ -30,7 +34,8 @@ The solver works in two phases.
 
 Phase 1 may use up to half of `solver_time_limit_seconds`; it usually needs a
 second or two. In `hard` [minimum-staffing mode](/architecture/soft-minimum-hard-maximum.md)
-there is no shortfall to minimise, and only phase 2 runs.
+there is no shortfall to minimise; unless there are fixed assignments to keep,
+only phase 2 runs.
 
 Slots the roster still leaves short are listed in the result's `message`, with
 a reason: *not enough staff left*, or *nobody qualified and available* — the

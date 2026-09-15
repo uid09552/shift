@@ -2,6 +2,19 @@
 
 This is the main event. Open **Planner → Schedule Optimizer**.
 
+The page has five tabs, in the order you work through them:
+
+| Tab | What it is for |
+|---|---|
+| **Calculate** | Choose the period and staff, see who could cover each shift, and start a calculation. |
+| **Proposal** | The calculated plan — by workstation or by employee — to review, edit and *Take as Plan*. |
+| **Check & fix** | Have the assistant check the proposal against your rules, and put right what it finds. |
+| **Compare** | Two calculated plans side by side. |
+| **Runs** | Every stored proposal — open or delete one — and the queue of calculations behind them. |
+
+The tab you are on is kept in the address, so a reload or a shared link lands in
+the same place.
+
 ![The Schedule Optimizer, showing a calculated plan by
 workstation](../assets/screenshots/scheduler.png)
 
@@ -45,12 +58,10 @@ The planner can only work with what it has been told.
 
 ## Step 2 — Set the period and options
 
-The toolbar across the top of the Schedule Optimizer controls what gets
-calculated.
+The **Calculate** tab controls what gets calculated.
 
 | Control | What it does |
 |---|---|
-| **Workstations / Employees** | Switches how the result is displayed. It has no effect on the calculation — flip between them freely. |
 | **Weeks / Date range** | *Weeks* plans a number of weeks starting from now (2, 4, 6…). *Date range* lets you pick an exact start and end date. |
 | **Plan `4w`** | How many weeks ahead to plan, when in *Weeks* mode. |
 | **Match monthly hours** | Tick this to make the planner work hard at hitting each person's contracted monthly hours. Leave it off when planning a short stretch that isn't a whole month, where the target doesn't mean much. |
@@ -63,10 +74,10 @@ calculated.
 
 ### Check coverage before you calculate
 
-**Check coverage** opens a grid for the period and staff you have chosen: for
+Below the controls, the **Coverage check** shows a grid for the period and staff you have chosen: for
 every shift on every day, how many people it needs against how many *could*
 take it — people with the right qualifications, the shift among their
-available shifts, and no absence that day. It follows the toolbar, so change
+available shifts, and no absence that day. It follows the controls, so change
 the period or the staff and it updates.
 
 - A **red** cell has fewer candidates than places. That day will come out
@@ -85,6 +96,28 @@ The counts leave out rest rules and the days-per-week cap per day, so they are
 an upper bound: a red cell is certainly short, a grey one can still come out
 thin.
 
+### Fixed rhythms: Rotations
+
+Many wards work to a rhythm — *early, early, late, late, night, off, off, off*.
+**Planner → Rotations** lets you write one once and apply it to people:
+
+1. **New pattern** — a name, and the days of the cycle as shift short names
+   separated by spaces, with `-` for a day off: `F F S S N - - -`. The chips
+   below show it; a yellow box lists anything in it the planner's rules forbid
+   (too many days in a row or per week, too little rest between two shifts, work
+   right after a night that needs free days).
+2. **Pick the pattern, the people and the period.** *Stagger* starts each next
+   person that many days later in the cycle, so a team covers the rhythm between
+   them.
+3. **Preview** shows the grid exactly as it will be written. Days already fixed
+   differently stay as they are (amber) unless you tick *Replace*; working days
+   on someone's absence are skipped (struck through).
+4. **Write**. The days become fixed shifts and fixed days off.
+
+The planner keeps fixed days ahead of everything else, and names in its result
+any it could not keep. **Remove fixed assignments** frees the selected people's
+days in the period again. Deleting a pattern leaves what was written from it.
+
 ## Step 3 — Calculate
 
 Press **Calculate Plan**. The button changes to *Calculating…*.
@@ -94,8 +127,9 @@ while you wait. Typical wards take a few seconds to a couple of minutes; the
 time limit is set in [Planner Settings](how-planning-works.md#the-settings-page)
 and defaults to two minutes.
 
-Press **Jobs** to see the queue of calculation runs, their status, and any
-error message.
+When it finishes, the new plan opens in the **Proposal** tab. While it runs, a
+*Calculating…* marker sits in the header; the **Runs** tab shows the queue of
+calculations, their status, and any error message.
 
 ### The result line
 
@@ -123,8 +157,9 @@ When it finishes, a summary line appears above the calendar:
 
 ## Step 4 — Review the proposal
 
-Two views of the same result, chosen with the **Workstations / Employees**
-toggle.
+The **Proposal** tab shows two views of the same result, chosen with the
+**Workstations / Employees** toggle. It has no effect on the calculation — flip
+between them freely. To look at an older result, open it from the **Runs** tab.
 
 **By workstation** — for each place and each day, which shifts run and how many
 people are on them. This is the view for answering *"is the emergency room
@@ -170,8 +205,11 @@ before confirming.
 
 ## Step 6 — Have it checked
 
-Press **Verify Plan**. The assistant re-checks the proposal against every rule
-it was supposed to satisfy and writes up what it finds.
+Press **Verify Plan** on the Proposal tab, or **Run check** on the **Check &
+fix** tab. The assistant re-checks the proposal against every rule it was
+supposed to satisfy and writes up what it finds. The report stays on the tab —
+its badge shows how many problems it found, or ✓ — until you open a different
+proposal.
 
 This is worth doing on any plan you have hand-edited: those edits go into the
 proposal without being checked against anything, and nothing stops you putting
@@ -285,10 +323,10 @@ people, and will report shortfalls at every workstation the others normally
 cover.
 
 **Comparing two options.** Calculate a plan, change one setting, calculate
-again. Both runs are kept and listed under **Jobs**; neither affects the
+again. Both runs are kept and listed under **Runs**; neither affects the
 confirmed roster until you press *Take as Plan*.
 
-Then press **Compare** (it appears once there are two runs) and pick *Plan A*
+Then open the **Compare** tab (it becomes available once there are two runs) and pick *Plan A*
 and *Plan B*. A summary puts the two side by side, with B's difference to A in
 green when it is better and red when it is worse:
 

@@ -95,4 +95,39 @@ impl AnalysisService {
 
         Ok(Json(serde_json::to_value(results).unwrap()))
     }
+
+    /// GET /analysis/fairness
+    /// Per employee, over the period: shifts, hours against target, nights,
+    /// weekends, wishes granted of asked, days absent — from confirmed plans.
+    /// Requires from_date and to_date query parameters (YYYY-MM-DD format).
+    pub async fn get_fairness(
+        tenant: TenantContext,
+        Query(q): Query<AnalysisQuery>,
+        State(state): State<AppState>,
+    ) -> Result<Json<Value>, AppError> {
+        let from_date = NaiveDate::parse_from_str(&q.from_date, "%Y-%m-%d")
+            .map_err(|_| AppError::Validation("Invalid from_date format, use YYYY-MM-DD".into()))?;
+        let to_date = NaiveDate::parse_from_str(&q.to_date, "%Y-%m-%d")
+            .map_err(|_| AppError::Validation("Invalid to_date format, use YYYY-MM-DD".into()))?;
+
+        if from_date > to_date {
+            return Err(AppError::Validation("from_date must be before or equal to to_date".into()));
+        }
+        // A year is plenty for "this quarter" questions and keeps the load bounded.
+        if (to_date - from_date).num_days() > 366 {
+            return Err(AppError::Validation("The period may cover at most one year".into()));
+        }
+
+        let employees = state
+            .analysis_repo
+            .get_fairness(&tenant.0, from_date, to_date)
+            .await?;
+
+        Ok(Json(serde_json::json!({
+            "from_date": from_date,
+            "to_date": to_date,
+            "days": (to_date - from_date).num_days() + 1,
+            "employees": employees,
+        })))
+    }
 }

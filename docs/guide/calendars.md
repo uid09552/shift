@@ -133,6 +133,31 @@ as the real shortfall it is.
 
 ---
 
+## Fairness — who has had what
+
+**Planner → Fairness** lists everyone with their share of the confirmed roster
+over a period: *This month*, *Last month*, *This quarter*, *Last 3 months*, or a
+custom range.
+
+| Column | What it counts |
+|---|---|
+| **Shifts**, **Hours** | Shifts worked and their hours. |
+| **vs target** | Hours over or under the contracted monthly hours, scaled to the period. Amber when more than 10 % off. |
+| **Nights** | Shifts that run past midnight. |
+| **Weekend days** | Saturdays and Sundays worked; hover for how many weekends that touched. |
+| **Wishes** | Shift wishes granted, of those asked. |
+| **Absent** | Days marked sick, on leave or holiday — not plain days off. |
+
+Click any column heading to sort by it — most first, click again for least. The
+four figures at the top give the range across everyone who worked, so a gap of
+0–10 nights stands out before you read a single row. Click a name to open that
+person's calendar.
+
+It reads the **confirmed** roster only. To see how a proposal would share the
+work before you take it, use **Compare** on the Schedule Optimizer.
+
+---
+
 ## Exporting
 
 Every calendar has an **Export Excel** button that exports the current view —

@@ -118,6 +118,98 @@ impl EmployeeShiftAssignmentRepository for DieselEmployeeShiftAssignmentReposito
         .await.map_err(|_| AppError::Internal)?
     }
 
+    async fn list_assignments_in_range(
+        &self,
+        tenant_id: &str,
+        employee_ids: Option<Vec<Uuid>>,
+        from_date: NaiveDate,
+        to_date: NaiveDate,
+    ) -> Result<Vec<EmployeeShiftAssignment>, AppError> {
+        let tenant_id = tenant_id.to_string();
+        let pool = Arc::clone(&self.pool);
+        telemetry::db_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            let mut query = employee_shift_assignments::table
+                .filter(employee_shift_assignments::tenant_id.eq(&tenant_id))
+                .filter(employee_shift_assignments::date.ge(from_date))
+                .filter(employee_shift_assignments::date.le(to_date))
+                .into_boxed();
+            if let Some(ids) = employee_ids {
+                query = query.filter(employee_shift_assignments::employee_id.eq_any(ids));
+            }
+            query
+                .order((employee_shift_assignments::employee_id.asc(), employee_shift_assignments::date.asc()))
+                .load::<models::EmployeeShiftAssignment>(&mut conn)
+                .map(|rows| rows.into_iter().map(to_domain).collect())
+                .map_err(|_| AppError::DbError)
+        })
+        .await.map_err(|_| AppError::Internal)?
+    }
+
+    async fn replace_assignments(
+        &self,
+        tenant_id: &str,
+        delete_ids: Vec<Uuid>,
+        inserts: Vec<EmployeeShiftAssignment>,
+    ) -> Result<usize, AppError> {
+        let tenant_id = tenant_id.to_string();
+        let pool = Arc::clone(&self.pool);
+        telemetry::db_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            conn.transaction::<usize, DieselError, _>(|conn| {
+                if !delete_ids.is_empty() {
+                    diesel::delete(
+                        employee_shift_assignments::table
+                            .filter(employee_shift_assignments::tenant_id.eq(&tenant_id))
+                            .filter(employee_shift_assignments::id.eq_any(&delete_ids)),
+                    )
+                    .execute(conn)?;
+                }
+                let rows: Vec<NewEmployeeShiftAssignment> = inserts
+                    .iter()
+                    .map(|a| NewEmployeeShiftAssignment {
+                        employee_id: a.employee_id,
+                        shift_id: a.shift_id,
+                        date: a.date,
+                        tenant_id: tenant_id.clone(),
+                    })
+                    .collect();
+                diesel::insert_into(employee_shift_assignments::table)
+                    .values(&rows)
+                    .execute(conn)
+            })
+            .map_err(|e| match e {
+                DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => AppError::Duplicate,
+                _ => AppError::DbError,
+            })
+        })
+        .await.map_err(|_| AppError::Internal)?
+    }
+
+    async fn delete_assignments_in_range(
+        &self,
+        tenant_id: &str,
+        employee_ids: Vec<Uuid>,
+        from_date: NaiveDate,
+        to_date: NaiveDate,
+    ) -> Result<usize, AppError> {
+        let tenant_id = tenant_id.to_string();
+        let pool = Arc::clone(&self.pool);
+        telemetry::db_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            diesel::delete(
+                employee_shift_assignments::table
+                    .filter(employee_shift_assignments::tenant_id.eq(&tenant_id))
+                    .filter(employee_shift_assignments::employee_id.eq_any(&employee_ids))
+                    .filter(employee_shift_assignments::date.ge(from_date))
+                    .filter(employee_shift_assignments::date.le(to_date)),
+            )
+            .execute(&mut conn)
+            .map_err(|_| AppError::DbError)
+        })
+        .await.map_err(|_| AppError::Internal)?
+    }
+
     async fn delete_assignment(
         &self,
         tenant_id: &str,
@@ -140,5 +232,14 @@ impl EmployeeShiftAssignmentRepository for DieselEmployeeShiftAssignmentReposito
             Ok(())
         })
         .await.map_err(|_| AppError::Internal)?
+    }
+}
+
+fn to_domain(a: models::EmployeeShiftAssignment) -> EmployeeShiftAssignment {
+    EmployeeShiftAssignment {
+        id: a.id,
+        employee_id: a.employee_id,
+        shift_id: a.shift_id,
+        date: a.date,
     }
 }

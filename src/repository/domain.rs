@@ -101,10 +101,13 @@ pub struct WorkstationUnavailability {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+/// A fixed assignment: this person works this shift on this day — or, with
+/// no shift, has this day off. Rotation patterns write these; the planner keeps
+/// them ahead of every other goal.
 pub struct EmployeeShiftAssignment {
     pub id: Uuid,
     pub employee_id: Uuid,
-    pub shift_id: Uuid,
+    pub shift_id: Option<Uuid>,
     pub date: NaiveDate,
 }
 
@@ -214,6 +217,32 @@ pub trait EmployeeShiftAssignmentRepository {
     async fn get_assignments_for_employee(&self, tenant_id: &str, employee_id: Uuid) -> Result<Vec<EmployeeShiftAssignment>, AppError>;
     async fn get_assignments_for_employee_in_range(&self, tenant_id: &str, employee_id: Uuid, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<EmployeeShiftAssignment>, AppError>;
     async fn delete_assignment(&self, tenant_id: &str, id: Uuid) -> Result<(), AppError>;
+    /// Everyone's fixed assignments in the range, or only these employees'.
+    async fn list_assignments_in_range(&self, tenant_id: &str, employee_ids: Option<Vec<Uuid>>, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<EmployeeShiftAssignment>, AppError>;
+    /// Deletes `delete_ids`, then inserts `inserts`, in one transaction: a
+    /// rotation lands whole or not at all. Returns how many were inserted.
+    async fn replace_assignments(&self, tenant_id: &str, delete_ids: Vec<Uuid>, inserts: Vec<EmployeeShiftAssignment>) -> Result<usize, AppError>;
+    /// Removes these employees' fixed assignments in the range; returns how many.
+    async fn delete_assignments_in_range(&self, tenant_id: &str, employee_ids: Vec<Uuid>, from_date: NaiveDate, to_date: NaiveDate) -> Result<usize, AppError>;
+}
+
+/// A named rhythm: one slot per day of the cycle, a shift or None for a day off.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct RotationPatternDomain {
+    pub id: Uuid,
+    pub name: String,
+    pub slots: Vec<Option<Uuid>>,
+    pub created_at: chrono::NaiveDateTime,
+    pub updated_at: chrono::NaiveDateTime,
+}
+
+#[async_trait]
+pub trait RotationPatternRepository {
+    async fn list_patterns(&self, tenant_id: &str) -> Result<Vec<RotationPatternDomain>, AppError>;
+    async fn get_pattern(&self, tenant_id: &str, id: Uuid) -> Result<Option<RotationPatternDomain>, AppError>;
+    async fn create_pattern(&self, tenant_id: &str, name: String, slots: Vec<Option<Uuid>>) -> Result<RotationPatternDomain, AppError>;
+    async fn update_pattern(&self, tenant_id: &str, id: Uuid, name: String, slots: Vec<Option<Uuid>>) -> Result<RotationPatternDomain, AppError>;
+    async fn delete_pattern(&self, tenant_id: &str, id: Uuid) -> Result<(), AppError>;
 }
 
 #[async_trait]
@@ -293,11 +322,36 @@ pub struct ShiftDailyStaffingDomain {
     pub employees_working: i64,
 }
 
+/// One person's share of the roster over a period — the figures wards argue
+/// about. Taken from confirmed plans only: a proposal is not a roster.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct EmployeeFairnessDomain {
+    pub employee_id: Uuid,
+    pub employee_name: String,
+    /// Shifts worked (present, with a shift).
+    pub shifts: i64,
+    pub hours: f64,
+    /// monthly_working_hours scaled to the period (× days / 30), as the solver
+    /// reads it; None without a monthly target.
+    pub target_hours: Option<f64>,
+    /// Shifts that run past midnight.
+    pub night_shifts: i64,
+    /// Saturdays and Sundays worked.
+    pub weekend_days: i64,
+    /// Weekends (Saturday–Sunday of one week) with at least one day worked.
+    pub weekends: i64,
+    pub wishes_asked: i64,
+    pub wishes_granted: i64,
+    /// Days marked absent — sick, leave, holiday — as opposed to a plain day off.
+    pub days_absent: i64,
+}
+
 #[async_trait]
 pub trait AnalysisRepository {
     async fn get_planned_hours_per_day_per_workstation(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<WorkstationDailyHoursDomain>, AppError>;
     async fn get_planned_employees_per_day_per_workstation(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<WorkstationDailyEmployeesDomain>, AppError>;
     async fn get_staffing_per_day(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<DailyStaffingDomain>, AppError>;
+    async fn get_fairness(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<EmployeeFairnessDomain>, AppError>;
 }
 
 #[async_trait]

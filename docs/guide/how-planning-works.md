@@ -51,9 +51,15 @@ of them is not produced at all.
 
 ## The things it tries to do well
 
-**Covering the posts comes first.** Before anything else, the planner fills as
-many minimum-staffing slots as the rules allow — high-priority workstations
-first when staff run short. Only then does it polish the roster, and it never
+**Your fixed days come first.** Shifts and days off fixed for someone — by a
+[rotation](creating-a-plan.md#fixed-rhythms-rotations), or one at a time — are
+kept before anything else, as long as no rule forbids them. One that clashes
+(two nights in a row with two recovery days required, say) is left out and
+listed with the result; it never stops a plan being made.
+
+**Covering the posts comes next.** The planner then fills as many
+minimum-staffing slots as the rules allow — high-priority workstations first
+when staff run short. Only then does it polish the roster, and it never
 gives back a filled slot to do so. Any slot still short is listed with the
 result, with the reason: *not enough staff left*, or *nobody qualified and
 available* (nobody in your data could ever take it — check capabilities and

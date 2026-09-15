@@ -8,7 +8,7 @@ use axum::{
 use chrono::{Local, NaiveDate, Utc};
 use crate::broker::JetStreamStatus;
 use crate::errors::AppError;
-use crate::models::{ConstraintTask, PlanningPeriod, ShiftTask, ShiftWeekdayTimeTask, TaskDTO, TaskResultDto, EmployeeTask, WorkstationTask, WorkstationUnavailabilityRange, CapabilityTask, PreferredOffTask, ShiftWishTask};
+use crate::models::{ConstraintTask, PlanningPeriod, ShiftTask, ShiftWeekdayTimeTask, TaskDTO, TaskResultDto, EmployeeTask, WorkstationTask, WorkstationUnavailabilityRange, CapabilityTask, PreferredOffTask, ShiftWishTask, FixedShiftTask};
 use crate::repository::{AppState, domain::*};
 use crate::services::audit_log::{self, AuditActor};
 use crate::services::tenant::TenantContext;
@@ -188,11 +188,33 @@ impl OptimizerService {
                 }
             }).collect();
 
+        let today = Local::now().naive_local().date();
+        let period_start = start_date
+            .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
+            .unwrap_or(today);
+        let period_end = end_date
+            .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
+            .unwrap_or_else(|| today.checked_add_signed(chrono::Duration::days(27)).unwrap_or(today));
+
+        // Fixed assignments inside the period, per employee.
+        let mut fixed_map: std::collections::HashMap<Uuid, Vec<FixedShiftTask>> = std::collections::HashMap::new();
+        for a in state
+            .shift_assignment_repo
+            .list_assignments_in_range(tenant_id, None, period_start, period_end)
+            .await?
+        {
+            fixed_map.entry(a.employee_id).or_default().push(FixedShiftTask {
+                date: a.date.to_string(),
+                shift_id: a.shift_id.map(|id| id.to_string()),
+            });
+        }
+
         let employee_tasks: Vec<EmployeeTask> = employees.into_iter()
             .map(|emp| {
                 let unavailability = unavail_map.get(&emp.id).cloned().unwrap_or_default();
                 let preferred_off = preferred_off_map.get(&emp.id).cloned().unwrap_or_default();
                 let wishes = wish_map.get(&emp.id).cloned().unwrap_or_default();
+                let fixed_shifts = fixed_map.remove(&emp.id).unwrap_or_default();
                 EmployeeTask {
                     id: emp.id.to_string(),
                     name: emp.name,
@@ -202,6 +224,7 @@ impl OptimizerService {
                     monthly_working_hours: emp.monthly_working_hours,
                     preferred_off,
                     wishes,
+                    fixed_shifts,
                 }
             }).collect();
 
@@ -222,14 +245,6 @@ impl OptimizerService {
             workstation_tasks.len(), total_workstations - workstation_tasks.len(),
             employee_tasks.len(),
         );
-
-        let today = Local::now().naive_local().date();
-        let period_start = start_date
-            .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
-            .unwrap_or(today);
-        let period_end = end_date
-            .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
-            .unwrap_or_else(|| today.checked_add_signed(chrono::Duration::days(27)).unwrap_or(today));
 
         Ok(TaskDTO {
             planning_period: PlanningPeriod {

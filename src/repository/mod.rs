@@ -10,6 +10,7 @@ pub mod analysisrepository;
 pub mod auditlogrepository;
 pub mod plannersettingsrepository;
 pub mod wishsettingsrepository;
+pub mod rotationpatternrepository;
 
 use std::sync::Arc;
 use crate::database::DbPool;
@@ -32,6 +33,7 @@ use self::analysisrepository::DieselAnalysisRepository;
 use self::auditlogrepository::DieselAuditLogRepository;
 use self::plannersettingsrepository::DieselPlannerSettingsRepository;
 use self::wishsettingsrepository::DieselWishSettingsRepository;
+use self::rotationpatternrepository::DieselRotationPatternRepository;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -50,6 +52,7 @@ pub struct AppState {
     pub audit_log_repo: DieselAuditLogRepository,
     pub planner_settings_repo: DieselPlannerSettingsRepository,
     pub wish_settings_repo: DieselWishSettingsRepository,
+    pub rotation_pattern_repo: DieselRotationPatternRepository,
     pub pool: Arc<DbPool>,
     pub nats_client: Option<async_nats::Client>,
     pub jetstream_status: JetStreamStatus,
@@ -80,6 +83,7 @@ impl AppState {
             audit_log_repo: DieselAuditLogRepository { pool: Arc::clone(&pool) },
             planner_settings_repo: DieselPlannerSettingsRepository { pool: Arc::clone(&pool) },
             wish_settings_repo: DieselWishSettingsRepository { pool: Arc::clone(&pool) },
+            rotation_pattern_repo: DieselRotationPatternRepository { pool: Arc::clone(&pool) },
             pool,
             nats_client: None,
             jetstream_status: JetStreamStatus::Unavailable,
@@ -107,6 +111,7 @@ impl AppState {
             audit_log_repo: DieselAuditLogRepository { pool: Arc::clone(&pool) },
             planner_settings_repo: DieselPlannerSettingsRepository { pool: Arc::clone(&pool) },
             wish_settings_repo: DieselWishSettingsRepository { pool: Arc::clone(&pool) },
+            rotation_pattern_repo: DieselRotationPatternRepository { pool: Arc::clone(&pool) },
             pool,
             nats_client: Some(nats_client),
             jetstream_status,

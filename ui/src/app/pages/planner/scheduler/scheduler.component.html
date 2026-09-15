@@ -1,54 +1,58 @@
 <app-page-breadcrumb pageTitle="nav.scheduleOptimizer" />
 
 <div class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-  <!-- Header -->
-  <div class="border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
+  <!-- Header: what is loaded, what is running -->
+  <div class="px-5 pt-4 sm:px-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="flex items-center gap-3">
+      <div class="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
         <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'scheduler.heading' | t }}</h3>
-        @if (latestResult) {
-          <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">{{ 'scheduler.planAvailable' | t }}</span>
+        @if (selectedResult) {
+          <span class="truncate text-xs text-gray-500 dark:text-gray-400" data-testid="optimizer-showing">
+            {{ 'scheduler.showing' | t: { label: resultLabel(selectedResult) } }}
+          </span>
         }
       </div>
-      <div class="flex flex-wrap items-center gap-2">
-        <!-- View toggle -->
-        @if (selectedResult) {
-          <div class="flex items-center rounded-lg border border-gray-200 p-0.5 dark:border-gray-700">
-            <button
-              (click)="setView('workstation')"
-              class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition"
-              [class.bg-white]="viewMode === 'workstation'"
-              [class.shadow-sm]="viewMode === 'workstation'"
-              [class.text-gray-800]="viewMode === 'workstation'"
-              [class.dark:bg-gray-700]="viewMode === 'workstation'"
-              [class.dark:text-white]="viewMode === 'workstation'"
-              [class.text-gray-500]="viewMode !== 'workstation'"
-              [class.dark:text-gray-400]="viewMode !== 'workstation'"
-            >
-              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
-              </svg>
-              {{ 'scheduler.viewWorkstations' | t }}
-            </button>
-            <button
-              (click)="setView('employee')"
-              class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition"
-              [class.bg-white]="viewMode === 'employee'"
-              [class.shadow-sm]="viewMode === 'employee'"
-              [class.text-gray-800]="viewMode === 'employee'"
-              [class.dark:bg-gray-700]="viewMode === 'employee'"
-              [class.dark:text-white]="viewMode === 'employee'"
-              [class.text-gray-500]="viewMode !== 'employee'"
-              [class.dark:text-gray-400]="viewMode !== 'employee'"
-            >
-              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>
-              </svg>
-              {{ 'scheduler.viewEmployees' | t }}
-            </button>
-          </div>
-        }
+      @if (isPlanning) {
+        <button type="button" (click)="setTab('runs')"
+          class="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">
+          <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+            <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
+          </svg>
+          {{ 'scheduler.calculating' | t }}
+        </button>
+      }
+    </div>
+  </div>
 
+  <!-- One job per tab, in the order a planner works through them -->
+  <div class="mt-2 border-b border-gray-100 px-5 dark:border-white/[0.05] sm:px-6">
+    <app-tabs
+      idPrefix="optimizer"
+      [tabs]="tabItems"
+      [active]="activeTab"
+      [ariaLabel]="'scheduler.tabs' | t"
+      (activeChange)="setTab($event)"
+    />
+  </div>
+
+  <!-- Error / take-plan feedback -->
+  @if (error || takePlanError) {
+    <div class="flex items-center justify-center border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
+      <div class="flex items-center gap-2 rounded-lg bg-red-50 px-4 py-3 dark:bg-red-500/10">
+        <svg class="h-5 w-5 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span class="text-sm text-red-600 dark:text-red-400">{{ (error || takePlanError || '') | t }}</span>
+      </div>
+    </div>
+  }
+
+  @switch (activeTab) {
+    <!-- ── Calculate: period, options, who could work, run ─────────── -->
+    @case ('calculate') {
+      <section role="tabpanel" id="optimizer-panel-calculate" aria-labelledby="optimizer-calculate" data-testid="optimizer-calculate">
+        <div class="flex flex-wrap items-center gap-2 border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
         <!-- Planning range -->
         <div class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 dark:border-gray-700">
           <div class="flex items-center rounded-md border border-gray-200 p-0.5 dark:border-gray-700">
@@ -140,24 +144,7 @@
           }
         </div>
 
-        <!-- Who could work each shift, before calculating -->
-        <button
-          type="button"
-          (click)="toggleCoverage()"
-          [attr.aria-expanded]="showCoverage"
-          data-testid="coverage-toggle"
-          class="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
-          [class.bg-gray-50]="showCoverage"
-          [class.dark:bg-white/[0.05]]="showCoverage"
-          [title]="'scheduler.coverage.buttonTitle' | t"
-        >
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect>
-            <rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 17.5h7M17.5 14v7"></path>
-          </svg>
-          <span>{{ 'scheduler.coverage.button' | t }}</span>
-        </button>
-
+          <span class="grow"></span>
         <button (click)="triggerPlan()" [disabled]="isPlanning" class="flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50">
           @if (isPlanning) {
             <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -172,9 +159,218 @@
             <span>{{ 'scheduler.calculatePlan' | t }}</span>
           }
         </button>
+        </div>
 
-        <!-- Take as plan button -->
+        <!-- Coverage forecast: required against who could work, per day and shift -->
+        <div class="px-5 py-4 sm:px-6" data-testid="coverage-forecast">
+          <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90">{{ 'scheduler.coverage.title' | t }}</h4>
+          <p class="mt-0.5 max-w-3xl text-xs text-gray-500 dark:text-gray-400">{{ 'scheduler.coverage.intro' | t }}</p>
+          @if (coverageError) {
+            <p class="mt-3 text-sm text-error-600 dark:text-error-400" role="alert">{{ coverageError | t }}</p>
+          } @else if (!coverage) {
+            <p class="mt-3 text-sm text-gray-400 dark:text-gray-500">{{ 'scheduler.coverage.loading' | t }}</p>
+          } @else {
+            <div class="transition-opacity" [class.opacity-50]="coverageLoading">
+              <!-- The two numbers that answer "can this period be staffed at all?" -->
+              <div class="mt-3 flex flex-wrap gap-x-8 gap-y-1 text-sm">
+                <span
+                  [class]="coverage.shortDays ? 'font-medium text-error-600 dark:text-error-400' : 'text-gray-700 dark:text-gray-300'"
+                  data-testid="coverage-short-days"
+                >
+                  {{ (coverage.shortDays ? 'scheduler.coverage.shortDays' : 'scheduler.coverage.noShortDays') | t: { count: coverage.shortDays, total: coverage.days.length } }}
+                </span>
+                <span
+                  [class]="coverage.capacity < coverage.requiredShifts ? 'font-medium text-error-600 dark:text-error-400' : 'text-gray-700 dark:text-gray-300'"
+                >
+                  {{ 'scheduler.coverage.capacity' | t: { required: coverage.requiredShifts, capacity: coverage.capacity } }}
+                </span>
+              </div>
+
+              @if (coverage.setupGaps.length) {
+                <div
+                  class="mt-3 rounded-lg border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300"
+                  data-testid="coverage-setup-gaps"
+                >
+                  <p class="font-medium">{{ 'scheduler.coverage.setupGapsTitle' | t }}</p>
+                  <ul class="mt-1 list-disc space-y-0.5 pl-5">
+                    @for (gap of coverage.setupGaps; track gap.workstationName + gap.shiftName) {
+                      <li>
+                        {{ 'scheduler.coverage.setupGap' | t: {
+                          shift: gap.shiftName,
+                          workstation: gap.workstationName,
+                          holdSkills: gap.holdSkills,
+                          workShift: gap.workShift
+                        } }}
+                      </li>
+                    }
+                  </ul>
+                </div>
+              }
+
+              <div class="mt-4 max-w-full overflow-x-auto pb-1">
+                <table class="border-separate border-spacing-0 text-xs">
+                  <thead>
+                    <tr>
+                      <th class="sticky left-0 z-10 min-w-[120px] bg-white pr-3 dark:bg-gray-900"></th>
+                      @for (day of coverage.days; track day.date; let first = $first) {
+                        @let label = coverageDayLabel(day.date, first);
+                        <th
+                          class="min-w-[40px] px-0.5 pb-1 text-center font-normal"
+                          [class.text-gray-400]="day.weekday >= 5"
+                          [class.text-gray-500]="day.weekday < 5"
+                        >
+                          <div class="h-3.5 text-[10px] font-medium text-gray-400 dark:text-gray-500">{{ label.month }}</div>
+                          <div class="text-[10px]">{{ label.weekday }}</div>
+                          <div class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ label.day }}</div>
+                        </th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (row of coverage.rows; track row.shiftId) {
+                      <tr>
+                        <th scope="row" class="sticky left-0 z-10 max-w-[160px] truncate bg-white py-0.5 pr-3 text-left font-medium text-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                          {{ row.shiftName }}
+                        </th>
+                        @for (cell of row.cells; track cell.date) {
+                          <td class="p-0.5">
+                            @if (cell.runs && cell.required > 0) {
+                              <button
+                                type="button"
+                                (click)="selectCoverageCell(cell, row.shiftName)"
+                                class="w-full rounded-md px-1 py-1 text-center tabular-nums leading-tight transition-colors"
+                                [ngClass]="{
+                                  'bg-error-50 text-error-700 hover:bg-error-100 dark:bg-error-500/15 dark:text-error-300': cell.level === 'short',
+                                  'bg-warning-50 text-warning-700 hover:bg-warning-100 dark:bg-warning-500/15 dark:text-warning-300': cell.level === 'tight',
+                                  'bg-gray-50 text-gray-600 hover:bg-gray-100 dark:bg-white/[0.04] dark:text-gray-400': cell.level === 'ok',
+                                  'ring-2 ring-brand-500/60': selectedCoverage?.cell === cell
+                                }"
+                                [attr.aria-label]="('scheduler.coverage.cellSummary' | t: { required: cell.required, available: cell.available }) + ' · ' + row.shiftName"
+                              >
+                                <span class="font-semibold">{{ cell.required }}</span><span class="opacity-60">/{{ cell.available }}</span>
+                              </button>
+                            } @else if (cell.runs) {
+                              <!-- Runs, but nothing to fill: no minimum, or every station closed. -->
+                              <span class="block text-center text-gray-300 dark:text-gray-700">–</span>
+                            }
+                          </td>
+                        }
+                      </tr>
+                    }
+                    <tr>
+                      <th scope="row" class="sticky left-0 z-10 bg-white pt-1.5 pr-3 text-left font-semibold text-gray-800 dark:bg-gray-900 dark:text-white/90">
+                        {{ 'scheduler.coverage.dayTotal' | t }}
+                      </th>
+                      @for (day of coverage.days; track day.date) {
+                        <td class="px-0.5 pt-1.5 text-center tabular-nums leading-tight">
+                          @if (day.required > 0) {
+                            <span
+                              class="font-semibold"
+                              [class.text-error-600]="day.level === 'short'"
+                              [class.dark:text-error-400]="day.level === 'short'"
+                              [class.text-warning-600]="day.level === 'tight'"
+                              [class.dark:text-warning-400]="day.level === 'tight'"
+                              [class.text-gray-700]="day.level === 'ok'"
+                              [class.dark:text-gray-300]="day.level === 'ok'"
+                            >{{ day.required }}</span><span class="text-gray-400 dark:text-gray-500">/{{ day.available }}</span>
+                          }
+                        </td>
+                      }
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              @if (selectedCoverage; as sel) {
+                <div class="mt-3 rounded-lg border border-gray-200 px-4 py-3 text-sm dark:border-gray-700" data-testid="coverage-detail">
+                  <p class="font-medium text-gray-800 dark:text-white/90">
+                    {{ formatDateLabel(sel.cell.date) }} · {{ sel.shiftName }} —
+                    {{ 'scheduler.coverage.cellSummary' | t: { required: sel.cell.required, available: sel.cell.available } }}
+                  </p>
+                  <ul class="mt-1.5 space-y-0.5">
+                    @for (station of sel.cell.stations; track station.workstationId) {
+                      <li
+                        [class]="station.qualified < station.need ? 'text-error-600 dark:text-error-400' : 'text-gray-600 dark:text-gray-400'"
+                      >
+                        {{ station.name }}: {{ 'scheduler.coverage.stationLine' | t: { need: station.need, qualified: station.qualified } }}
+                      </li>
+                    }
+                  </ul>
+                </div>
+              }
+
+              <p class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                <span><span class="font-semibold text-gray-700 dark:text-gray-300">3</span>/5 = {{ 'scheduler.coverage.legendCell' | t }}</span>
+                <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-error-100 dark:bg-error-500/30"></span>{{ 'scheduler.coverage.legendShort' | t }}</span>
+                <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-warning-100 dark:bg-warning-500/30"></span>{{ 'scheduler.coverage.legendTight' | t }}</span>
+                <span>{{ 'scheduler.coverage.legendBound' | t }}</span>
+              </p>
+            </div>
+          }
+        </div>
+      </section>
+    }
+
+    <!-- ── Proposal: the calculated plan, edited and taken ─────────── -->
+    @case ('proposal') {
+      <section role="tabpanel" id="optimizer-panel-proposal" aria-labelledby="optimizer-proposal" data-testid="optimizer-proposal">
         @if (selectedResult) {
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-3 dark:border-white/[0.05] sm:px-6">
+        <div class="flex flex-wrap items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+          <span>{{ 'scheduler.period' | t: {
+            from: formatDateLabel(selectedResult.result.planning_period.start_date),
+            to: formatDateLabel(selectedResult.result.planning_period.end_date)
+          } }}</span>
+          <span>{{ 'scheduler.score' | t: { value: objectiveValue } }}</span>
+          <span>{{ 'scheduler.statusValue' | t: { value: status } }}</span>
+          @if (savingSchedule) {
+            <span class="flex items-center gap-1 text-brand-500">
+              <svg class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+                <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
+              </svg>
+              {{ 'scheduler.savingEdit' | t }}
+            </span>
+          }
+          @if (viewMode === 'employee') {
+            <span class="italic text-gray-400 dark:text-gray-500">{{ 'scheduler.editHint' | t }}</span>
+          }
+        </div>
+            <div class="flex flex-wrap items-center gap-2">
+          <div class="flex items-center rounded-lg border border-gray-200 p-0.5 dark:border-gray-700">
+            <button
+              (click)="setView('workstation')"
+              class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition"
+              [class.bg-white]="viewMode === 'workstation'"
+              [class.shadow-sm]="viewMode === 'workstation'"
+              [class.text-gray-800]="viewMode === 'workstation'"
+              [class.dark:bg-gray-700]="viewMode === 'workstation'"
+              [class.dark:text-white]="viewMode === 'workstation'"
+              [class.text-gray-500]="viewMode !== 'workstation'"
+              [class.dark:text-gray-400]="viewMode !== 'workstation'"
+            >
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+              </svg>
+              {{ 'scheduler.viewWorkstations' | t }}
+            </button>
+            <button
+              (click)="setView('employee')"
+              class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition"
+              [class.bg-white]="viewMode === 'employee'"
+              [class.shadow-sm]="viewMode === 'employee'"
+              [class.text-gray-800]="viewMode === 'employee'"
+              [class.dark:bg-gray-700]="viewMode === 'employee'"
+              [class.dark:text-white]="viewMode === 'employee'"
+              [class.text-gray-500]="viewMode !== 'employee'"
+              [class.dark:text-gray-400]="viewMode !== 'employee'"
+            >
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              {{ 'scheduler.viewEmployees' | t }}
+            </button>
+          </div>
           <button
             (click)="takeAsPlan()"
             [disabled]="takingAsPlan"
@@ -199,719 +395,110 @@
               <span>{{ 'scheduler.takeAsPlan' | t }}</span>
             }
           </button>
-
-          <!-- Have the assistant check the plan against the ward's rules -->
-          <button
-            (click)="verifyPlan()"
-            [disabled]="validating"
-            class="flex items-center gap-2 rounded-lg border border-violet-300 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-violet-700 dark:bg-violet-500/10 dark:text-violet-400 dark:hover:bg-violet-500/20"
-            [title]="'scheduler.verifyPlanTitle' | t"
-          >
-            @if (validating) {
-              <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
-                <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
-              </svg>
-              <span>{{ 'scheduler.verifying' | t }}</span>
-            } @else {
-              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline>
-              </svg>
-              <span>{{ 'scheduler.verifyPlan' | t }}</span>
-            }
-          </button>
-        }
-
-        <!-- Two stored runs side by side -->
-        @if (allResults.length >= 2) {
-          <button
-            type="button"
-            (click)="toggleCompare()"
-            [attr.aria-expanded]="showCompare"
-            data-testid="compare-toggle"
-            class="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
-            [class.bg-gray-50]="showCompare"
-            [class.dark:bg-white/[0.05]]="showCompare"
-            [title]="'scheduler.compare.buttonTitle' | t"
-          >
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M8 3v18M16 3v18"></path><path d="M3 8h5M3 16h5M16 12h5"></path>
-            </svg>
-            <span>{{ 'scheduler.compare.button' | t }}</span>
-          </button>
-        }
-
-        <button (click)="showTaskList = !showTaskList" class="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]" [class.bg-gray-50]="showTaskList">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line>
-            <line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>
-          </svg>
-          <span>{{ 'scheduler.jobs' | t }}</span>
-          @if (planningTasks.length > 0) {
-            <span class="rounded-full bg-gray-200 px-1.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-400">{{ planningTasks.length }}</span>
-          }
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Coverage forecast: required against who could work, per day and shift -->
-  @if (showCoverage) {
-    <section class="border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6" data-testid="coverage-forecast">
-      <div class="flex items-start justify-between gap-3">
-        <div>
-          <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90">{{ 'scheduler.coverage.title' | t }}</h4>
-          <p class="mt-0.5 max-w-3xl text-xs text-gray-500 dark:text-gray-400">{{ 'scheduler.coverage.intro' | t }}</p>
-        </div>
-        <button
-          type="button"
-          (click)="showCoverage = false"
-          [attr.aria-label]="'common.close' | t"
-          class="shrink-0 rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/[0.05] dark:hover:text-gray-300"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
-      </div>
-
-      @if (coverageError) {
-        <p class="mt-3 text-sm text-error-600 dark:text-error-400" role="alert">{{ coverageError | t }}</p>
-      } @else if (!coverage) {
-        <p class="mt-3 text-sm text-gray-400 dark:text-gray-500">{{ 'scheduler.coverage.loading' | t }}</p>
-      } @else {
-        <div class="transition-opacity" [class.opacity-50]="coverageLoading">
-          <!-- The two numbers that answer "can this period be staffed at all?" -->
-          <div class="mt-3 flex flex-wrap gap-x-8 gap-y-1 text-sm">
-            <span
-              [class]="coverage.shortDays ? 'font-medium text-error-600 dark:text-error-400' : 'text-gray-700 dark:text-gray-300'"
-              data-testid="coverage-short-days"
-            >
-              {{ (coverage.shortDays ? 'scheduler.coverage.shortDays' : 'scheduler.coverage.noShortDays') | t: { count: coverage.shortDays, total: coverage.days.length } }}
-            </span>
-            <span
-              [class]="coverage.capacity < coverage.requiredShifts ? 'font-medium text-error-600 dark:text-error-400' : 'text-gray-700 dark:text-gray-300'"
-            >
-              {{ 'scheduler.coverage.capacity' | t: { required: coverage.requiredShifts, capacity: coverage.capacity } }}
-            </span>
-          </div>
-
-          @if (coverage.setupGaps.length) {
-            <div
-              class="mt-3 rounded-lg border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300"
-              data-testid="coverage-setup-gaps"
-            >
-              <p class="font-medium">{{ 'scheduler.coverage.setupGapsTitle' | t }}</p>
-              <ul class="mt-1 list-disc space-y-0.5 pl-5">
-                @for (gap of coverage.setupGaps; track gap.workstationName + gap.shiftName) {
-                  <li>
-                    {{ 'scheduler.coverage.setupGap' | t: {
-                      shift: gap.shiftName,
-                      workstation: gap.workstationName,
-                      holdSkills: gap.holdSkills,
-                      workShift: gap.workShift
-                    } }}
-                  </li>
-                }
-              </ul>
+              <button
+                type="button"
+                (click)="openCheck()"
+                class="flex items-center gap-2 rounded-lg border border-violet-300 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-700 transition hover:bg-violet-100 dark:border-violet-700 dark:bg-violet-500/10 dark:text-violet-400 dark:hover:bg-violet-500/20"
+                [title]="'scheduler.verifyPlanTitle' | t"
+              >
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline>
+                </svg>
+                <span>{{ 'scheduler.verifyPlan' | t }}</span>
+              </button>
             </div>
-          }
-
-          <div class="mt-4 max-w-full overflow-x-auto pb-1">
-            <table class="border-separate border-spacing-0 text-xs">
-              <thead>
-                <tr>
-                  <th class="sticky left-0 z-10 min-w-[120px] bg-white pr-3 dark:bg-gray-900"></th>
-                  @for (day of coverage.days; track day.date; let first = $first) {
-                    @let label = coverageDayLabel(day.date, first);
-                    <th
-                      class="min-w-[40px] px-0.5 pb-1 text-center font-normal"
-                      [class.text-gray-400]="day.weekday >= 5"
-                      [class.text-gray-500]="day.weekday < 5"
-                    >
-                      <div class="h-3.5 text-[10px] font-medium text-gray-400 dark:text-gray-500">{{ label.month }}</div>
-                      <div class="text-[10px]">{{ label.weekday }}</div>
-                      <div class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ label.day }}</div>
-                    </th>
-                  }
-                </tr>
-              </thead>
-              <tbody>
-                @for (row of coverage.rows; track row.shiftId) {
-                  <tr>
-                    <th scope="row" class="sticky left-0 z-10 max-w-[160px] truncate bg-white py-0.5 pr-3 text-left font-medium text-gray-700 dark:bg-gray-900 dark:text-gray-300">
-                      {{ row.shiftName }}
-                    </th>
-                    @for (cell of row.cells; track cell.date) {
-                      <td class="p-0.5">
-                        @if (cell.runs && cell.required > 0) {
-                          <button
-                            type="button"
-                            (click)="selectCoverageCell(cell, row.shiftName)"
-                            class="w-full rounded-md px-1 py-1 text-center tabular-nums leading-tight transition-colors"
-                            [ngClass]="{
-                              'bg-error-50 text-error-700 hover:bg-error-100 dark:bg-error-500/15 dark:text-error-300': cell.level === 'short',
-                              'bg-warning-50 text-warning-700 hover:bg-warning-100 dark:bg-warning-500/15 dark:text-warning-300': cell.level === 'tight',
-                              'bg-gray-50 text-gray-600 hover:bg-gray-100 dark:bg-white/[0.04] dark:text-gray-400': cell.level === 'ok',
-                              'ring-2 ring-brand-500/60': selectedCoverage?.cell === cell
-                            }"
-                            [attr.aria-label]="('scheduler.coverage.cellSummary' | t: { required: cell.required, available: cell.available }) + ' · ' + row.shiftName"
-                          >
-                            <span class="font-semibold">{{ cell.required }}</span><span class="opacity-60">/{{ cell.available }}</span>
-                          </button>
-                        } @else if (cell.runs) {
-                          <!-- Runs, but nothing to fill: no minimum, or every station closed. -->
-                          <span class="block text-center text-gray-300 dark:text-gray-700">–</span>
-                        }
-                      </td>
-                    }
-                  </tr>
-                }
-                <tr>
-                  <th scope="row" class="sticky left-0 z-10 bg-white pt-1.5 pr-3 text-left font-semibold text-gray-800 dark:bg-gray-900 dark:text-white/90">
-                    {{ 'scheduler.coverage.dayTotal' | t }}
-                  </th>
-                  @for (day of coverage.days; track day.date) {
-                    <td class="px-0.5 pt-1.5 text-center tabular-nums leading-tight">
-                      @if (day.required > 0) {
-                        <span
-                          class="font-semibold"
-                          [class.text-error-600]="day.level === 'short'"
-                          [class.dark:text-error-400]="day.level === 'short'"
-                          [class.text-warning-600]="day.level === 'tight'"
-                          [class.dark:text-warning-400]="day.level === 'tight'"
-                          [class.text-gray-700]="day.level === 'ok'"
-                          [class.dark:text-gray-300]="day.level === 'ok'"
-                        >{{ day.required }}</span><span class="text-gray-400 dark:text-gray-500">/{{ day.available }}</span>
-                      }
-                    </td>
-                  }
-                </tr>
-              </tbody>
-            </table>
           </div>
-
-          @if (selectedCoverage; as sel) {
-            <div class="mt-3 rounded-lg border border-gray-200 px-4 py-3 text-sm dark:border-gray-700" data-testid="coverage-detail">
-              <p class="font-medium text-gray-800 dark:text-white/90">
-                {{ formatDateLabel(sel.cell.date) }} · {{ sel.shiftName }} —
-                {{ 'scheduler.coverage.cellSummary' | t: { required: sel.cell.required, available: sel.cell.available } }}
-              </p>
-              <ul class="mt-1.5 space-y-0.5">
-                @for (station of sel.cell.stations; track station.workstationId) {
-                  <li
-                    [class]="station.qualified < station.need ? 'text-error-600 dark:text-error-400' : 'text-gray-600 dark:text-gray-400'"
-                  >
-                    {{ station.name }}: {{ 'scheduler.coverage.stationLine' | t: { need: station.need, qualified: station.qualified } }}
-                  </li>
-                }
-              </ul>
-            </div>
-          }
-
-          <p class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-            <span><span class="font-semibold text-gray-700 dark:text-gray-300">3</span>/5 = {{ 'scheduler.coverage.legendCell' | t }}</span>
-            <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-error-100 dark:bg-error-500/30"></span>{{ 'scheduler.coverage.legendShort' | t }}</span>
-            <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-warning-100 dark:bg-warning-500/30"></span>{{ 'scheduler.coverage.legendTight' | t }}</span>
-            <span>{{ 'scheduler.coverage.legendBound' | t }}</span>
-          </p>
-        </div>
-      }
-    </section>
-  }
-
-  <!-- Scenario comparison: two stored runs, a summary and the days that differ -->
-  @if (showCompare) {
-    <section class="border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6" data-testid="compare-panel">
-      <div class="flex items-start justify-between gap-3">
-        <div>
-          <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90">{{ 'scheduler.compare.title' | t }}</h4>
-          <p class="mt-0.5 max-w-3xl text-xs text-gray-500 dark:text-gray-400">{{ 'scheduler.compare.intro' | t }}</p>
-        </div>
-        <button
-          type="button"
-          (click)="showCompare = false"
-          [attr.aria-label]="'common.close' | t"
-          class="shrink-0 rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/[0.05] dark:hover:text-gray-300"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
-      </div>
-
-      <div class="mt-3 flex flex-wrap items-end gap-3">
-        <label class="flex min-w-[240px] flex-1 flex-col gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
-          {{ 'scheduler.compare.planA' | t }}
-          <select
-            [(ngModel)]="compareAId"
-            (ngModelChange)="runComparison()"
-            data-testid="compare-a"
-            class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-          >
-            @for (r of allResults; track r.id) {
-              <option [ngValue]="r.id">{{ resultLabel(r) }}</option>
-            }
-          </select>
-        </label>
-        <button
-          type="button"
-          (click)="swapCompare()"
-          [attr.aria-label]="'scheduler.compare.swap' | t"
-          [title]="'scheduler.compare.swap' | t"
-          class="mb-0.5 rounded-lg border border-gray-200 p-2 text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
-        >
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M7 7h13l-3-3M17 17H4l3 3"></path>
-          </svg>
-        </button>
-        <label class="flex min-w-[240px] flex-1 flex-col gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
-          {{ 'scheduler.compare.planB' | t }}
-          <select
-            [(ngModel)]="compareBId"
-            (ngModelChange)="runComparison()"
-            data-testid="compare-b"
-            class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-          >
-            @for (r of allResults; track r.id) {
-              <option [ngValue]="r.id">{{ resultLabel(r) }}</option>
-            }
-          </select>
-        </label>
-      </div>
-
-      @if (compareError) {
-        <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">{{ compareError | t }}</p>
-      } @else if (comparison; as cmp) {
-        <!-- How good each is -->
-        <div class="mt-4 max-w-full overflow-x-auto">
-          <table class="text-sm" data-testid="compare-summary">
-            <thead>
-              <tr class="text-left text-xs text-gray-500 dark:text-gray-400">
-                <th class="py-1.5 pr-8 font-medium"></th>
-                <th class="py-1.5 pr-8 font-medium">{{ 'scheduler.compare.planA' | t }}</th>
-                <th class="py-1.5 pr-8 font-medium">{{ 'scheduler.compare.planB' | t }}</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100 tabular-nums dark:divide-white/[0.05]">
-              <ng-template #deltaCell let-d="d">
-                <span
-                  class="ml-2 text-xs"
-                  [class.text-success-600]="d.tone === 'better'"
-                  [class.dark:text-success-400]="d.tone === 'better'"
-                  [class.text-error-600]="d.tone === 'worse'"
-                  [class.dark:text-error-400]="d.tone === 'worse'"
-                  [class.text-gray-400]="d.tone === 'same' || d.tone === 'neutral'"
-                >{{ d.text }}</span>
-              </ng-template>
-              <tr>
-                <th class="py-1.5 pr-8 text-left font-normal text-gray-600 dark:text-gray-400">{{ 'scheduler.compare.placesShort' | t }}</th>
-                <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">{{ cmp.a.placesShort }}</td>
-                <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">
-                  {{ cmp.b.placesShort }}
-                  <ng-container [ngTemplateOutlet]="deltaCell" [ngTemplateOutletContext]="{ d: compareDelta(cmp.a.placesShort, cmp.b.placesShort, 'lower') }" />
-                </td>
-              </tr>
-              <tr>
-                <th class="py-1.5 pr-8 text-left font-normal text-gray-600 dark:text-gray-400">{{ 'scheduler.compare.wishes' | t }}</th>
-                <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">{{ cmp.a.wishesMet }} / {{ cmp.a.wishesTotal }}</td>
-                <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">
-                  {{ cmp.b.wishesMet }} / {{ cmp.b.wishesTotal }}
-                  <ng-container [ngTemplateOutlet]="deltaCell" [ngTemplateOutletContext]="{ d: compareDelta(cmp.a.wishesMet, cmp.b.wishesMet, 'higher') }" />
-                </td>
-              </tr>
-              <tr>
-                <th class="py-1.5 pr-8 text-left font-normal text-gray-600 dark:text-gray-400">
-                  {{ 'scheduler.compare.hoursSpread' | t }}
-                  <span class="block text-[11px] text-gray-400 dark:text-gray-500">{{ 'scheduler.compare.hoursSpreadNote' | t }}</span>
-                </th>
-                <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">
-                  {{ cmp.a.hoursSpread }} h
-                  <span class="ml-1 text-xs text-gray-400 dark:text-gray-500">({{ cmp.a.hoursMin }}–{{ cmp.a.hoursMax }} h)</span>
-                </td>
-                <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">
-                  {{ cmp.b.hoursSpread }} h
-                  <span class="ml-1 text-xs text-gray-400 dark:text-gray-500">({{ cmp.b.hoursMin }}–{{ cmp.b.hoursMax }} h)</span>
-                  <ng-container [ngTemplateOutlet]="deltaCell" [ngTemplateOutletContext]="{ d: compareDelta(cmp.a.hoursSpread, cmp.b.hoursSpread, 'lower') }" />
-                </td>
-              </tr>
-              <tr>
-                <th class="py-1.5 pr-8 text-left font-normal text-gray-600 dark:text-gray-400">{{ 'scheduler.compare.assignments' | t }}</th>
-                <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">{{ cmp.a.assignments }}</td>
-                <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">
-                  {{ cmp.b.assignments }}
-                  <ng-container [ngTemplateOutlet]="deltaCell" [ngTemplateOutletContext]="{ d: compareDelta(cmp.a.assignments, cmp.b.assignments, null) }" />
-                </td>
-              </tr>
-              <tr>
-                <th class="py-1.5 pr-8 text-left font-normal text-gray-600 dark:text-gray-400">
-                  {{ 'scheduler.compare.score' | t }}
-                  <span class="block text-[11px] text-gray-400 dark:text-gray-500">{{ 'scheduler.compare.scoreNote' | t }}</span>
-                </th>
-                <td class="py-1.5 pr-8 align-top text-gray-800 dark:text-white/90">{{ cmp.a.objective | number: '1.0-0' }} <span class="text-xs text-gray-400">· {{ cmp.a.status }}</span></td>
-                <td class="py-1.5 pr-8 align-top text-gray-800 dark:text-white/90">{{ cmp.b.objective | number: '1.0-0' }} <span class="text-xs text-gray-400">· {{ cmp.b.status }}</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- What differs, per employee and day -->
-        <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
-          <p class="text-sm text-gray-700 dark:text-gray-300" data-testid="compare-changes">
-            @if (!cmp.dates.length) {
-              {{ 'scheduler.compare.noOverlap' | t }}
-            } @else if (cmp.changedCells === 0) {
-              {{ 'scheduler.compare.identical' | t }}
-            } @else {
-              {{ 'scheduler.compare.changes' | t: { cells: cmp.changedCells, employees: cmp.changedEmployees } }}
-            }
-            @if (cmp.dates.length && !cmp.samePeriod) {
-              <span class="text-xs text-gray-500 dark:text-gray-400"> — {{ 'scheduler.compare.overlapOnly' | t: { days: cmp.dates.length } }}</span>
-            }
-          </p>
-          @if (cmp.changedCells > 0) {
-            <label class="flex cursor-pointer items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-              <input type="checkbox" [(ngModel)]="compareOnlyChanged" class="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500" />
-              {{ 'scheduler.compare.onlyChanged' | t }}
-            </label>
-          }
-        </div>
-
-        @if (cmp.changedCells > 0) {
-          <div class="mt-2 max-h-[420px] max-w-full overflow-auto pb-1">
-            <table class="border-separate border-spacing-0 text-xs" data-testid="compare-diff">
-              <thead>
-                <tr>
-                  <th class="sticky left-0 top-0 z-20 min-w-[140px] bg-white pr-3 dark:bg-gray-900"></th>
-                  @for (date of cmp.dates; track date; let first = $first) {
-                    @let label = coverageDayLabel(date, first);
-                    <th class="sticky top-0 z-10 min-w-[44px] bg-white px-0.5 pb-1 text-center font-normal text-gray-500 dark:bg-gray-900">
-                      <div class="h-3.5 text-[10px] font-medium text-gray-400 dark:text-gray-500">{{ label.month }}</div>
-                      <div class="text-[10px]">{{ label.weekday }}</div>
-                      <div class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ label.day }}</div>
-                    </th>
-                  }
-                </tr>
-              </thead>
-              <tbody>
-                @for (row of compareRows; track row.employeeId) {
-                  <tr>
-                    <th scope="row" class="sticky left-0 z-10 max-w-[180px] truncate bg-white py-0.5 pr-3 text-left font-medium text-gray-700 dark:bg-gray-900 dark:text-gray-300">
-                      {{ row.employeeName }}
-                      <span class="ml-1 font-normal tabular-nums text-gray-400 dark:text-gray-500">{{ row.changes.size || '' }}</span>
-                    </th>
-                    @for (date of cmp.dates; track date) {
-                      <td class="p-0.5">
-                        @if (row.changes.get(date); as change) {
-                          <span
-                            class="block whitespace-nowrap rounded-md bg-brand-50 px-1 py-1 text-center font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
-                            [title]="changeTitle(change)"
-                          >{{ changeLabel(change) }}</span>
-                        }
-                      </td>
-                    }
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-          <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ 'scheduler.compare.legend' | t }}</p>
         }
-      }
-    </section>
-  }
 
-  <!-- Error / take-plan feedback -->
-  @if (error || takePlanError) {
-    <div class="flex items-center justify-center border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
-      <div class="flex items-center gap-2 rounded-lg bg-red-50 px-4 py-3 dark:bg-red-500/10">
-        <svg class="h-5 w-5 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
-        </svg>
-        <span class="text-sm text-red-600 dark:text-red-400">{{ (error || takePlanError || '') | t }}</span>
+        <!-- Mass operations toolbar (employee view, multi-select) -->
+        @if (viewMode === 'employee' && editSelectedIds.size > 0) {
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-brand-100 bg-brand-50 px-5 py-2.5 dark:border-brand-900/40 dark:bg-brand-500/10 sm:px-6">
+            <span class="text-xs font-medium text-brand-700 dark:text-brand-300">{{ 'scheduler.selectedCount' | t: { label: editSelectedLabel } }}</span>
+            <div class="flex items-center gap-2">
+              <button (click)="takeAsPlan([...editSelectedIds])" class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20">
+                {{ 'scheduler.takeAsPlan' | t }}
+              </button>
+              <button (click)="confirmClearEmployees([...editSelectedIds])" class="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-500/10">
+                {{ 'scheduler.clearAssignments' | t }}
+              </button>
+              <button (click)="clearEditSelection()" class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]">
+                {{ 'scheduler.clearSelection' | t }}
+              </button>
+            </div>
+          </div>
+        }
+
+        @if (selectedResult) {
+          <div class="flex items-center justify-start border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
+      <div class="flex items-center justify-start border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
+        <app-calendar-nav [label]="weekLabel" periodType="week" (prev)="prevWeek()" (next)="nextWeek()" (today)="goToday()" />
       </div>
-    </div>
-  }
+          </div>
+        }
 
-  <!-- Plan info bar -->
-  @if (selectedResult) {
-    <div class="flex items-center border-b border-gray-100 px-5 py-3 dark:border-white/[0.05] sm:px-6">
-      <div class="flex flex-wrap items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-        <span>{{ 'scheduler.period' | t: {
-          from: formatDateLabel(selectedResult.result.planning_period.start_date),
-          to: formatDateLabel(selectedResult.result.planning_period.end_date)
-        } }}</span>
-        <span>{{ 'scheduler.score' | t: { value: objectiveValue } }}</span>
-        <span>{{ 'scheduler.statusValue' | t: { value: status } }}</span>
-        @if (savingSchedule) {
-          <span class="flex items-center gap-1 text-brand-500">
-            <svg class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+        <!-- Calendar table (shared component, toggled by viewMode) -->
+        @if (loading) {
+          <div class="flex items-center justify-center py-20 text-gray-400 dark:text-gray-500">
+            <svg class="mr-2 h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
               <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
             </svg>
-            {{ 'scheduler.savingEdit' | t }}
-          </span>
-        }
-        @if (viewMode === 'employee') {
-          <span class="italic text-gray-400 dark:text-gray-500">{{ 'scheduler.editHint' | t }}</span>
-        }
-      </div>
-    </div>
-  }
-
-  <!-- Mass operations toolbar (employee view, multi-select) -->
-  @if (viewMode === 'employee' && editSelectedIds.size > 0) {
-    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-brand-100 bg-brand-50 px-5 py-2.5 dark:border-brand-900/40 dark:bg-brand-500/10 sm:px-6">
-      <span class="text-xs font-medium text-brand-700 dark:text-brand-300">{{ 'scheduler.selectedCount' | t: { label: editSelectedLabel } }}</span>
-      <div class="flex items-center gap-2">
-        <button (click)="takeAsPlan([...editSelectedIds])" class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20">
-          {{ 'scheduler.takeAsPlan' | t }}
-        </button>
-        <button (click)="confirmClearEmployees([...editSelectedIds])" class="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-500/10">
-          {{ 'scheduler.clearAssignments' | t }}
-        </button>
-        <button (click)="clearEditSelection()" class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]">
-          {{ 'scheduler.clearSelection' | t }}
-        </button>
-      </div>
-    </div>
-  }
-
-  <!-- Week navigation -->
-  <div class="flex items-center justify-start border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
-    <app-calendar-nav [label]="weekLabel" periodType="week" (prev)="prevWeek()" (next)="nextWeek()" (today)="goToday()" />
-  </div>
-
-  <!-- Calendar table (shared component, toggled by viewMode) -->
-  @if (loading) {
-    <div class="flex items-center justify-center py-20 text-gray-400 dark:text-gray-500">
-      <svg class="mr-2 h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
-        <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
-      </svg>
-      {{ 'scheduler.loadingSchedule' | t }}
-    </div>
-  } @else if (!selectedResult) {
-    <div class="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
-      <svg class="mb-4 h-12 w-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-        <line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
-      </svg>
-      <p class="mb-4 text-sm">{{ 'scheduler.noPlan' | t }}</p>
-      <button (click)="triggerPlan()" class="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600">{{ 'scheduler.calculateNewPlan' | t }}</button>
-    </div>
-  } @else {
-    <app-calendar-table
-      [rows]="currentRows"
-      [days]="days"
-      [cellMap]="currentCellMap"
-      [rowLabel]="currentRowLabel"
-      [rowIcon]="currentRowIcon"
-      [cellDisplayMode]="currentCellMode"
-      [selectable]="viewMode === 'employee'"
-      [selectedRowIds]="editSelectedIds"
-      (cellClick)="onTableCellClick($event)"
-      (cellContextMenu)="onCellContextMenu($event)"
-      (rowContextMenu)="onRowContextMenu($event)"
-      (rowSelectionToggle)="onRowSelectionToggle($event)"
-    />
-  }
-</div>
-
-<!-- Shift legend -->
-@if (selectedResult && uniqueShifts.length > 0) {
-  <div class="mt-4 rounded-xl border border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-white/[0.03]">
-    <div class="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{{ 'scheduler.shiftLegend' | t }}</div>
-    <div class="flex flex-wrap gap-3">
-      @for (shift of uniqueShifts; track shift.id) {
-        <div class="flex items-center gap-1.5">
-          <div class="h-3 w-3 rounded" [style.backgroundColor]="getShiftColor(shift.colorIndex)"></div>
-          <span class="text-xs text-gray-600 dark:text-gray-400">{{ shift.name }}</span>
-        </div>
-      }
-    </div>
-  </div>
-}
-
-<!-- Task list panel -->
-@if (showTaskList) {
-  <div class="mt-4 rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-    <div class="flex items-center justify-between border-b border-gray-100 px-5 py-3 dark:border-white/[0.05]">
-      <div>
-        <span class="text-sm font-semibold text-gray-800 dark:text-white/90">{{ 'scheduler.optimizationJobs' | t }}</span>
-        <span class="ml-2 text-xs text-gray-400">{{ 'scheduler.autoRefresh' | t }}</span>
-      </div>
-    </div>
-    <div class="divide-y divide-gray-100 dark:divide-white/[0.05]">
-      @if (planningTasks.length === 0) {
-        <div class="px-5 py-6 text-center text-sm text-gray-400">{{ 'scheduler.noJobs' | t }}</div>
-      }
-      @for (task of planningTasks; track task.id) {
-        <div class="flex flex-col gap-1 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div class="flex flex-wrap items-center gap-3">
-            <span class="font-mono text-xs text-gray-400 dark:text-gray-500">{{ task.id.substring(0, 8) }}…</span>
-            <span class="rounded-full px-2.5 py-0.5 text-xs font-medium"
-              [class.bg-yellow-100]="task.status === 'scheduled'"
-              [class.text-yellow-800]="task.status === 'scheduled'"
-              [class.dark:bg-yellow-900/30]="task.status === 'scheduled'"
-              [class.dark:text-yellow-400]="task.status === 'scheduled'"
-              [class.bg-green-100]="task.status === 'done'"
-              [class.text-green-800]="task.status === 'done'"
-              [class.dark:bg-green-900/30]="task.status === 'done'"
-              [class.dark:text-green-400]="task.status === 'done'"
-              [class.bg-red-100]="task.status === 'error'"
-              [class.text-red-800]="task.status === 'error'"
-              [class.dark:bg-red-900/30]="task.status === 'error'"
-              [class.dark:text-red-400]="task.status === 'error'"
-            >
-              {{ taskStatusKey(task.status) | t }}
-            </span>
-            @if (task.error_message) {
-              <span class="max-w-xs truncate text-xs text-red-500 dark:text-red-400" [title]="task.error_message">
-                {{ task.error_message }}
-              </span>
-            }
+            {{ 'scheduler.loadingSchedule' | t }}
           </div>
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-gray-400">{{ task.created_at | date:'short' }}</span>
-            @if (task.result_id) {
-              <button (click)="loadResultById(task.result_id!)"
-                class="rounded-lg border border-brand-200 px-3 py-1 text-xs font-medium text-brand-600 transition hover:bg-brand-50 dark:border-brand-800 dark:text-brand-400 dark:hover:bg-brand-500/10">
-                {{ 'scheduler.view' | t }}
-              </button>
-            }
-            <button (click)="deleteEntry(task)" [disabled]="deletingResultId === task.id"
-              class="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-500/10">
-              @if (deletingResultId === task.id) { … } @else { {{ 'common.delete' | t }} }
-            </button>
+        } @else if (!selectedResult) {
+          <div class="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
+            <svg class="mb-4 h-12 w-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+            <p class="mb-4 text-sm">{{ 'scheduler.noPlan' | t }}</p>
+            <button (click)="setTab('calculate')" class="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600">{{ 'scheduler.calculateNewPlan' | t }}</button>
           </div>
-        </div>
-      }
-    </div>
-  </div>
-}
+        } @else {
+          <app-calendar-table
+            [rows]="currentRows"
+            [days]="days"
+            [cellMap]="currentCellMap"
+            [rowLabel]="currentRowLabel"
+            [rowIcon]="currentRowIcon"
+            [cellDisplayMode]="currentCellMode"
+            [selectable]="viewMode === 'employee'"
+            [selectedRowIds]="editSelectedIds"
+            (cellClick)="onTableCellClick($event)"
+            (cellContextMenu)="onCellContextMenu($event)"
+            (rowContextMenu)="onRowContextMenu($event)"
+            (rowSelectionToggle)="onRowSelectionToggle($event)"
+          />
+        }
 
-<!-- Cell Detail Modal -->
-@if (showCellDetail && selectedCellDetail) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" (click)="closeCellDetail()">
-    <div class="mx-4 w-full max-w-lg rounded-xl bg-white p-6 shadow-xl dark:bg-gray-900" (click)="$event.stopPropagation()">
-      <div class="mb-4 flex items-center justify-between">
-        <div>
-          <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ selectedCellDetail.rowName }}</h3>
-          <p class="text-sm text-gray-500 dark:text-gray-400">{{ formatModalDate(selectedCellDetail.date) }}</p>
-        </div>
-        <button (click)="closeCellDetail()" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800">
-          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-      <div class="space-y-4">
-        @for (group of selectedCellDetail.cell.groups; track group.shiftId) {
-          <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-            <div class="mb-2 flex items-center gap-2">
-              <div class="h-3 w-3 rounded" [style.backgroundColor]="group.shiftColor"></div>
-              <span class="font-semibold text-gray-800 dark:text-white/90">{{ group.shiftName }}</span>
+        @if (selectedResult && uniqueShifts.length > 0) {
+      <div class="border-t border-gray-100 px-5 py-3 dark:border-white/[0.05] sm:px-6">
+        <div class="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{{ 'scheduler.shiftLegend' | t }}</div>
+        <div class="flex flex-wrap gap-3">
+          @for (shift of uniqueShifts; track shift.id) {
+            <div class="flex items-center gap-1.5">
+              <div class="h-3 w-3 rounded" [style.backgroundColor]="getShiftColor(shift.colorIndex)"></div>
+              <span class="text-xs text-gray-600 dark:text-gray-400">{{ shift.name }}</span>
             </div>
-            <div class="space-y-1">
-              @for (name of group.employeeNames; track name) {
-                <div class="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-800">
-                  <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-600 dark:bg-brand-900/30 dark:text-brand-400">
-                    {{ name.charAt(0).toUpperCase() }}
-                  </div>
-                  <span class="text-sm text-gray-700 dark:text-gray-300">{{ name }}</span>
-                </div>
-              }
-            </div>
-          </div>
-        }
-      </div>
-    </div>
-  </div>
-}
-
-<!-- Edit Assignment Modal -->
-@if (showEditAssignment && editingAssignment) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" (click)="closeEditAssignment()">
-    <div class="mx-4 w-full max-w-sm rounded-xl bg-white p-6 shadow-xl dark:bg-gray-900" (click)="$event.stopPropagation()">
-      <div class="mb-4 flex items-center justify-between">
-        <div>
-          <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'scheduler.editAssignment' | t }}</h3>
-          <p class="text-sm text-gray-500 dark:text-gray-400">{{ editingAssignment.employeeName }} · {{ editingAssignment.date }}</p>
-        </div>
-        <button (click)="closeEditAssignment()" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800">
-          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-
-      <div class="space-y-4">
-        <div>
-          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ 'common.status' | t }}</label>
-          <select [(ngModel)]="editingAssignment.status" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-            <option value="assigned">{{ 'scheduler.statusAssigned' | t }}</option>
-            <option value="free">{{ 'scheduler.statusFree' | t }}</option>
-            <option value="unassigned">{{ 'scheduler.statusUnassigned' | t }}</option>
-          </select>
-        </div>
-
-        @if (editingAssignment.status === 'assigned') {
-          <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ 'common.shift' | t }}</label>
-            <select [(ngModel)]="editingAssignment.shiftId" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-              <option [ngValue]="null">{{ 'scheduler.selectShift' | t }}</option>
-              @for (s of shifts; track s.id) {
-                <option [ngValue]="s.id">{{ s.name }}</option>
-              }
-            </select>
-          </div>
-          <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ 'common.workstation' | t }}</label>
-            <select [(ngModel)]="editingAssignment.workstationId" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-              <option [ngValue]="null">{{ 'common.none' | t }}</option>
-              @for (w of workstations; track w.id) {
-                <!-- Closed that day: still listed when it is the current choice, never pickable. -->
-                @let closed = isWorkstationClosed(w, editingAssignment.date);
-                <option [ngValue]="w.id" [disabled]="closed && editingAssignment.workstationId !== w.id">
-                  {{ w.name }}{{ closed ? ' — ' + ('schedule.workstationClosed' | t) : '' }}
-                </option>
-              }
-            </select>
-          </div>
-        }
-      </div>
-
-      <div class="mt-5 flex items-center justify-end gap-3">
-        <button (click)="closeEditAssignment()" class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]">
-          {{ 'common.cancel' | t }}
-        </button>
-        <button
-          (click)="saveEditAssignment()"
-          [disabled]="editingAssignment.status === 'assigned' && !editingAssignment.shiftId"
-          class="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {{ 'common.save' | t }}
-        </button>
-      </div>
-    </div>
-  </div>
-}
-
-<!-- Plan verification report -->
-@if (showValidation) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" (click)="closeValidation()">
-    <div class="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-xl bg-white shadow-xl dark:bg-gray-900" (click)="$event.stopPropagation()">
-      <!-- Header -->
-      <div class="flex items-start justify-between border-b border-gray-100 px-6 py-4 dark:border-white/[0.05]">
-        <div>
-          <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'scheduler.verifyHeading' | t }}</h3>
-          @if (validationReport) {
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {{ 'scheduler.period' | t: {
-                from: formatDateLabel(validationReport.planning_period.start_date),
-                to: formatDateLabel(validationReport.planning_period.end_date)
-              } }}
-            </p>
           }
         </div>
-        <div class="flex items-center gap-3">
+      </div>
+        }
+      </section>
+    }
+
+    <!-- ── Check & fix: the proposal against the ward's rules ────────── -->
+    @case ('check') {
+      <section role="tabpanel" id="optimizer-panel-check" aria-labelledby="optimizer-check" data-testid="optimizer-check">
+        @if (!selectedResult) {
+          <p class="px-5 py-16 text-center text-sm text-gray-400 dark:text-gray-500 sm:px-6">{{ 'scheduler.check.noProposal' | t }}</p>
+        } @else {
+          <div class="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
+            <div>
+              <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90">{{ 'scheduler.verifyHeading' | t }}</h4>
+              <p class="mt-0.5 max-w-3xl text-xs text-gray-500 dark:text-gray-400">{{ 'scheduler.check.intro' | t }}</p>
+            </div>
+            <div class="flex items-center gap-3">
           @if (validationReport) {
             <span
               class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
@@ -929,16 +516,30 @@
               [class.dark:text-red-400]="validationReport.verdict === 'invalid'"
             >{{ verdictKey | t }}</span>
           }
-          <button (click)="closeValidation()" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800" [attr.aria-label]="'common.close' | t">
-            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        </div>
-      </div>
+              <button
+                type="button"
+                (click)="verifyPlan()"
+                [disabled]="validating || fixing"
+                data-testid="scheduler-verify"
+                class="flex items-center gap-2 rounded-lg border border-violet-300 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-violet-700 dark:bg-violet-500/10 dark:text-violet-400 dark:hover:bg-violet-500/20"
+              >
+                @if (validating) {
+                  <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+            <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
+          </svg>
+                  <span>{{ 'scheduler.verifying' | t }}</span>
+                } @else {
+                  <span>{{ (validationReport ? 'scheduler.check.again' : 'scheduler.check.run') | t }}</span>
+                }
+              </button>
+            </div>
+          </div>
 
-      <!-- Body -->
-      <div class="flex-1 overflow-y-auto px-6 py-5">
+          <div class="px-5 py-5 sm:px-6">
+            @if (!validationReport && !validating && !validationError) {
+              <p class="py-8 text-center text-sm text-gray-400 dark:text-gray-500">{{ 'scheduler.check.notRun' | t }}</p>
+            }
         @if (validating) {
           <div class="flex items-center justify-center gap-2 py-16 text-gray-400 dark:text-gray-500">
             <svg class="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -1115,37 +716,424 @@
             }
           </div>
         }
+          </div>
+
+          @if (validationReport) {
+            <div class="flex flex-wrap items-center justify-end gap-3 border-t border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
+              @if (validationReport) {
+                <button
+                  (click)="fixPlan()"
+                  [disabled]="fixing || validating"
+                  class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  [title]="'scheduler.fixPlanTitle' | t"
+                  data-testid="scheduler-fix-plan"
+                >
+                  @if (fixing) {
+                    <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+                      <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
+                    </svg>
+                    <span>{{ 'scheduler.fixRunning' | t }}</span>
+                  } @else {
+                    <span>{{ 'scheduler.fixPlan' | t }}</span>
+                  }
+                </button>
+              }
+              @if (validationReport && validationReport.verdict !== 'invalid') {
+                <button (click)="takeAsPlan()" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700">
+                  {{ 'scheduler.takeAsPlan' | t }}
+                </button>
+              }
+            </div>
+          }
+        }
+      </section>
+    }
+
+    <!-- ── Compare: two stored runs side by side ─────────────────────── -->
+    @case ('compare') {
+      <section role="tabpanel" id="optimizer-panel-compare" aria-labelledby="optimizer-compare" class="px-5 py-4 sm:px-6" data-testid="compare-panel">
+        <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90">{{ 'scheduler.compare.title' | t }}</h4>
+        <p class="mt-0.5 max-w-3xl text-xs text-gray-500 dark:text-gray-400">{{ 'scheduler.compare.intro' | t }}</p>
+        <div class="mt-3 flex flex-wrap items-end gap-3">
+          <label class="flex min-w-[240px] flex-1 flex-col gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
+            {{ 'scheduler.compare.planA' | t }}
+            <select
+              [(ngModel)]="compareAId"
+              (ngModelChange)="runComparison()"
+              data-testid="compare-a"
+              class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+            >
+              @for (r of allResults; track r.id) {
+                <option [ngValue]="r.id">{{ resultLabel(r) }}</option>
+              }
+            </select>
+          </label>
+          <button
+            type="button"
+            (click)="swapCompare()"
+            [attr.aria-label]="'scheduler.compare.swap' | t"
+            [title]="'scheduler.compare.swap' | t"
+            class="mb-0.5 rounded-lg border border-gray-200 p-2 text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7 7h13l-3-3M17 17H4l3 3"></path>
+            </svg>
+          </button>
+          <label class="flex min-w-[240px] flex-1 flex-col gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
+            {{ 'scheduler.compare.planB' | t }}
+            <select
+              [(ngModel)]="compareBId"
+              (ngModelChange)="runComparison()"
+              data-testid="compare-b"
+              class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+            >
+              @for (r of allResults; track r.id) {
+                <option [ngValue]="r.id">{{ resultLabel(r) }}</option>
+              }
+            </select>
+          </label>
+        </div>
+
+        @if (compareError) {
+          <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">{{ compareError | t }}</p>
+        } @else if (comparison; as cmp) {
+          <!-- How good each is -->
+          <div class="mt-4 max-w-full overflow-x-auto">
+            <table class="text-sm" data-testid="compare-summary">
+              <thead>
+                <tr class="text-left text-xs text-gray-500 dark:text-gray-400">
+                  <th class="py-1.5 pr-8 font-medium"></th>
+                  <th class="py-1.5 pr-8 font-medium">{{ 'scheduler.compare.planA' | t }}</th>
+                  <th class="py-1.5 pr-8 font-medium">{{ 'scheduler.compare.planB' | t }}</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100 tabular-nums dark:divide-white/[0.05]">
+                <ng-template #deltaCell let-d="d">
+                  <span
+                    class="ml-2 text-xs"
+                    [class.text-success-600]="d.tone === 'better'"
+                    [class.dark:text-success-400]="d.tone === 'better'"
+                    [class.text-error-600]="d.tone === 'worse'"
+                    [class.dark:text-error-400]="d.tone === 'worse'"
+                    [class.text-gray-400]="d.tone === 'same' || d.tone === 'neutral'"
+                  >{{ d.text }}</span>
+                </ng-template>
+                <tr>
+                  <th class="py-1.5 pr-8 text-left font-normal text-gray-600 dark:text-gray-400">{{ 'scheduler.compare.placesShort' | t }}</th>
+                  <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">{{ cmp.a.placesShort }}</td>
+                  <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">
+                    {{ cmp.b.placesShort }}
+                    <ng-container [ngTemplateOutlet]="deltaCell" [ngTemplateOutletContext]="{ d: compareDelta(cmp.a.placesShort, cmp.b.placesShort, 'lower') }" />
+                  </td>
+                </tr>
+                <tr>
+                  <th class="py-1.5 pr-8 text-left font-normal text-gray-600 dark:text-gray-400">{{ 'scheduler.compare.wishes' | t }}</th>
+                  <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">{{ cmp.a.wishesMet }} / {{ cmp.a.wishesTotal }}</td>
+                  <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">
+                    {{ cmp.b.wishesMet }} / {{ cmp.b.wishesTotal }}
+                    <ng-container [ngTemplateOutlet]="deltaCell" [ngTemplateOutletContext]="{ d: compareDelta(cmp.a.wishesMet, cmp.b.wishesMet, 'higher') }" />
+                  </td>
+                </tr>
+                <tr>
+                  <th class="py-1.5 pr-8 text-left font-normal text-gray-600 dark:text-gray-400">
+                    {{ 'scheduler.compare.hoursSpread' | t }}
+                    <span class="block text-[11px] text-gray-400 dark:text-gray-500">{{ 'scheduler.compare.hoursSpreadNote' | t }}</span>
+                  </th>
+                  <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">
+                    {{ cmp.a.hoursSpread }} h
+                    <span class="ml-1 text-xs text-gray-400 dark:text-gray-500">({{ cmp.a.hoursMin }}–{{ cmp.a.hoursMax }} h)</span>
+                  </td>
+                  <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">
+                    {{ cmp.b.hoursSpread }} h
+                    <span class="ml-1 text-xs text-gray-400 dark:text-gray-500">({{ cmp.b.hoursMin }}–{{ cmp.b.hoursMax }} h)</span>
+                    <ng-container [ngTemplateOutlet]="deltaCell" [ngTemplateOutletContext]="{ d: compareDelta(cmp.a.hoursSpread, cmp.b.hoursSpread, 'lower') }" />
+                  </td>
+                </tr>
+                <tr>
+                  <th class="py-1.5 pr-8 text-left font-normal text-gray-600 dark:text-gray-400">{{ 'scheduler.compare.assignments' | t }}</th>
+                  <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">{{ cmp.a.assignments }}</td>
+                  <td class="py-1.5 pr-8 text-gray-800 dark:text-white/90">
+                    {{ cmp.b.assignments }}
+                    <ng-container [ngTemplateOutlet]="deltaCell" [ngTemplateOutletContext]="{ d: compareDelta(cmp.a.assignments, cmp.b.assignments, null) }" />
+                  </td>
+                </tr>
+                <tr>
+                  <th class="py-1.5 pr-8 text-left font-normal text-gray-600 dark:text-gray-400">
+                    {{ 'scheduler.compare.score' | t }}
+                    <span class="block text-[11px] text-gray-400 dark:text-gray-500">{{ 'scheduler.compare.scoreNote' | t }}</span>
+                  </th>
+                  <td class="py-1.5 pr-8 align-top text-gray-800 dark:text-white/90">{{ cmp.a.objective | number: '1.0-0' }} <span class="text-xs text-gray-400">· {{ cmp.a.status }}</span></td>
+                  <td class="py-1.5 pr-8 align-top text-gray-800 dark:text-white/90">{{ cmp.b.objective | number: '1.0-0' }} <span class="text-xs text-gray-400">· {{ cmp.b.status }}</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- What differs, per employee and day -->
+          <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
+            <p class="text-sm text-gray-700 dark:text-gray-300" data-testid="compare-changes">
+              @if (!cmp.dates.length) {
+                {{ 'scheduler.compare.noOverlap' | t }}
+              } @else if (cmp.changedCells === 0) {
+                {{ 'scheduler.compare.identical' | t }}
+              } @else {
+                {{ 'scheduler.compare.changes' | t: { cells: cmp.changedCells, employees: cmp.changedEmployees } }}
+              }
+              @if (cmp.dates.length && !cmp.samePeriod) {
+                <span class="text-xs text-gray-500 dark:text-gray-400"> — {{ 'scheduler.compare.overlapOnly' | t: { days: cmp.dates.length } }}</span>
+              }
+            </p>
+            @if (cmp.changedCells > 0) {
+              <label class="flex cursor-pointer items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                <input type="checkbox" [(ngModel)]="compareOnlyChanged" class="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500" />
+                {{ 'scheduler.compare.onlyChanged' | t }}
+              </label>
+            }
+          </div>
+
+          @if (cmp.changedCells > 0) {
+            <div class="mt-2 max-h-[420px] max-w-full overflow-auto pb-1">
+              <table class="border-separate border-spacing-0 text-xs" data-testid="compare-diff">
+                <thead>
+                  <tr>
+                    <th class="sticky left-0 top-0 z-20 min-w-[140px] bg-white pr-3 dark:bg-gray-900"></th>
+                    @for (date of cmp.dates; track date; let first = $first) {
+                      @let label = coverageDayLabel(date, first);
+                      <th class="sticky top-0 z-10 min-w-[44px] bg-white px-0.5 pb-1 text-center font-normal text-gray-500 dark:bg-gray-900">
+                        <div class="h-3.5 text-[10px] font-medium text-gray-400 dark:text-gray-500">{{ label.month }}</div>
+                        <div class="text-[10px]">{{ label.weekday }}</div>
+                        <div class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ label.day }}</div>
+                      </th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of compareRows; track row.employeeId) {
+                    <tr>
+                      <th scope="row" class="sticky left-0 z-10 max-w-[180px] truncate bg-white py-0.5 pr-3 text-left font-medium text-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                        {{ row.employeeName }}
+                        <span class="ml-1 font-normal tabular-nums text-gray-400 dark:text-gray-500">{{ row.changes.size || '' }}</span>
+                      </th>
+                      @for (date of cmp.dates; track date) {
+                        <td class="p-0.5">
+                          @if (row.changes.get(date); as change) {
+                            <span
+                              class="block whitespace-nowrap rounded-md bg-brand-50 px-1 py-1 text-center font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
+                              [title]="changeTitle(change)"
+                            >{{ changeLabel(change) }}</span>
+                          }
+                        </td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ 'scheduler.compare.legend' | t }}</p>
+          }
+        }
+      </section>
+    }
+
+    <!-- ── Runs: every calculation, its status, open or delete it ─────── -->
+    @case ('runs') {
+      <section role="tabpanel" id="optimizer-panel-runs" aria-labelledby="optimizer-runs" data-testid="optimizer-runs">
+        <!-- Every stored proposal, whoever made it -->
+        <div class="border-b border-gray-100 px-5 py-3 dark:border-white/[0.05]">
+          <span class="text-sm font-semibold text-gray-800 dark:text-white/90">{{ 'scheduler.runs.proposals' | t }}</span>
+          <span class="ml-2 text-xs text-gray-400">{{ 'scheduler.runs.proposalsHint' | t }}</span>
+        </div>
+        <div class="divide-y divide-gray-100 border-b border-gray-100 dark:divide-white/[0.05] dark:border-white/[0.05]" data-testid="optimizer-proposals">
+          @if (allResults.length === 0) {
+            <div class="px-5 py-6 text-center text-sm text-gray-400">{{ 'scheduler.runs.noProposals' | t }}</div>
+          }
+          @for (r of allResults; track r.id) {
+            <div class="flex flex-col gap-1 px-5 py-3 sm:flex-row sm:items-center sm:justify-between"
+              [class.bg-brand-50/50]="selectedResult?.id === r.id" [class.dark:bg-brand-500/5]="selectedResult?.id === r.id">
+              <div class="flex flex-wrap items-center gap-3 text-sm">
+                <span class="font-medium text-gray-800 dark:text-white/90">{{ resultLabel(r) }}</span>
+                <span class="text-xs text-gray-500 dark:text-gray-400">{{ r.result.status }} · {{ r.result.objective_value | number: '1.0-0' }}</span>
+                @if (selectedResult?.id === r.id) {
+                  <span class="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">{{ 'scheduler.runs.current' | t }}</span>
+                }
+              </div>
+              <div class="flex items-center gap-3">
+                @if (selectedResult?.id !== r.id) {
+                  <button (click)="viewRun(r.id)"
+                    class="rounded-lg border border-brand-200 px-3 py-1 text-xs font-medium text-brand-600 transition hover:bg-brand-50 dark:border-brand-800 dark:text-brand-400 dark:hover:bg-brand-500/10">
+                    {{ 'scheduler.view' | t }}
+                  </button>
+                }
+                <button (click)="deleteProposal(r)" [disabled]="deletingResultId === r.id"
+                  class="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-500/10">
+                  {{ 'common.delete' | t }}
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+
+        <!-- The calculation queue behind them -->
+        <div class="flex items-center justify-between border-b border-gray-100 px-5 py-3 dark:border-white/[0.05]">
+          <div>
+            <span class="text-sm font-semibold text-gray-800 dark:text-white/90">{{ 'scheduler.optimizationJobs' | t }}</span>
+            <span class="ml-2 text-xs text-gray-400">{{ 'scheduler.autoRefresh' | t }}</span>
+          </div>
+        </div>
+        <div class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+          @if (planningTasks.length === 0) {
+            <div class="px-5 py-6 text-center text-sm text-gray-400">{{ 'scheduler.noJobs' | t }}</div>
+          }
+          @for (task of planningTasks; track task.id) {
+            <div class="flex flex-col gap-1 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div class="flex flex-wrap items-center gap-3">
+                <span class="font-mono text-xs text-gray-400 dark:text-gray-500">{{ task.id.substring(0, 8) }}…</span>
+                <span class="rounded-full px-2.5 py-0.5 text-xs font-medium"
+                  [class.bg-yellow-100]="task.status === 'scheduled'"
+                  [class.text-yellow-800]="task.status === 'scheduled'"
+                  [class.dark:bg-yellow-900/30]="task.status === 'scheduled'"
+                  [class.dark:text-yellow-400]="task.status === 'scheduled'"
+                  [class.bg-green-100]="task.status === 'done'"
+                  [class.text-green-800]="task.status === 'done'"
+                  [class.dark:bg-green-900/30]="task.status === 'done'"
+                  [class.dark:text-green-400]="task.status === 'done'"
+                  [class.bg-red-100]="task.status === 'error'"
+                  [class.text-red-800]="task.status === 'error'"
+                  [class.dark:bg-red-900/30]="task.status === 'error'"
+                  [class.dark:text-red-400]="task.status === 'error'"
+                >
+                  {{ taskStatusKey(task.status) | t }}
+                </span>
+                @if (task.error_message) {
+                  <span class="max-w-xs truncate text-xs text-red-500 dark:text-red-400" [title]="task.error_message">
+                    {{ task.error_message }}
+                  </span>
+                }
+              </div>
+              <div class="flex items-center gap-3">
+                <span class="text-xs text-gray-400">{{ task.created_at | date:'short' }}</span>
+                @if (task.result_id) {
+                  <button (click)="viewRun(task.result_id!)"
+                    class="rounded-lg border border-brand-200 px-3 py-1 text-xs font-medium text-brand-600 transition hover:bg-brand-50 dark:border-brand-800 dark:text-brand-400 dark:hover:bg-brand-500/10">
+                    {{ 'scheduler.view' | t }}
+                  </button>
+                }
+                <button (click)="deleteEntry(task)" [disabled]="deletingResultId === task.id"
+                  class="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-500/10">
+                  @if (deletingResultId === task.id) { … } @else { {{ 'common.delete' | t }} }
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+      </section>
+    }
+  }
+</div>
+
+<!-- Cell Detail Modal -->
+@if (showCellDetail && selectedCellDetail) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" (click)="closeCellDetail()">
+    <div class="mx-4 w-full max-w-lg rounded-xl bg-white p-6 shadow-xl dark:bg-gray-900" (click)="$event.stopPropagation()">
+      <div class="mb-4 flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ selectedCellDetail.rowName }}</h3>
+          <p class="text-sm text-gray-500 dark:text-gray-400">{{ formatModalDate(selectedCellDetail.date) }}</p>
+        </div>
+        <button (click)="closeCellDetail()" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="space-y-4">
+        @for (group of selectedCellDetail.cell.groups; track group.shiftId) {
+          <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+            <div class="mb-2 flex items-center gap-2">
+              <div class="h-3 w-3 rounded" [style.backgroundColor]="group.shiftColor"></div>
+              <span class="font-semibold text-gray-800 dark:text-white/90">{{ group.shiftName }}</span>
+            </div>
+            <div class="space-y-1">
+              @for (name of group.employeeNames; track name) {
+                <div class="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-800">
+                  <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-600 dark:bg-brand-900/30 dark:text-brand-400">
+                    {{ name.charAt(0).toUpperCase() }}
+                  </div>
+                  <span class="text-sm text-gray-700 dark:text-gray-300">{{ name }}</span>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Edit Assignment Modal -->
+@if (showEditAssignment && editingAssignment) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" (click)="closeEditAssignment()">
+    <div class="mx-4 w-full max-w-sm rounded-xl bg-white p-6 shadow-xl dark:bg-gray-900" (click)="$event.stopPropagation()">
+      <div class="mb-4 flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'scheduler.editAssignment' | t }}</h3>
+          <p class="text-sm text-gray-500 dark:text-gray-400">{{ editingAssignment.employeeName }} · {{ editingAssignment.date }}</p>
+        </div>
+        <button (click)="closeEditAssignment()" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
       </div>
 
-      <!-- Footer -->
-      <div class="flex flex-wrap items-center justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-white/[0.05]">
-        <button (click)="closeValidation()" class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]">
-          {{ 'common.close' | t }}
+      <div class="space-y-4">
+        <div>
+          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ 'common.status' | t }}</label>
+          <select [(ngModel)]="editingAssignment.status" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+            <option value="assigned">{{ 'scheduler.statusAssigned' | t }}</option>
+            <option value="free">{{ 'scheduler.statusFree' | t }}</option>
+            <option value="unassigned">{{ 'scheduler.statusUnassigned' | t }}</option>
+          </select>
+        </div>
+
+        @if (editingAssignment.status === 'assigned') {
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ 'common.shift' | t }}</label>
+            <select [(ngModel)]="editingAssignment.shiftId" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+              <option [ngValue]="null">{{ 'scheduler.selectShift' | t }}</option>
+              @for (s of shifts; track s.id) {
+                <option [ngValue]="s.id">{{ s.name }}</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ 'common.workstation' | t }}</label>
+            <select [(ngModel)]="editingAssignment.workstationId" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+              <option [ngValue]="null">{{ 'common.none' | t }}</option>
+              @for (w of workstations; track w.id) {
+                <!-- Closed that day: still listed when it is the current choice, never pickable. -->
+                @let closed = isWorkstationClosed(w, editingAssignment.date);
+                <option [ngValue]="w.id" [disabled]="closed && editingAssignment.workstationId !== w.id">
+                  {{ w.name }}{{ closed ? ' — ' + ('schedule.workstationClosed' | t) : '' }}
+                </option>
+              }
+            </select>
+          </div>
+        }
+      </div>
+
+      <div class="mt-5 flex items-center justify-end gap-3">
+        <button (click)="closeEditAssignment()" class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]">
+          {{ 'common.cancel' | t }}
         </button>
-        @if (validationReport) {
-          <button
-            (click)="fixPlan()"
-            [disabled]="fixing || validating"
-            class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
-            [title]="'scheduler.fixPlanTitle' | t"
-            data-testid="scheduler-fix-plan"
-          >
-            @if (fixing) {
-              <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
-                <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
-              </svg>
-              <span>{{ 'scheduler.fixRunning' | t }}</span>
-            } @else {
-              <span>{{ 'scheduler.fixPlan' | t }}</span>
-            }
-          </button>
-        }
-        @if (validationReport && validationReport.verdict !== 'invalid') {
-          <button (click)="closeValidation(); takeAsPlan()" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700">
-            {{ 'scheduler.takeAsPlan' | t }}
-          </button>
-        }
+        <button
+          (click)="saveEditAssignment()"
+          [disabled]="editingAssignment.status === 'assigned' && !editingAssignment.shiftId"
+          class="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {{ 'common.save' | t }}
+        </button>
       </div>
     </div>
   </div>
