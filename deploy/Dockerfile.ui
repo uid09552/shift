@@ -7,7 +7,17 @@ COPY ui/package.json ui/package-lock.json ./
 RUN npm ci
 
 COPY ui/ .
-RUN npm run build
+
+# Build information, passed by GitLab CI (see .gitlab-ci.yml) and replaced
+# into the bundle as constants — see ui/src/app/shared/build-info.ts. Unset,
+# the UI shows "dev".
+ARG APP_VERSION=""
+ARG GIT_COMMIT=""
+ARG BUILD_DATE=""
+RUN npm run build -- \
+      --define "APP_VERSION='${APP_VERSION}'" \
+      --define "GIT_COMMIT='${GIT_COMMIT}'" \
+      --define "BUILD_DATE='${BUILD_DATE}'"
 
 # Stage 2: Serve with nginx
 FROM nginx:alpine

@@ -2271,6 +2271,41 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /info:
+    get:
+      tags:
+        - System
+      summary: What is running
+      description: |
+        Version, commit and build date of this backend. GitLab CI bakes them in
+        at build time; a deployment can override them with the `build` section
+        of its configuration (`SHIFT_BUILD__VERSION`, …). A local build without
+        either reports the crate version and an empty commit.
+      operationId: getInfo
+      responses:
+        '200':
+          description: Build information
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [name, version, commit, build_date]
+                properties:
+                  name:
+                    type: string
+                    example: shift-backend
+                  version:
+                    type: string
+                    example: "1.4.0"
+                  commit:
+                    type: string
+                    description: Full commit SHA; empty when unknown
+                    example: fbbbe68c0ffee
+                  build_date:
+                    type: string
+                    description: ISO 8601; empty when unknown
+                    example: "2026-09-15T08:00:00Z"
+
   /audit-logs:
     get:
       tags:

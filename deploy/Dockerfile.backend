@@ -3,6 +3,14 @@ FROM rust:1.88-bookworm AS builder
 
 WORKDIR /app
 
+# Build information, passed by GitLab CI (see .gitlab-ci.yml) and compiled
+# into the binary via option_env! — GET /api/v1/info reports it. Unset, the
+# binary reports the crate version.
+ARG APP_VERSION=""
+ARG GIT_COMMIT=""
+ARG BUILD_DATE=""
+ENV APP_VERSION=$APP_VERSION GIT_COMMIT=$GIT_COMMIT BUILD_DATE=$BUILD_DATE
+
 # Copy all source files
 COPY . .
 

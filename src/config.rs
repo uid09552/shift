@@ -10,6 +10,23 @@ pub struct Config {
     pub tenant: TenantConfig,
     pub keycloak: KeycloakConfig,
     pub otel: OtelConfig,
+    /// What GET /api/v1/info reports. Empty fields fall back to what the build
+    /// baked in (see services::info).
+    #[serde(default)]
+    pub build: BuildConfig,
+}
+
+/// A deployment's own statement of what it runs, overriding the version the
+/// build compiled in. Env: `SHIFT_BUILD__VERSION`, `SHIFT_BUILD__COMMIT`,
+/// `SHIFT_BUILD__DATE`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct BuildConfig {
+    #[serde(default)]
+    pub version: String,
+    #[serde(default)]
+    pub commit: String,
+    #[serde(default)]
+    pub date: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -180,6 +197,7 @@ impl Default for Config {
                 gitlab_project_name: String::new(),
                 sample_ratio: 1.0,
             },
+            build: BuildConfig::default(),
         }
     }
 }

@@ -57,6 +57,10 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.backend
+      args:
+        APP_VERSION: ${APP_VERSION:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
+        BUILD_DATE: ${BUILD_DATE:-}
     image: shift-backend:local
     container_name: shift_deploy_backend
     environment:
@@ -93,6 +97,10 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.planner
+      args:
+        APP_VERSION: ${APP_VERSION:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
+        BUILD_DATE: ${BUILD_DATE:-}
     image: shift-planner:local
     container_name: shift_deploy_planner
     environment:
@@ -123,6 +131,10 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.planner
+      args:
+        APP_VERSION: ${APP_VERSION:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
+        BUILD_DATE: ${BUILD_DATE:-}
     image: shift-planner:local
     container_name: shift_deploy_planner_api
     command: ["python", "-m", "shift_planner", "api", "--host", "0.0.0.0", "--port", "8888"]
@@ -144,6 +156,10 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.ui
+      args:
+        APP_VERSION: ${APP_VERSION:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
+        BUILD_DATE: ${BUILD_DATE:-}
     image: shift-ui:local
     container_name: shift_planner_ui
     ports:
@@ -165,6 +181,10 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.agent
+      args:
+        APP_VERSION: ${APP_VERSION:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
+        BUILD_DATE: ${BUILD_DATE:-}
     image: shift-agent:local
     container_name: shift_deploy_agent
     command: ["shift-agent", "api", "--host", "0.0.0.0", "--port", "8899"]
@@ -201,6 +221,10 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.agent
+      args:
+        APP_VERSION: ${APP_VERSION:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
+        BUILD_DATE: ${BUILD_DATE:-}
     # Same Dockerfile/context as "agent" — same image content, just a
     # different CMD override below. Reuses the "agent" image name/tag rather
     # than publishing a separate one under the registry.

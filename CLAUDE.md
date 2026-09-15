@@ -190,6 +190,8 @@ Base URL: `http://localhost:8080/api/v1`
 - `GET/POST /shift-assignments` - Fixed shift assignments
 - `GET/POST /confirmed-shift-plans` - Confirmed monthly plans
 - `GET /analysis/*` - Analysis and summary endpoints
+- `GET /info` - Version, commit and build date of the running backend (baked in
+  by GitLab CI, overridable by the `build` config section; see `services/info.rs`)
 
 ## Development Commands
 

@@ -172,7 +172,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             // to be in place before the pool opens its first connection.
             let telemetry = telemetry::init(&config.otel, config.server.verbose);
 
+            let build = shift::services::info::BuildInfo::init(&config.build);
+
             println!("Starting server...");
+            println!(
+                "Version: {}{}",
+                build.version,
+                if build.commit.is_empty() { String::new() } else { format!(" ({})", build.commit) }
+            );
             println!("Listen: {}:{}", config.server.listen, config.server.port);
             println!("Verbose: {}", config.server.verbose);
             println!("Database: {}", mask_postgres_url(&config.database.url).unwrap_or_else(|_| "Failed to mask URL".into()));

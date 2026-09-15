@@ -93,6 +93,19 @@ its standard `OTEL_*` (or GitLab `CI_*`) environment variable — see
     configured tenant. It exists so the API is usable without a gateway during
     development. Never enable it on a shared or production deployment.
 
+### `build`
+
+What `GET /api/v1/info` reports. Empty keys fall back to what the build
+compiled in — the `APP_VERSION`, `GIT_COMMIT` and `BUILD_DATE` build arguments
+GitLab CI passes (see [Deployment](deployment.md#version)) — and a build
+without those reports the crate version.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `version` | `""` | Version string. Env: `SHIFT_BUILD__VERSION` |
+| `commit` | `""` | Commit SHA. Env: `SHIFT_BUILD__COMMIT` |
+| `date` | `""` | Build date, ISO 8601. Env: `SHIFT_BUILD__DATE` |
+
 ## Environment variables
 
 Figment reads `SHIFT_`-prefixed variables and unprefixed ones. Nested keys use

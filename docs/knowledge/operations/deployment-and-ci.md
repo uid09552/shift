@@ -120,6 +120,13 @@ cache from `:latest` and builds with `BUILDKIT_INLINE_CACHE=1` and `--cache-from
 | Default branch | Also push `:latest` |
 | Tag | Also push `:$CI_COMMIT_TAG` and `:latest` |
 
+**Version.** Each build passes `APP_VERSION` (the tag, else `<branch>-<short
+sha>`, or a project CI variable of that name), `GIT_COMMIT` and `BUILD_DATE` as
+build arguments, and sets the matching OCI labels. The backend compiles them in
+and serves them at `GET /api/v1/info` (overridable by the `build` config
+section); the UI bakes them in via `ng build --define` and shows them in the
+sidebar; planner and agent report them in `/api/v1/health`.
+
 ## Trivy scanning and SBOMs
 
 Every image is scanned by Trivy, pinned to `TRIVY_VERSION`. Each build job writes

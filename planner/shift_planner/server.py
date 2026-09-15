@@ -12,7 +12,7 @@ import logging
 from flask import Flask, jsonify, request
 from pydantic import ValidationError
 
-from shift_planner import telemetry
+from shift_planner import build_info, telemetry
 from shift_planner.models import SchedulingInput
 from shift_planner.optimizer import solve
 
@@ -96,15 +96,15 @@ def create_app() -> Flask:
 
     @app.route("/api/v1/health", methods=["GET"])
     def health():
-        """Health check endpoint."""
-        return jsonify({"status": "healthy"}), 200
+        """Health check endpoint, with what is running."""
+        return jsonify({"status": "healthy", **build_info()}), 200
 
     @app.route("/api/v1/", methods=["GET"])
     def index():
         """API information endpoint."""
         return jsonify({
             "service": "shift-planner",
-            "version": "1.0.0",
+            "version": build_info()["version"],
             "endpoints": {
                 "POST /api/v1/optimize": "Submit scheduling input and receive a plan",
                 "GET /api/v1/health": "Health check",

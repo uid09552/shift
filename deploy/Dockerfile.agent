@@ -39,6 +39,13 @@ COPY docs/knowledge /docs/knowledge
 # Ensure the virtual environment is in PATH
 ENV PATH="/app/.venv/bin:$PATH"
 
+# Build information, passed by GitLab CI (see .gitlab-ci.yml); the health
+# endpoint reports it. Unset, the package version is reported.
+ARG APP_VERSION=""
+ARG GIT_COMMIT=""
+ARG BUILD_DATE=""
+ENV APP_VERSION=$APP_VERSION GIT_COMMIT=$GIT_COMMIT BUILD_DATE=$BUILD_DATE
+
 # Expose the REST API port (shift-agent api) and MCP HTTP port. Each
 # container built from this image runs exactly one of the two — the
 # "agent" and "mcp" services in docker-compose.yml override CMD.

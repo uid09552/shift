@@ -73,6 +73,8 @@ export const en = {
   'nav.signUp': 'Sign Up',
   'nav.widgetTitle': 'ShiftPlanner',
   'nav.widgetText': 'Shift Planning & Scheduling Application.',
+  'nav.version': 'Version {version}',
+  'nav.versions': 'UI {ui} · API {api}',
 
   // ── Header ──────────────────────────────────────────────────────
   'header.searchPlaceholder': 'Search or type command…',

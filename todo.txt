@@ -1,1 +1,7 @@
 1) implement version showing in ui, the version should be generated in gitlab ci as build flag or as setting of a config, info api should exist providing the version info.
+   DONE. CI passes APP_VERSION (tag, else <branch>-<short sha>, or a CI variable
+   of that name), GIT_COMMIT, BUILD_DATE as Docker build args to all four images.
+   Backend compiles them in and serves GET /api/v1/info; the `build` config
+   section (SHIFT_BUILD__VERSION ...) overrides them. UI bakes them in via
+   ng build --define and shows the version in the sidebar (both UI and API when
+   they differ). Planner/agent report it in /api/v1/health. See docs/deployment.md#version.

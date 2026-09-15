@@ -72,6 +72,8 @@ export const de: Record<TranslationKey, string> = {
   'nav.signUp': 'Registrieren',
   'nav.widgetTitle': 'ShiftPlanner',
   'nav.widgetText': 'Anwendung für Schichtplanung und Dienstpläne.',
+  'nav.version': 'Version {version}',
+  'nav.versions': 'UI {ui} · API {api}',
 
   // ── Header ──────────────────────────────────────────────────────
   'header.searchPlaceholder': 'Suchen oder Befehl eingeben…',

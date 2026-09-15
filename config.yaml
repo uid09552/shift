@@ -40,3 +40,12 @@ otel:
   gitlab_project_id: "" # CI_PROJECT_ID
   gitlab_project_name: "" # CI_PROJECT_NAME
   sample_ratio: 1.0
+
+# What GET /api/v1/info reports. Leave empty to report what the build baked in
+# (APP_VERSION / GIT_COMMIT / BUILD_DATE, set by GitLab CI as Docker build
+# arguments); a local build without them reports the crate version.
+# Env: SHIFT_BUILD__VERSION, SHIFT_BUILD__COMMIT, SHIFT_BUILD__DATE.
+build:
+  version: ""
+  commit: ""
+  date: ""

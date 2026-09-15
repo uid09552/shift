@@ -194,6 +194,8 @@ pub fn create_router(state: AppState) -> Router {
         )
         // Audit Logs
         .route("/audit-logs", get(AuditLogService::list_audit_logs))
+        // What is running — version, commit, build date
+        .route("/info", get(crate::services::info::get_info))
         // Resolve the request's tenant and roles from the x-access-token JWT (or the
         // default tenant and full access in dev mode) before any handler runs, and
         // reject methods the caller's roles do not cover.

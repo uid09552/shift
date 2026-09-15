@@ -60,7 +60,7 @@ from flask import Flask, jsonify, request
 from werkzeug.utils import secure_filename
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from shift_agent import telemetry
+from shift_agent import build_info, telemetry
 from shift_agent.agent.auth import (
     reset_forwarded_token,
     set_forwarded_token,
@@ -208,7 +208,7 @@ def create_app(knowledge_path: str | None = None) -> Flask:
     # ---- Health check (no auth) ----
     @app.route("/api/v1/health", methods=["GET"])
     def health():
-        return jsonify({"status": "ok"})
+        return jsonify({"status": "ok", **build_info()})
 
     # ---- One agent turn, shared by /chat and /chat/upload ----
     def _run_turn(message: str, session_id: str):

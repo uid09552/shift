@@ -28,7 +28,12 @@ ps:
 logs:
 	docker-compose logs -f
 
+# The images report $(VERSION) as their version (GET /api/v1/info, the UI's
+# sidebar) — the same build arguments GitLab CI passes.
 build:
+	APP_VERSION=$(VERSION) \
+	GIT_COMMIT=$(shell git rev-parse HEAD 2>/dev/null) \
+	BUILD_DATE=$(shell date -u +%Y-%m-%dT%H:%M:%SZ) \
 	docker-compose build
 
 clean:

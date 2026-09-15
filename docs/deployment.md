@@ -161,6 +161,34 @@ Each job pulls `:latest` to warm the layer cache, builds with
 The `workflow:` rules run merge request pipelines, branch pipelines, and tag
 pipelines — but suppress the duplicate branch pipeline while an MR is open.
 
+### Version
+
+Every image is built with three build arguments, so each part of the stack
+can say what it is:
+
+| Argument | Value |
+|---|---|
+| `APP_VERSION` | The tag on a tag pipeline, else `<branch>-<short sha>`. A project CI variable `APP_VERSION` overrides both |
+| `GIT_COMMIT` | `$CI_COMMIT_SHA` |
+| `BUILD_DATE` | UTC time of the build, ISO 8601 |
+
+Where they end up:
+
+- **Backend** — compiled into the binary; `GET /api/v1/info` reports them. The
+  `build` config section (`SHIFT_BUILD__VERSION`, …) overrides them at runtime
+  — see [Configuration](configuration.md#build).
+- **UI** — replaced into the bundle by `ng build --define`; the sidebar shows
+  the version, and the backend's too when the two differ. Hover it for the
+  commits and build dates.
+- **Planner, agent** — environment variables in the image; their
+  `/api/v1/health` reports them.
+- **Image labels** — `org.opencontainers.image.version`, `.revision`,
+  `.created` and `.source`.
+
+`make build` in `deploy/` passes the same arguments for local images, with
+`git describe` as the version. Without them, the backend reports its crate
+version and the UI reports `dev`.
+
 ### Image scanning and SBOMs (Trivy)
 
 Every image is scanned by [Trivy](https://trivy.dev), pinned to `TRIVY_VERSION`
