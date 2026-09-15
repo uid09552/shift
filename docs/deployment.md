@@ -294,6 +294,81 @@ trivy image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed \
   registry.gitlab.com/<group>/<project>/backend:latest
 ```
 
+### Dependency updates (Renovate)
+
+The `renovate` job runs [Renovate](https://docs.renovatebot.com) against this
+project and opens a merge request for each new version of something the
+services depend on. `renovate.json5` at the repository root says what to update
+and how to bundle it:
+
+| What | Where |
+|---|---|
+| Rust crates | `Cargo.toml`, `Cargo.lock` |
+| npm packages | `ui/package.json`, `ui/package-lock.json` |
+| Python packages | `planner/` and `agent/` `pyproject.toml` + `uv.lock`; `docs/` and `e2e/` `requirements.txt` |
+| Container images | `deploy/Dockerfile.*`, the Compose files in `deploy/` and `release/`, the images in `.gitlab-ci.yml` (Renovate's own included) |
+| Trivy | `TRIVY_VERSION` in `.gitlab-ci.yml`, following the `aquasec/trivy` image |
+
+Minor and patch updates are bundled per service: one merge request each for
+the backend, the UI, the planner, the agent, and the docs/e2e tooling. Majors
+get their own, since they are the ones that need reading. Two exceptions: a
+0.x package's minor bump breaks like a major and is kept separate, and a
+TypeScript major travels with the Angular major. Security fixes (from the OSV
+database) get a merge request straight away, labelled `security`. On Mondays,
+a *lock file maintenance* merge request refreshes the four lockfiles within the
+ranges already allowed.
+
+Every Renovate merge request runs the normal MR pipeline, so all four images are
+built and scanned before anyone merges. Nothing is merged automatically. Branch
+pipelines are skipped for `renovate/*` branches (the MR pipeline follows
+immediately), and Renovate rebases only on a conflict, so each update is built
+as few times as possible.
+
+A PostgreSQL or Keycloak **major** is a data migration, not a version bump. It
+waits on the *Dependency Dashboard*, an issue Renovate keeps up to date with
+every pending update, until someone ticks it there. Ticking any other entry
+makes the next run open that merge request.
+
+The `ieapp/` Flutter app is left out: this pipeline does not build it, so
+nothing would test an update. Delete that rule in `renovate.json5` to include
+it.
+
+Set it up once:
+
+1. *Settings → Access tokens*: add a project access token with role
+   **Developer** and scopes **`api`** and **`write_repository`**. Renovate pushes
+   its branches and opens merge requests as that token's bot user. Project
+   tokens expire (a year at most), so renew it in time or the job fails with
+   `401 Unauthorized`.
+2. *Settings → CI/CD → Variables*: `RENOVATE_TOKEN` = that token, **masked** and
+   **protected**.
+3. Recommended: `GITHUB_COM_TOKEN` = a GitHub token with no scopes. Renovate
+   uses it for the release notes in its merge requests. Without it, one run
+   exceeds github.com's anonymous rate limit.
+4. *Build → Pipeline schedules → New schedule*:
+
+   | Field | Value |
+   |---|---|
+   | Interval pattern | `0 5 * * 1-5` (weekdays at 05:00) |
+   | Cron timezone | Europe/Berlin |
+   | Target branch | the default branch |
+   | Variable | `RENOVATE` = `true` |
+
+5. Keep **Issues** enabled for the Dependency Dashboard.
+
+The variable is what tells this schedule apart from the nightly re-scan: with
+`RENOVATE=true` only the `renovate` job runs, and without it, it never does. To
+run it right away, use *Build → Pipelines → Run pipeline* on the default branch
+with the same variable. The job keeps its debug log (`renovate-log.ndjson`) as
+an artifact for a week.
+
+Check a change to `renovate.json5` before committing it:
+
+```bash
+docker run --rm -v "$PWD/renovate.json5:/usr/src/app/renovate.json5:ro" \
+  ghcr.io/renovatebot/renovate:44.93.0 renovate-config-validator --strict
+```
+
 ### Pages stage
 
 The `pages` job builds this documentation with MkDocs and publishes it to

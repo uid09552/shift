@@ -37,6 +37,8 @@ pub struct PlannerSettingsResponse {
     pub shift_continuity_week_bonus: i32,
     pub wish_weight: i32,
     pub min_staffing_mode: MinStaffingMode,
+    /// Rotations and other fixed assignments: kept first (`true`) or ignored.
+    pub keep_fixed_assignments: bool,
 }
 
 impl From<PlannerSettingsDomain> for PlannerSettingsResponse {
@@ -67,6 +69,7 @@ impl From<PlannerSettingsDomain> for PlannerSettingsResponse {
             shift_continuity_week_bonus: s.shift_continuity_week_bonus,
             wish_weight: s.wish_weight,
             min_staffing_mode: s.min_staffing_mode,
+            keep_fixed_assignments: s.keep_fixed_assignments,
         }
     }
 }
@@ -104,6 +107,8 @@ pub struct UpdatePlannerSettingsRequest {
     pub wish_weight: i32,
     #[serde(default = "default_min_staffing_mode")]
     pub min_staffing_mode: MinStaffingMode,
+    #[serde(default = "default_keep_fixed_assignments")]
+    pub keep_fixed_assignments: bool,
 }
 
 fn default_weekly_hours_target_weight() -> i32 { 1000 }
@@ -115,6 +120,7 @@ fn default_shift_continuity_weight() -> i32 { 500 }
 fn default_shift_continuity_week_bonus() -> i32 { 2000 }
 fn default_wish_weight() -> i32 { 20000 }
 fn default_min_staffing_mode() -> MinStaffingMode { MinStaffingMode::Soft }
+fn default_keep_fixed_assignments() -> bool { true }
 
 pub struct PlannerSettingsService;
 
@@ -158,6 +164,7 @@ impl PlannerSettingsService {
             shift_continuity_week_bonus: body.shift_continuity_week_bonus,
             wish_weight: body.wish_weight,
             min_staffing_mode: body.min_staffing_mode,
+            keep_fixed_assignments: body.keep_fixed_assignments,
         };
 
         let settings = state.planner_settings_repo.update_planner_settings(&tenant.0, update).await?;

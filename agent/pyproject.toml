@@ -4,6 +4,7 @@ version = "0.2.0"
 description = "LangGraph-based conversational agent that helps users navigate and configure the Shift Planner web app"
 readme = "README.md"
 requires-python = ">=3.11"
+license = "Apache-2.0"
 dependencies = [
     "langgraph>=0.2",
     "langchain-openai>=0.2",

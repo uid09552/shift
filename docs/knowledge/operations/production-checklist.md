@@ -69,6 +69,10 @@ sources:
       merely report. The image gate adds `--ignore-unfixed`, so it fires only on
       findings a base-image bump can resolve. See
       [Deployment and CI](/operations/deployment-and-ci.md).
+- [ ] **Renovate** switched on: `RENOVATE_TOKEN` set and a schedule with
+      `RENOVATE=true`, and a calendar reminder to renew the project access
+      token before it expires. See
+      [Deployment and CI](/operations/deployment-and-ci.md).
 - [ ] **MCP server behind HTTPS** with `MCP_OAUTH_CLIENT_ID`/`_SECRET` set, if
       external MCP clients need to connect. Both are blanked in the Compose stack
       because the OIDC library requires an HTTPS issuer URL.

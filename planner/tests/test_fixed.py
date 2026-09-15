@@ -72,3 +72,19 @@ def test_a_rotation_that_breaks_the_day_cap_still_plans():
     assert len(worked) == 4
     assert "Fixed assignment(s) not kept" in result.message
     assert "clashes with rest rules or day limits" in result.message
+
+
+def test_fixed_assignments_can_be_switched_off():
+    # Fixed off on Wednesday, but the tenant has rotations switched off: the
+    # only person who can cover Wednesday works it.
+    result = solve(_input(
+        [_shift("day")],
+        [_ws("w1")],
+        [_fixed(_emp("alice"), (WED, None))],
+        max_working_days_per_week=0,
+        keep_fixed_assignments=False,
+    ))
+
+    assert _day(result, "alice", WED).status == "assigned"
+    assert "not kept" not in (result.message or "")
+    assert "Below minimum staffing" not in (result.message or "")

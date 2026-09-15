@@ -13,8 +13,8 @@ help:
 	@echo "  run            Run the app"
 	@echo "  serve          Run 'serve' command"
 	@echo "  ui-serve       Run Angular dev server (ng serve)"
-	@echo "  db-up          Start PostgreSQL database with docker-compose"
-	@echo "  db-down        Stop PostgreSQL database"
+	@echo "  db-up          Start PostgreSQL and NATS (deploy/docker-compose.yml)"
+	@echo "  db-down        Stop PostgreSQL and NATS"
 	@echo "  seed           Run seed_data_v2.py against the running server"
 	@echo "  dev-run        Reset DB, run server, and seed data"
 	@echo "  build-compose  Build docker-compose images (backend + postgres)"
@@ -54,12 +54,14 @@ ui-serve:
 	cd ui && make serve
 
 .PHONY: db-up
+# PostgreSQL and NATS only — what `make serve` needs. The credentials match
+# config.yaml's default database URL.
 db-up:
-	docker compose -f dev/docker-compose.yml up -d
+	docker compose -f deploy/docker-compose.yml up -d postgres nats
 
 .PHONY: db-down
 db-down:
-	docker compose -f dev/docker-compose.yml down
+	docker compose -f deploy/docker-compose.yml stop postgres nats
 
 .PHONY: check
 check:
@@ -107,12 +109,10 @@ dev-run:
 build-compose:
 	docker compose -f deploy/docker-compose.yml build
 
-.PHONY: run-compose
+.PHONY: up
 up:
 	docker compose -f deploy/docker-compose.yml up --build -d
-	docker compose -f ui/deploy/docker-compose.yml up --build -d
 
-.PHONY: down-compose
+.PHONY: down
 down:
 	docker compose -f deploy/docker-compose.yml down
-	docker compose -f ui/deploy/docker-compose.yml down

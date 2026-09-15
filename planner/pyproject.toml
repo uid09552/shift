@@ -4,6 +4,7 @@ version = "1.0.0"
 description = "Constraint-based employee shift scheduling with OR-Tools CP-SAT solver"
 readme = "README.md"
 requires-python = ">=3.11"
+license = "Apache-2.0"
 dependencies = [
     "ortools>=9.8",
     "click>=8.0",

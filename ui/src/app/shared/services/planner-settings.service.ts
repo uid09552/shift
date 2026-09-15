@@ -37,6 +37,8 @@ export interface PlannerSettings {
   shift_continuity_weight: number;
   shift_continuity_week_bonus: number;
   min_staffing_mode: MinStaffingMode;
+  /** Rotations and other fixed assignments: kept first (true) or ignored when planning. */
+  keep_fixed_assignments: boolean;
 }
 
 export type UpdatePlannerSettingsRequest = Omit<PlannerSettings, 'updated_at'>;

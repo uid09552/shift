@@ -1,6 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import {
   PlannerSettingsService,
   PlannerSettings,
@@ -37,6 +38,7 @@ const DEFAULT_BAND: { min: number; max: number } = { min: 30, max: 45 };
   imports: [
     CommonModule,
     FormsModule,
+    RouterLink,
     PageBreadcrumbComponent,
     ButtonComponent,
     SettingRowComponent,
@@ -388,6 +390,38 @@ const DEFAULT_BAND: { min: number; max: number } = { min: 30, max: 45 };
           </div>
           <div class="divide-y divide-gray-100 border-t border-gray-100 dark:divide-white/[0.05] dark:border-white/[0.05]">
             <app-setting-row
+              [label]="'plannerSettings.keepFixedAssignments.label' | t"
+              [description]="'plannerSettings.keepFixedAssignments.hint' | t"
+              [tooltip]="'plannerSettings.keepFixedAssignments.tooltip' | t"
+            >
+              <button
+                type="button"
+                role="switch"
+                data-testid="keep-fixed-assignments"
+                [attr.aria-checked]="form.keep_fixed_assignments"
+                [attr.aria-label]="'plannerSettings.keepFixedAssignments.label' | t"
+                (click)="form.keep_fixed_assignments = !form.keep_fixed_assignments"
+                class="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+              >
+                <span
+                  class="relative block h-6 w-11 rounded-full transition-colors duration-150"
+                  [class]="form.keep_fixed_assignments ? 'bg-brand-500' : 'bg-gray-200 dark:bg-white/10'"
+                >
+                  <span
+                    class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-theme-xs transition-transform duration-150"
+                    [class]="form.keep_fixed_assignments ? 'translate-x-5' : 'translate-x-0'"
+                  ></span>
+                </span>
+              </button>
+            </app-setting-row>
+            @if (!form.keep_fixed_assignments) {
+              <p class="bg-gray-50 px-5 py-3 text-xs leading-relaxed text-gray-600 dark:bg-white/[0.02] dark:text-gray-400 sm:px-6" data-testid="keep-fixed-assignments-off">
+                {{ 'plannerSettings.keepFixedAssignments.offNote' | t }}
+                <a routerLink="/rotations" class="font-medium text-brand-600 hover:underline dark:text-brand-400">{{ 'plannerSettings.keepFixedAssignments.openRotations' | t }}</a>
+              </p>
+            }
+
+            <app-setting-row
               controlId="minStaffingMode"
               [label]="'plannerSettings.minStaffingMode.label' | t"
               [description]="'plannerSettings.minStaffingMode.hint' | t"
@@ -571,6 +605,7 @@ export class PlannerSettingsComponent implements OnInit {
     shift_continuity_weight: 500,
     shift_continuity_week_bonus: 2000,
     min_staffing_mode: 'soft',
+    keep_fixed_assignments: true,
   };
 
   ngOnInit(): void {

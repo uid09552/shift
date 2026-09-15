@@ -174,7 +174,8 @@ OPTIMIZER_CONSTRAINT_KEYS = {
     "monthly_hours_target_weight", "weekly_min_hours", "weekly_max_hours",
     "weekly_hours_target_weight", "preference_weight", "wish_weight",
     "skill_downgrade_weight", "fatigue_weight", "night_shift_fatigue_multiplier",
-    "min_staffing_mode", "solver_time_limit_seconds", "solver_num_workers",
+    "min_staffing_mode", "keep_fixed_assignments", "solver_time_limit_seconds",
+    "solver_num_workers",
 }
 
 
@@ -235,6 +236,8 @@ def _register_optimizer(mcp: FastMCP) -> None:
             employee_ids: Only plan for these employees. Omit for everyone.
             constraints: Per-run overrides of the tenant's planner settings,
                 e.g. {"min_rest_hours": 10, "solver_time_limit_seconds": 30}.
+                {"keep_fixed_assignments": false} plans as if there were no
+                rotations — "what would the month look like without them?"
             locked_assignments: Rows the solver must keep, each
                 {"employee_id", "date", "shift_id", "workstation_id"}. The
                 solver plans around them; any that are impossible are reported

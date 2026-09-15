@@ -136,7 +136,8 @@ backend/
   one at a time / by import
 - The optimizer receives them as `employees[].fixed_shifts` and keeps them
   ahead of every other goal (not hard: one a rule forbids is reported in
-  `message`, never makes the plan infeasible)
+  `message`, never makes the plan infeasible) — unless the planner setting
+  `keep_fixed_assignments` is off, in which case it ignores them
 
 ### Confirmed Shift Plans
 - Monthly confirmed schedules per employee
@@ -215,7 +216,7 @@ Base URL: `http://localhost:8080/api/v1`
 ```bash
 make build        # Build the project
 make serve        # Start the server (default: port 8080)
-make db-up        # Start PostgreSQL database
+make db-up        # Start PostgreSQL and NATS
 make db-down      # Stop PostgreSQL database
 make test         # Run tests
 make check        # Check code without building
@@ -376,6 +377,9 @@ tool posts to it and waits, which a queue cannot offer. In
 - `min_staffing_mode`: "soft" | "hard" (default "soft") — whether each shift's
   and workstation's `min_employees` is a penalised target or a requirement the
   solver may not break (hard can return `infeasible`)
+- `keep_fixed_assignments`: bool (default true) — keep employees' `fixed_shifts`
+  (rotations) ahead of every other goal, or plan as if there were none. A
+  planner setting ("Keep rotations"); the agent's plan check follows it
 - `solver_time_limit_seconds`: float (default 120.0)
 - `solver_num_workers`: int (default 8)
 

@@ -33,6 +33,7 @@ pub struct PlannerSettings {
     pub shift_continuity_week_bonus: i32,
     pub wish_weight: i32,
     pub min_staffing_mode: String,
+    pub keep_fixed_assignments: bool,
 }
 
 #[derive(Insertable, AsChangeset, Debug, Clone)]
@@ -61,6 +62,7 @@ pub struct NewPlannerSettings {
     pub shift_continuity_week_bonus: i32,
     pub wish_weight: i32,
     pub min_staffing_mode: String,
+    pub keep_fixed_assignments: bool,
 }
 
 impl NewPlannerSettings {
@@ -90,6 +92,7 @@ impl NewPlannerSettings {
             shift_continuity_week_bonus: 2000,
             wish_weight: 20000,
             min_staffing_mode: "soft".to_string(),
+            keep_fixed_assignments: true,
         }
     }
 }

@@ -12,7 +12,7 @@ generated:
 * [Local development](/operations/local-development.md) - prerequisites, the whole stack in Docker, or each piece individually. Ports at a glance.
 * [Backend configuration](/operations/backend-configuration.md) - the four Figment layers, every setting, env vars and CLI flags.
 * [Database and migrations](/operations/database-and-migrations.md) - PostgreSQL, the 24 migrations, the Diesel workflow, backups.
-* [Deployment and CI](/operations/deployment-and-ci.md) - images, the Compose stack, the registry, GitLab CI, Trivy scanning and Pages.
+* [Deployment and CI](/operations/deployment-and-ci.md) - images, the Compose stack, the registry, GitLab CI, Trivy scanning, Renovate and Pages.
 * [Production checklist](/operations/production-checklist.md) - what must be true before this faces real users.
 
 # Fastest path

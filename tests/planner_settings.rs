@@ -192,3 +192,27 @@ async fn an_unknown_minimum_staffing_mode_is_refused() {
 
     app.cleanup();
 }
+
+#[tokio::test]
+async fn rotations_are_kept_until_switched_off() {
+    let Some(app) = TestApp::spawn().await else { return };
+
+    let (_, body) = app.get().await;
+    assert_eq!(body["keep_fixed_assignments"], true, "a new tenant keeps its rotations");
+
+    let mut off = settings_body(json!("soft"));
+    off["keep_fixed_assignments"] = json!(false);
+    let (status, body) = app.put(off).await;
+    assert_eq!(status, 200, "body: {body}");
+    assert_eq!(body["keep_fixed_assignments"], false);
+    let (_, reread) = app.get().await;
+    assert_eq!(reread["keep_fixed_assignments"], false, "stored, not just echoed");
+
+    // An older client that does not know the field switches rotations back on
+    // rather than silently leaving them off — the same rule as every other
+    // omitted setting: omitted means default.
+    let (_, omitted) = app.put(settings_body(json!("soft"))).await;
+    assert_eq!(omitted["keep_fixed_assignments"], true);
+
+    app.cleanup();
+}

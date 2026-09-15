@@ -95,6 +95,27 @@ pub struct PlanTaskStatusResponse {
     pub result_id: Option<Uuid>,
 }
 
+/// The longest period one calculation may cover. The solver's model grows
+/// with every day, and a year already takes it far past any sensible time
+/// limit; the UI stops at a quarter.
+pub const MAX_PLANNING_DAYS: i64 = 366;
+
+/// Refuses a period that ends before it starts or is longer than
+/// [`MAX_PLANNING_DAYS`] — a mistyped year would otherwise ask for a model of
+/// thousands of years and never come back.
+fn check_period(start: chrono::NaiveDate, end: chrono::NaiveDate) -> Result<(), String> {
+    if end < start {
+        return Err(format!("The planning period ends ({end}) before it starts ({start})."));
+    }
+    let days = (end - start).num_days() + 1;
+    if days > MAX_PLANNING_DAYS {
+        return Err(format!(
+            "The planning period {start} – {end} is {days} days long; at most {MAX_PLANNING_DAYS} can be planned at once."
+        ));
+    }
+    Ok(())
+}
+
 // ── OptimizerService ─────────────────────────────────────────────────────────
 
 pub struct OptimizerService {
@@ -195,6 +216,7 @@ impl OptimizerService {
         let period_end = end_date
             .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
             .unwrap_or_else(|| today.checked_add_signed(chrono::Duration::days(27)).unwrap_or(today));
+        check_period(period_start, period_end)?;
 
         // Fixed assignments inside the period, per employee.
         let mut fixed_map: std::collections::HashMap<Uuid, Vec<FixedShiftTask>> = std::collections::HashMap::new();
@@ -488,6 +510,7 @@ async fn build_constraints(
                 shift_continuity_week_bonus: Some(s.shift_continuity_week_bonus),
                 wish_weight: Some(s.wish_weight),
                 min_staffing_mode: Some(s.min_staffing_mode.as_str().to_string()),
+                keep_fixed_assignments: Some(s.keep_fixed_assignments),
             }
         }
         Err(e) => {
@@ -791,9 +814,11 @@ pub async fn prepare(
     let constraints = Some(build_constraints(&state, &tenant.0, request.monthly_hours_target_weight).await);
     match OptimizerService::build_task_dto(&state, &tenant.0, employee_filter, request.start_date.as_deref(), request.end_date.as_deref(), constraints).await {
         Ok(task_dto) => Ok(Json(task_dto)),
+        // The same messages trigger_plan answers with: what is wrong with the
+        // request or the ward's data, not a server fault.
         Err(e) => {
             eprintln!("Failed to prepare task DTO: {}", e);
-            Err(AppError::Internal)
+            Err(AppError::Validation(e.to_string()))
         }
     }
 }
@@ -801,6 +826,20 @@ pub async fn prepare(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn day(s: &str) -> chrono::NaiveDate {
+        chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
+    }
+
+    #[test]
+    fn a_period_is_at_most_a_year_and_never_backwards() {
+        assert!(check_period(day("2026-09-01"), day("2026-09-28")).is_ok());
+        assert!(check_period(day("2026-01-01"), day("2026-12-31")).is_ok(), "a whole year is allowed");
+        assert!(check_period(day("2026-09-28"), day("2026-09-01")).is_err());
+        // What typing a year into a date field passes through on the way to 2026.
+        let err = check_period(day("0002-09-15"), day("2026-10-12")).unwrap_err();
+        assert!(err.contains("at most 366"), "{err}");
+    }
     use chrono::NaiveTime;
 
     fn time(h: u32, m: u32) -> NaiveTime {

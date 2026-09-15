@@ -36,6 +36,15 @@ Set any of these to `0` to disable that constraint entirely.
 These four multiply together. Tightening all of them at once on a thin ward is the
 commonest route to [infeasible](/solver/infeasibility-playbook.md).
 
+# Rotations
+
+| Setting | Default | Effect |
+|---|---|---|
+| `keep_fixed_assignments` | `true` | Keep employees' fixed assignments (what rotation patterns write) ahead of coverage and every other goal; `false` plans as if there were none. The assignments themselves are untouched either way, and the plan check stops flagging ones a proposal does not keep |
+
+Not part of the use-case templates on the settings page: whether a ward plans to
+its rotations is a decision about the ward, not a weighting.
+
 # Objective weights
 
 | Setting | Default | Effect |

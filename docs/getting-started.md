@@ -26,19 +26,12 @@ the MCP server, n8n and the APISIX gateway. Ports are listed under
 [Deployment](deployment.md#compose-stack) and at the [bottom of this
 page](#ports-at-a-glance).
 
-!!! warning "Two stale Makefile targets"
-    The root `Makefile` still refers to `dev/docker-compose.yml` (`make db-up`,
-    `make db-down`) and `ui/deploy/docker-compose.yml` (part of `make up` /
-    `make down`). Neither file exists in the repository. Use
-    `docker compose -f deploy/docker-compose.yml …` directly, as shown below,
-    until those targets are fixed.
-
 ## Running the pieces individually
 
 ### 1. Infrastructure
 
 ```bash
-docker compose -f deploy/docker-compose.yml up -d postgres nats
+make db-up        # docker compose -f deploy/docker-compose.yml up -d postgres nats
 ```
 
 PostgreSQL listens on `5432`, NATS on `4222` (monitoring on `8222`).
@@ -49,9 +42,14 @@ Migrations in `migrations/` are embedded and applied at startup, so there is
 nothing to run by hand.
 
 ```bash
-export DATABASE_URL=postgresql://shift_user:shift_password@localhost:5432/shift
-make serve PORT=8081 DEV=1 TENANT_ID=0
+make serve PORT=8082 DEV=1 TENANT_ID=0
 ```
+
+`config.yaml` already points at the Compose PostgreSQL
+(`postgres:postgres@localhost:5432/shift`); set `DATABASE_URL` only for a
+different database. Port 8082 is where the UI dev server's proxy
+(`ui/proxy.conf.json`) sends `/api` — 8081 is taken by the backend container
+when the whole Compose stack runs.
 
 `DEV=1` sets `--dev-mode`, which pins every request to `TENANT_ID` instead of
 resolving a tenant from a JWT — that is what makes the API usable with plain
@@ -61,15 +59,15 @@ resolving a tenant from a JWT — that is what makes the API usable with plain
 Check it:
 
 ```bash
-curl http://localhost:8081/health
-curl http://localhost:8081/api/v1/shifts
+curl http://localhost:8082/health
+curl http://localhost:8082/api/v1/shifts
 ```
 
 ### 3. Seed data
 
 ```bash
-make seed                                        # defaults to :8081
-make seed SEED_URL=http://127.0.0.1:8080/api/v1  # or point it elsewhere
+make seed SEED_URL=http://127.0.0.1:8082/api/v1  # the backend started above
+make seed                                        # default: :8081, the Compose backend
 ```
 
 `seed_data_v2.py` drives the public REST API, so it works against any reachable
@@ -97,8 +95,8 @@ cd planner && make schedule    # input.json -> output.json
 cd ui && npm install && npm start   # ng serve on :4200
 ```
 
-`ui/proxy.conf.json` forwards `/api` to the backend, so the dev server needs no
-CORS configuration.
+Open <http://localhost:4200/planner/>. `ui/proxy.conf.json` forwards `/api` to
+the backend on :8082, so the dev server needs no CORS configuration.
 
 ### 6. Agent and MCP server
 
@@ -161,7 +159,7 @@ Outside Docker, point the agent at your local MCP server with
 
 | Port | Service |
 |---|---|
-| 8080 | Backend (default), 8081 when run via `deploy/docker-compose.yml` |
+| 8080 | Backend (default); 8082 for local development behind the UI dev server; 8081 when run via `deploy/docker-compose.yml` |
 | 4200 | Angular dev server |
 | 8888 | Optimizer REST API — and the UI container in Compose |
 | 8899 | Agent chat API |

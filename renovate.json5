@@ -1,0 +1,195 @@
+// Renovate — dependency update merge requests.
+//
+// Renovate runs as the `renovate` job in .gitlab-ci.yml (scheduled pipeline with
+// RENOVATE=true); see the block above that job for the one-time GitLab setup.
+// This file says *what* to update and how to bundle it. Check a change with:
+//
+//   npx --package renovate -- renovate-config-validator renovate.json5
+//
+// What it looks after, by manager (all detected, none listed by hand):
+//   cargo           Cargo.toml / Cargo.lock                  backend (Rust)
+//   npm             ui/package.json / package-lock.json      ui (Angular)
+//   pep621          planner/ and agent/ pyproject.toml, uv.lock
+//   pip_requirements docs/requirements.txt, e2e/requirements.txt
+//   dockerfile      deploy/Dockerfile.* base images
+//   docker-compose  deploy/ and release/ compose files
+//   gitlabci        images in .gitlab-ci.yml, Renovate's own included
+//   custom (below)  TRIVY_VERSION in .gitlab-ci.yml
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    // Monorepo grouping (all @angular/* together, …), the Dependency Dashboard
+    // issue, LTS-only Node image tags, and the usual ignore paths.
+    'config:recommended',
+  ],
+
+  timezone: 'Europe/Berlin',
+  labels: ['dependencies'],
+
+  // The CI schedule decides how often Renovate runs, so it should not also be
+  // throttled per hour — that would leave most updates for the next run.
+  prHourlyLimit: 0,
+  prConcurrentLimit: 10,
+
+  // Every push to a Renovate branch runs the merge request pipeline, which
+  // builds all four images (the Rust one takes a while). Rebasing only when
+  // there is a conflict keeps that to pushes that change something.
+  rebaseWhen: 'conflicted',
+
+  // Security fixes from the OSV database get their own merge request straight
+  // away, whatever the grouping and schedule below say.
+  osvVulnerabilityAlerts: true,
+  vulnerabilityAlerts: {
+    labels: ['dependencies', 'security'],
+  },
+
+  // One weekly merge request that refreshes Cargo.lock, package-lock.json and
+  // both uv.lock files within the ranges already allowed — the transitive
+  // dependencies nothing else would ever move.
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ['* * * * 1'],
+  },
+
+  customManagers: [
+    {
+      // TRIVY_VERSION is both the scanner binary the build job downloads and
+      // the aquasec/trivy image tag the scan jobs run on. Following the image
+      // means a bump is only proposed once the image exists, and the binary
+      // release always precedes it.
+      customType: 'regex',
+      description: 'Trivy version in .gitlab-ci.yml',
+      managerFilePatterns: ['/^\\.gitlab-ci\\.yml$/'],
+      matchStrings: ['TRIVY_VERSION: "(?<currentValue>[^"]+)"'],
+      depNameTemplate: 'aquasec/trivy',
+      datasourceTemplate: 'docker',
+    },
+  ],
+
+  packageRules: [
+    // The Flutter app is not built by this pipeline, so nothing would test an
+    // update to it. Delete this rule to have Renovate look after it too.
+    {
+      matchFileNames: ['ieapp/**'],
+      enabled: false,
+    },
+
+    // ---- Which service an update belongs to --------------------------------
+    {
+      matchFileNames: ['Cargo.toml', 'Cargo.lock'],
+      addLabels: ['backend'],
+    },
+    {
+      matchFileNames: ['ui/**'],
+      addLabels: ['ui'],
+    },
+    {
+      matchFileNames: ['planner/**'],
+      addLabels: ['planner'],
+    },
+    {
+      matchFileNames: ['agent/**'],
+      addLabels: ['agent'],
+    },
+    {
+      matchFileNames: ['docs/**', 'e2e/**'],
+      addLabels: ['tooling'],
+    },
+    {
+      matchFileNames: ['deploy/**', 'release/**', '.gitlab-ci.yml'],
+      addLabels: ['ci-deploy'],
+    },
+
+    // ---- Bundling: one merge request per service for non-breaking updates --
+    // Minor and patch updates of a service go together, so a normal week is a
+    // handful of merge requests rather than dozens. Majors stay separate: they
+    // are the ones that need reading.
+    //
+    // A 0.x package breaks on a minor bump (0.10 → 0.11), so for Rust and npm
+    // minors are bundled only from 1.0 up; a 0.x minor gets its own merge
+    // request. Patches are bundled whatever the version.
+    {
+      matchManagers: ['cargo'],
+      matchUpdateTypes: ['patch'],
+      groupName: 'backend (Rust) non-major',
+    },
+    {
+      matchManagers: ['cargo'],
+      matchUpdateTypes: ['minor'],
+      matchCurrentVersion: '>=1.0.0',
+      groupName: 'backend (Rust) non-major',
+    },
+    {
+      matchManagers: ['npm'],
+      matchFileNames: ['ui/**'],
+      matchUpdateTypes: ['patch'],
+      groupName: 'ui (npm) non-major',
+    },
+    {
+      matchManagers: ['npm'],
+      matchFileNames: ['ui/**'],
+      matchUpdateTypes: ['minor'],
+      matchCurrentVersion: '>=1.0.0',
+      groupName: 'ui (npm) non-major',
+    },
+    {
+      matchManagers: ['pep621'],
+      matchFileNames: ['planner/**'],
+      matchUpdateTypes: ['minor', 'patch'],
+      groupName: 'planner (Python) non-major',
+    },
+    {
+      matchManagers: ['pep621'],
+      matchFileNames: ['agent/**'],
+      matchUpdateTypes: ['minor', 'patch'],
+      groupName: 'agent (Python) non-major',
+    },
+    {
+      matchManagers: ['pip_requirements'],
+      matchUpdateTypes: ['minor', 'patch'],
+      groupName: 'docs and e2e tooling non-major',
+    },
+
+    // Angular pins the TypeScript it accepts — a TypeScript major outside an
+    // Angular major fails `npm ci` on the peer range. Keep it in the merge
+    // request Angular's monorepo group already makes for its major. Renovate
+    // only bumps versions: an Angular major still wants `ng update` run on the
+    // branch for its migrations.
+    {
+      matchFileNames: ['ui/**'],
+      matchPackageNames: ['typescript'],
+      matchUpdateTypes: ['major'],
+      groupName: 'angular monorepo',
+    },
+
+    // ---- Container images --------------------------------------------------
+    // The planner and agent share a base image; the docs job uses the same
+    // Python line. Move them together.
+    {
+      matchDatasources: ['docker'],
+      matchPackageNames: ['python'],
+      groupName: 'python images',
+    },
+    // The Docker CLI and its dind service must be the same major.
+    {
+      matchDatasources: ['docker'],
+      matchPackageNames: ['docker'],
+      groupName: 'docker-in-docker',
+    },
+    // A PostgreSQL or Keycloak major is a data migration, not a version bump:
+    // it waits on the Dependency Dashboard until someone ticks it.
+    {
+      matchDatasources: ['docker'],
+      matchPackageNames: ['postgres', 'quay.io/keycloak/keycloak'],
+      matchUpdateTypes: ['major'],
+      dependencyDashboardApproval: true,
+    },
+    // Renovate publishes several releases a day. Its own image is bumped once
+    // a month, not every run.
+    {
+      matchPackageNames: ['ghcr.io/renovatebot/renovate'],
+      groupName: 'renovate',
+      schedule: ['* * 1-7 * *'],
+    },
+  ],
+}

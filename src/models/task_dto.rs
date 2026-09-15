@@ -44,6 +44,9 @@ pub struct ConstraintTask {
     /// `MinStaffingMode` and the optimizer's staffing constraints.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub min_staffing_mode: Option<String>,
+    /// `false`: the solver ignores employees' `fixed_shifts` (rotations).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keep_fixed_assignments: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

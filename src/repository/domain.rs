@@ -473,6 +473,9 @@ pub struct PlannerSettingsDomain {
     pub shift_continuity_week_bonus: i32,
     pub wish_weight: i32,
     pub min_staffing_mode: MinStaffingMode,
+    /// Keep employees' fixed assignments (rotations) ahead of every other goal,
+    /// or plan as if there were none.
+    pub keep_fixed_assignments: bool,
 }
 
 /// Whether `min_employees` (per shift/day and per workstation/shift/day) is a
@@ -540,6 +543,8 @@ pub struct UpdatePlannerSettings {
     pub wish_weight: i32,
     #[serde(default = "default_min_staffing_mode")]
     pub min_staffing_mode: MinStaffingMode,
+    #[serde(default = "default_keep_fixed_assignments")]
+    pub keep_fixed_assignments: bool,
 }
 
 fn default_weekly_hours_target_weight() -> i32 { 1000 }
@@ -551,6 +556,7 @@ fn default_shift_continuity_weight() -> i32 { 500 }
 fn default_shift_continuity_week_bonus() -> i32 { 2000 }
 fn default_wish_weight() -> i32 { 20000 }
 fn default_min_staffing_mode() -> MinStaffingMode { MinStaffingMode::Soft }
+fn default_keep_fixed_assignments() -> bool { true }
 
 #[async_trait]
 pub trait PlannerSettingsRepository {

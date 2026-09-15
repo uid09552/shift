@@ -112,6 +112,7 @@ _DEFAULT_CONSTRAINTS = {
     "fatigue_weight": 100,  # Weight on worst-off employee's accumulated fatigue
     "night_shift_fatigue_multiplier": 2.0,
     "min_staffing_mode": "soft",  # or "hard" — see ConstraintConfig
+    "keep_fixed_assignments": True,  # False: plan as if employees had no fixed_shifts
     "solver_time_limit_seconds": 120.0,
     "solver_num_workers": 8,
 }
@@ -240,6 +241,7 @@ class ShiftPlanner:
         self.fatigue_w = cfg["fatigue_weight"]
         self.night_fatigue_mult = cfg["night_shift_fatigue_multiplier"]
         self.min_staffing_hard = cfg["min_staffing_mode"] == "hard"
+        self.keep_fixed = cfg["keep_fixed_assignments"]
         self.time_limit = cfg["solver_time_limit_seconds"]
         self.num_workers = cfg["solver_num_workers"]
         logger.info("Constraint config: %s", cfg)
@@ -508,7 +510,14 @@ class ShiftPlanner:
         the whole plan. Each becomes a violation term instead, which _solve
         minimises before anything else — so every fixed assignment that can be
         kept is kept, and the rest are named in the result.
+
+        With `keep_fixed_assignments` off they are not in the model at all:
+        the plan is what the solver would do without any rotation.
         """
+        if not self.keep_fixed:
+            if any(self.emp_fixed.values()):
+                logger.info("Fixed assignments ignored (keep_fixed_assignments=False)")
+            return
         shift_index = {s["id"]: i for i, s in enumerate(self.shifts)}
         for e_idx, emp in enumerate(self.employees):
             for fixed in self.emp_fixed.get(emp["id"], []):

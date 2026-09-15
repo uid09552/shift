@@ -59,6 +59,7 @@ _DEFAULT_CONSTRAINTS = {
     "min_rest_hours": 11.0,
     "max_consecutive_days": 6,
     "max_working_days_per_week": 5,
+    "keep_fixed_assignments": True,
 }
 
 SEVERITY_ERROR = "error"
@@ -820,7 +821,12 @@ class _Validator:
     def _check_fixed_assignments(self) -> None:
         """Fixed assignments (rotation patterns write them) the plan does not
         keep. The solver keeps them before anything else, so one left out means
-        a rule stood in the way — or someone edited the proposal by hand."""
+        a rule stood in the way — or someone edited the proposal by hand.
+
+        Not a finding at all when the tenant has switched rotations off
+        (`keep_fixed_assignments`): the solver was told to ignore them."""
+        if not self.cfg.get("keep_fixed_assignments", True):
+            return
         for employee_id, employee in self.employees.items():
             if employee_id not in self.scope_ids:
                 continue

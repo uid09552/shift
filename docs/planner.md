@@ -53,7 +53,7 @@ worked example. The backend builds this payload from the database — call
 | `planning_period` | `start_date`, `end_date` |
 | `shifts` | `id`, `name`, `is_night_shift`, `weekday_times[]` |
 | `workstations` | `id`, `name`, `required_skills`, `priority`, `operating_shifts`, `min/max_employees`, `unavailability[]` |
-| `employees` | `id`, `name`, `skills`, `available_shifts`, `unavailability[]`, `monthly_working_hours`, `preferred_off[]` |
+| `employees` | `id`, `name`, `skills`, `available_shifts`, `unavailability[]`, `monthly_working_hours`, `preferred_off[]`, `fixed_shifts[]` (rotations; see `keep_fixed_assignments`) |
 | `capabilities` | `id`, `level`, `skill_group` — for the skill-downgrade objective |
 | `locked_assignments` | `employee_id`, `date`, `shift_id`, `workstation_id` — rows the solver must keep |
 | `constraints` | the `ConstraintConfig` block below |
@@ -149,6 +149,7 @@ through `PUT /api/v1/planner-settings` or the UI's planner settings page.
 | `skill_downgrade_weight` | `200` | Cost per level of over-qualification |
 | `fatigue_weight` | `100` | Weight on the ergonomic term |
 | `night_shift_fatigue_multiplier` | `2.0` | Night-shift fatigue factor |
+| `keep_fixed_assignments` | `true` | Keep `fixed_shifts` (rotations) ahead of every other goal; `false` ignores them |
 | `solver_time_limit_seconds` | `120.0` | Wall-clock budget |
 | `solver_num_workers` | `8` | Parallel search workers |
 

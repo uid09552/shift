@@ -51,6 +51,7 @@ import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dial
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
 import { TabItem, TabsComponent } from '../../../shared/components/ui/tabs/tabs.component';
+import { DateRange, DateRangePickerComponent } from '../../../shared/components/ui/date-range-picker/date-range-picker.component';
 import { ActivatedRoute, Router } from '@angular/router';
 
 interface DayInfo {
@@ -81,7 +82,7 @@ function isOptimizerTab(value: string | null): value is OptimizerTab {
 @Component({
   selector: 'app-scheduler',
   standalone: true,
-  imports: [CommonModule, FormsModule, PageBreadcrumbComponent, CalendarNavComponent, CalendarTableComponent, TabsComponent, TranslatePipe],
+  imports: [CommonModule, FormsModule, PageBreadcrumbComponent, CalendarNavComponent, CalendarTableComponent, TabsComponent, DateRangePickerComponent, TranslatePipe],
   templateUrl: './scheduler.component.html',
   styleUrl: './scheduler.component.css',
 })
@@ -138,9 +139,17 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   planningMode: 'weeks' | 'range' = 'weeks';
   planningWeeks = 4;
   readonly WEEK_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-  // Alternative to picking a week count: an explicit start/end date range.
+  // Alternative to picking a week count: an explicit start/end date range,
+  // picked on a calendar. Typed dates were a trap: every keystroke of a year
+  // is a valid date (0002, 0020, 0202…), and each one asked for a forecast of
+  // a period thousands of years long.
   customStartDate: string = this.formatDate(new Date());
   customEndDate: string = this.formatDate(this.addDays(new Date(), 27));
+  /** The longest range that can be picked: a quarter. Weeks mode stops at 12. */
+  readonly MAX_PLAN_DAYS = 92;
+  showRangePicker = false;
+  /** What the calendar opens with — set when it opens, so a click in progress is never overwritten. */
+  rangePickerValue: DateRange | null = null;
 
   enableMonthlyHoursTarget = false;
   monthlyHoursTargetWeight = 1000;
@@ -684,6 +693,48 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     return result;
   }
 
+  openRangePicker(): void {
+    this.rangePickerValue = { start: this.customStartDate, end: this.customEndDate };
+    this.showRangePicker = true;
+  }
+
+  /** The calendar reports null on the first click (start chosen) and the range on the second. */
+  onRangePicked(range: DateRange | null): void {
+    if (!range) return;
+    this.customStartDate = range.start;
+    this.customEndDate = range.end;
+    this.showRangePicker = false;
+    this.planInputsChanged();
+  }
+
+  /** Days in the custom range, both ends included; 0 when it is not a usable range. */
+  get customRangeDays(): number {
+    const start = new Date(`${this.customStartDate}T00:00:00`);
+    const end = new Date(`${this.customEndDate}T00:00:00`);
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return 0;
+    return Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+  }
+
+  get customRangeLabel(): string {
+    const locale = this.translations.locale;
+    const start = new Date(`${this.customStartDate}T00:00:00`);
+    const end = new Date(`${this.customEndDate}T00:00:00`);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return this.translations.t('scheduler.pickRange');
+    const sameYear = start.getFullYear() === end.getFullYear();
+    const from = start.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: sameYear ? undefined : 'numeric' });
+    const to = end.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' });
+    return `${from} – ${to}`;
+  }
+
+  /** Why the custom range cannot be planned, as a translation key; null when it can. */
+  private rangeProblem(): string | null {
+    if (this.planningMode !== 'range') return null;
+    if (!this.customStartDate || !this.customEndDate) return 'scheduler.error.pickDates';
+    if (this.customEndDate < this.customStartDate) return 'scheduler.error.endBeforeStart';
+    if (this.customRangeDays > this.MAX_PLAN_DAYS) return 'scheduler.error.rangeTooLong';
+    return null;
+  }
+
   getPlanningDates(): { startDate: string; endDate: string } {
     if (this.planningMode === 'range') {
       return { startDate: this.customStartDate, endDate: this.customEndDate };
@@ -803,9 +854,12 @@ export class SchedulerComponent implements OnInit, OnDestroy {
 
   /** Builds the forecast from the same input a calculation would use now. */
   loadCoverage(): void {
-    if (this.planningMode === 'range' && (!this.customStartDate || !this.customEndDate || this.customEndDate < this.customStartDate)) {
+    const problem = this.rangeProblem();
+    if (problem) {
+      this.coverageLoadSub?.unsubscribe();
+      this.coverageLoading = false;
       this.coverage = null;
-      this.coverageError = 'scheduler.error.endBeforeStart';
+      this.coverageError = problem;
       return;
     }
     const { startDate, endDate } = this.getPlanningDates();
@@ -845,15 +899,10 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   }
 
   triggerPlan(): void {
-    if (this.planningMode === 'range') {
-      if (!this.customStartDate || !this.customEndDate) {
-        this.error = 'scheduler.error.pickDates';
-        return;
-      }
-      if (this.customEndDate < this.customStartDate) {
-        this.error = 'scheduler.error.endBeforeStart';
-        return;
-      }
+    const problem = this.rangeProblem();
+    if (problem) {
+      this.error = problem;
+      return;
     }
 
     this.isPlanning = true;

@@ -1498,6 +1498,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PlanResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -1537,7 +1539,7 @@ paths:
       tags:
         - Planner
       summary: Prepare optimization request
-      description: Builds the TaskDTO structure from the current database state (shifts, employees, workstations) and returns it without triggering the optimizer. Optionally filters by a list of employee IDs.
+      description: Builds the TaskDTO structure from the current database state (shifts, employees, workstations) and returns it without triggering the optimizer. Optionally filters by a list of employee IDs. A period that ends before it starts or is longer than 366 days is refused with 400, as is a ward with nothing to plan.
       operationId: preparePlan
       requestBody:
         required: false
@@ -1552,6 +1554,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TaskDTO'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -3211,6 +3215,14 @@ components:
             hard forbids one, so a period that cannot be staffed comes back
             infeasible instead of understaffed.
           example: soft
+        keep_fixed_assignments:
+          type: boolean
+          description: >
+            Whether the planner keeps employees' fixed assignments — what
+            rotation patterns write — ahead of coverage and every other goal
+            (true, the default), or plans as if there were none (false). The
+            assignments themselves are not touched either way.
+          example: true
         skill_downgrade_weight:
           type: integer
           minimum: 0
@@ -3315,6 +3327,10 @@ components:
           type: string
           enum: [soft, hard]
           default: soft
+        keep_fixed_assignments:
+          type: boolean
+          default: true
+          description: Keep rotations and other fixed assignments (true) or ignore them when planning (false)
         skill_downgrade_weight:
           type: integer
           minimum: 0
@@ -4262,6 +4278,9 @@ components:
           type: string
           enum: [soft, hard]
           description: Whether min_employees is a penalised target (soft) or a requirement (hard)
+        keep_fixed_assignments:
+          type: boolean
+          description: false makes the solver ignore employees' fixed_shifts (rotations)
 
     Error:
       type: object

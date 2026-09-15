@@ -20,11 +20,17 @@
 # A build-time scan only reflects what was known that day, so `scan:published`
 # re-scans the images already in the registry on a schedule — see the block
 # above that job.
+#
+# Dependency updates: the `renovate` job opens merge requests for new versions
+# of everything the four services depend on. It runs on its own schedule
+# (RENOVATE=true), and on that pipeline nothing else does — see the block above
+# that job.
 
 stages:
   - build
   - scan
   - pages
+  - maintenance
 
 variables:
   # Bumping this invalidates the cached binary (the cache key includes it).
@@ -52,6 +58,11 @@ workflow:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     # Merge request pipelines...
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Renovate pushes a branch and then opens its merge request, and the MR
+    # pipeline that follows is the one that counts. Without this the push
+    # would also start a branch pipeline — four image builds for nothing.
+    - if: $CI_COMMIT_BRANCH =~ /^renovate\//
+      when: never
     # ...but no duplicate branch pipeline while an MR is open for it.
     - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
       when: never
@@ -151,9 +162,12 @@ workflow:
       export PATH="$TRIVY_BIN_DIR:$PATH"
       trivy --version
   # Scheduled pipelines exist to re-scan what is already published; rebuilding
-  # the same commit every night would only burn runner minutes.
+  # the same commit every night would only burn runner minutes. A Renovate run
+  # only updates dependencies.
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $RENOVATE == "true"
       when: never
     - when: on_success
   script:
@@ -318,6 +332,12 @@ sbom:source:
       - COMPONENT: agent
         SOURCE_PATH: "agent"
         SKIP_DIRS: ".venv"
+  rules:
+    # A Renovate run changes no lockfile of its own; its merge requests get
+    # this job in their own pipelines.
+    - if: $RENOVATE == "true"
+      when: never
+    - when: on_success
   script:
     - mkdir -p security
     # On a schedule this job is a re-scan: the lockfiles have not changed, the
@@ -406,6 +426,9 @@ scan:published:
           - ui
           - agent
   rules:
+    # Renovate has a schedule of its own; that one is not a re-scan.
+    - if: $RENOVATE == "true"
+      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
     # A button on the default branch. `allow_failure` so an ad-hoc re-scan
     # reports without turning the branch's pipeline red.
@@ -497,7 +520,95 @@ pages:
     paths:
       - public
   rules:
-    # Nothing to republish on a scheduled re-scan.
+    # Nothing to republish on a scheduled re-scan or a Renovate run.
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
+    - if: $RENOVATE == "true"
+      when: never
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# ---------------------------------------------------------------------------
+# Renovate — dependency update merge requests
+#
+# Runs Renovate against this project. It reads renovate.json5 (what to update
+# and how to bundle it) and opens a merge request per update or bundle: the
+# backend's crates, the UI's npm packages, the planner's and agent's Python
+# packages (uv.lock included), the docs and e2e requirements, the Dockerfile
+# and Compose images, and the images and TRIVY_VERSION in this file — its own
+# image among them. Each merge request gets the ordinary MR pipeline, so all
+# four images are built and scanned before anyone merges. Nothing is merged
+# automatically.
+#
+# It has a schedule of its own, told apart from the nightly re-scan by a
+# variable: when RENOVATE is "true" only this job runs, and it runs at no
+# other time.
+#
+# Set it up once:
+#   1. Settings > Access tokens > Add new token (a project access token):
+#      role Developer, scopes `api` and `write_repository`. Renovate pushes
+#      renovate/* branches and opens merge requests as that token's bot user.
+#      Project tokens expire (a year at most) — renew it before then, or this
+#      job fails with 401 Unauthorized.
+#   2. Settings > CI/CD > Variables: RENOVATE_TOKEN = that token; masked and
+#      protected (the schedule runs on the protected default branch).
+#   3. Recommended: GITHUB_COM_TOKEN = a GitHub token with no scopes at all.
+#      Renovate uses it to put release notes into the merge requests and to
+#      stay under github.com's anonymous rate limit, which one run exceeds.
+#   4. Build > Pipeline schedules > New schedule: e.g. `0 5 * * 1-5`,
+#      Europe/Berlin, the default branch, variable RENOVATE = true.
+#   5. Keep Issues enabled. Renovate keeps a "Dependency Dashboard" issue
+#      listing every pending update; ticking one there makes the next run open
+#      it — that is also how a PostgreSQL or Keycloak major gets approved.
+#
+# To run it now: Build > Pipelines > Run pipeline, default branch, variable
+# RENOVATE = true. The job log says what it did; the debug log is an artifact.
+#
+# Check renovate.json5 before committing a change to it:
+#   docker run --rm -v "$PWD/renovate.json5:/usr/src/app/renovate.json5:ro" \
+#     ghcr.io/renovatebot/renovate:44.93.0 renovate-config-validator --strict
+# ---------------------------------------------------------------------------
+
+renovate:
+  stage: maintenance
+  needs: []
+  image: ghcr.io/renovatebot/renovate:44.93.0
+  # Two runs at once would race on the same branches.
+  resource_group: renovate
+  timeout: 1h
+  variables:
+    RENOVATE_PLATFORM: gitlab
+    RENOVATE_ENDPOINT: "$CI_API_V4_URL"
+    # This project only, not every project the token can reach.
+    RENOVATE_REPOSITORIES: "$CI_PROJECT_PATH"
+    # renovate.json5 is committed, so there is nothing to onboard — and if it
+    # were ever removed, Renovate should stop rather than fall back to defaults.
+    RENOVATE_ONBOARDING: "false"
+    RENOVATE_REQUIRE_CONFIG: required
+    # Cargo, npm and uv are installed on demand, at the versions the manifests
+    # ask for, to regenerate Cargo.lock, package-lock.json and uv.lock.
+    RENOVATE_BINARY_SOURCE: install
+    RENOVATE_BASE_DIR: "$CI_PROJECT_DIR/.cache/renovate"
+    # Remembers what each branch was built from, so an unchanged run is quick.
+    RENOVATE_REPOSITORY_CACHE: enabled
+    LOG_LEVEL: info
+    RENOVATE_LOG_FILE: renovate-log.ndjson
+    RENOVATE_LOG_FILE_LEVEL: debug
+  cache:
+    key: renovate
+    paths:
+      - .cache/renovate/cache/renovate/repository/
+  rules:
+    - if: $RENOVATE == "true" && $CI_PIPELINE_SOURCE =~ /^(schedule|web)$/ && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - |
+      if [ -z "$RENOVATE_TOKEN" ]; then
+        echo "RENOVATE_TOKEN is not set (or not available on this branch)." >&2
+        echo "See the setup notes above the renovate job in .gitlab-ci.yml." >&2
+        exit 1
+      fi
+    - renovate
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - renovate-log.ndjson

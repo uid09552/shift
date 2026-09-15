@@ -33,25 +33,55 @@ interface CalendarCell {
     <div class="select-none">
       <!-- Month navigation -->
       <div class="mb-2 flex items-center justify-between">
-        <button
-          type="button"
-          (click)="prevMonth()"
-          class="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-        >
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6"></polyline>
-          </svg>
-        </button>
-        <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">{{ monthLabel }}</span>
-        <button
-          type="button"
-          (click)="nextMonth()"
-          class="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-        >
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9 18 15 12 9 6"></polyline>
-          </svg>
-        </button>
+        <div class="flex items-center">
+          <button
+            type="button"
+            (click)="shiftYear(-1)"
+            [attr.aria-label]="'datePicker.prevYear' | t"
+            [title]="'datePicker.prevYear' | t"
+            class="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="11 17 6 12 11 7"></polyline><polyline points="18 17 13 12 18 7"></polyline>
+            </svg>
+          </button>
+          <button
+            type="button"
+            (click)="prevMonth()"
+            [attr.aria-label]="'datePicker.prevMonth' | t"
+            [title]="'datePicker.prevMonth' | t"
+            class="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+        </div>
+        <span class="text-sm font-semibold text-gray-700 dark:text-gray-200" aria-live="polite">{{ monthLabel }}</span>
+        <div class="flex items-center">
+          <button
+            type="button"
+            (click)="nextMonth()"
+            [attr.aria-label]="'datePicker.nextMonth' | t"
+            [title]="'datePicker.nextMonth' | t"
+            class="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+          <button
+            type="button"
+            (click)="shiftYear(1)"
+            [attr.aria-label]="'datePicker.nextYear' | t"
+            [title]="'datePicker.nextYear' | t"
+            class="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="13 17 18 12 13 7"></polyline><polyline points="6 17 11 12 6 7"></polyline>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <!-- Weekday headers -->
@@ -68,8 +98,9 @@ interface CalendarCell {
             <button
               type="button"
               (click)="onDayClick(cell.date)"
-              (mouseenter)="hoverDate = cell.date"
-              class="relative flex h-8 w-8 items-center justify-center rounded-full text-xs transition-colors"
+              (mouseenter)="hoverDate = isOutOfReach(cell.date) ? null : cell.date"
+              [disabled]="isOutOfReach(cell.date)"
+              class="relative flex h-8 w-8 items-center justify-center rounded-full text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-30"
               [ngClass]="cellClass(cell)"
             >
               {{ cell.date.getDate() }}
@@ -96,7 +127,7 @@ interface CalendarCell {
               } @else if (hoverDate && hoverDate.getTime() !== rangeStart.getTime()) {
                 {{ fmtDisplay(rangeStart) }} → {{ fmtDisplay(hoverDate) }}
               } @else {
-                {{ fmtDisplay(rangeStart) }} — click to set end
+                {{ 'datePicker.pickEnd' | t: { start: fmtDisplay(rangeStart) } }}
               }
             </span>
             @if (rangeEnd) {
@@ -119,6 +150,17 @@ interface CalendarCell {
 })
 export class DateRangePickerComponent implements OnChanges {
   @Input() markedDays: MarkedDay[] = [];
+  /**
+   * A range to show as selected, e.g. the one already chosen. The calendar
+   * opens on its month. Read when the reference changes — pass a stable
+   * object, or a click in progress is overwritten.
+   */
+  @Input() value: DateRange | null = null;
+  /**
+   * The longest range, in days, that may be picked. Once a start is chosen,
+   * days further away than that are disabled.
+   */
+  @Input() maxDays: number | null = null;
   /** Increment this value from the parent to programmatically clear the selection. */
   @Input() set resetKey(k: number) {
     if (k > 0) { this.rangeStart = null; this.rangeEnd = null; }
@@ -152,6 +194,16 @@ export class DateRangePickerComponent implements OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes['value'] && this.value) {
+      const start = parseDay(this.value.start);
+      const end = parseDay(this.value.end);
+      if (start && end) {
+        this.rangeStart = start <= end ? start : end;
+        this.rangeEnd = start <= end ? end : start;
+        this.viewYear = this.rangeStart.getFullYear();
+        this.viewMonth = this.rangeStart.getMonth();
+      }
+    }
     if (changes['markedDays']) {
       this.markedMap.clear();
       for (const m of this.markedDays) {
@@ -190,7 +242,19 @@ export class DateRangePickerComponent implements OnChanges {
     else this.viewMonth++;
   }
 
+  shiftYear(by: number): void {
+    this.viewYear += by;
+  }
+
+  /** Too far from the chosen start for `maxDays` — only while the end is still open. */
+  isOutOfReach(date: Date): boolean {
+    if (!this.maxDays || !this.rangeStart || this.rangeEnd) return false;
+    const days = Math.round(Math.abs(date.getTime() - this.rangeStart.getTime()) / 86_400_000);
+    return days >= this.maxDays;
+  }
+
   onDayClick(date: Date): void {
+    if (this.isOutOfReach(date)) return;
     if (!this.rangeStart || this.rangeEnd) {
       this.rangeStart = new Date(date);
       this.rangeEnd = null;
@@ -277,6 +341,14 @@ export class DateRangePickerComponent implements OnChanges {
   }
 
   fmtDisplay(d: Date): string {
-    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    return d.toLocaleDateString(this.translations.locale, { day: '2-digit', month: 'short', year: 'numeric' });
   }
+}
+
+/** YYYY-MM-DD as a local midnight, or null when it is not a real day. */
+function parseDay(value: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? '');
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return d.getMonth() === Number(m[2]) - 1 ? d : null;
 }

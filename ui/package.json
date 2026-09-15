@@ -9,6 +9,7 @@
     "test": "ng test"
   },
   "private": true,
+  "license": "Apache-2.0",
   "dependencies": {
     "@amcharts/amcharts5": "^5.13.5",
     "@amcharts/amcharts5-geodata": "^5.1.4",

@@ -1,9 +1,9 @@
 ---
 type: Runbook
 title: Deployment and CI
-description: The four images, the Compose stack, registry tagging, and the GitLab pipeline including Trivy scanning, SBOMs and Pages.
+description: The four images, the Compose stack, registry tagging, and the GitLab pipeline including Trivy scanning, SBOMs, Renovate dependency updates and Pages.
 resource: deploy/docker-compose.yml
-tags: [operations, deployment, docker, ci, gitlab, security]
+tags: [operations, deployment, docker, ci, gitlab, security, renovate]
 status: stable
 generated:
   by: claude-code/claude-opus-5
@@ -169,6 +169,27 @@ Reproduce locally:
 trivy image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed shift/backend:latest
 trivy fs --format cyclonedx --output sbom.cdx.json --skip-dirs ui,planner,agent,target .
 ```
+
+## Renovate
+
+The `renovate` job opens dependency-update merge requests, configured by
+`renovate.json5`: crates, the UI's npm packages, the planner's and agent's
+Python packages (with `uv.lock`), docs/e2e requirements, Dockerfile, Compose and
+CI images, and `TRIVY_VERSION`. Minor and patch updates are bundled per service;
+majors, 0.x minor bumps and security fixes (OSV) each get their own merge
+request. Lock file maintenance runs on Mondays. PostgreSQL and Keycloak majors
+wait for approval on the Dependency Dashboard issue. Nothing is automerged: every
+merge request runs the normal MR pipeline.
+
+It runs only in a pipeline with `RENOVATE=true` (its own schedule, or *Run
+pipeline*), and in that pipeline nothing else runs. Branch pipelines are skipped
+for `renovate/*`.
+
+| Setup | Value |
+|---|---|
+| `RENOVATE_TOKEN` | Project access token: Developer, `api` + `write_repository`; masked, protected. Renew before it expires |
+| `GITHUB_COM_TOKEN` | Optional GitHub token without scopes, for release notes and github.com's rate limit |
+| Schedule | `0 5 * * 1-5`, default branch, variable `RENOVATE=true` |
 
 ## Pages
 

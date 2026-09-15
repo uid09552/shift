@@ -277,6 +277,11 @@ class ConstraintConfig(BaseModel):
     # not enough eligible employees.
     min_staffing_mode: Literal["soft", "hard"] = "soft"
 
+    # Whether employees' `fixed_shifts` (what rotation patterns write) are
+    # kept — ahead of coverage and every other goal — or ignored, so the plan
+    # is what the solver would do without them.
+    keep_fixed_assignments: bool = True
+
     # Solver time limit in seconds
     solver_time_limit_seconds: float = Field(default=120.0, gt=0)
 

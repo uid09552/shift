@@ -13,7 +13,7 @@ Given a JSON input describing employees, workstations, shifts, skills, unavailab
 - **Unavailability** — respects employee date-specific unavailability
 - **Shift wishes** — rewards fulfilling an employee's wish to work a specific shift on a specific date (`wish_weight`, soft)
 - **Night shift recovery** — employees get 2 days off after a night shift
-- **Fixed assignments** — `employees[].fixed_shifts` (`{date, shift_id}`, `shift_id: null` for a day off; rotation patterns write them) are kept ahead of coverage and every other goal; any a rule forbids is listed in `message`, never a reason for `infeasible`
+- **Fixed assignments** — `employees[].fixed_shifts` (`{date, shift_id}`, `shift_id: null` for a day off; rotation patterns write them) are kept ahead of coverage and every other goal; any a rule forbids is listed in `message`, never a reason for `infeasible`. `constraints.keep_fixed_assignments: false` ignores them
 - **Coverage first** — minimum staffing is solved for before any other goal; balance, wishes and fatigue are optimised afterwards without un-filling a slot. Slots still short are listed in `message`
 - **Workstation priority** — high-priority workstations are staffed first
 - **Workload balancing** — penalises uneven shift distribution across employees

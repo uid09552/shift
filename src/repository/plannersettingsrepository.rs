@@ -39,6 +39,7 @@ fn to_domain(s: PlannerSettings) -> PlannerSettingsDomain {
         shift_continuity_week_bonus: s.shift_continuity_week_bonus,
         wish_weight: s.wish_weight,
         min_staffing_mode: MinStaffingMode::from_db(&s.min_staffing_mode),
+        keep_fixed_assignments: s.keep_fixed_assignments,
     }
 }
 
@@ -100,6 +101,7 @@ impl PlannerSettingsRepository for DieselPlannerSettingsRepository {
                 shift_continuity_week_bonus: settings.shift_continuity_week_bonus,
                 wish_weight: settings.wish_weight,
                 min_staffing_mode: settings.min_staffing_mode.as_str().to_string(),
+                keep_fixed_assignments: settings.keep_fixed_assignments,
             };
             let updated: PlannerSettings = diesel::insert_into(planner_settings::table)
                 .values(&new_settings)

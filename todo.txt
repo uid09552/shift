@@ -1,20 +1,14 @@
-### 6. Rotation patterns as proposed in ui-proposals.md
-
-Hospitals plan in rhythms: *early, early, late, late, night, night, off, off*.
-Here, every recurring commitment is entered one assignment at a time.
-
-A pattern is a named sequence of shift slots plus a cycle length. The page: pick
-a pattern, pick people, pick a start date and a horizon, preview the grid it
-would produce, write it. The writes are ordinary
-`employee_shift_assignments` — the table and the import endpoint already exist —
-so this is a generator and a preview, not a new subsystem.
-
-DONE. Planner → Rotations: write a pattern ("F F S S N - - -", checked against
-the planner's rules as you type), pick people, period and a stagger, preview the
-exact grid, write it. Writes ordinary employee_shift_assignments — a day off is
-an assignment without a shift (migration 27). The planner now actually reads
-them (it ignored fixed assignments before) and keeps them ahead of every other
-goal; any a rule forbids is named in the result instead of making the plan
-infeasible. API: /rotation-patterns (+ /apply with dry_run), GET
-/shift-assignments, POST /shift-assignments/clear. The agent's plan check flags
-fixed assignments a proposal does not keep. Removed from docs/ui-proposals.md.
+1) rotation berücksichtigen im schichtplan optimizer algorithmus. es soll im planner settings, einstellbar ein (aktivierien, deaktivieren)
+   DONE. Planner settings → Coverage & continuity → "Keep rotations" (on by default).
+   On: rotations and other fixed assignments are planned first, as before. Off:
+   the optimizer plans as if there were none; the rotations stay saved. Setting
+   keep_fixed_assignments (migration 28), sent to the solver as a constraint, so
+   the assistant can also try "what if without rotations?"; its plan check stops
+   flagging unkept rotations when the setting is off.
+2) in dienstplan optimieren, datum selection, sollte kein text sondern kalender auswahl sein, ui creahsed oder ist überladen, wenn ich versuche jahr zu ändern.
+   DONE. Cause: typing a year into the date field passes through 0002, 0020, 0202…
+   and each asked for a coverage forecast thousands of years long. The date range
+   is now picked on a calendar (with year arrows), at most 92 days; the backend
+   refuses periods over 366 days.
+3) recreate readme.md it should become an opensource service. describe the project, purpose, contribution....
+   DONE. README.md rewritten; CONTRIBUTING.md and LICENSE (Apache-2.0) added.
