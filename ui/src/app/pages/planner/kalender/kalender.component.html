@@ -16,29 +16,26 @@
         (next)="nextPeriod()"
         (today)="goToday()"
       />
-      <div class="inline-flex items-center rounded-lg border border-gray-200 p-0.5 dark:border-gray-700">
-        <button
-          type="button"
-          (click)="setViewMode('week')"
-          class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
-          [class.bg-brand-500]="viewMode === 'week'"
-          [class.text-white]="viewMode === 'week'"
-          [class.text-gray-600]="viewMode !== 'week'"
-          [class.dark:text-gray-400]="viewMode !== 'week'"
-        >
-          {{ 'common.weekly' | t }}
-        </button>
-        <button
-          type="button"
-          (click)="setViewMode('month')"
-          class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
-          [class.bg-brand-500]="viewMode === 'month'"
-          [class.text-white]="viewMode === 'month'"
-          [class.text-gray-600]="viewMode !== 'month'"
-          [class.dark:text-gray-400]="viewMode !== 'month'"
-        >
-          {{ 'common.monthly' | t }}
-        </button>
+      <div
+        class="inline-flex items-center rounded-lg border border-gray-200 p-0.5 dark:border-gray-700"
+        role="group"
+        [attr.aria-label]="'schedule.view' | t"
+      >
+        @for (option of viewOptions; track option.mode) {
+          <button
+            type="button"
+            (click)="setViewMode(option.mode)"
+            [attr.aria-pressed]="viewMode === option.mode"
+            [attr.data-testid]="'schedule-view-' + option.mode"
+            class="rounded-md px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+            [class.bg-brand-500]="viewMode === option.mode"
+            [class.text-white]="viewMode === option.mode"
+            [class.text-gray-600]="viewMode !== option.mode"
+            [class.dark:text-gray-400]="viewMode !== option.mode"
+          >
+            {{ option.labelKey | t }}
+          </button>
+        }
       </div>
       @if (viewMode === 'week') {
         <!-- Which side of the plan to read it from. Employee stays editable;
@@ -84,6 +81,7 @@
         </button>
       }
     </div>
+    @if (viewMode !== 'day') {
     <button
       (click)="exportToExcel()"
       [disabled]="loading || employees.length === 0"
@@ -101,6 +99,7 @@
       </svg>
       {{ 'common.exportExcel' | t }}
     </button>
+    }
   </div>
 
   @if (saveError) {
@@ -121,6 +120,10 @@
     </div>
   }
 
+  @if (viewMode === 'day') {
+    <!-- One day, hour by hour. The arrows above page through days. -->
+    <app-day-view [date]="anchorDate" />
+  } @else {
   <!-- Calendar grid -->
   <div class="max-h-[calc(100vh-260px)] overflow-x-auto overflow-y-auto">
     @if (loading) {
@@ -200,6 +203,12 @@
                   [class.bg-white]="!day.isToday"
                   [class.dark:bg-white/5]="!day.isToday"
                 >
+                  <button
+                    type="button"
+                    (click)="openDay(day.date)"
+                    [title]="'schedule.openDay' | t"
+                    class="w-full rounded-md py-0.5 uppercase transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 dark:hover:bg-white/[0.06]"
+                  >
                   <div
                     [class.text-brand-600]="day.isToday"
                     [class.dark:text-brand-400]="day.isToday"
@@ -217,6 +226,7 @@
                   >
                     {{ day.dayNum }}
                   </div>
+                  </button>
                 </th>
               }
             </tr>
@@ -672,6 +682,7 @@
       </div>
     }
   </div>
+  }
 </div>
 
 <!-- Who is on this station / shift on this day -->

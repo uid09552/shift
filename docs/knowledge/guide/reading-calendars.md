@@ -18,8 +18,8 @@ arranged four ways. Pick whichever answers the question you actually have.
 
 | View | Answers |
 |---|---|
-| **Schedule** | *Who is working, and when?* |
-| **Day View** | *Who is on the ward at three o'clock?* |
+| **Schedule**, Week (default) or Month | *Who is working, and when?* |
+| **Schedule**, Day | *Who is on the ward at three o'clock?* |
 | **Employee Calendar** | *What does one person's month look like?* |
 
 *Is this place adequately covered?* is the Schedule read **By workstation**, one
@@ -49,7 +49,10 @@ Anything changed here is overwritten if someone later confirms a calculated plan
 covering the same dates. For a few corrections that is fine. For a large reshuffle
 it is safer to fix the underlying data — absences, availability — and recalculate.
 
-# Day View — one day, hour by hour
+# Day — one day, hour by hour
+
+**Daily** on the Schedule page (`/kalender?view=day`); its arrows page one day
+at a time, and clicking a day's heading in the week or month opens that day.
 
 One row per person, and across the top a 24-hour ruler rather than a row of days.
 Each shift is a coloured bar spanning the hours it actually runs, labelled with

@@ -13,7 +13,7 @@ things come first.
 |---|---|
 | Overview | Dashboard — today's coverage, understaffed workstations, recent activity, *My Day* |
 | The roster | Schedule (`/kalender`), week or month, read by employee / workstation / shift, editable, Excel export |
-| One day in detail | Day View (`/day-view`) — hour-by-hour Gantt of who is on the ward |
+| One day in detail | Schedule → Day — hour-by-hour Gantt of who is on the ward |
 | One person in detail | Employee Calendar (`/employee-calendar`) — month, wishes, absences, hours summary |
 | Planning | Schedule Optimizer (`/scheduler`), in tabs: **Calculate** (with the coverage check), **Proposal** (hand edits, *Take as Plan*), **Check & fix**, **Compare**, **Runs** |
 | Fairness | Fairness (`/fairness`) — per person over a period: shifts, hours against target, nights, weekends, wishes, absences; sortable |
@@ -157,7 +157,7 @@ These are hours rather than days, and several would be felt daily.
 **Filtering and finding**
 
 - **Saved filters** — by capability, by workstation, by team — as chips above the
-  grid, shared with the Day View.
+  grid, shared with the Day view.
 - **"Only problem days"** toggle: show the days that are understaffed or carry a
   finding.
 - **A command palette** (Ctrl-K) over pages, employees and actions. The assistant

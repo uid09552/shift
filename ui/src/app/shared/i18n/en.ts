@@ -38,6 +38,7 @@ export const en = {
   'common.status': 'Status',
   'common.hours': 'Hours',
   'common.days': 'Days',
+  'common.daily': 'Daily',
   'common.weekly': 'Weekly',
   'common.monthly': 'Monthly',
   'common.previousDay': 'Previous day',
@@ -65,7 +66,6 @@ export const en = {
   'nav.users': 'Users',
   'nav.planner': 'Planner',
   'nav.schedule': 'Schedule',
-  'nav.dayView': 'Day View',
   'nav.employeeCalendar': 'Employee Calendar',
   'nav.scheduleOptimizer': 'Schedule Optimizer',
   'nav.fairness': 'Fairness',
@@ -87,7 +87,6 @@ export const en = {
   // ── Browser tab titles ──────────────────────────────────────────
   'title.dashboard': 'ShiftPlanner - Dashboard',
   'title.schedule': 'ShiftPlanner - Schedule',
-  'title.dayView': 'ShiftPlanner - Day View',
   'title.employeeCalendar': 'ShiftPlanner - Employee Calendar',
   'title.scheduleOptimizer': 'ShiftPlanner - Schedule Optimizer',
   'title.fairness': 'ShiftPlanner - Fairness',
@@ -107,6 +106,8 @@ export const en = {
 
   // ── Schedule (kalender) ─────────────────────────────────────────
   'schedule.groupBy': 'Group the schedule by',
+  'schedule.view': 'View',
+  'schedule.openDay': 'Show this day hour by hour',
   'schedule.byEmployee': 'By employee',
   'schedule.byWorkstation': 'By workstation',
   'schedule.byShift': 'By shift',
@@ -150,7 +151,6 @@ export const en = {
   'schedule.absence.absent': 'Absent',
 
   // ── Day view (hourly Gantt) ─────────────────────────────────────
-  'dayView.heading': 'Day at a glance',
   'dayView.onDuty': '{count} on duty',
   'dayView.absent': '{count} away',
   'dayView.plannedHours': '{hours} h planned',

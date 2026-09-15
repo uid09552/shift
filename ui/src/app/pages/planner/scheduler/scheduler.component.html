@@ -228,15 +228,23 @@
                 </div>
               }
 
-              <div class="mt-4 max-w-full overflow-x-auto pb-1">
-                <table class="border-separate border-spacing-0 text-xs">
+              <!-- Fixed layout: the day columns share whatever width there is, so a
+                   month fits without a scrollbar; min-width only kicks in for a
+                   period too long to fit, which then scrolls. Cells stack
+                   needed over available to stay narrow. -->
+              <div class="mt-4 max-w-full overflow-x-auto">
+                <table
+                  class="w-full table-fixed border-separate border-spacing-0 text-xs"
+                  [style.min-width.px]="COVERAGE_LABEL_WIDTH + coverage.days.length * COVERAGE_MIN_DAY_WIDTH"
+                  data-testid="coverage-grid"
+                >
                   <thead>
                     <tr>
-                      <th class="sticky left-0 z-10 min-w-[120px] bg-white pr-3 dark:bg-gray-900"></th>
+                      <th class="sticky left-0 z-10 bg-white pr-2 dark:bg-gray-900" [style.width.px]="COVERAGE_LABEL_WIDTH"></th>
                       @for (day of coverage.days; track day.date; let first = $first) {
                         @let label = coverageDayLabel(day.date, first);
                         <th
-                          class="min-w-[40px] px-0.5 pb-1 text-center font-normal"
+                          class="px-px pb-1 text-center font-normal"
                           [class.text-gray-400]="day.weekday >= 5"
                           [class.text-gray-500]="day.weekday < 5"
                         >
@@ -250,16 +258,16 @@
                   <tbody>
                     @for (row of coverage.rows; track row.shiftId) {
                       <tr>
-                        <th scope="row" class="sticky left-0 z-10 max-w-[160px] truncate bg-white py-0.5 pr-3 text-left font-medium text-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                        <th scope="row" class="sticky left-0 z-10 truncate bg-white py-px pr-2 text-left font-medium text-gray-700 dark:bg-gray-900 dark:text-gray-300" [title]="row.shiftName">
                           {{ row.shiftName }}
                         </th>
                         @for (cell of row.cells; track cell.date) {
-                          <td class="p-0.5">
+                          <td class="p-px">
                             @if (cell.runs && cell.required > 0) {
                               <button
                                 type="button"
                                 (click)="selectCoverageCell(cell, row.shiftName)"
-                                class="w-full rounded-md px-1 py-1 text-center tabular-nums leading-tight transition-colors"
+                                class="flex w-full flex-col items-center rounded-md py-0.5 text-center tabular-nums leading-none transition-colors"
                                 [ngClass]="{
                                   'bg-error-50 text-error-700 hover:bg-error-100 dark:bg-error-500/15 dark:text-error-300': cell.level === 'short',
                                   'bg-warning-50 text-warning-700 hover:bg-warning-100 dark:bg-warning-500/15 dark:text-warning-300': cell.level === 'tight',
@@ -268,7 +276,7 @@
                                 }"
                                 [attr.aria-label]="('scheduler.coverage.cellSummary' | t: { required: cell.required, available: cell.available }) + ' · ' + row.shiftName"
                               >
-                                <span class="font-semibold">{{ cell.required }}</span><span class="opacity-60">/{{ cell.available }}</span>
+                                <span class="font-semibold">{{ cell.required }}</span><span class="mt-px text-[10px] opacity-60">/{{ cell.available }}</span>
                               </button>
                             } @else if (cell.runs) {
                               <!-- Runs, but nothing to fill: no minimum, or every station closed. -->
@@ -283,17 +291,17 @@
                         {{ 'scheduler.coverage.dayTotal' | t }}
                       </th>
                       @for (day of coverage.days; track day.date) {
-                        <td class="px-0.5 pt-1.5 text-center tabular-nums leading-tight">
+                        <td class="px-px pt-1.5 text-center tabular-nums leading-none">
                           @if (day.required > 0) {
                             <span
-                              class="font-semibold"
+                              class="block font-semibold"
                               [class.text-error-600]="day.level === 'short'"
                               [class.dark:text-error-400]="day.level === 'short'"
                               [class.text-warning-600]="day.level === 'tight'"
                               [class.dark:text-warning-400]="day.level === 'tight'"
                               [class.text-gray-700]="day.level === 'ok'"
                               [class.dark:text-gray-300]="day.level === 'ok'"
-                            >{{ day.required }}</span><span class="text-gray-400 dark:text-gray-500">/{{ day.available }}</span>
+                            >{{ day.required }}</span><span class="mt-px block text-[10px] text-gray-400 dark:text-gray-500">/{{ day.available }}</span>
                           }
                         </td>
                       }
@@ -915,13 +923,17 @@
 
           @if (cmp.changedCells > 0) {
             <div class="mt-2 max-h-[420px] max-w-full overflow-auto pb-1">
-              <table class="border-separate border-spacing-0 text-xs" data-testid="compare-diff">
+              <table
+                class="w-full table-fixed border-separate border-spacing-0 text-xs"
+                [style.min-width.px]="COMPARE_LABEL_WIDTH + cmp.dates.length * COMPARE_MIN_DAY_WIDTH"
+                data-testid="compare-diff"
+              >
                 <thead>
                   <tr>
-                    <th class="sticky left-0 top-0 z-20 min-w-[140px] bg-white pr-3 dark:bg-gray-900"></th>
+                    <th class="sticky left-0 top-0 z-20 bg-white pr-2 dark:bg-gray-900" [style.width.px]="COMPARE_LABEL_WIDTH"></th>
                     @for (date of cmp.dates; track date; let first = $first) {
                       @let label = coverageDayLabel(date, first);
-                      <th class="sticky top-0 z-10 min-w-[44px] bg-white px-0.5 pb-1 text-center font-normal text-gray-500 dark:bg-gray-900">
+                      <th class="sticky top-0 z-10 bg-white px-px pb-1 text-center font-normal text-gray-500 dark:bg-gray-900">
                         <div class="h-3.5 text-[10px] font-medium text-gray-400 dark:text-gray-500">{{ label.month }}</div>
                         <div class="text-[10px]">{{ label.weekday }}</div>
                         <div class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ label.day }}</div>
@@ -932,15 +944,15 @@
                 <tbody>
                   @for (row of compareRows; track row.employeeId) {
                     <tr>
-                      <th scope="row" class="sticky left-0 z-10 max-w-[180px] truncate bg-white py-0.5 pr-3 text-left font-medium text-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                      <th scope="row" class="sticky left-0 z-10 truncate bg-white py-0.5 pr-2 text-left font-medium text-gray-700 dark:bg-gray-900 dark:text-gray-300" [title]="row.employeeName">
                         {{ row.employeeName }}
                         <span class="ml-1 font-normal tabular-nums text-gray-400 dark:text-gray-500">{{ row.changes.size || '' }}</span>
                       </th>
                       @for (date of cmp.dates; track date) {
-                        <td class="p-0.5">
+                        <td class="p-px">
                           @if (row.changes.get(date); as change) {
                             <span
-                              class="block whitespace-nowrap rounded-md bg-brand-50 px-1 py-1 text-center font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
+                              class="block truncate rounded-md bg-brand-50 px-0.5 py-1 text-center text-[11px] font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
                               [title]="changeTitle(change)"
                             >{{ changeLabel(change) }}</span>
                           }

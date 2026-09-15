@@ -1,9 +1,7 @@
-import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, Input, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription, forkJoin, interval } from 'rxjs';
-import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
-import { CalendarNavComponent } from '../../../shared/components/ui/calendar-nav/calendar-nav.component';
 import { EmployeeService, Employee } from '../../../shared/services/employee.service';
 import { ShiftService, Shift, WeekdayTime } from '../../../shared/services/shift.service';
 import { WorkstationService, Workstation } from '../../../shared/services/workstation.service';
@@ -67,10 +65,17 @@ const CENTRE_ATTEMPTS = 20;
  *  set in CSS so the scroll rail above the chart can span the same total. */
 const LABEL_WIDTH = 220;
 
+/**
+ * One day as an hour-by-hour chart: who is on the ward when.
+ *
+ * The Schedule page's *Day* view. It owns no navigation of its own — the
+ * page's period arrows set `date` — so paging through days, weeks and months
+ * is one control.
+ */
 @Component({
   selector: 'app-day-view',
   standalone: true,
-  imports: [CommonModule, FormsModule, PageBreadcrumbComponent, CalendarNavComponent, TranslatePipe],
+  imports: [CommonModule, FormsModule, TranslatePipe],
   templateUrl: './day-view.component.html',
   styleUrl: './day-view.component.css',
 })
@@ -80,6 +85,23 @@ export class DayViewComponent implements OnInit, OnDestroy {
   workstations: Workstation[] = [];
 
   selectedDate: Date = this.startOfDay(new Date());
+
+  /** The day to show. Changing it reloads; changing it to today also scrolls to now. */
+  @Input() set date(value: Date | null | undefined) {
+    if (!value) return;
+    const day = this.startOfDay(value);
+    if (day.getTime() === this.selectedDate.getTime()) return;
+    this.selectedDate = day;
+    // Before the first load the base data is not there yet; loadBaseData
+    // picks the date up itself.
+    if (!this.baseLoaded) return;
+    this.updateNowMarker();
+    this.loadDay();
+    // Going to today is a request to look at now.
+    if (this.isToday) this.centreOnCurrentHour();
+  }
+
+  private baseLoaded = false;
 
   /** Every employee's row, before the search/only-scheduled filters. */
   private allRows: GanttRow[] = [];
@@ -137,39 +159,6 @@ export class DayViewComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.searchSub?.unsubscribe();
     this.clockSub?.unsubscribe();
-  }
-
-  // ── Day navigation ───────────────────────────────────────────────
-
-  prevDay(): void {
-    this.selectedDate = this.addDays(this.selectedDate, -1);
-    this.afterDateChange();
-  }
-
-  nextDay(): void {
-    this.selectedDate = this.addDays(this.selectedDate, 1);
-    this.afterDateChange();
-  }
-
-  goToday(): void {
-    this.selectedDate = this.startOfDay(new Date());
-    this.afterDateChange();
-    // Going back to today is also a request to look at now.
-    this.centreOnCurrentHour();
-  }
-
-  private afterDateChange(): void {
-    this.updateNowMarker();
-    this.loadDay();
-  }
-
-  get dayLabel(): string {
-    return this.selectedDate.toLocaleDateString(this.translations.locale, {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
   }
 
   get isToday(): boolean {
@@ -291,6 +280,8 @@ export class DayViewComponent implements OnInit, OnDestroy {
         this.employees = [...(employees.data ?? [])].sort((a, b) => a.name.localeCompare(b.name));
         this.shifts = shifts;
         this.workstations = workstations;
+        this.baseLoaded = true;
+        this.updateNowMarker();
         this.loadDay();
       },
       error: () => {

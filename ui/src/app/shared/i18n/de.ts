@@ -37,6 +37,7 @@ export const de: Record<TranslationKey, string> = {
   'common.status': 'Status',
   'common.hours': 'Stunden',
   'common.days': 'Tage',
+  'common.daily': 'Täglich',
   'common.weekly': 'Wöchentlich',
   'common.monthly': 'Monatlich',
   'common.previousDay': 'Vorheriger Tag',
@@ -64,7 +65,6 @@ export const de: Record<TranslationKey, string> = {
   'nav.users': 'Benutzer',
   'nav.planner': 'Planung',
   'nav.schedule': 'Dienstplan',
-  'nav.dayView': 'Tagesansicht',
   'nav.employeeCalendar': 'Mitarbeiterkalender',
   'nav.scheduleOptimizer': 'Dienstplan-Optimierer',
   'nav.fairness': 'Fairness',
@@ -86,7 +86,6 @@ export const de: Record<TranslationKey, string> = {
   // ── Browser tab titles ──────────────────────────────────────────
   'title.dashboard': 'ShiftPlanner - Übersicht',
   'title.schedule': 'ShiftPlanner - Dienstplan',
-  'title.dayView': 'ShiftPlanner - Tagesansicht',
   'title.employeeCalendar': 'ShiftPlanner - Mitarbeiterkalender',
   'title.scheduleOptimizer': 'ShiftPlanner - Dienstplan-Optimierer',
   'title.fairness': 'ShiftPlanner - Fairness',
@@ -106,6 +105,8 @@ export const de: Record<TranslationKey, string> = {
 
   // ── Schedule (kalender) ─────────────────────────────────────────
   'schedule.groupBy': 'Plan gruppieren nach',
+  'schedule.view': 'Ansicht',
+  'schedule.openDay': 'Diesen Tag stundengenau anzeigen',
   'schedule.byEmployee': 'Nach Mitarbeitenden',
   'schedule.byWorkstation': 'Nach Arbeitsplatz',
   'schedule.byShift': 'Nach Schicht',
@@ -149,7 +150,6 @@ export const de: Record<TranslationKey, string> = {
   'schedule.absence.absent': 'Abwesend',
 
   // ── Tagesansicht (Stunden-Gantt) ────────────────────────────────
-  'dayView.heading': 'Der Tag im Überblick',
   'dayView.onDuty': '{count} im Dienst',
   'dayView.absent': '{count} abwesend',
   'dayView.plannedHours': '{hours} h geplant',

@@ -43,7 +43,7 @@ in but a page refuses to save, you probably have the read-only role — see
 |---|---|
 | **Dashboard** | *Overview* — the summary screen you land on |
 | **Configuration** | User Profiles, Shifts, Workstations, Capabilities, Planner Settings |
-| **Planner** | Schedule, Day View, Employee Calendar, Schedule Optimizer |
+| **Planner** | Schedule (day, week, month), Employee Calendar, Schedule Optimizer |
 
 Roughly: **Configuration** describes the world, **Planner** works with it.
 

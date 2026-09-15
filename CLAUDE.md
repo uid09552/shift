@@ -85,7 +85,7 @@ backend/
 │       │   ├── dashboard/   # Main dashboard
 │       │   ├── planner/     # Scheduling components
 │       │   │   ├── kalender/        # Weekly schedule view
-│       │   │   ├── day-view/        # One day as an hourly Gantt chart
+│       │   │   ├── day-view/        # Hourly Gantt of one day — the Schedule page's Day view
 │       │   │   ├── scheduler/       # Optimizer, in tabs: Calculate · Proposal · Check & fix · Compare · Runs
 │       │   │   └── employee-calendar/
 │       │   └── configuration/  # Admin settings

@@ -2,7 +2,7 @@ import { Component, HostListener, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { forkJoin, of, Subscription } from 'rxjs';
 import { catchError } from 'rxjs/operators';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
 import { CalendarNavComponent } from '../../../shared/components/ui/calendar-nav/calendar-nav.component';
 import {
@@ -32,6 +32,7 @@ import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
 import { ModalComponent } from '../../../shared/components/ui/modal/modal.component';
 import { GroupedPlanViewComponent } from './grouped-plan-view.component';
+import { DayViewComponent } from '../day-view/day-view.component';
 import {
   AssignedPerson,
   CellDetail,
@@ -53,6 +54,11 @@ interface CellData {
   absenceType: string | null;
 }
 
+/** Day: one day hour by hour. Week: the default, editable grid. Month: the overview. */
+export type ScheduleView = 'day' | 'week' | 'month';
+
+const SCHEDULE_VIEWS: readonly ScheduleView[] = ['day', 'week', 'month'];
+
 interface WishCellData {
   wish: ShiftWish | null;
   shift: Shift | null;
@@ -66,6 +72,7 @@ interface WishCellData {
     PageBreadcrumbComponent,
     CalendarNavComponent,
     GroupedPlanViewComponent,
+    DayViewComponent,
     ModalComponent,
     TranslatePipe,
   ],
@@ -78,7 +85,12 @@ export class KalenderComponent implements OnInit, OnDestroy {
   shifts: Shift[] = [];
   workstations: Workstation[] = [];
 
-  viewMode: 'week' | 'month' = 'week';
+  viewMode: ScheduleView = 'week';
+  readonly viewOptions: { mode: ScheduleView; labelKey: string }[] = [
+    { mode: 'day', labelKey: 'common.daily' },
+    { mode: 'week', labelKey: 'common.weekly' },
+    { mode: 'month', labelKey: 'common.monthly' },
+  ];
   anchorDate: Date = this.normalizeDate(new Date());
   days: DayInfo[] = [];
 
@@ -148,9 +160,16 @@ export class KalenderComponent implements OnInit, OnDestroy {
     private globalSearchService: GlobalSearchService,
     private translations: TranslationService,
     private router: Router,
+    private route: ActivatedRoute,
   ) {}
 
   ngOnInit(): void {
+    // `?view=day|month` opens that view (old /day-view links redirect here);
+    // anything else, or nothing, is the week.
+    const view = this.route.snapshot.queryParamMap.get('view');
+    if (SCHEDULE_VIEWS.includes(view as ScheduleView)) {
+      this.viewMode = view as ScheduleView;
+    }
     this.computeDays();
     this.loadAll();
 
@@ -196,6 +215,12 @@ export class KalenderComponent implements OnInit, OnDestroy {
   }
 
   computeDays(): void {
+    if (this.viewMode === 'day') {
+      const today = this.normalizeDate(new Date());
+      const d = this.normalizeDate(this.anchorDate);
+      this.days = [{ date: d, label: this.shortWeekdayName(d), dayNum: d.getDate(), isToday: d.getTime() === today.getTime() }];
+      return;
+    }
     this.days = this.viewMode === 'week' ? this.computeWeekDays() : this.computeMonthDays();
   }
 
@@ -245,9 +270,16 @@ export class KalenderComponent implements OnInit, OnDestroy {
     return d.toLocaleDateString(this.translations.locale, { month: 'short' });
   }
 
-  setViewMode(mode: 'week' | 'month'): void {
+  setViewMode(mode: ScheduleView): void {
     if (this.viewMode === mode) return;
     this.viewMode = mode;
+    // Keep the view in the address, so a reload or a shared link opens it.
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { view: mode === 'week' ? null : mode },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
     // Wishes are a month-view lens; leaving the month view drops back to the plan.
     if (mode !== 'month') {
       this.wishesOnly = false;
@@ -259,8 +291,15 @@ export class KalenderComponent implements OnInit, OnDestroy {
     }
     this.editingCell = null;
     this.deletingCell = null;
+    this.detail = null;
     this.computeDays();
     this.loadPeriod();
+  }
+
+  /** A day heading in the week or month grid: that day, hour by hour. */
+  openDay(date: Date): void {
+    this.anchorDate = this.normalizeDate(date);
+    this.setViewMode('day');
   }
 
   setGroupMode(mode: GroupMode): void {
@@ -281,7 +320,9 @@ export class KalenderComponent implements OnInit, OnDestroy {
   }
 
   prevPeriod(): void {
-    if (this.viewMode === 'week') {
+    if (this.viewMode === 'day') {
+      this.anchorDate = new Date(this.anchorDate.getFullYear(), this.anchorDate.getMonth(), this.anchorDate.getDate() - 1);
+    } else if (this.viewMode === 'week') {
       const monday = this.getMonday(this.anchorDate);
       this.anchorDate = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() - 7);
     } else {
@@ -292,7 +333,9 @@ export class KalenderComponent implements OnInit, OnDestroy {
   }
 
   nextPeriod(): void {
-    if (this.viewMode === 'week') {
+    if (this.viewMode === 'day') {
+      this.anchorDate = new Date(this.anchorDate.getFullYear(), this.anchorDate.getMonth(), this.anchorDate.getDate() + 1);
+    } else if (this.viewMode === 'week') {
       const monday = this.getMonday(this.anchorDate);
       this.anchorDate = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 7);
     } else {
@@ -319,6 +362,9 @@ export class KalenderComponent implements OnInit, OnDestroy {
   get periodLabel(): string {
     const s = this.periodStart;
     const e = this.periodEnd;
+    if (this.viewMode === 'day') {
+      return s.toLocaleDateString(this.translations.locale, { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+    }
     if (this.viewMode === 'month') {
       return `${this.shortMonthName(s)} ${s.getFullYear()}`;
     }
@@ -356,6 +402,12 @@ export class KalenderComponent implements OnInit, OnDestroy {
   // Loads whatever the grid currently shows for the visible period: the confirmed
   // plan, or — in the monthly wishes-only view — the employees' shift wishes.
   loadPeriod(): void {
+    // The day view loads its own day, with the night before for shifts that
+    // carry over midnight.
+    if (this.viewMode === 'day') {
+      this.loading = false;
+      return;
+    }
     if (this.wishesOnly) {
       this.loadWishes();
     } else {

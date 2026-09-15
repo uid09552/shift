@@ -64,7 +64,6 @@ export class AppSidebarComponent {
       icon: `<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M7 2C7.41421 2 7.75 2.33579 7.75 2.75V4.5H16.25V2.75C16.25 2.33579 16.5858 2 17 2C17.4142 2 17.75 2.33579 17.75 2.75V4.5H19C20.1046 4.5 21 5.39543 21 6.5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V6.5C3 5.39543 3.89543 4.5 5 4.5H6.25V2.75C6.25 2.33579 6.58579 2 7 2ZM6.25 6H5C4.72386 6 4.5 6.22386 4.5 6.5V10H19.5V6.5C19.5 6.22386 19.2761 6 19 6H17.75V7.25C17.75 7.66421 17.4142 8 17 8C16.5858 8 16.25 7.66421 16.25 7.25V6H7.75V7.25C7.75 7.66421 7.41421 8 7 8C6.58579 8 6.25 7.66421 6.25 7.25V6ZM19.5 11.5H4.5V19C4.5 19.2761 4.72386 19.5 5 19.5H19C19.2761 19.5 19.5 19.2761 19.5 19V11.5ZM9 13.75C9 13.3358 9.33579 13 9.75 13H14.25C14.6642 13 15 13.3358 15 13.75C15 14.1642 14.6642 14.5 14.25 14.5H9.75C9.33579 14.5 9 14.1642 9 13.75Z" fill="currentColor"></path></svg>`,
       subItems: [
         { name: "nav.schedule", path: "/kalender", pro: false },
-        { name: "nav.dayView", path: "/day-view", pro: false },
         { name: "nav.employeeCalendar", path: "/employee-calendar", pro: false },
         { name: "nav.rotations", path: "/rotations", pro: false },
         { name: "nav.scheduleOptimizer", path: "/scheduler", pro: false },

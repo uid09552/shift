@@ -305,8 +305,8 @@ appears at the top of the table with three buttons:
 This is how you adopt a recalculated roster for the two departments that
 changed without disturbing the rest of the ward.
 
-Once confirmed, the roster appears in **Schedule**, **Employee Calendar**,
-**Day View** and on the dashboard. That is the official plan.
+Once confirmed, the roster appears in **Schedule** (day, week and month),
+**Employee Calendar** and on the dashboard. That is the official plan.
 
 ---
 

@@ -22,8 +22,8 @@ All application routes render inside `AppLayoutComponent` (sidebar + header):
 | Path | Page |
 |---|---|
 | `/` | Dashboard |
-| `/kalender` | Weekly schedule |
-| `/day-view` | One day as an hourly Gantt chart |
+| `/kalender` | Schedule: Day, Week (default) or Month — `?view=day\|month` opens one |
+| `/day-view` | Redirects to `/kalender?view=day` |
 | `/employee-calendar` | Per-employee calendar |
 | `/workstation-calendar` | Redirects to `/kalender` — the schedule page reads by workstation itself |
 | `/scheduler` | Optimization workbench |
@@ -110,7 +110,8 @@ written review. The check is read-only and changes nothing.
 
 ## The day view
 
-`/day-view` draws one day as a Gantt chart: employees down the left, a 24-hour
+The Schedule page's *Day* view (`/kalender?view=day`; `DayViewComponent`,
+embedded with the page's date as input) draws one day as a Gantt chart: employees down the left, a 24-hour
 ruler across the top, and each confirmed shift as a coloured bar spanning its
 configured hours for that weekday. Bar geometry is kept in hours and multiplied
 by a `hourWidth` zoom factor in the template, so zooming rescales without

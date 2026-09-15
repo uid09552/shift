@@ -5,7 +5,6 @@ import { AppLayoutComponent } from './shared/layout/app-layout/app-layout.compon
 import { SignInComponent } from './pages/auth-pages/sign-in/sign-in.component';
 import { SignUpComponent } from './pages/auth-pages/sign-up/sign-up.component';
 import { KalenderComponent } from './pages/planner/kalender/kalender.component';
-import { DayViewComponent } from './pages/planner/day-view/day-view.component';
 import { EmployeeCalendarComponent } from './pages/planner/employee-calendar/employee-calendar.component';
 import { SchedulerComponent } from './pages/planner/scheduler/scheduler.component';
 import { FairnessComponent } from './pages/planner/fairness/fairness.component';
@@ -36,9 +35,11 @@ export const routes: Routes = [
         title:'title.schedule'
       },
       {
+        // The day view is the Schedule page's Day view now. Kept as a redirect
+        // so old links and bookmarks still open it.
         path:'day-view',
-        component:DayViewComponent,
-        title:'title.dayView'
+        redirectTo:'/kalender?view=day',
+        pathMatch:'full'
       },
       {
         path:'employee-calendar',

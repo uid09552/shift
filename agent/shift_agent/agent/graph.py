@@ -106,7 +106,7 @@ operation, named after it. The ones you will need most:
 - **navigate**: Send the user's browser to a page in the app (dashboard, schedule, \
   day_view, employee_calendar, scheduler, fairness, rotations, user_profiles, \
   shifts, workstations, capabilities, planner_settings, wish_settings, \
-  audit_log). day_view is the hour-by-hour Gantt chart of one day — who is on \
+  audit_log). day_view is the Schedule page's Day view: the hour-by-hour chart of one day — who is on \
   the ward when; the schedule page itself can be read by employee, by \
   workstation or by shift.
 - **listAuditLogs**: Who changed what, when. "Who deleted that workstation?" is \

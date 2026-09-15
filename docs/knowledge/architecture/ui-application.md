@@ -39,7 +39,7 @@ All application routes render inside `AppLayoutComponent` (sidebar + header).
 |---|---|
 | `/` | Dashboard |
 | `/kalender` | Weekly schedule — readable by employee, by workstation or by shift |
-| `/day-view` | One day as an hourly Gantt chart |
+| `/day-view` | Redirects to `/kalender?view=day` — the Schedule page's Day view |
 | `/employee-calendar` | Per-employee calendar |
 | `/workstation-calendar` | Redirects to `/kalender`; the standalone per-workstation calendar was removed as a duplicate of its "By workstation" lens |
 | `/scheduler` | Optimization workbench |

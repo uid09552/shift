@@ -121,7 +121,8 @@ def _build_auth() -> MultiAuth | None:
 KNOWN_PAGES = {
     "dashboard": "/",
     "schedule": "/kalender",
-    "day_view": "/day-view",
+    # The Schedule page's Day view; /day-view itself only redirects there.
+    "day_view": "/kalender?view=day",
     "employee_calendar": "/employee-calendar",
     # The standalone workstation calendar was removed as a duplicate of the
     # schedule page's "By workstation" lens; the name still resolves so older

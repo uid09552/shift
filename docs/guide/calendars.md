@@ -1,20 +1,21 @@
 # Reading and adjusting the schedule
 
-Once a roster is confirmed it appears in four calendars. They show the same
-information arranged four different ways — pick whichever answers the
-question you actually have.
+Once a roster is confirmed it appears in two calendars, and the Schedule reads
+it three ways. They show the same information arranged differently — pick
+whichever answers the question you actually have.
 
 | View | Answers |
 |---|---|
-| **Schedule** | *Who is working, and when?* |
-| **Day View** | *Who is on the ward at three o'clock?* |
+| **Schedule**, Week or Month | *Who is working, and when?* |
+| **Schedule**, Day | *Who is on the ward at three o'clock?* |
 | **Employee Calendar** | *What does one person's month look like?* |
 
 *Is this place adequately covered?* is the Schedule view read **By
 workstation** — see [below](#coverage-by-place-the-schedules-workstation-view).
 
-All three are under **Planner** in the menu, and each has an **Export Excel**
-button in the top right that saves exactly what you are looking at.
+Both are under **Planner** in the menu. The week and month views, and the
+Employee Calendar, have an **Export Excel** button in the top right that saves
+exactly what you are looking at.
 
 ---
 
@@ -25,8 +26,11 @@ button in the top right that saves exactly what you are looking at.
 One row per person, one column per day. Each square shows the shift's short
 name and, below it, the workstation. Grey **Free** means a day off.
 
-**Weekly / Monthly** switches the span. Monthly fits the whole month across the
-screen; you scroll sideways to reach the end of it.
+**Daily / Weekly / Monthly** switches the span; the page opens on the week.
+Monthly fits the whole month across the screen; you scroll sideways to reach
+the end of it. Daily shows one day hour by hour — see
+[below](#day-one-day-hour-by-hour). Clicking a day's heading in the week or
+month opens that day.
 
 ![The monthly schedule](../assets/screenshots/schedule-monthly.png)
 
@@ -55,7 +59,10 @@ changing.
 
 ---
 
-## Day View — one day, hour by hour
+## Day — one day, hour by hour
+
+**Daily** on the Schedule page. The arrows next to the date go back and forward
+one day; **Today** returns to today and scrolls to the current hour.
 
 One row per person, and across the top a 24-hour ruler instead of a row of days.
 Each shift is a coloured bar spanning the hours it actually runs, labelled with

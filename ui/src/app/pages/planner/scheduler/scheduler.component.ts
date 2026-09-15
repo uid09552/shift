@@ -145,6 +145,15 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   // a period thousands of years long.
   customStartDate: string = this.formatDate(new Date());
   customEndDate: string = this.formatDate(this.addDays(new Date(), 27));
+  // Grid geometry for the coverage and compare tables: the label column is
+  // fixed, the days share the rest. Below these minimums a period scrolls
+  // sideways rather than squeezing cells unreadable — four weeks fit from
+  // roughly 900px up.
+  readonly COVERAGE_LABEL_WIDTH = 112;
+  readonly COVERAGE_MIN_DAY_WIDTH = 28;
+  readonly COMPARE_LABEL_WIDTH = 130;
+  readonly COMPARE_MIN_DAY_WIDTH = 28;
+
   /** The longest range that can be picked: a quarter. Weeks mode stops at 12. */
   readonly MAX_PLAN_DAYS = 92;
   showRangePicker = false;

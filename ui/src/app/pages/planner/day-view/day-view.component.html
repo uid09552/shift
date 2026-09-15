@@ -1,11 +1,8 @@
-<app-page-breadcrumb pageTitle="nav.dayView" />
-
-<div class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-  <!-- Header -->
-  <div class="border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
+<div data-testid="day-view">
+  <!-- Who is on, and the chart's own controls. The date is the Schedule page's. -->
+  <div class="border-b border-gray-100 px-5 py-3 dark:border-white/[0.05] sm:px-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex flex-wrap items-center gap-3">
-        <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'dayView.heading' | t }}</h3>
         @if (!loading) {
           <span class="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
             {{ 'dayView.onDuty' | t: { count: onDutyCount } }}
@@ -56,14 +53,6 @@
             </svg>
           </button>
         </div>
-
-        <app-calendar-nav
-          [label]="dayLabel"
-          periodType="day"
-          (prev)="prevDay()"
-          (next)="nextDay()"
-          (today)="goToday()"
-        />
       </div>
     </div>
   </div>
@@ -188,7 +177,7 @@
 
 <!-- Shift legend -->
 @if (legendShifts.length > 0) {
-  <div class="mt-4 rounded-xl border border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-white/[0.03]">
+  <div class="border-t border-gray-100 px-5 py-3 dark:border-white/[0.05] sm:px-6">
     <div class="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{{ 'scheduler.shiftLegend' | t }}</div>
     <div class="flex flex-wrap gap-3">
       @for (shift of legendShifts; track shift.id) {
