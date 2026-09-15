@@ -61,6 +61,7 @@ from shift_agent.agent.validation import (
     collect,
     compat_gap,
     validate,
+    workstation_closed,
 )
 from shift_agent.agent.validation import headline as validation_headline
 
@@ -442,13 +443,7 @@ class _Rules:
         return _duration_hours(weekday_time) if weekday_time else 0.0
 
     def workstation_open(self, workstation_id: str, day: date) -> bool:
-        for window in (self.workstations.get(workstation_id) or {}).get("unavailability") or []:
-            try:
-                if _parse_date(window["from_date"]) <= day <= _parse_date(window["to_date"]):
-                    return False
-            except (KeyError, ValueError):
-                continue
-        return True
+        return not workstation_closed(self.workstations.get(workstation_id) or {}, day)
 
     def eligible(self, employee_id: str, day: date, shift_id: str, workstation_id: str | None) -> str | None:
         """The half of the question that does not depend on the rest of the plan

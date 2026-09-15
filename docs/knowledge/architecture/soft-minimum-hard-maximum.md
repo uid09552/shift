@@ -22,9 +22,14 @@ sources:
 [workstations](/concepts/workstation.md) — is a **hard constraint**. The solver
 will never produce a roster that exceeds it.
 
-`min_employees` is a **penalised objective term**. The solver is rewarded for
-reaching it and pays a staffing-shortfall penalty for falling short, but a
-shortfall never invalidates a solution.
+`min_employees` is a **soft target that comes first**. The solver minimises the
+shortfall against it before it looks at any other goal, then optimises the rest
+without giving back a single filled slot (see
+[Objective terms](/solver/objective-terms.md)). A shortfall that cannot be
+avoided never invalidates a solution; it is listed in the result instead.
+
+`min_staffing_mode: hard` turns the minimum into a constraint, for tenants who
+would rather see `infeasible` than a short roster.
 
 # Rationale
 
@@ -54,6 +59,11 @@ The response is to check the eligible pool, the priority, and who was absent —
 constraints contradict each other: capabilities, availability, rest rules, day
 caps, closed workstations. That narrows diagnosis considerably — see
 [Infeasibility playbook](/solver/infeasibility-playbook.md).
+
+**Soft does not mean negotiable against comfort.** Fairness, fatigue, hours
+targets and wishes are optimised only among rosters with the least shortfall
+achievable. A slot is left short because no one can legally take it — never
+because filling it would unbalance hours.
 
 **Priority decides who absorbs the shortfall.** Since shortfall is a cost weighted
 by workstation priority, setting everything to `high` removes the solver's ability

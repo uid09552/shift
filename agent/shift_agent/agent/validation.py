@@ -148,6 +148,21 @@ def _date_range(start: date, end: date) -> list[date]:
     return days
 
 
+def workstation_closed(workstation: dict, day: date) -> bool:
+    """Closed that day: deactivated (``available: false``), or inside one of its
+    unavailability windows. preparePlan leaves deactivated stations out, so the
+    flag only matters for rules that include them anyway."""
+    if workstation.get("available") is False:
+        return True
+    for window in workstation.get("unavailability") or []:
+        try:
+            if _parse_date(window["from_date"]) <= day <= _parse_date(window["to_date"]):
+                return True
+        except (KeyError, TypeError, ValueError):
+            continue
+    return False
+
+
 def _weekday(day: date) -> str:
     """The weekday key used throughout the optimizer contract: '0' = Monday."""
     return str(day.weekday())
@@ -468,8 +483,9 @@ class _Validator:
             if a.workstation_id and a.workstation_id not in self.workstations:
                 self.findings.add(
                     "unknown_workstation", SEVERITY_ERROR,
-                    "Assigned to a workstation that no longer exists",
-                    "The plan uses a workstation the current configuration does not contain.",
+                    "Assigned to a deactivated or deleted workstation",
+                    "The plan uses a workstation that is not planned any more — it was "
+                    "deactivated, deleted, or has no active shifts.",
                     f"{self._emp_name(a.employee_id)} · {a.day.isoformat()} · {a.workstation_id}",
                 )
 
@@ -543,18 +559,13 @@ class _Validator:
                     self._where(a),
                 )
 
-            for window in workstation.get("unavailability") or []:
-                try:
-                    if _parse_date(window["from_date"]) <= a.day <= _parse_date(window["to_date"]):
-                        self.findings.add(
-                            "workstation_unavailable", SEVERITY_ERROR,
-                            "Workstation is closed on this date",
-                            "The workstation has an unavailability window covering this day.",
-                            self._where(a),
-                        )
-                        break
-                except (KeyError, ValueError):
-                    continue
+            if workstation_closed(workstation, a.day):
+                self.findings.add(
+                    "workstation_unavailable", SEVERITY_ERROR,
+                    "Workstation is closed on this date",
+                    "The workstation is deactivated, or has a closure period covering this day.",
+                    self._where(a),
+                )
 
     def _compat_gap(self, employee_id: str, workstation_id: str) -> int | None:
         return compat_gap(
@@ -625,7 +636,13 @@ class _Validator:
                         "A shift's max_employees for that weekday is a hard limit.",
                         f"{label} — {staffed} of at most {maximum}",
                     )
-                if minimum and staffed < minimum:
+                # With every station that runs the shift closed, there is nowhere
+                # to put anyone, so the shift's own minimum does not apply.
+                open_somewhere = any(
+                    shift_id in set(w.get("operating_shifts") or []) and not workstation_closed(w, day)
+                    for w in self.workstations.values()
+                )
+                if minimum and staffed < minimum and open_somewhere:
                     self.findings.add(
                         "shift_under_min", SEVERITY_WARNING,
                         "Shift below its minimum staffing",
@@ -637,11 +654,7 @@ class _Validator:
                 for workstation_id, workstation in self.workstations.items():
                     if shift_id not in set(workstation.get("operating_shifts") or []):
                         continue
-                    if any(
-                        _parse_date(w["from_date"]) <= day <= _parse_date(w["to_date"])
-                        for w in workstation.get("unavailability") or []
-                        if w.get("from_date") and w.get("to_date")
-                    ):
+                    if workstation_closed(workstation, day):
                         continue
                     staffed_ws = per_ws.get((day, shift_id, workstation_id), 0)
                     ws_min = workstation.get("min_employees")

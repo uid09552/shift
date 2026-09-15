@@ -171,6 +171,8 @@ Base URL: `http://localhost:8080/api/v1`
 - `GET/POST /shifts` - Shift definitions
 - `GET/POST /capabilities` - Capability management
 - `GET/POST /workstations` - Workstation management
+- `GET /workstation-unavailabilities` - Every workstation's closure periods
+  (per station: `/workstations/{id}/unavailabilities`; overlaps are refused)
 - `GET/POST /unavailability` - Employee unavailability
 - `GET/POST /shift-wishes` - Employee shift wishes
 - `GET/PUT /wish-settings` - Shift-wish window (PUT: `shift-admin` only)
@@ -292,6 +294,9 @@ The system integrates with a Python-based optimization service for shift schedul
 **Location**: `planner/` directory
 
 **Features**:
+- **Coverage first** — minimum staffing is solved for before anything else;
+  balance, wishes and fatigue are optimised afterwards without un-filling a slot.
+  Slots still short are listed in the output `message` (tests: `planner/tests/`)
 - **Skill-based assignment** — employees only assigned to workstations matching their skills
 - **Shift availability** — employees can only work shifts they are available for
 - **Unavailability** — respects employee date-specific unavailability

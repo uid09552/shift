@@ -112,6 +112,10 @@ pub fn create_router(state: AppState) -> Router {
             get(WorkstationService::get_workstation_required_capabilities).post(WorkstationService::add_workstation_required_capability),
         )
         .route(
+            "/workstation-unavailabilities",
+            get(WorkstationUnavailabilityService::list_all_workstation_unavailabilities),
+        )
+        .route(
             "/workstations/:workstation_id/unavailabilities",
             get(WorkstationUnavailabilityService::list_workstation_unavailabilities).post(WorkstationUnavailabilityService::create_workstation_unavailability),
         )

@@ -13,6 +13,7 @@ Given a JSON input describing employees, workstations, shifts, skills, unavailab
 - **Unavailability** — respects employee date-specific unavailability
 - **Shift wishes** — rewards fulfilling an employee's wish to work a specific shift on a specific date (`wish_weight`, soft)
 - **Night shift recovery** — employees get 2 days off after a night shift
+- **Coverage first** — minimum staffing is solved for before any other goal; balance, wishes and fatigue are optimised afterwards without un-filling a slot. Slots still short are listed in `message`
 - **Workstation priority** — high-priority workstations are staffed first
 - **Workload balancing** — penalises uneven shift distribution across employees
 - **Max 5 shifts/week** — prevents over-scheduling

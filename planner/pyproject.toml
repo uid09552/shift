@@ -17,6 +17,9 @@ dependencies = [
     "opentelemetry-instrumentation-flask>=0.51b0",
 ]
 
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
 [project.scripts]
 shift-planner = "shift_planner.cli:main"
 

@@ -46,6 +46,8 @@ export interface GroupedCell {
   total: number;
   /** True when any bucket has fewer people than its minimum. */
   understaffed: boolean;
+  /** The row's workstation is deactivated or inside a closure period that day. */
+  closed: boolean;
 }
 
 /** A row of the workstation lens: one station across the visible period. */

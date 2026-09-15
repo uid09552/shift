@@ -37,7 +37,7 @@ of them is not produced at all.
 | People only work shifts they are **available** for | [Employee](people.md#available-shifts) |
 | People only work where they hold **every required capability** | [Employee](people.md#capabilities) / [Workstation](setup.md#3-workstations) |
 | Nobody is scheduled on a **hard absence** | [Employee](people.md#leave-and-unavailability) |
-| Closed workstations are not staffed | [Workstation unavailability](setup.md#3-workstations) |
+| Closed workstations are not staffed — deactivated ones, or ones inside a closed period. Nor can anyone be put there by hand, and a proposal that staffs one cannot be taken as the plan | [Deactivating a workstation](setup.md#deactivating-a-workstation) |
 | Compulsory rest days after a shift are honoured | *Free days after* on the shift |
 | Minimum rest between two days' shifts | *Minimum rest (hours)* setting |
 | The cap on consecutive working days | *Max consecutive days* setting |
@@ -51,12 +51,19 @@ of them is not produced at all.
 
 ## The things it tries to do well
 
-Everything below is scored. The planner adds up the scores of a candidate
+**Covering the posts comes first.** Before anything else, the planner fills as
+many minimum-staffing slots as the rules allow — high-priority workstations
+first when staff run short. Only then does it polish the roster, and it never
+gives back a filled slot to do so. Any slot still short is listed with the
+result, with the reason: *not enough staff left*, or *nobody qualified and
+available* (nobody in your data could ever take it — check capabilities and
+available shifts).
+
+Everything below is then scored. The planner adds up the scores of a candidate
 roster and keeps the best total.
 
 | Goal | What it means in practice |
 |---|---|
-| **Cover the posts** | Reach each workstation's minimum staffing. Weighted by the workstation's **priority**, so high-priority posts are filled first when staff run short. |
 | **Be fair** | Spread working hours evenly. This is weighted very heavily — it is why the planner refuses to let one person absorb all the awkward shifts. |
 | **Hit contracted hours** | Land each person near their monthly target. Going over and going under are penalised equally. |
 | **Respect the weekly band** | If you set one, keep everyone between a minimum and maximum number of hours in any 7 days. |
@@ -68,8 +75,9 @@ roster and keeps the best total.
 Two of these deserve a note.
 
 **Fairness is deliberately loud.** Its weight is far higher than most others,
-which encodes a priority order: the planner will accept a slightly worse-covered
-low-priority desk to avoid dumping a fortnight of nights on one person.
+which encodes a priority order: the planner will give up wishes and shift
+continuity to avoid dumping a fortnight of nights on one person. It will not
+leave a post short for it — coverage is settled before fairness is scored.
 
 **Fatigue protects the worst-off, not the average.** An average-based measure
 is perfectly happy to wreck one person's month as long as the team's mean
@@ -109,7 +117,7 @@ The relative importance of the competing goals. Higher wins more often.
 
 | Setting | Default | What it does |
 |---|---|---|
-| **Fairness weight** | 50000 | How hard to spread hours evenly. Raise it if the roster feels lopsided; lower it if fairness is costing you coverage. |
+| **Fairness weight** | 50000 | How hard to spread hours evenly. Raise it if the roster feels lopsided; lower it if it keeps overriding wishes and shift continuity. It cannot cost coverage — that is settled first. |
 | **Monthly hours target weight** | 1000 | How hard to hit each person's contracted hours. |
 | **Workstation priority weights** | 10000 / 1000 / 100 | How strongly `High`, `Medium` and `Low` priority workstations are staffed ahead of each other. The gaps between the three numbers are what matter, not their size. |
 | **Shift continuity weight** | 500 | Reward for keeping someone on the same shift on consecutive days. Raise it if people are being rotated too often. |

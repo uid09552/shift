@@ -122,7 +122,28 @@ unit, a desk.
 | **Staffing per shift — Min / Max** | How many people work here in one shift. Leave **Max** blank for "no limit". |
 | **Active shifts** | Which shifts operate here. A day clinic that never runs nights simply has the night shift unticked. |
 | **Required capabilities** | The qualifications someone must hold to work here. **All** of them, not any of them. |
-| **Unavailability periods** | Date ranges when the workstation is closed — refurbishment, seasonal closure, summer shutdown. |
+| **Closed periods** | Date ranges when the workstation is closed — refurbishment, seasonal closure, summer shutdown. |
+
+### Deactivating a workstation
+
+**Deactivate** in the workstation's row (or right-click the row) asks how:
+
+- **For a period** — pick the first and last closed day. The workstation is left
+  out of planning on those days and reopens by itself afterwards. Periods of one
+  workstation may not overlap.
+- **Completely** — out of planning until you press **Reactivate**. Its history
+  stays.
+
+The **Status** column shows where each workstation stands today — *Active*,
+*Closed until …* or *Deactivated* — and a closure that is booked but has not
+started yet. On a closed day the schedule shows the workstation's cells as
+*Closed*, and neither the schedule nor the dashboard counts it as understaffed.
+
+A closed workstation cannot be picked when you edit the roster by hand, and
+**Take as Plan** refuses a proposal that still staffs one — say, because it was
+calculated before the closure was entered. Calculate again, or move those
+people in the proposal first. People already rostered there before the closure
+stay where they are; the schedule marks their day *Closed* so you can move them.
 
 !!! danger "Required capabilities are the most common cause of trouble"
     Ticking four required capabilities on a workstation means only staff

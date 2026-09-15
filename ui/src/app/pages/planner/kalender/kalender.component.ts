@@ -1,6 +1,7 @@
 import { Component, HostListener, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { forkJoin, Subscription } from 'rxjs';
+import { forkJoin, of, Subscription } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { Router } from '@angular/router';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
 import { CalendarNavComponent } from '../../../shared/components/ui/calendar-nav/calendar-nav.component';
@@ -21,6 +22,11 @@ import {
   ShiftWishService,
   ShiftWish,
 } from '../../../shared/services/shift-wish.service';
+import {
+  WorkstationUnavailabilityService,
+  WorkstationUnavailability,
+  isClosedOn,
+} from '../../../shared/services/workstation-unavailability.service';
 import { GlobalSearchService } from '../../../shared/services/global-search.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
@@ -126,12 +132,19 @@ export class KalenderComponent implements OnInit, OnDestroy {
   // Search subscription
   private searchSub!: Subscription;
 
+  /** Workstation closures overlapping the visible period. */
+  private closures: WorkstationUnavailability[] = [];
+
+  /** Why the last edit in the grid was refused, until dismissed. */
+  saveError: string | null = null;
+
   constructor(
     private employeeService: EmployeeService,
     private shiftService: ShiftService,
     private workstationService: WorkstationService,
     private confirmedShiftPlanService: ConfirmedShiftPlanService,
     private shiftWishService: ShiftWishService,
+    private workstationUnavailabilityService: WorkstationUnavailabilityService,
     private globalSearchService: GlobalSearchService,
     private translations: TranslationService,
     private router: Router,
@@ -357,11 +370,17 @@ export class KalenderComponent implements OnInit, OnDestroy {
     // Month view can span far more employee×day cells than the week view's fixed 7 columns.
     const limit = Math.max(500, this.employees.length * this.days.length);
 
-    this.confirmedShiftPlanService
-      .getConfirmedShiftPlans(fromStr, toStr, limit, 0)
+    forkJoin({
+      plans: this.confirmedShiftPlanService.getConfirmedShiftPlans(fromStr, toStr, limit, 0),
+      // Only feeds the grouped lenses' "closed" marks, so it may fail quietly.
+      closures: this.workstationUnavailabilityService
+        .getAllUnavailabilities(fromStr, toStr)
+        .pipe(catchError(() => of([] as WorkstationUnavailability[]))),
+    })
       .subscribe({
-        next: (res) => {
-          this.buildPlanMap(res.data);
+        next: ({ plans, closures }) => {
+          this.closures = closures;
+          this.buildPlanMap(plans.data);
           this.loading = false;
         },
         error: (err) => {
@@ -573,14 +592,28 @@ export class KalenderComponent implements OnInit, OnDestroy {
     return index < 0 ? Number.MAX_SAFE_INTEGER : index;
   }
 
-  private cell(day: DayInfo, buckets: ShiftBucket[]): GroupedCell {
+  private cell(day: DayInfo, buckets: ShiftBucket[], closed = false): GroupedCell {
     return {
       dateStr: this.formatDate(day.date),
       day,
       buckets,
       total: buckets.reduce((sum, b) => sum + b.people.length, 0),
       understaffed: buckets.some((b) => b.required > 0 && b.people.length < b.required),
+      closed,
     };
+  }
+
+  /** Deactivated, or inside one of its closure periods, on that day. */
+  isClosed(workstation: Workstation | null, day: DayInfo): boolean {
+    if (!workstation) return false;
+    if (!workstation.available) return true;
+    const own = this.closures.filter((c) => c.workstation_id === workstation.id);
+    return isClosedOn(own, this.formatDate(day.date));
+  }
+
+  /** A station's minimum on one day: none while it is closed. */
+  private stationMinimum(workstation: Workstation | null, day: DayInfo): number {
+    return this.isClosed(workstation, day) ? 0 : (workstation?.min_employees ?? 0);
   }
 
   /**
@@ -603,7 +636,11 @@ export class KalenderComponent implements OnInit, OnDestroy {
         const people = (byDate.get(this.formatDate(day.date)) ?? []).filter(
           (p) => (p.workstation?.id ?? null) === (workstation?.id ?? null),
         );
-        return this.cell(day, this.bucketByShift(people, workstation?.min_employees ?? 0));
+        return this.cell(
+          day,
+          this.bucketByShift(people, this.stationMinimum(workstation, day)),
+          this.isClosed(workstation, day),
+        );
       });
       rows.push({
         key: workstation?.id ?? 'none',
@@ -652,9 +689,11 @@ export class KalenderComponent implements OnInit, OnDestroy {
             const people = peopleOn(day).filter(
               (p) => (p.workstation?.id ?? null) === (workstation?.id ?? null),
             );
-            return this.cell(day, [
-              { shift, people, required: workstation?.min_employees ?? 0 },
-            ]);
+            return this.cell(
+              day,
+              [{ shift, people, required: this.stationMinimum(workstation, day) }],
+              this.isClosed(workstation, day),
+            );
           });
           return {
             key: workstation?.id ?? 'none',
@@ -778,6 +817,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
           },
           error: (err) => {
             console.error('Failed to create shift plan', err);
+            this.showSaveError(err);
             this.processingCell = null;
             this.pendingWorkstationId = null;
           },
@@ -807,6 +847,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           console.error('Failed to update shift plan', err);
+          this.showSaveError(err);
           this.processingCell = null;
         },
       });
@@ -844,9 +885,15 @@ export class KalenderComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           console.error('Failed to update workstation', err);
+          this.showSaveError(err);
           this.processingCell = null;
         },
       });
+  }
+
+  /** The server's reason when it gives one (a closed workstation, say), else a generic line. */
+  private showSaveError(err: any): void {
+    this.saveError = err?.error?.error ?? this.translations.t('schedule.saveFailed');
   }
 
   confirmDelete(): void {

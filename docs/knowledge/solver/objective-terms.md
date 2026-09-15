@@ -17,12 +17,30 @@ sources:
     last_modified: 2026-07-25
 ---
 
-The solver maximises a single weighted sum. Every term below is traded off
-against every other.
+The solver works in two phases.
+
+1. **Coverage.** It minimises the shortfall against every `min_employees` —
+   per workstation slot, weighted by that workstation's `priority_weights`
+   entry, and per shift, weighted as `high`. Nothing else is in play, so no
+   other goal can buy a slot empty.
+2. **Everything else.** It pins the shortfall at what phase 1 reached and
+   maximises the weighted sum below, starting from phase 1's roster. Every term
+   in the table is traded off against every other — but none of them against
+   coverage.
+
+Phase 1 may use up to half of `solver_time_limit_seconds`; it usually needs a
+second or two. In `hard` [minimum-staffing mode](/architecture/soft-minimum-hard-maximum.md)
+there is no shortfall to minimise, and only phase 2 runs.
+
+Slots the roster still leaves short are listed in the result's `message`, with
+a reason: *not enough staff left*, or *nobody qualified and available* — the
+latter is a slot no one in the input can take at all (a capability no employee
+holds, a shift nobody has among their available shifts), which is a setup
+problem, not a solver one.
 
 | Term | Effect | Governing setting |
 |---|---|---|
-| Staffing shortfall | Penalises falling below `min_employees` | — (weighted by priority) |
+| Staffing shortfall | Settled in phase 1; kept in phase 2 only in case phase 1 ran out of time | — (weighted by priority) |
 | Coverage | Rewards assignments, weighted by workstation priority | `priority_weights` |
 | Equal treatment | Minimises the spread of working hours across employees | `equality_weight` |
 | Monthly hours target | Symmetric penalty on deviation from contracted hours | `monthly_hours_target_weight` |
@@ -48,8 +66,13 @@ one, rather than everyone being loaded to a ceiling.
 
 `equality_weight` at 50000 against `fatigue_weight` at 100 is not sloppiness. The
 wide gaps make the goals effectively rank-ordered inside a single objective:
-fairness beats fatigue almost every time, coverage of a `high`-priority post beats
-coverage of a `low` one by a hundredfold.
+fairness beats fatigue almost every time. In the coverage phase, a `high`-priority
+post beats a `low` one by a hundredfold.
+
+Coverage used to sit in the same sum, and that is exactly why it no longer does.
+Hours-based terms are priced per tenth of an hour, so a long shift — a 24-hour
+on-call, or any shift the one part-timer cannot share — cost more in fairness and
+fatigue than filling it earned, and the solver left it empty.
 
 The consequence for tuning: **changing a weight by a factor of ten does not adjust
 it slightly — it can change which goal wins outright.** Change one value,
@@ -65,7 +88,7 @@ understaffing penalty and below `equality_weight`.
 | Symptom | Term to adjust |
 |---|---|
 | Roster feels lopsided | Raise `equality_weight` |
-| Fairness is costing coverage | Lower `equality_weight` |
+| Posts left short | Read the result's `message`: *nobody qualified and available* is a setup gap; *not enough staff left* means the pool is too small for the rules |
 | Critical posts lose out to minor ones | Widen the gaps in `priority_weights` |
 | People rotated between shifts daily | Raise `shift_continuity_weight`, `shift_continuity_week_bonus` |
 | Everyone under contracted hours | Check `monthly_hours_target_weight` is non-zero, and that **Match monthly hours** was ticked |

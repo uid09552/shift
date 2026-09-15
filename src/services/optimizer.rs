@@ -12,6 +12,7 @@ use crate::models::{ConstraintTask, PlanningPeriod, ShiftTask, ShiftWeekdayTimeT
 use crate::repository::{AppState, domain::*};
 use crate::services::audit_log::{self, AuditActor};
 use crate::services::tenant::TenantContext;
+use crate::services::workstation_unavailability::WorkstationClosures;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -680,6 +681,10 @@ pub async fn take_as_plan(
     let now = Utc::now().naive_utc();
     let mut employee_ids: Vec<Uuid> = Vec::new();
     let mut new_plans: Vec<ConfirmedShiftPlan> = Vec::new();
+    // A proposal solved before a workstation was closed or deactivated can
+    // still staff it; confirming that would put people where nobody may work.
+    let closures = WorkstationClosures::load(&state, &tenant.0).await?;
+    let mut closed: Vec<String> = Vec::new();
 
     for ep in &plans {
         let Ok(employee_id) = ep.employee_id.parse::<Uuid>() else { continue };
@@ -691,6 +696,9 @@ pub async fn take_as_plan(
                 "assigned" => {
                     let Some(shift_id) = entry.shift_id.as_ref().and_then(|s| s.parse::<Uuid>().ok()) else { continue };
                     let workstation_id = entry.workstation_id.as_ref().and_then(|s| s.parse::<Uuid>().ok());
+                    if let Some(reason) = workstation_id.and_then(|ws| closures.closed_reason(ws, date)) {
+                        closed.push(format!("{} on {date} ({reason})", ep.employee_name));
+                    }
                     new_plans.push(ConfirmedShiftPlan {
                         id: Uuid::new_v4(),
                         employee_id,
@@ -721,6 +729,17 @@ pub async fn take_as_plan(
                 _ => {}
             }
         }
+    }
+
+    if !closed.is_empty() {
+        let shown = closed.iter().take(3).cloned().collect::<Vec<_>>().join("; ");
+        let more = closed.len().saturating_sub(3);
+        return Err(AppError::Validation(format!(
+            "{} assignment(s) in this proposal fall on a closed or deactivated workstation: {shown}{}. \
+             Fix the proposal or plan again before taking it as the plan.",
+            closed.len(),
+            if more > 0 { format!("; and {more} more") } else { String::new() },
+        )));
     }
 
     let created = state.confirmed_shift_plan_repo

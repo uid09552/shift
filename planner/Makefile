@@ -41,6 +41,10 @@ api-custom:
 api-debug:
 	uv run shift-planner api --debug
 
+# Run the solver tests
+test:
+	uv run pytest tests -q
+
 # Quick smoke test of the API
 test-api:
 	@echo "Starting API server for testing..."
@@ -76,6 +80,7 @@ help:
 	@echo "  make api            Start REST API server (0.0.0.0:8888)"
 	@echo "  make api-custom     Start REST API on 127.0.0.1:8080"
 	@echo "  make api-debug      Start REST API in debug mode"
+	@echo "  make test           Run the solver tests"
 	@echo "  make test-api       Smoke test the REST API"
 	@echo "  make clean          Remove .venv and build artifacts"
 	@echo "  make help           Show this help"

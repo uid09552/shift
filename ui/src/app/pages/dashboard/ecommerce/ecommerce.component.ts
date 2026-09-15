@@ -2,7 +2,8 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { forkJoin } from 'rxjs';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { NgApexchartsModule, ApexAxisChartSeries, ApexChart, ApexXAxis, ApexPlotOptions, ApexDataLabels, ApexStroke, ApexLegend, ApexYAxis, ApexGrid, ApexFill, ApexTooltip } from 'ng-apexcharts';
 import { EmployeeService } from '../../../shared/services/employee.service';
 import { ShiftService } from '../../../shared/services/shift.service';
@@ -11,6 +12,10 @@ import { AnalysisService, WorkstationDailyHours } from '../../../shared/services
 import { ConfirmedShiftPlanService } from '../../../shared/services/confirmed-shift-plan.service';
 import { AuditLogService, AuditLog } from '../../../shared/services/audit-log.service';
 import { PlannerService, PlanningTaskItem } from '../../../shared/services/planner.service';
+import {
+  WorkstationUnavailabilityService,
+  WorkstationUnavailability,
+} from '../../../shared/services/workstation-unavailability.service';
 import { MyDayComponent } from '../my-day/my-day.component';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 
@@ -124,6 +129,7 @@ export class EcommerceComponent implements OnInit {
     private confirmedShiftPlanService: ConfirmedShiftPlanService,
     private auditLogService: AuditLogService,
     private plannerService: PlannerService,
+    private workstationUnavailabilityService: WorkstationUnavailabilityService,
   ) {}
 
   ngOnInit(): void {
@@ -217,8 +223,13 @@ export class EcommerceComponent implements OnInit {
     forkJoin({
       plans: this.confirmedShiftPlanService.getConfirmedShiftPlans(today, today, 1000, 0),
       workstations: this.workstationService.getWorkstations(),
+      // Closed today = not expected to be staffed; losing this only costs that nuance.
+      closures: this.workstationUnavailabilityService
+        .getAllUnavailabilities(today, today)
+        .pipe(catchError(() => of([] as WorkstationUnavailability[]))),
     }).subscribe({
-      next: ({ plans, workstations }) => {
+      next: ({ plans, workstations, closures }) => {
+        const closedToday = new Set(closures.map((c) => c.workstation_id));
         const presentPlans = plans.data.filter((p) => p.is_present);
         this.todayWorkingCount = presentPlans.length;
         this.todayLeaveCount = plans.data.filter(
@@ -232,7 +243,7 @@ export class EcommerceComponent implements OnInit {
         }
 
         this.workstationCoverage = (workstations as Workstation[])
-          .filter((w) => w.available)
+          .filter((w) => w.available && !closedToday.has(w.id))
           .map((w) => {
             const assigned = assignedByWorkstation.get(w.id) ?? 0;
             return {

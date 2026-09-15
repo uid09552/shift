@@ -202,11 +202,21 @@ import {
 
     <!-- One cell: a chip per shift, the people underneath, click for the rest. -->
     <ng-template #cellBody let-cell="cell" let-title="title" let-color="color">
-      @if (cell.total === 0) {
+      @if (cell.total === 0 && cell.closed) {
+        <!-- A closed station's empty day is expected, not a gap. -->
+        <div class="closed-cell flex h-full items-center justify-center rounded-md py-1 text-gray-400 dark:text-gray-500">
+          <span class="text-[11px]">{{ 'schedule.workstationClosed' | t }}</span>
+        </div>
+      } @else if (cell.total === 0) {
         <div class="flex h-full items-center justify-center py-1">
           <span class="text-xs text-gray-300 dark:text-gray-700">·</span>
         </div>
       } @else {
+        @if (cell.closed) {
+          <span class="mb-1 block text-[10px] font-medium text-warning-600 dark:text-warning-400">
+            {{ 'schedule.workstationClosed' | t }}
+          </span>
+        }
         <button
           type="button"
           (click)="select(cell, title, color)"
@@ -262,6 +272,15 @@ import {
     .day-col {
       width: auto;
       min-width: 104px;
+    }
+
+    /* Faint hatching: reads as "not in service" without competing with staffed cells. */
+    .closed-cell {
+      background-image: repeating-linear-gradient(
+        -45deg,
+        color-mix(in srgb, currentColor 12%, transparent) 0 1px,
+        transparent 1px 6px
+      );
     }
   `,
 })

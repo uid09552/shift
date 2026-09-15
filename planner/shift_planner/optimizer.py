@@ -117,6 +117,22 @@ _DEFAULT_CONSTRAINTS = {
 }
 
 
+_SOLVED = (cp_model.OPTIMAL, cp_model.FEASIBLE)
+
+# Share of solver_time_limit_seconds the coverage phase may use. It usually
+# needs a fraction of it: a plan with no shortfall is optimal on sight.
+_COVERAGE_TIME_SHARE = 0.5
+
+
+def _listing(title: str, items: list[str], shown: int = 5) -> str | None:
+    """'Title: a; b; c; and 4 more.' — or None for an empty list."""
+    if not items:
+        return None
+    more = len(items) - shown
+    text = f"{title}: " + "; ".join(items[:shown])
+    return text + (f"; and {more} more." if more > 0 else ".")
+
+
 def _get_constraints(data: dict) -> dict:
     """Merge user-supplied constraints with defaults."""
     user = data.get("constraints", {})
@@ -170,7 +186,10 @@ class ShiftPlanner:
         self._works_cache: dict = {}
 
         self.obj_terms: list = []
-        self.staffing_shortfall_terms: list = []
+        # Soft-mode staffing shortfalls as (IntVar, priority weight), one per
+        # (day, shift[, workstation]) slot with a minimum. Coverage is solved
+        # for first, over exactly these — see _solve.
+        self.shortfall_vars: list = []
 
     # ---- Input parsing -----------------------------------------------------
 
@@ -244,6 +263,7 @@ class ShiftPlanner:
             ]
             for w in workstations
         }
+        self.ws_deactivated = {w["id"] for w in workstations if w.get("available", True) is False}
 
         self.shift_is_night = {s["id"]: s["is_night_shift"] for s in shifts}
         # Per-(shift, weekday) time/staffing configuration, keyed by weekday
@@ -304,7 +324,18 @@ class ShiftPlanner:
         )
 
     def _ws_unavailable_on(self, wid: str, day) -> bool:
+        """Closed that day: deactivated outright, or inside a closure period."""
+        if wid in self.ws_deactivated:
+            return True
         return any(start <= day <= end for start, end in self.ws_unavail.get(wid, []))
+
+    def _shift_open_somewhere(self, sid: str, day) -> bool:
+        """Some workstation runs this shift and is open that day. When none is,
+        the shift's own minimum cannot apply."""
+        return any(
+            sid in self.ws_op_shifts[w["id"]] and not self._ws_unavailable_on(w["id"], day)
+            for w in self.workstations
+        )
 
     def _compat_gap_for(self, eid: str, wid: str):
         """Skill compatibility & downgrade gap for one (employee, workstation)
@@ -446,10 +477,13 @@ class ShiftPlanner:
                 continue
             var = self.x.get((e_idx, d_idx, s_idx, w_idx))
             if var is None:
-                self.lock_warnings.append(
-                    f"{where}: not a possible assignment (absence, missing skill, "
-                    f"or the workstation does not run that shift)"
-                )
+                if self._ws_unavailable_on(lock["workstation_id"], self.days[d_idx]):
+                    self.lock_warnings.append(f"{where}: the workstation is closed that day")
+                else:
+                    self.lock_warnings.append(
+                        f"{where}: not a possible assignment (absence, missing skill, "
+                        f"or the workstation does not run that shift)"
+                    )
                 continue
             self.model.Add(var == 1)
             pinned += 1
@@ -477,7 +511,8 @@ class ShiftPlanner:
             max_emp = self.ws_max_emp.get(wid)
             if min_emp > 0:
                 self._require_min_staffing(
-                    terms, min_emp, f"ws_shortfall_{w_idx}_{d_idx}_{s_idx}"
+                    terms, min_emp, f"ws_shortfall_{w_idx}_{d_idx}_{s_idx}",
+                    self.prio_weights.get(self.ws_priority[wid], 100),
                 )
             if max_emp is not None:
                 self.model.Add(sum(terms) <= max_emp)
@@ -487,13 +522,15 @@ class ShiftPlanner:
         for terms in self.vars_by_emp_day.values():
             self.model.Add(sum(terms) <= 1)
 
-    def _require_min_staffing(self, terms, min_emp: int, name: str) -> None:
+    def _require_min_staffing(self, terms, min_emp: int, name: str, weight: int) -> None:
         """Enforce `min_emp` over `terms`, the way `min_staffing_mode` asks for.
 
         Hard: the sum may not fall below the minimum, so a period that cannot be
         staffed comes back infeasible rather than quietly understaffed. Soft
-        (the default): a shortfall variable is priced into the objective, so the
-        solver still returns the best plan it can.
+        (the default): a shortfall variable is minimised before anything else
+        (see _solve), so the solver fills every slot it can and still returns a
+        plan when some cannot be filled. `weight` ranks slots against each other
+        when not all of them can be — a high-priority workstation first.
         """
         if self.min_staffing_hard:
             self.model.Add(sum(terms) >= min_emp)
@@ -501,7 +538,7 @@ class ShiftPlanner:
             return
         shortfall = self.model.NewIntVar(0, min_emp, name)
         self.model.Add(shortfall >= min_emp - sum(terms))
-        self.staffing_shortfall_terms.append(self.min_emp_penalty * shortfall)
+        self.shortfall_vars.append((shortfall, weight))
 
     def _limit_shift_staffing(self) -> None:
         """3b) Minimum and maximum employees per (day, shift), summed across all
@@ -514,8 +551,11 @@ class ShiftPlanner:
             min_emp = self._shift_min_emp(sid, wday)
             max_emp = self._shift_max_emp(sid, wday)
             if min_emp > 0:
+                # A shift's minimum is house-wide, so it ranks with the most
+                # important workstation.
                 self._require_min_staffing(
-                    shift_day_terms, min_emp, f"shortfall_{s_idx}_{d_idx}"
+                    shift_day_terms, min_emp, f"shortfall_{s_idx}_{d_idx}",
+                    max(self.prio_weights.values()),
                 )
             if max_emp is not None:
                 self.model.Add(sum(shift_day_terms) <= max_emp)
@@ -528,8 +568,8 @@ class ShiftPlanner:
             )
         else:
             logger.info(
-                "Soft staffing minimum: %d penalty terms (penalty/slot=%d)",
-                len(self.staffing_shortfall_terms), self.min_emp_penalty,
+                "Soft staffing minimum: %d shortfall terms, covered first",
+                len(self.shortfall_vars),
             )
 
     def _add_recovery_days(self) -> None:
@@ -668,12 +708,15 @@ class ShiftPlanner:
         self._reward_wishes()
         self._penalize_fatigue()
         self._reward_shift_continuity()
-        self.model.Maximize(sum(self.obj_terms))
 
     def _penalize_staffing_shortfalls(self) -> None:
-        """0) Staffing shortfall penalties (negated because we maximise)."""
-        for term in self.staffing_shortfall_terms:
-            self.obj_terms.append(-term)
+        """0) Staffing shortfall penalties (negated because we maximise).
+
+        Coverage is already settled before this objective runs (see _solve);
+        the penalty only matters when that first phase stopped short of its
+        optimum, and then it keeps pushing the shortfall further down."""
+        for shortfall, _weight in self.shortfall_vars:
+            self.obj_terms.append(-self.min_emp_penalty * shortfall)
 
     def _reward_coverage(self) -> None:
         """1) Coverage: reward assignments weighted by workstation priority."""
@@ -860,6 +903,8 @@ class ShiftPlanner:
                         _skip("shift is not among the employee's available shifts")
                     elif self.day_wd[d_idx] not in self.shift_weekdays[sid]:
                         _skip("shift does not run on that weekday")
+                    elif not self._shift_open_somewhere(sid, wd):
+                        _skip("every workstation running that shift is closed that day")
                     else:
                         _skip("no compatible workstation runs that shift that day")
                     continue
@@ -956,17 +1001,97 @@ class ShiftPlanner:
 
     # ---- Solving & output --------------------------------------------------
 
-    def _run_solver(self):
+    def _run_solver(self, time_limit: float, phase: str):
         solver = cp_model.CpSolver()
-        solver.parameters.max_time_in_seconds = self.time_limit
+        solver.parameters.max_time_in_seconds = max(time_limit, 1.0)
         solver.parameters.num_workers = self.num_workers
+        started = time.perf_counter()
         status = solver.Solve(self.model)
         logger.info(
-            "Solver status: %s  (objective=%.0f)",
+            "Solver status (%s): %s  (objective=%.0f, %.1fs)",
+            phase,
             solver.StatusName(status),
-            solver.ObjectiveValue() if status in (cp_model.OPTIMAL, cp_model.FEASIBLE) else 0,
+            solver.ObjectiveValue() if status in _SOLVED else 0,
+            time.perf_counter() - started,
         )
         return solver, status
+
+    def _solve(self) -> SchedulingOutput:
+        """Solve lexicographically: staffing coverage first, everything else second.
+
+        One weighted objective cannot keep coverage on top. Hour balancing,
+        fatigue and the hours targets are priced per tenth of an hour, so a
+        long shift (a 24h on-call, a night) can cost more there than filling
+        its slot earns — and the solver leaves the slot empty. Instead:
+
+        1. Minimise the priority-weighted shortfall against every minimum.
+        2. Pin that result (never more shortfall than phase 1 found) and hint
+           its plan, then optimise balance, wishes, fatigue, continuity, …
+
+        Hard mode has no shortfall to minimise, so it goes straight to phase 2.
+        """
+        started = time.perf_counter()
+        fallback = None  # phase-1 plan, if phase 2 finds nothing in time
+        coverage_proven = True
+
+        if self.shortfall_vars:
+            weighted = sum(w * v for v, w in self.shortfall_vars)
+            self.model.Minimize(weighted)
+            solver, status = self._run_solver(
+                self.time_limit * _COVERAGE_TIME_SHARE, "coverage"
+            )
+            if status == cp_model.INFEASIBLE:
+                return self._infeasible_output(self._infeasible_message())
+            if status in _SOLVED:
+                best = round(solver.ObjectiveValue())
+                coverage_proven = status == cp_model.OPTIMAL
+                fallback = {key: solver.Value(var) for key, var in self.x.items()}
+                # Hint every variable, not just x: the phase-1 solution
+                # satisfies the whole model, so the hint is complete and
+                # feasible and phase 2 starts from it. A partial hint leaves
+                # the solver to rebuild the auxiliaries under a now-tight
+                # coverage bound, which on a busy month it may not manage.
+                solution = solver.ResponseProto().solution
+                self.model.Add(weighted <= best)
+                for index, value in enumerate(solution):
+                    self.model.AddHint(self.model.get_int_var_from_proto_index(index), value)
+            else:
+                # No plan at all yet: let phase 2 search without a bound.
+                coverage_proven = False
+
+        self.model.Maximize(sum(self.obj_terms))
+        remaining = self.time_limit - (time.perf_counter() - started)
+        solver, status = self._run_solver(remaining, "objective")
+
+        if status in _SOLVED:
+            values = {key: solver.Value(var) for key, var in self.x.items()}
+            optimal = status == cp_model.OPTIMAL and coverage_proven
+            return self._build_output(values, solver.ObjectiveValue(), optimal)
+        if fallback is not None:
+            logger.warning("Objective phase found no plan in time — returning the coverage plan")
+            return self._build_output(
+                fallback, 0.0, False,
+                "Only staffing coverage was optimised; balance and wishes "
+                "were not (the solver ran out of time).",
+            )
+        return self._infeasible_output(self._infeasible_message())
+
+    def _infeasible_message(self) -> str:
+        # Mandatory minimum staffing is the constraint most likely to have
+        # caused this, and the one a planner can act on, so name it.
+        hint = (
+            " Minimum staffing is set to 'hard', so every shift and "
+            "workstation must reach its min_employees — switch it back to "
+            "'soft' to allow understaffed slots."
+            if self.min_staffing_hard else ""
+        )
+        if self.locked_assignments:
+            hint += (
+                f" {len(self.locked_assignments)} assignment(s) were locked; "
+                "they are enforced as given, so a set of them that cannot "
+                "coexist makes the whole plan infeasible."
+            )
+        return "No feasible schedule found. Relax constraints or add more employees." + hint
 
     def _infeasible_output(self, message: str) -> SchedulingOutput:
         return SchedulingOutput(
@@ -975,14 +1100,52 @@ class ShiftPlanner:
             message=message,
         )
 
-    def _extract_assignments(self, solver) -> dict:
-        """One pass over the decision variables: (e_idx, d_idx) -> (s_idx, w_idx).
-        Unique because the model allows at most one shift per employee per day."""
+    def _extract_assignments(self, values: dict) -> dict:
+        """One pass over the solved decision variables: (e_idx, d_idx) ->
+        (s_idx, w_idx). Unique because the model allows at most one shift per
+        employee per day."""
         assigned = {}
-        for (e_idx, d_idx, s_idx, w_idx), var in self.x.items():
-            if solver.Value(var) == 1:
+        for (e_idx, d_idx, s_idx, w_idx), value in values.items():
+            if value == 1:
                 assigned[(e_idx, d_idx)] = (s_idx, w_idx)
         return assigned
+
+    def _staffing_gaps(self, assigned: dict) -> list[str]:
+        """Every slot the plan leaves below its minimum, and why.
+
+        Includes slots the model had no variable for at all — nobody qualified
+        and present could take them — which the solver cannot even see as a
+        shortfall, so without this they would pass as silently fine."""
+        per_slot: dict = {}
+        per_shift: dict = {}
+        for (e_idx, d_idx), (s_idx, w_idx) in assigned.items():
+            per_slot[d_idx, s_idx, w_idx] = per_slot.get((d_idx, s_idx, w_idx), 0) + 1
+            per_shift[d_idx, s_idx] = per_shift.get((d_idx, s_idx), 0) + 1
+
+        gaps = []
+        for d_idx, day in enumerate(self.days):
+            wday = self.day_wd[d_idx]
+            for s_idx, shift in enumerate(self.shifts):
+                sid = shift["id"]
+                if wday not in self.shift_weekdays[sid]:
+                    continue
+                for w_idx, ws in enumerate(self.workstations):
+                    wid = ws["id"]
+                    if sid not in self.ws_op_shifts[wid] or self._ws_unavailable_on(wid, day):
+                        continue
+                    need = self.ws_min_emp.get(wid, 1)
+                    have = per_slot.get((d_idx, s_idx, w_idx), 0)
+                    if have < need:
+                        why = (
+                            "not enough staff left" if (d_idx, s_idx, w_idx) in self.vars_by_day_shift_ws
+                            else "nobody qualified and available"
+                        )
+                        gaps.append(f"{day} {shift['name']} @ {ws['name']} {have}/{need} ({why})")
+                need = self._shift_min_emp(sid, wday)
+                have = per_shift.get((d_idx, s_idx), 0)
+                if have < need and self._shift_open_somewhere(sid, day):
+                    gaps.append(f"{day} {shift['name']} (all workstations) {have}/{need}")
+        return gaps
 
     def _build_schedule(self, assigned: dict) -> list:
         """Per-day schedule grouped by shift."""
@@ -1049,25 +1212,28 @@ class ShiftPlanner:
             ))
         return employee_plans
 
-    def _build_output(self, solver, status) -> SchedulingOutput:
-        assigned = self._extract_assignments(solver)
+    def _build_output(
+        self, values: dict, objective: float, optimal: bool, note: str | None = None,
+    ) -> SchedulingOutput:
+        assigned = self._extract_assignments(values)
+        gaps = self._staffing_gaps(assigned)
+        if gaps:
+            logger.warning("Plan leaves %d slot(s) below minimum staffing", len(gaps))
+            for line in gaps:
+                logger.warning("Understaffed — %s", line)
+        parts = [
+            _listing("Ignored locked assignment(s)", self.lock_warnings),
+            _listing("Below minimum staffing", gaps),
+            note,
+        ]
         return SchedulingOutput(
-            status="optimal" if status == cp_model.OPTIMAL else "feasible",
-            objective_value=solver.ObjectiveValue(),
+            status="optimal" if optimal else "feasible",
+            objective_value=objective,
             planning_period=PlanningPeriod(start_date=self.start, end_date=self.end),
             schedule=self._build_schedule(assigned),
             employee_plans=self._build_employee_plans(assigned),
-            message=self._lock_message(),
+            message=" ".join(p for p in parts if p) or None,
         )
-
-    def _lock_message(self) -> str | None:
-        """The locks that could not be honoured, listed for the caller."""
-        if not self.lock_warnings:
-            return None
-        shown = self.lock_warnings[:5]
-        more = len(self.lock_warnings) - len(shown)
-        text = "Ignored locked assignment(s): " + "; ".join(shown)
-        return text + (f"; and {more} more" if more > 0 else "")
 
     # ---- Entry point -------------------------------------------------------
 
@@ -1086,28 +1252,7 @@ class ShiftPlanner:
 
         self._add_hard_constraints()
         self._add_objective()
-        solver, status = self._run_solver()
-
-        if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            # Mandatory minimum staffing is the constraint most likely to have
-            # caused this, and the one a planner can act on, so name it.
-            hint = (
-                " Minimum staffing is set to 'hard', so every shift and "
-                "workstation must reach its min_employees — switch it back to "
-                "'soft' to allow understaffed slots."
-                if self.min_staffing_hard else ""
-            )
-            if self.locked_assignments:
-                hint += (
-                    f" {len(self.locked_assignments)} assignment(s) were locked; "
-                    "they are enforced as given, so a set of them that cannot "
-                    "coexist makes the whole plan infeasible."
-                )
-            return self._infeasible_output(
-                "No feasible schedule found. "
-                "Relax constraints or add more employees." + hint
-            )
-        return self._build_output(solver, status)
+        return self._solve()
 
 
 def solve(data: dict) -> SchedulingOutput:

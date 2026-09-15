@@ -55,12 +55,8 @@ def schedule(input_file, output_file):
         logger.error(f"Input file not found: {input_file}")
         sys.exit(1)
 
-    result = solve(data)
-
-    # Convert date objects to strings for JSON serialization
-    for day_entry in result.get("schedule", []):
-        if "date" in day_entry:
-            day_entry["date"] = str(day_entry["date"])
+    # Plain JSON types from here on: dates as strings, for the file and the checks
+    result = solve(data).model_dump(mode="json")
 
     # Validate output against input constraints
     if result["status"] in ("optimal", "feasible"):
@@ -87,23 +83,14 @@ def schedule(input_file, output_file):
         print(f"Objective value : {result['objective_value']:.0f}")
         print(f"Output written to: {output_file}")
         print()
-        for emp in result["employee_summary"]:
-            hours_str = f"{emp['total_working_hours']:.1f}h" if "total_working_hours" in emp else ""
+        for emp in result["employee_plans"]:
+            worked = [e for e in emp["daily_plan"] if e["status"] == "assigned"]
             print(
-                f"  {emp['employee_name']:>8s}: "
-                f"{emp['total_shifts']} shifts "
-                f"({emp['night_shifts']} night) "
-                f"{hours_str} "
-                f"days: {', '.join(emp['assigned_dates'])}"
+                f"  {emp['employee_name']:>12s}: {len(worked):2d} shifts  "
+                + ", ".join(f"{e['date'][5:]} {e['shift_name']}" for e in worked)
             )
-            if "per_shift" in emp:
-                for ps in emp["per_shift"]:
-                    print(
-                        f"    {ps['shift_name']:>14s}: "
-                        f"{ps['total_assignments']}×  "
-                        f"days: {', '.join(ps['assigned_dates'])}"
-                    )
-    else:
+    if result["message"]:
+        print()
         print(result["message"])
 
 

@@ -12,6 +12,7 @@ use crate::errors::AppError;
 use crate::repository::AppState;
 use crate::repository::domain::{ConfirmedShiftPlan, ConfirmedShiftPlanRepository};
 use crate::services::tenant::TenantContext;
+use crate::services::workstation_unavailability::WorkstationClosures;
 
 #[derive(Deserialize)]
 pub struct ListConfirmedShiftPlansQuery {
@@ -27,6 +28,23 @@ pub struct PaginatedResponse<T: Serialize> {
     pub total: i64,
     pub limit: i64,
     pub offset: i64,
+}
+
+/// A closed or deactivated workstation is not staffed — by the solver, and not
+/// by hand either.
+async fn refuse_if_closed(
+    state: &AppState,
+    tenant_id: &str,
+    workstation_id: Uuid,
+    date: NaiveDate,
+) -> Result<(), AppError> {
+    let closures = WorkstationClosures::load(state, tenant_id).await?;
+    match closures.closed_reason(workstation_id, date) {
+        Some(reason) => Err(AppError::Validation(format!(
+            "Cannot assign anyone there on {date}: {reason}"
+        ))),
+        None => Ok(()),
+    }
 }
 
 pub struct ConfirmedShiftPlanService;
@@ -181,6 +199,10 @@ impl ConfirmedShiftPlanService {
             ));
         }
 
+        if let Some(ws) = workstation_id {
+            refuse_if_closed(&state, &tenant.0, ws, date).await?;
+        }
+
         let now = Utc::now().naive_utc();
 
         let plan = ConfirmedShiftPlan {
@@ -291,6 +313,20 @@ impl ConfirmedShiftPlanService {
                 return Err(AppError::Validation(
                     "Invalid 'creation_type', must be one of: manual, automated".into(),
                 ));
+            }
+        }
+
+        // Only a move onto a workstation is checked: an entry already sitting at
+        // a station that closed later can still be edited (marked absent, say).
+        if let Some(Some(ws)) = workstation_id {
+            let existing = state
+                .confirmed_shift_plan_repo
+                .get_confirmed_shift_plan_by_id(&tenant.0, plan_id)
+                .await
+                .map_err(|_| AppError::Internal)?
+                .ok_or(AppError::NotFound)?;
+            if existing.workstation_id != Some(ws) {
+                refuse_if_closed(&state, &tenant.0, ws, existing.date).await?;
             }
         }
 

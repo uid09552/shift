@@ -993,6 +993,44 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /workstation-unavailabilities:
+    get:
+      tags:
+        - Workstations
+      summary: List the closure periods of every workstation
+      description: |
+        All workstations' unavailability periods in one call — the tenant-wide
+        counterpart of listWorkstationUnavailabilities. A workstation is closed
+        (not planned, not counted as understaffed) on every day inside one of its
+        periods; a workstation with `available: false` is closed on every day.
+      operationId: listAllWorkstationUnavailabilities
+      parameters:
+        - name: from_date
+          in: query
+          description: Keep periods that have not ended before this date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          description: Keep periods that have started by this date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Closure periods across all workstations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkstationUnavailability'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /workstations/{workstationId}/unavailabilities:
     get:
       tags:
@@ -1037,7 +1075,8 @@ paths:
       description: |
         Marks the workstation as unavailable for planning during an inclusive date range
         (e.g. maintenance or renovation). The planner will skip assigning employees to
-        this workstation for any day within the range.
+        this workstation for any day within the range. A period overlapping one the
+        workstation already has is refused with 400.
       operationId: createWorkstationUnavailability
       parameters:
         - name: workstationId
@@ -1728,7 +1767,7 @@ paths:
       tags:
         - Planner
       summary: Take an optimized result as the confirmed shift plan
-      description: Overwrites the confirmed shift plans for this result's planning period with its assignments and free days, optionally scoped to a subset of employees. Runs entirely server-side in one transaction (delete existing plans in the period + bulk upsert the new ones) instead of requiring the client to issue a per-employee load, per-entry delete, and per-entry create sequence of calls.
+      description: Overwrites the confirmed shift plans for this result's planning period with its assignments and free days, optionally scoped to a subset of employees. Runs entirely server-side in one transaction (delete existing plans in the period + bulk upsert the new ones) instead of requiring the client to issue a per-employee load, per-entry delete, and per-entry create sequence of calls. Refused with 400, writing nothing, when an assignment in the result falls on a workstation that is deactivated or closed that day (a result calculated before the closure) — the message lists them.
       operationId: takeOptimizedShiftAsPlan
       parameters:
         - name: resultId
@@ -1993,7 +2032,7 @@ paths:
       tags:
         - Confirmed Shift Plans
       summary: Update a confirmed shift plan
-      description: Updates a specific confirmed shift plan by its ID.
+      description: Updates a specific confirmed shift plan by its ID. Moving the entry to a workstation that is deactivated or closed on the entry's date is refused with 400; other edits of an entry already at such a workstation (marking it absent, say) are allowed.
       operationId: updateConfirmedShiftPlan
       parameters:
         - name: planId
@@ -2095,7 +2134,7 @@ paths:
       tags:
         - Confirmed Shift Plans
       summary: Create a confirmed shift plan for an employee
-      description: Creates a new confirmed shift plan entry for an employee. Each employee can only have one confirmed shift plan per date.
+      description: Creates a new confirmed shift plan entry for an employee. Each employee can only have one confirmed shift plan per date. A workstation that is deactivated, or closed on that date, is refused with 400.
       operationId: createConfirmedShiftPlan
       parameters:
         - name: employeeId

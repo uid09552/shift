@@ -24,10 +24,24 @@ import {
   MarkedDay,
   DateRange,
 } from '../../../shared/components/ui/date-range-picker/date-range-picker.component';
+import { ModalComponent } from '../../../shared/components/ui/modal/modal.component';
 import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
 import { ContextMenuService } from '../../../shared/components/ui/context-menu/context-menu.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
+
+/**
+ * Where a workstation stands today: planned as usual, inside a closure period,
+ * or switched off until someone reactivates it. `next` is the closure after
+ * today's, if one is booked, so a planned closure is visible before it starts.
+ */
+interface WorkstationStatus {
+  kind: 'active' | 'closed' | 'disabled';
+  until?: string;
+  next?: WorkstationUnavailability;
+}
+
+type DeactivateMode = 'complete' | 'period';
 
 @Component({
   selector: 'app-workstations',
@@ -41,6 +55,7 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
     LabelComponent,
     ButtonComponent,
     DateRangePickerComponent,
+    ModalComponent,
     TranslatePipe,
   ],
   template: `
@@ -187,7 +202,7 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
                   } @else {
                     @for (u of workstationUnavailabilities; track u.id) {
                       <div class="flex items-center justify-between gap-2 rounded border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
-                        <span class="text-gray-700 dark:text-gray-300">{{ u.unavailable_from }} – {{ u.unavailable_to }}</span>
+                        <span class="text-gray-700 dark:text-gray-300">{{ formatRange(u) }}</span>
                         <button
                           type="button"
                           (click)="deleteUnavailability(u)"
@@ -287,7 +302,7 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
           <thead class="border-b border-gray-100 dark:border-white/[0.05]">
             <tr>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.name' | t }}</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'workstations.available' | t }}</th>
+              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'workstations.status' | t }}</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'workstations.priority' | t }}</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'workstations.staffing' | t }}</th>
               <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'workstations.activeShifts' | t }}</th>
@@ -323,26 +338,35 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
                       {{ ws.name }}
                     </span>
                   </td>
-                  <td class="px-4 py-3 text-start text-theme-sm">
-                    <button
-                      (click)="toggleAvailability(ws)"
-                      [disabled]="togglingId === ws.id"
-                      class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium transition-opacity disabled:opacity-50"
-                      [ngClass]="ws.available
-                        ? 'bg-success-50 text-success-700 hover:bg-success-100 dark:bg-success-500/15 dark:text-success-400 dark:hover:bg-success-500/25'
-                        : 'bg-error-50 text-error-700 hover:bg-error-100 dark:bg-error-500/15 dark:text-error-400 dark:hover:bg-error-500/25'"
-                      [title]="ws.available ? 'Click to disable' : 'Click to enable'"
+                  <td class="px-4 py-3 text-start text-theme-sm" [attr.data-testid]="'ws-status-' + ws.id">
+                    @let status = statusOf(ws);
+                    <span
+                      class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium"
+                      [ngClass]="{
+                        'bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400': status.kind === 'active',
+                        'bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400': status.kind === 'closed',
+                        'bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400': status.kind === 'disabled'
+                      }"
                     >
-                      @if (togglingId === ws.id) {
-                        <svg class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
-                          <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
-                        </svg>
-                      } @else {
-                        <span class="h-1.5 w-1.5 rounded-full" [ngClass]="ws.available ? 'bg-success-500' : 'bg-error-500'"></span>
+                      <span
+                        class="h-1.5 w-1.5 rounded-full"
+                        [ngClass]="{
+                          'bg-success-500': status.kind === 'active',
+                          'bg-warning-500': status.kind === 'closed',
+                          'bg-error-500': status.kind === 'disabled'
+                        }"
+                      ></span>
+                      @switch (status.kind) {
+                        @case ('active') { {{ 'workstations.enabled' | t }} }
+                        @case ('closed') { {{ 'workstations.closedUntil' | t: { date: formatDay(status.until!) } }} }
+                        @case ('disabled') { {{ 'workstations.disabled' | t }} }
                       }
-                      {{ (ws.available ? 'workstations.enabled' : 'workstations.disabled') | t }}
-                    </button>
+                    </span>
+                    @if (status.next) {
+                      <span class="mt-1 block whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
+                        {{ 'workstations.closurePlanned' | t: { range: formatRange(status.next) } }}
+                      </span>
+                    }
                   </td>
                   <td class="px-4 py-3 text-start text-theme-sm">
                     <span
@@ -398,6 +422,26 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
                       >
                         {{ 'common.edit' | t }}
                       </app-button>
+                      @if (ws.available) {
+                        <app-button
+                          size="sm"
+                          variant="outline"
+                          [attr.data-testid]="'ws-deactivate-' + ws.id"
+                          (btnClick)="openDeactivate(ws)"
+                        >
+                          {{ 'workstations.deactivate' | t }}
+                        </app-button>
+                      } @else {
+                        <app-button
+                          size="sm"
+                          variant="outline"
+                          [disabled]="togglingId === ws.id"
+                          [attr.data-testid]="'ws-reactivate-' + ws.id"
+                          (btnClick)="reactivate(ws)"
+                        >
+                          {{ 'workstations.reactivate' | t }}
+                        </app-button>
+                      }
                       <app-button
                         size="sm"
                         variant="danger"
@@ -414,6 +458,85 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
         </table>
       </div>
     </div>
+
+    <!-- Deactivate: completely, or for a period after which it reopens by itself -->
+    <app-modal [isOpen]="deactivating !== null" className="max-w-[520px] m-4" (close)="closeDeactivate()">
+      @if (deactivating) {
+        <div class="p-5 sm:p-6" data-testid="ws-deactivate-dialog">
+          <h4 class="pr-10 text-lg font-semibold text-gray-800 dark:text-white/90">
+            {{ 'workstations.deactivateTitle' | t: { name: deactivating.name } }}
+          </h4>
+          <p class="mt-1 pr-10 text-sm text-gray-500 dark:text-gray-400">{{ 'workstations.deactivateIntro' | t }}</p>
+
+          <div class="mt-5 space-y-2" role="radiogroup">
+            @for (option of deactivateOptions; track option.mode) {
+              <label
+                class="flex cursor-pointer items-start gap-3 rounded-lg border px-3.5 py-3 transition-colors"
+                [ngClass]="deactivateMode === option.mode
+                  ? 'border-brand-300 bg-brand-50/60 dark:border-brand-500/40 dark:bg-brand-500/10'
+                  : 'border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-white/[0.03]'"
+              >
+                <input
+                  type="radio"
+                  name="deactivateMode"
+                  class="mt-0.5 h-4 w-4 border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-700"
+                  [value]="option.mode"
+                  [checked]="deactivateMode === option.mode"
+                  [attr.data-testid]="'ws-deactivate-mode-' + option.mode"
+                  (change)="setDeactivateMode(option.mode)"
+                />
+                <span>
+                  <span class="block text-sm font-medium text-gray-800 dark:text-white/90">{{ option.label | t }}</span>
+                  <span class="block text-xs text-gray-500 dark:text-gray-400">{{ option.hint | t }}</span>
+                </span>
+              </label>
+            }
+          </div>
+
+          @if (deactivateMode === 'period') {
+            <div class="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start">
+              <div class="w-full max-w-[280px]">
+                <app-date-range-picker
+                  [markedDays]="closureMarkedDays(deactivating.id)"
+                  [resetKey]="deactivateResetKey"
+                  (rangeChange)="deactivateRange = $event"
+                />
+              </div>
+              <div class="flex-1 space-y-1.5 text-sm">
+                <!-- The picker shows the chosen range itself; until then, say what to pick. -->
+                @if (!deactivateRange) {
+                  <p class="text-gray-400 dark:text-gray-500">{{ 'workstations.pickPeriod' | t }}</p>
+                }
+                @for (c of closuresOf(deactivating.id); track c.id) {
+                  <p class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ 'workstations.alreadyClosed' | t: { range: formatRange(c) } }}
+                  </p>
+                }
+              </div>
+            </div>
+          }
+
+          @if (deactivateError) {
+            <p class="mt-4 text-sm text-error-600 dark:text-error-400" role="alert">{{ deactivateError }}</p>
+          }
+
+          <div class="mt-6 flex items-center justify-end gap-3">
+            <app-button size="sm" variant="outline" (btnClick)="closeDeactivate()">
+              {{ 'common.cancel' | t }}
+            </app-button>
+            <app-button
+              size="sm"
+              variant="primary"
+              data-testid="ws-deactivate-confirm"
+              [disabled]="deactivateSaving || (deactivateMode === 'period' && !deactivateRange)"
+              (btnClick)="confirmDeactivate()"
+            >
+              {{ (deactivateMode === 'complete' ? 'workstations.deactivateNow' : 'workstations.closePeriod') | t }}
+            </app-button>
+          </div>
+        </div>
+      }
+    </app-modal>
   `,
   styles: ``,
 })
@@ -444,6 +567,21 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
   workstationUnavailabilities: WorkstationUnavailability[] = [];
   pickerRange: DateRange | null = null;
   pickerResetKey = 0;
+
+  /** Every station's closures that have not ended yet, for the status column. */
+  private closures: WorkstationUnavailability[] = [];
+  private statuses = new Map<string, WorkstationStatus>();
+
+  deactivating: Workstation | null = null;
+  deactivateMode: DeactivateMode = 'period';
+  deactivateRange: DateRange | null = null;
+  deactivateResetKey = 0;
+  deactivateSaving = false;
+  deactivateError: string | null = null;
+  readonly deactivateOptions: { mode: DeactivateMode; label: string; hint: string }[] = [
+    { mode: 'period', label: 'workstations.deactivatePeriod', hint: 'workstations.deactivatePeriodHint' },
+    { mode: 'complete', label: 'workstations.deactivateComplete', hint: 'workstations.deactivateCompleteHint' },
+  ];
 
   plusIcon = `<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.25C12.4142 3.25 12.75 3.58579 12.75 4V11.25H20C20.4142 11.25 20.75 11.5858 20.75 12C20.75 12.4142 20.4142 12.75 20 12.75H12.75V20C12.75 20.4142 12.4142 20.75 12 20.75C11.5858 20.75 11.25 20.4142 11.25 20V12.75H4C3.58579 12.75 3.25 12.4142 3.25 12C3.25 11.5858 3.58579 11.25 4 11.25H11.25V4C11.25 3.58579 11.5858 3.25 12 3.25Z" fill="currentColor"></path></svg>`;
 
@@ -479,10 +617,13 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
     forkJoin({
       workstations: this.workstationService.getWorkstations(),
       shifts: this.shiftService.getShifts(),
+      closures: this.workstationUnavailabilityService.getAllUnavailabilities(this.today()),
     }).subscribe({
-      next: ({ workstations, shifts }) => {
+      next: ({ workstations, shifts, closures }) => {
         this.allWorkstations = workstations;
         this.allShifts = shifts;
+        this.closures = closures;
+        this.computeStatuses();
         this.applySearch();
         this.loading = false;
 
@@ -663,6 +804,7 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
           this.pickerRange = null;
           this.pickerResetKey++;
           this.loadUnavailabilities(this.editingWorkstation!.id);
+          this.loadClosures();
         },
         error: (err: any) => console.error('Failed to add workstation unavailability', err),
       });
@@ -671,9 +813,173 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
   deleteUnavailability(u: WorkstationUnavailability): void {
     if (!this.editingWorkstation) return;
     this.workstationUnavailabilityService.deleteUnavailability(this.editingWorkstation.id, u.id).subscribe({
-      next: () => this.loadUnavailabilities(this.editingWorkstation!.id),
+      next: () => {
+        this.loadUnavailabilities(this.editingWorkstation!.id);
+        this.loadClosures();
+      },
       error: (err: any) => console.error('Failed to delete workstation unavailability', err),
     });
+  }
+
+  // ── Status & deactivation ────────────────────────────────────────
+
+  statusOf(ws: Workstation): WorkstationStatus {
+    return this.statuses.get(ws.id) ?? { kind: ws.available ? 'active' : 'disabled' };
+  }
+
+  closuresOf(workstationId: string): WorkstationUnavailability[] {
+    return this.closures.filter((c) => c.workstation_id === workstationId);
+  }
+
+  closureMarkedDays(workstationId: string): MarkedDay[] {
+    return this.closuresOf(workstationId).flatMap((c) =>
+      this.datesBetween(c.unavailable_from, c.unavailable_to).map((date) => ({ date, type: 'unavailable' as const })),
+    );
+  }
+
+  private loadClosures(): void {
+    this.workstationUnavailabilityService.getAllUnavailabilities(this.today()).subscribe({
+      next: (closures) => {
+        this.closures = closures;
+        this.computeStatuses();
+      },
+      error: (err: any) => console.error('Failed to load workstation closures', err),
+    });
+  }
+
+  private computeStatuses(): void {
+    const today = this.today();
+    this.statuses.clear();
+    for (const ws of this.allWorkstations) {
+      if (!ws.available) {
+        this.statuses.set(ws.id, { kind: 'disabled' });
+        continue;
+      }
+      const own = this.closuresOf(ws.id).sort((a, b) => a.unavailable_from.localeCompare(b.unavailable_from));
+      const current = own.find((c) => c.unavailable_from <= today && today <= c.unavailable_to);
+      const next = own.find((c) => c.unavailable_from > today);
+      this.statuses.set(
+        ws.id,
+        current ? { kind: 'closed', until: current.unavailable_to, next } : { kind: 'active', next },
+      );
+    }
+  }
+
+  openDeactivate(ws: Workstation): void {
+    this.deactivating = ws;
+    this.deactivateMode = 'period';
+    this.deactivateRange = null;
+    this.deactivateResetKey++;
+    this.deactivateError = null;
+  }
+
+  closeDeactivate(): void {
+    if (this.deactivateSaving) return;
+    this.deactivating = null;
+  }
+
+  setDeactivateMode(mode: DeactivateMode): void {
+    this.deactivateMode = mode;
+    this.deactivateError = null;
+  }
+
+  confirmDeactivate(): void {
+    const ws = this.deactivating;
+    if (!ws) return;
+    this.deactivateSaving = true;
+    this.deactivateError = null;
+
+    const failed = (err: any) => {
+      this.deactivateSaving = false;
+      this.deactivateError = err?.error?.error ?? this.translations.t('workstations.deactivateFailed');
+    };
+    const done = () => {
+      this.deactivateSaving = false;
+      this.deactivating = null;
+    };
+
+    if (this.deactivateMode === 'complete') {
+      this.workstationService.disable(ws.id).subscribe({
+        next: (updated) => {
+          this.replaceWorkstation(updated);
+          done();
+        },
+        error: failed,
+      });
+      return;
+    }
+
+    const range = this.deactivateRange;
+    if (!range) {
+      this.deactivateSaving = false;
+      return;
+    }
+    // The server refuses overlaps too; saying so here names the dates in the UI's language.
+    const clash = this.closuresOf(ws.id).find(
+      (c) => c.unavailable_from <= range.end && range.start <= c.unavailable_to,
+    );
+    if (clash) {
+      this.deactivateSaving = false;
+      this.deactivateError = this.translations.t('workstations.closureOverlaps', { range: this.formatRange(clash) });
+      return;
+    }
+    this.workstationUnavailabilityService
+      .createUnavailability(ws.id, { unavailable_from: range.start, unavailable_to: range.end })
+      .subscribe({
+        next: () => {
+          this.loadClosures();
+          done();
+        },
+        error: failed,
+      });
+  }
+
+  reactivate(ws: Workstation): void {
+    this.togglingId = ws.id;
+    this.workstationService.enable(ws.id).subscribe({
+      next: (updated) => {
+        this.replaceWorkstation(updated);
+        this.togglingId = null;
+      },
+      error: (err: any) => {
+        console.error('Failed to reactivate workstation', err);
+        this.togglingId = null;
+      },
+    });
+  }
+
+  private replaceWorkstation(updated: Workstation): void {
+    const idx = this.allWorkstations.findIndex((w) => w.id === updated.id);
+    if (idx >= 0) this.allWorkstations[idx] = updated;
+    this.computeStatuses();
+    this.applySearch();
+  }
+
+  /** "3 Oct" — with the year only when it is not this year's. */
+  formatDay(date: string): string {
+    const d = new Date(date + 'T00:00:00');
+    return d.toLocaleDateString(this.translations.locale, {
+      day: 'numeric',
+      month: 'short',
+      ...(d.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}),
+    });
+  }
+
+  formatRange(c: { unavailable_from: string; unavailable_to: string }): string {
+    return c.unavailable_from === c.unavailable_to
+      ? this.formatDay(c.unavailable_from)
+      : `${this.formatDay(c.unavailable_from)} – ${this.formatDay(c.unavailable_to)}`;
+  }
+
+  private today(): string {
+    return this.isoDate(new Date());
+  }
+
+  /** Local calendar date as YYYY-MM-DD. */
+  private isoDate(d: Date): string {
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${m}-${day}`;
   }
 
   private datesBetween(start: string, end: string): string[] {
@@ -681,10 +987,7 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
     const cur = new Date(start + 'T00:00:00');
     const endDate = new Date(end + 'T00:00:00');
     while (cur <= endDate) {
-      const y = cur.getFullYear();
-      const m = String(cur.getMonth() + 1).padStart(2, '0');
-      const d = String(cur.getDate()).padStart(2, '0');
-      dates.push(`${y}-${m}-${d}`);
+      dates.push(this.isoDate(cur));
       cur.setDate(cur.getDate() + 1);
     }
     return dates;
@@ -777,29 +1080,12 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
     }
   }
 
-  toggleAvailability(ws: Workstation): void {
-    this.togglingId = ws.id;
-    const action$ = ws.available
-      ? this.workstationService.disable(ws.id)
-      : this.workstationService.enable(ws.id);
-
-    action$.subscribe({
-      next: (updated) => {
-        const idx = this.allWorkstations.findIndex(w => w.id === ws.id);
-        if (idx >= 0) this.allWorkstations[idx] = updated;
-        this.applySearch();
-        this.togglingId = null;
-      },
-      error: (err: any) => {
-        console.error('Failed to toggle workstation availability', err);
-        this.togglingId = null;
-      },
-    });
-  }
-
   onRowContextMenu(event: MouseEvent, ws: Workstation): void {
     this.contextMenu.open(event, [
       { label: this.translations.t('common.edit'), action: () => this.openEditForm(ws) },
+      ws.available
+        ? { label: this.translations.t('workstations.deactivate'), action: () => this.openDeactivate(ws) }
+        : { label: this.translations.t('workstations.reactivate'), action: () => this.reactivate(ws) },
       { label: this.translations.t('common.delete'), danger: true, action: () => this.deleteWorkstation(ws) },
     ]);
   }

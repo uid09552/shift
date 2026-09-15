@@ -97,6 +97,10 @@ class Workstation(BaseModel):
     max_employees: Optional[int] = Field(default=None, ge=0)
     # Periods during which this workstation cannot be staffed (e.g. maintenance).
     unavailability: List[WorkstationUnavailabilityRange] = Field(default_factory=list)
+    # False = deactivated: closed on every day, as if one period covered the
+    # whole plan. The backend leaves such workstations out of its payload; the
+    # flag is for callers that send them anyway.
+    available: bool = True
 
     @field_validator("priority")
     @classmethod
@@ -386,6 +390,7 @@ def validate_output(output: dict, input_data: SchedulingInput) -> List[str]:
     }
     ws_skills = {w.id: set(w.required_skills) for w in input_data.workstations}
     ws_shifts = {w.id: set(w.operating_shifts) for w in input_data.workstations}
+    ws_by_id = {w.id: w for w in input_data.workstations}
     shift_night = {s.id: s.is_night_shift for s in input_data.shifts}
 
     # Track per-employee data for cross-day checks
@@ -432,6 +437,15 @@ def validate_output(output: dict, input_data: SchedulingInput) -> List[str]:
                     if date_obj in emp_unavail.get(eid, set()):
                         violations.append(
                             f"Unavailability: {eid} is unavailable on {d}"
+                        )
+                    # 4b. Closed workstation: deactivated, or inside a closure period
+                    ws = ws_by_id.get(wid)
+                    if ws is not None and (
+                        not ws.available
+                        or any(u.from_date <= date_obj <= u.to_date for u in ws.unavailability)
+                    ):
+                        violations.append(
+                            f"Closed workstation: {wid} is closed on {d} but {eid} is assigned there"
                         )
                 except ValueError:
                     pass

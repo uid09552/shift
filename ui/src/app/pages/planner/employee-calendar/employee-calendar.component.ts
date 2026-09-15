@@ -2,7 +2,13 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Observable, forkJoin } from 'rxjs';
+import { Observable, forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+import {
+  WorkstationUnavailabilityService,
+  WorkstationUnavailability,
+  isClosedOn,
+} from '../../../shared/services/workstation-unavailability.service';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
 import { CalendarNavComponent } from '../../../shared/components/ui/calendar-nav/calendar-nav.component';
 import { DateRangePickerComponent, MarkedDay } from '../../../shared/components/ui/date-range-picker/date-range-picker.component';
@@ -153,6 +159,10 @@ export class EmployeeCalendarComponent implements OnInit {
   employees: Employee[] = [];
   shifts: Shift[] = [];
   workstations: Workstation[] = [];
+  /** Every workstation closure, so a station closed on a day cannot be picked for it. */
+  private closures: WorkstationUnavailability[] = [];
+  /** Why the last edit was refused, until dismissed. */
+  saveError: string | null = null;
 
   selectedEmployeeId: string = '';
   currentYear: number;
@@ -242,6 +252,7 @@ export class EmployeeCalendarComponent implements OnInit {
     private employeeService: EmployeeService,
     private shiftService: ShiftService,
     private workstationService: WorkstationService,
+    private workstationUnavailabilityService: WorkstationUnavailabilityService,
     private confirmedShiftPlanService: ConfirmedShiftPlanService,
     private unavailabilityService: UnavailabilityService,
     private shiftWishService: ShiftWishService,
@@ -346,11 +357,15 @@ export class EmployeeCalendarComponent implements OnInit {
       employees: this.employeeService.getEmployeeProfiles(1000, 0),
       shifts: this.shiftService.getShifts(),
       workstations: this.workstationService.getWorkstations(),
+      closures: this.workstationUnavailabilityService
+        .getAllUnavailabilities()
+        .pipe(catchError(() => of([] as WorkstationUnavailability[]))),
     }).subscribe({
-      next: ({ employees, shifts, workstations }) => {
+      next: ({ employees, shifts, workstations, closures }) => {
         this.employees = employees.data;
         this.shifts = shifts;
         this.workstations = workstations;
+        this.closures = closures;
 
         this.shiftMap.clear();
         this.shifts.forEach((s) => this.shiftMap.set(s.id, s));
@@ -896,6 +911,7 @@ export class EmployeeCalendarComponent implements OnInit {
           },
           error: (err) => {
             console.error('Failed to create shift plan', err);
+            this.showSaveError(err);
             this.processingCell = null;
             this.pendingWorkstationId = null;
           },
@@ -921,6 +937,7 @@ export class EmployeeCalendarComponent implements OnInit {
         },
         error: (err) => {
           console.error('Failed to update shift plan', err);
+          this.showSaveError(err);
           this.processingCell = null;
         },
       });
@@ -953,9 +970,21 @@ export class EmployeeCalendarComponent implements OnInit {
         },
         error: (err) => {
           console.error('Failed to update workstation', err);
+          this.showSaveError(err);
           this.processingCell = null;
         },
       });
+  }
+
+  /** Deactivated, or inside a closure period, on `date` (YYYY-MM-DD). */
+  isWorkstationClosed(workstation: Workstation, date: string): boolean {
+    if (!workstation.available) return true;
+    return isClosedOn(this.closures.filter((c) => c.workstation_id === workstation.id), date);
+  }
+
+  /** The server's reason when it gives one (a closed workstation, say), else a generic line. */
+  private showSaveError(err: any): void {
+    this.saveError = err?.error?.error ?? this.translations.t('schedule.saveFailed');
   }
 
   // ── Shift wish helpers ───────────────────────────────────────────

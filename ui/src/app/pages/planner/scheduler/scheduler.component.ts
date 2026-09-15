@@ -30,7 +30,7 @@ import {
   PlanValidationReport,
   PlanFixReport,
 } from '../../../shared/services/plan-validation.service';
-import { switchMap, takeWhile, startWith } from 'rxjs/operators';
+import { switchMap, takeWhile, startWith, catchError } from 'rxjs/operators';
 import {
   EmployeeService,
   Employee,
@@ -38,6 +38,11 @@ import {
 import { GlobalSearchService } from '../../../shared/services/global-search.service';
 import { ShiftService, Shift } from '../../../shared/services/shift.service';
 import { WorkstationService, Workstation } from '../../../shared/services/workstation.service';
+import {
+  WorkstationUnavailabilityService,
+  WorkstationUnavailability,
+  isClosedOn,
+} from '../../../shared/services/workstation-unavailability.service';
 import { ContextMenuService, ContextMenuItem } from '../../../shared/components/ui/context-menu/context-menu.service';
 import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
@@ -140,6 +145,8 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   // ── Editing the proposed schedule ────────────────────────────────
   shifts: Shift[] = [];
   workstations: Workstation[] = [];
+  /** Every workstation closure, so the editor can grey out a station closed on the edited day. */
+  private closures: WorkstationUnavailability[] = [];
   savingSchedule = false;
 
   // Mass selection (employee view rows) for bulk edit operations
@@ -185,6 +192,7 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     private globalSearchService: GlobalSearchService,
     private shiftService: ShiftService,
     private workstationService: WorkstationService,
+    private workstationUnavailabilityService: WorkstationUnavailabilityService,
     private planValidationService: PlanValidationService,
     private contextMenuService: ContextMenuService,
     private confirmDialogService: ConfirmDialogService,
@@ -316,13 +324,23 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     forkJoin({
       shifts: this.shiftService.getShifts(),
       workstations: this.workstationService.getWorkstations(),
+      closures: this.workstationUnavailabilityService
+        .getAllUnavailabilities()
+        .pipe(catchError(() => of([] as WorkstationUnavailability[]))),
     }).subscribe({
-      next: ({ shifts, workstations }) => {
+      next: ({ shifts, workstations, closures }) => {
         this.shifts = shifts;
         this.workstations = workstations;
+        this.closures = closures;
       },
       error: (e) => console.error('Error loading shifts/workstations:', e),
     });
+  }
+
+  /** Deactivated, or inside a closure period, on `date` (YYYY-MM-DD). */
+  isWorkstationClosed(workstation: Workstation, date: string): boolean {
+    if (!workstation.available) return true;
+    return isClosedOn(this.closures.filter((c) => c.workstation_id === workstation.id), date);
   }
 
   setResult(result: OptimizedShiftResultResponse): void {

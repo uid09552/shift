@@ -1,3 +1,60 @@
-1) the validate plan button in optimize view, should also have a "fix button" and a user prompt with additional information which user can provide. Adjust the agent so that the agent can all mcp server can start linear programming optimizer. so create a tool in optimizer (mcp interface) to call and optimize, and also agent should try to move the shift assignment by itself to fix issues and also use users input to optimize.
-2) validate the provided ui, remove dublicate views
-3) propose additional ui eleements and views for ui which are useful and typically availabe in shift planners.
+1) what features to add additionally, print here
+
+   UI ideas are already collected in docs/ui-proposals.md (hours account, scenario
+   comparison, coverage forecast, fairness dashboard, absence requests, swaps,
+   publish/notify, ...). Start there with #3 "coverage forecast": it would have
+   shown before planning that nobody can work "Rufdienst" (see note under 2).
+
+   Not in that doc, ordered by value for a hospital roster:
+
+   a) Plan across period boundaries. Every solve starts from nothing: a night on
+      the 31st followed by an early shift on the 1st, or 6 days in a row ending
+      on the 31st plus 3 more from the 1st, are not seen. Feed the last ~7 days
+      of the confirmed roster into the solver as fixed history (today
+      locked_assignments outside the period are dropped as unknown dates).
+   b) Skill mix per shift, not only per workstation: "at least one person with
+      Schichtleitung / Praxisanleitung on every shift", "max 1 trainee per
+      shift". Today a workstation requires every capability from every person.
+   c) Weekend rules: at least N free weekends per month, and "both days or
+      neither" (no lone Saturday). Standard in German hospital agreements.
+   d) Date-specific demand: public holidays (per Bundesland) and special days
+      override the per-weekday min/max; holidays also count for hours accounts.
+   e) Minimum-staffing mode per workstation (hard for ICU/OR, soft elsewhere)
+      instead of one global switch.
+   f) Sick-call replacement: when someone calls in sick on a confirmed day,
+      list who could legally take the slot (rest, max days, skills), ranked by
+      fairness and hours balance, and assign in one click. Minimal-change
+      re-plan of the following days as an option.
+   g) Closures, next steps: a reason per closure (renovation, maintenance,
+      holiday), recurring closures (e.g. Tagesklinik every weekend), and a
+      warning listing confirmed assignments that fall inside a new closure.
+   h) Departments inside a tenant: planners scoped to their wards, so the
+      Station A planner cannot change the ICU roster.
+   i) Payroll export: actual hours per person with night/Sunday/holiday
+      surcharges (Zuschläge), as CSV/DATEV.
+   j) Webhooks on plan confirmed / closure created / wish decided, so the n8n
+      instance that is already running can send notifications and sync.
+
+2) optimize the planner algorithm, its still not planning all shifts, it must distribute the people to min. amount of people per workstation and shift
+   DONE. The solver now fills minimum staffing first (phase 1), then optimises
+   balance, wishes, fatigue etc. without giving back a filled slot (phase 2).
+   Before, hour balancing could outweigh a slot (long shifts, part-timers), so it
+   left slots empty. Slots still short are listed in the result's message, with
+   the reason. Tests: planner/tests/test_staffing.py (make test in planner/).
+   Note on the current data: the weekend "Rufdienst" at Notaufnahme can never be
+   filled. Only the ICU nurses have it among their available shifts, and they
+   lack the Notaufnahme/Wundversorgung skills. That is a setup gap, not a solver
+   problem.
+
+3) implement deactivation of workstations, from-to, or complete
+   DONE. Workstations page: "Deactivate" per row (and in the right-click menu)
+   opens a dialog, "for a period" or "completely"; the Status column shows
+   Active / Closed until ... / Deactivated, plus a planned closure. The weekly
+   schedule (by workstation / by shift) and the dashboard no longer count a
+   closed workstation as understaffed. New API: GET /workstation-unavailabilities;
+   overlapping closures are refused.
+   Both kinds of closure (period / complete) are honoured everywhere: solver,
+   its output check, agent validate/fix, hand edits in the schedule and employee
+   calendar (closed stations cannot be picked; the API refuses them too), the
+   scheduler's proposal editor, and "Take as Plan" (refuses a proposal that
+   still staffs a closed station).

@@ -36,7 +36,10 @@ satisfied simultaneously the solver returns `infeasible` and produces nothing.
 8. **Maximum consecutive working days** — `max_consecutive_days`; `0` disables.
 9. **Skills and availability.** An employee is eligible only for a workstation
    whose required skills they hold, in a shift they are available for, on a day
-   they are not hard-unavailable, at a workstation that is open.
+   they are not hard-unavailable, at a workstation that is open — neither
+   deactivated (`available: false`) nor inside one of its closure periods.
+   A shift's own minimum does not apply on a day when every workstation that
+   runs it is closed: there is nowhere to put anyone.
 
 Constraints 6, 7 and 8 are configurable and can be switched off with `0`.
 Constraints 1–5 and 9 come from the data and cannot be disabled.

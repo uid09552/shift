@@ -56,7 +56,7 @@ interface CalendarCell {
 
       <!-- Weekday headers -->
       <div class="mb-1 grid grid-cols-7 text-center">
-        @for (d of WEEKDAYS; track d) {
+        @for (d of WEEKDAYS; track $index) {
           <div class="py-1 text-xs font-medium text-gray-400 dark:text-gray-500">{{ d }}</div>
         }
       </div>
