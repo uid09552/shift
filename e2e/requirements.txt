@@ -1,6 +1,6 @@
 # End-to-end test suite. Install into a virtualenv, then run `rfbrowser init`
 # once to download the browsers Playwright drives (see the Makefile).
-robotframework==7.1.1
+robotframework==7.5
 robotframework-browser==18.9.1
 # Robot reads config/config.yaml as a variable file, which needs PyYAML.
-PyYAML==6.0.2
+PyYAML==6.0.3
