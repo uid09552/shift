@@ -5,8 +5,11 @@
 # internal links and unknown config keys into build failures, so the pull
 # request run catches them before the default branch publishes anything.
 #
-# Set it up once: Settings > Pages > Build and deployment > Source:
-# "GitHub Actions".
+# Deploying needs GitHub Pages, which private repositories only get on a paid
+# plan. Set it up once: Settings > Pages > Build and deployment > Source:
+# "GitHub Actions", then set the repository variable PAGES_ENABLED to "true".
+# Until then the site is still built (and checked) on every run, just not
+# published.
 
 name: Docs
 
@@ -43,13 +46,13 @@ jobs:
           path: site
           retention-days: 7
       - name: Hand the site to Pages
-        if: github.event_name != 'pull_request'
+        if: vars.PAGES_ENABLED == 'true' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
   deploy:
-    if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+    if: vars.PAGES_ENABLED == 'true' && github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
     needs: build
     runs-on: ubuntu-latest
     permissions:
