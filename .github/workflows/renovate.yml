@@ -55,7 +55,9 @@ jobs:
           fi
 
       # Remembers what each branch was built from, so an unchanged run is quick.
-      - uses: actions/cache@v4
+      # Restore and save are separate steps (not one actions/cache) because
+      # the files change owner in between: see the chown steps.
+      - uses: actions/cache/restore@v6
         with:
           path: /tmp/renovate/cache/renovate/repository
           key: renovate-${{ github.run_id }}
@@ -63,10 +65,10 @@ jobs:
       # The action runs Renovate as uid 12021; give it the cache directory.
       - run: mkdir -p /tmp/renovate && sudo chown -R 12021:0 /tmp/renovate
 
-      - uses: renovatebot/github-action@v43.0.0
+      - uses: renovatebot/github-action@v46.3.1
         with:
           token: ${{ secrets.RENOVATE_TOKEN }}
-          renovate-version: 44.93.0
+          renovate-version: 44.103.2
           mount-docker-socket: false
         env:
           # This repository only, not every repository the token can reach.
@@ -82,3 +84,14 @@ jobs:
           RENOVATE_BASE_DIR: /tmp/renovate
           RENOVATE_REPOSITORY_CACHE: enabled
           LOG_LEVEL: info
+
+      # Back to the runner user, or the save below cannot read what Renovate
+      # wrote. Saved even after a failed run: the cache is per repository
+      # state, not per outcome.
+      - if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" /tmp/renovate
+      - uses: actions/cache/save@v6
+        if: always()
+        with:
+          path: /tmp/renovate/cache/renovate/repository
+          key: renovate-${{ github.run_id }}
