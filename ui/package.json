@@ -42,7 +42,7 @@
     "swiper": "^11.2.10",
     "tailwindcss": "^4.1.11",
     "tslib": "^2.3.0",
-    "zone.js": "~0.15.0"
+    "zone.js": "~0.16.0"
   },
   "devDependencies": {
     "@angular/build": "^21.2.2",
