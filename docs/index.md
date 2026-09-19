@@ -1,14 +1,15 @@
 # Shift Planner
 
-A hospital shift management system: it takes the people, the skills, the
-workstations and the shift definitions of a hospital ward, and produces a
-staffing plan that respects labour rules and balances the load across the team.
+Shift Planner is a hospital staffing system for planning ward coverage while
+respecting qualifications, rest rules, monthly hour targets, shift wishes and
+workstation priorities. It is designed for ward managers, staffing coordinators,
+planners and administrators who need a safe, auditable roster that can be
+reviewed before it becomes the official plan.
 
-Planning a ward by hand means juggling qualifications, rest periods, monthly
-hour targets, holidays and the fact that the ICU has to be staffed before the
-outpatient desk. This system models all of that explicitly and hands the
-combinatorics to a constraint solver, leaving the planner to review, adjust and
-confirm the result.
+The system does not decide the schedule for you in secret. It proposes a
+legally consistent roster, highlights shortages, keeps the fixed patterns you
+choose, and lets a planner review and adjust the result before pressing
+**Take as Plan**.
 
 ## The four services
 
@@ -20,7 +21,9 @@ confirm the result.
 | **Agent / MCP** | Python (LangGraph + FastMCP) | Chat assistant that drives the app through MCP tools generated from the OpenAPI spec |
 
 They sit behind an APISIX gateway that terminates OIDC against Keycloak, and
-run on PostgreSQL and NATS.
+run on PostgreSQL and NATS. Every API call is tenant-scoped and role-checked,
+so a viewer can see schedules but cannot edit them, a planner can calculate and
+modify proposals, and an admin can manage users and the shift-wish window.
 
 ```mermaid
 flowchart LR

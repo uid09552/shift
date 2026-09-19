@@ -6,6 +6,11 @@ The system is a set of small services around one relational database. The Rust
 backend owns all persistent state; every other component talks to it, never to
 PostgreSQL directly.
 
+The edge security model is intentional: APISIX sits in front of the app, does
+OIDC against Keycloak, injects the authenticated token headers, and the backend
+then reads tenant and role claims from the trusted request. This prevents the app
+from ever relying on a caller-supplied JWT for authorization.
+
 ```mermaid
 flowchart TB
     subgraph Edge
@@ -120,7 +125,24 @@ browser and comes back to the UI as a `ui_action`.
 
 The signed-in user's access token travels the whole chain: browser → APISIX →
 agent → MCP server → backend. Every call therefore runs as that user, under
-that user's tenant. See [Auth & Multi-Tenancy](auth.md).
+that user's tenant. The role middleware allows only the methods and paths that
+match the user's realm role, so a viewer cannot issue writes outside their own
+self-service wishes, and only a shift-admin can manage users or the wish window.
+See [Auth & Multi-Tenancy](auth.md).
+
+## Security boundary
+
+The public attack surface is intentionally small:
+
+- Browser traffic enters through APISIX only.
+- Keycloak verifies the user's session and returns tokens to the gateway.
+- The backend never exposes its database directly.
+- JSON and agent responses set hardened browser headers such as CSP, X-Frame-Options,
+  no-store caching and strict referrer handling.
+
+This is the OWASP web baseline for the application: strong identity at the edge,
+strict tenant isolation in the backend, and explicit role enforcement before the
+handler runs.
 
 ## Technology choices
 

@@ -1,0 +1,10 @@
+- generic [active] [ref=e1]:
+  - heading "500 Internal Server Error" [level=1] [ref=e3]
+  - separator [ref=e4]
+  - generic [ref=e5]: openresty
+  - paragraph [ref=e6]:
+    - emphasis [ref=e7]:
+      - text: Powered by
+      - link "APISIX" [ref=e8] [cursor=pointer]:
+        - /url: https://apisix.apache.org/
+      - text: .

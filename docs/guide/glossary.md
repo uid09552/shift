@@ -14,6 +14,11 @@ Every term this application uses, in plain language. Sorted alphabetically.
 : The chat window in the bottom-right corner. Ask it for things in ordinary
   sentences. See [The built-in assistant](assistant.md).
 
+**Audit log**
+: The record of every change anyone made, newest first, with what the item
+  looked like before and after. **Configuration → Audit log**. See [Users,
+  roles and history](administration.md#the-audit-log).
+
 **Available shifts**
 : Which shift types a person works *at all* — a contractual fact, not a weekly
   preference. Somebody on days only has the night shift unticked.
@@ -27,6 +32,11 @@ Every term this application uses, in plain language. Sorted alphabetically.
 : The official roster. What you see in the Schedule and calendar views. A
   calculated plan becomes a confirmed plan only when someone presses **Take as
   Plan**.
+
+**Fairness**
+: The page listing everyone's share of the confirmed roster over a period —
+  shifts, hours against target, nights, weekends, wishes granted. **Planner →
+  Fairness**. See [Reading the schedule](calendars.md#fairness-who-has-had-what).
 
 **Feasible**
 : A calculation result meaning "this roster obeys every rule, and it was the
@@ -88,6 +98,18 @@ Every term this application uses, in plain language. Sorted alphabetically.
 : A calculated but not yet confirmed roster. Harmless — it changes nothing
   until you press **Take as Plan**.
 
+**Role**
+: What a signed-in person is allowed to do: **Viewer**, **Planner** or
+  **Admin**. Not a job title. See [Users, roles and
+  history](administration.md#who-may-do-what).
+
+**Rotation**
+: A named cycle of shifts and days off — `F F S S N - - -` — written once and
+  applied to people, optionally staggered so a team covers it between them.
+  **Planner → Rotations**. What it writes are fixed assignments, which the
+  planner keeps ahead of everything else. See [Creating a
+  schedule](creating-a-plan.md#fixed-rhythms-rotations).
+
 **Score**
 : The planner's internal quality number for a proposal. Only meaningful when
   comparing two runs over the same period with the same settings. Higher is
@@ -101,11 +123,6 @@ Every term this application uses, in plain language. Sorted alphabetically.
 : A person's request for a particular shift on a particular day. The planner
   is rewarded for granting it, but may decide otherwise. Set from the Employee
   Calendar.
-
-**Wish window**
-: Whether shift wishes may be entered at all, and for which days — open, closed,
-  or a date range. Set under **Configuration → Wish Window**, which only admins
-  see. While it is shut nobody can add or withdraw a wish, admins included.
 
 **Short name**
 : The one- or two-letter abbreviation for a shift, shown in calendar squares.
@@ -128,6 +145,11 @@ Every term this application uses, in plain language. Sorted alphabetically.
 **Tenant**
 : The technical word for an *organisation*. You may see it in administrative
   screens.
+
+**Wish window**
+: Whether shift wishes may be entered at all, and for which days — open, closed,
+  or a date range. Set under **Configuration → Wish Window**, which only admins
+  see. While it is shut nobody can add or withdraw a wish, admins included.
 
 **Workstation**
 : A place that has to be staffed — a ward, a theatre, a unit, a desk. It

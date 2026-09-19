@@ -1,0 +1,401 @@
+# GitHub Actions counterpart of .gitlab-ci.yml (build + scan stages).
+#
+# Builds the four service images and publishes them to GitHub Container
+# Registry as ghcr.io/<owner>/<repo>/<component>:<tag> — the same
+# <registry>/<component>:<tag> shape the deploy Makefile expects.
+#
+# Security scanning: Trivy scans each image inside its build job, and the
+# `sbom-source` jobs scan the committed lockfiles. Both emit CycloneDX SBOMs.
+# A build-time scan only reflects what was known that day, so `scan-published`
+# re-scans the images already in the registry on a schedule.
+#
+# Dependency updates run in renovate.yml; docs in docs.yml.
+
+name: CI
+
+on:
+  push:
+    # Renovate pushes a branch and then opens its pull request, and the PR run
+    # that follows is the one that counts — without this the push would also
+    # start four image builds for nothing.
+    branches-ignore: ["renovate/**"]
+    tags: ["**"]
+  pull_request:
+  # Scheduled re-scan of the published images (and the lockfiles).
+  schedule:
+    - cron: "0 3 * * *"
+  # A button: re-scan now, for when a CVE lands in the news.
+  workflow_dispatch:
+    inputs:
+      rescan_tag:
+        description: "Image tag to re-scan"
+        default: latest
+
+env:
+  # Bumping this changes the scanner everywhere below (Renovate follows it).
+  TRIVY_VERSION: "0.72.0"
+  # Severities that count towards the gate below. The machine-readable report
+  # and the SBOM always cover *all* severities regardless of this.
+  SCAN_SEVERITY: "HIGH,CRITICAL"
+  # 0 = report only; set the repository variable SCAN_EXIT_CODE to 1 to make a
+  # finding at SCAN_SEVERITY fail the job — for `build`, that means failing
+  # before the image is pushed.
+  SCAN_EXIT_CODE: ${{ vars.SCAN_EXIT_CODE || '0' }}
+  # The same gate, for scheduled re-scans only. Defaulted to 1 on purpose: a
+  # nightly run that always passes tells nobody anything, and a failed
+  # scheduled run is what GitHub actually notifies on. It fires only on
+  # fixable findings (--ignore-unfixed), i.e. ones a rebuild would resolve.
+  RESCAN_EXIT_CODE: ${{ vars.RESCAN_EXIT_CODE || '1' }}
+  # Deliberately *not* named TRIVY_SEVERITY / TRIVY_EXIT_CODE: Trivy reads
+  # those from the environment automatically, which would silently apply the
+  # gate's severity filter to the full report and SBOM as well.
+  TRIVY_CACHE_DIR: ${{ github.workspace }}/.cache/trivy
+  TRIVY_NO_PROGRESS: "true"
+
+# A newer push to the same branch or PR supersedes the running one.
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # Scheduled runs exist to re-scan what is already published; rebuilding
+    # the same commit every night would only burn runner minutes.
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # "mcp" deliberately absent: it runs the agent image with a different
+        # command (see deploy/docker-compose.yml).
+        component: [backend, planner, ui, agent]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Target image
+        id: meta
+        run: |
+          # Docker references must be lowercase; the repository path need not be.
+          IMAGE="$(echo "ghcr.io/${GITHUB_REPOSITORY}/${{ matrix.component }}" | tr '[:upper:]' '[:lower:]')"
+          SHORT_SHA="${GITHUB_SHA::8}"
+          # What the image reports as its version (GET /api/v1/info, the UI's
+          # sidebar, the planner's and agent's health). A tag run publishes the
+          # tag; anything else is "<branch>-<short sha>". A repository variable
+          # APP_VERSION overrides both — e.g. for a release built from a branch.
+          APP_VERSION="${{ vars.APP_VERSION }}"
+          if [ -z "$APP_VERSION" ]; then
+            if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+              APP_VERSION="$GITHUB_REF_NAME"
+            else
+              REF="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+              SLUG="$(echo "$REF" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' | cut -c1-63)"
+              APP_VERSION="${SLUG}-${SHORT_SHA}"
+            fi
+          fi
+          BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "Target image: $IMAGE"
+          echo "Version: $APP_VERSION ($GITHUB_SHA, built $BUILD_DATE)"
+          {
+            echo "image=$IMAGE"
+            echo "short_sha=$SHORT_SHA"
+            echo "app_version=$APP_VERSION"
+            echo "build_date=$BUILD_DATE"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Built into the local daemon first (load: true) so Trivy can scan it
+      # *before* the push — an enabled gate (SCAN_EXIT_CODE=1) keeps a failing
+      # image out of the registry. The Dockerfiles COPY from the repo root
+      # (e.g. `COPY ui/ .`), so the build context is the root, not deploy/.
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile.${{ matrix.component }}
+          load: true
+          push: false
+          tags: ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.short_sha }}
+          build-args: |
+            APP_VERSION=${{ steps.meta.outputs.app_version }}
+            GIT_COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ steps.meta.outputs.build_date }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.meta.outputs.app_version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ steps.meta.outputs.build_date }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          # Layer cache per component in the Actions cache.
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+
+      # ---- Trivy: scan and SBOM -------------------------------------------
+      - uses: aquasecurity/setup-trivy@v0.2.3
+        with:
+          version: v${{ env.TRIVY_VERSION }}
+          cache: true
+
+      # The vulnerability database (~50 MB); caching it keeps the matrix jobs
+      # off ghcr.io's rate limit. Refreshed daily.
+      - name: Date
+        id: date
+        run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: .cache/trivy/db
+          key: trivy-db-${{ steps.date.outputs.day }}
+          restore-keys: trivy-db-
+
+      - name: Scan image
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.short_sha }}
+          COMPONENT: ${{ matrix.component }}
+        run: |
+          mkdir -p security
+          # Full report, all severities, as SARIF for GitHub code scanning.
+          # `--image-src docker` pins Trivy to the local daemon — without it, a
+          # lookup failure falls through to `remote` and scans whatever the
+          # registry holds.
+          trivy image \
+            --scanners vuln \
+            --image-src docker \
+            --format sarif \
+            --output "security/trivy-image-$COMPONENT.sarif" \
+            "$IMAGE"
+          # CycloneDX SBOM of the image: OS packages plus whatever language
+          # manifests survive into the runtime stage. The Rust backend's crates
+          # are *not* among them (the final stage holds only the compiled
+          # binary) — the sbom-source jobs cover the lockfiles instead.
+          trivy image \
+            --image-src docker \
+            --format cyclonedx \
+            --output "security/sbom-image-$COMPONENT.cdx.json" \
+            "$IMAGE"
+          # Human-readable summary, and the gate. --ignore-unfixed keeps the
+          # gate on findings that a base-image bump can actually resolve.
+          trivy image \
+            --scanners vuln \
+            --image-src docker \
+            --severity "$SCAN_SEVERITY" \
+            --ignore-unfixed \
+            --exit-code "$SCAN_EXIT_CODE" \
+            "$IMAGE"
+
+      # Shown under Security > Code scanning. Needs code scanning enabled (free
+      # on public repositories, GitHub Advanced Security on private ones) — so
+      # a missing feature does not fail the build.
+      - name: Upload scan to code scanning
+        if: always() && hashFiles('security/*.sarif') != ''
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security/trivy-image-${{ matrix.component }}.sarif
+          category: image-${{ matrix.component }}
+
+      # `if: always()` so a failing gate still publishes the evidence.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-image-${{ matrix.component }}
+          path: security/
+          retention-days: 30
+      # ---------------------------------------------------------------------
+
+      - name: Push
+        if: github.event_name != 'pull_request'
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          SHORT_SHA: ${{ steps.meta.outputs.short_sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          docker push "$IMAGE:$SHORT_SHA"
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            docker tag "$IMAGE:$SHORT_SHA" "$IMAGE:$GITHUB_REF_NAME"
+            docker push "$IMAGE:$GITHUB_REF_NAME"
+          fi
+          if [ "$GITHUB_REF_NAME" = "$DEFAULT_BRANCH" ] || [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            docker tag "$IMAGE:$SHORT_SHA" "$IMAGE:latest"
+            docker push "$IMAGE:latest"
+          fi
+
+      - name: Pull request — not published
+        if: github.event_name == 'pull_request'
+        run: echo "Pull request run — image built but not published."
+
+  # -------------------------------------------------------------------------
+  # Source SBOM + dependency scan
+  #
+  # Complements the image SBOM produced by `build`: this reads the committed
+  # lockfiles (Cargo.lock, ui/package-lock.json, planner/uv.lock,
+  # agent/uv.lock), which is the only place the backend's crates and the UI's
+  # npm tree appear — the multi-stage Dockerfiles leave them behind in the
+  # builder stage. It does not wait for `build`.
+  # -------------------------------------------------------------------------
+  sbom-source:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The backend is the repo root, so it has to exclude the other three.
+          - component: backend
+            source_path: "."
+            skip_dirs: "ui,planner,agent,target,site,public,.cache,deploy"
+          - component: ui
+            source_path: "ui"
+            skip_dirs: "node_modules,dist"
+          - component: planner
+            source_path: "planner"
+            skip_dirs: ".venv"
+          - component: agent
+            source_path: "agent"
+            skip_dirs: ".venv"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aquasecurity/setup-trivy@v0.2.3
+        with:
+          version: v${{ env.TRIVY_VERSION }}
+          cache: true
+
+      - name: Date
+        id: date
+        run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: .cache/trivy/db
+          key: trivy-db-${{ steps.date.outputs.day }}
+          restore-keys: trivy-db-
+
+      - name: Scan lockfiles
+        env:
+          COMPONENT: ${{ matrix.component }}
+          SOURCE_PATH: ${{ matrix.source_path }}
+          SKIP_DIRS: ${{ matrix.skip_dirs }}
+        run: |
+          mkdir -p security
+          # On a schedule this job is a re-scan: the lockfiles have not
+          # changed, the vulnerability database has. Reporting silently would
+          # defeat the point, so scheduled runs use the stricter gate.
+          GATE_EXIT_CODE="$SCAN_EXIT_CODE"
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            GATE_EXIT_CODE="$RESCAN_EXIT_CODE"
+            echo "Scheduled re-scan: failing on $SCAN_SEVERITY findings (exit code $GATE_EXIT_CODE)."
+          fi
+          trivy fs \
+            --skip-dirs "$SKIP_DIRS" \
+            --format cyclonedx \
+            --output "security/sbom-source-$COMPONENT.cdx.json" \
+            "$SOURCE_PATH"
+          # Vulnerabilities in those same dependencies. Shares SCAN_EXIT_CODE
+          # with the image gate: 0 reports, 1 fails the job.
+          trivy fs \
+            --scanners vuln \
+            --skip-dirs "$SKIP_DIRS" \
+            --severity "$SCAN_SEVERITY" \
+            --exit-code "$GATE_EXIT_CODE" \
+            "$SOURCE_PATH"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-source-${{ matrix.component }}
+          path: security/
+          retention-days: 30
+
+  # -------------------------------------------------------------------------
+  # Scheduled re-scan of the published images
+  #
+  # A build-time scan only knows the CVEs that existed the day it ran. An image
+  # that passed last week can be vulnerable today without a single line of
+  # code changing — so this re-scans what is *already in the registry* and
+  # fails when something fixable has appeared. It does not rebuild: Trivy reads
+  # the image straight out of the registry.
+  #
+  # Runs nightly (schedule above; GitHub mails the workflow's owner when a
+  # scheduled run fails), or by hand: Actions > CI > Run workflow.
+  # -------------------------------------------------------------------------
+  scan-published:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [backend, planner, ui, agent]
+    env:
+      # Registry credentials for Trivy's remote image fetch, through the
+      # environment variables Trivy reads by itself — so the token never lands
+      # on a command line.
+      TRIVY_USERNAME: ${{ github.actor }}
+      TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: aquasecurity/setup-trivy@v0.2.3
+        with:
+          version: v${{ env.TRIVY_VERSION }}
+          cache: true
+
+      - name: Date
+        id: date
+        run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: .cache/trivy/db
+          key: trivy-db-${{ steps.date.outputs.day }}
+          restore-keys: trivy-db-
+
+      - name: Re-scan
+        env:
+          COMPONENT: ${{ matrix.component }}
+          RESCAN_TAG: ${{ inputs.rescan_tag || 'latest' }}
+        run: |
+          mkdir -p security
+          # `:latest` is what the default branch publishes, i.e. what a
+          # deployment following deploy/Makefile actually runs.
+          TARGET="$(echo "ghcr.io/${GITHUB_REPOSITORY}/${COMPONENT}" | tr '[:upper:]' '[:lower:]'):${RESCAN_TAG}"
+          echo "Re-scanning $TARGET against today's database."
+          trivy image \
+            --scanners vuln \
+            --format sarif \
+            --output "security/trivy-published-$COMPONENT.sarif" \
+            "$TARGET"
+          trivy image \
+            --scanners vuln \
+            --severity "$SCAN_SEVERITY" \
+            --ignore-unfixed \
+            --exit-code "$RESCAN_EXIT_CODE" \
+            "$TARGET"
+
+      - name: Upload scan to code scanning
+        if: always() && hashFiles('security/*.sarif') != ''
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security/trivy-published-${{ matrix.component }}.sarif
+          category: image-${{ matrix.component }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-published-${{ matrix.component }}
+          path: security/
+          retention-days: 30

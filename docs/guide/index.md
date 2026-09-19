@@ -61,6 +61,10 @@ time will be spent on the second and third.
 | **Keep current** | Holidays, sickness, new colleagues, shift wishes | Weekly |
 | **Plan** | Calculate a roster, review it, confirm it | Monthly, or whenever you plan ahead |
 
+Running the system itself — who has a login and what they are allowed to press
+— is a fourth, smaller job, and usually one person's. It has [its own
+page](administration.md).
+
 ## Where to start
 
 <div class="grid cards" markdown>
@@ -75,6 +79,8 @@ time will be spent on the second and third.
   step.
 - **[Reading and adjusting the schedule](calendars.md)** — the three calendar
   views and how to change a single day.
+- **[Users, roles and history](administration.md)** — who gets a login, what
+  each role may do, and how to find out who changed something.
 - **[How the automatic planner decides](how-planning-works.md)** — what the
   computer is actually weighing up, in plain language.
 - **[The built-in assistant](assistant.md)** — asking the app questions in

@@ -38,15 +38,24 @@ content in the middle](../assets/screenshots/dashboard.png)
 | Group | What lives there |
 |---|---|
 | **Dashboard** | *Overview* — the summary screen you land on |
-| **Configuration** | User Profiles, Shifts, Workstations, Capabilities, Planner Settings, Wish Window (admins only) |
-| **Planner** | Schedule (day, week, month), Employee Calendar, Schedule Optimizer |
+| **Configuration** | User Profiles, Shifts, Workstations, Capabilities, Planner Settings, Wish Window (admins only), Users (admins only), Audit log |
+| **Planner** | Schedule (day, week, month), Employee Calendar, Rotations, Schedule Optimizer, Fairness |
 
 Roughly: **Configuration** is where you describe the world, **Planner** is
 where you work with it.
 
-**Top — the header.** A search box, a moon/sun button that switches between the
-light and dark colour scheme, a bell for notifications, and your own name.
-Click your name to sign out.
+Two entries appear only if you are an administrator — **Wish Window** and
+**Users**. If you cannot see them, you are not one; see [Users, roles and
+history](administration.md).
+
+**Top — the header.** A search box, a language button (**EN** / **DE**), a
+moon/sun button that switches between the light and dark colour scheme, a bell
+for notifications, and your own name. Click your name to sign out.
+
+The language setting is yours alone — it changes what *you* see, immediately
+and on every page, and it does not affect your colleagues or anything stored in
+the system. Names you typed in yourself, such as a shift called *Frühdienst*,
+stay exactly as you typed them.
 
 **Bottom right — the assistant.** The round speech-bubble button opens a chat
 window where you can ask for things in ordinary sentences. See
@@ -80,4 +89,6 @@ Two habits save a lot of clicking:
 
 If your ward has not been set up yet, go to
 [Setting up your ward](setup.md). If it already has staff and shifts on file,
-skip ahead to [Creating a schedule](creating-a-plan.md).
+skip ahead to [Creating a schedule](creating-a-plan.md). If your job is to give
+your colleagues their logins, go to [Users, roles and
+history](administration.md).

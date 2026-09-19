@@ -2,6 +2,12 @@
 
 This is the main event. Open **Planner → Schedule Optimizer**.
 
+!!! note "Who can do this"
+    Calculating and confirming a roster needs the **Planner** role (or Admin).
+    Colleagues with the **Viewer** role can watch a proposal appear but cannot
+    calculate or confirm one — see [Users, roles and
+    history](administration.md).
+
 The page has five tabs, in the order you work through them:
 
 | Tab | What it is for |

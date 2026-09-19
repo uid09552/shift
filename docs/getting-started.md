@@ -1,5 +1,19 @@
 # Getting Started
 
+## Roles and access at a glance
+
+This application uses three Keycloak realm roles:
+
+| Role | Typical job | Permissions |
+|---|---|---|
+| `shift-viewer` | employee, ward staff, self-service user | read data and create/delete their own wishes |
+| `shift-planner` | planner, rostering coordinator | full schedule planning and proposal editing |
+| `shift-admin` | ward admin, staffing lead | all planning rights plus user management and wish-window changes |
+
+The gateway verifies the identity and injects the token into the backend. The
+backend then resolves the tenant and checks the roles again before the handler
+runs. That is the primary control against broken access control in the app.
+
 ## Prerequisites
 
 | Tool | Version | Needed for |
@@ -22,9 +36,8 @@ make up                              # or: cd deploy && make up
 ```
 
 This brings up PostgreSQL, NATS, the backend, the optimizer, the UI, the agent,
-the MCP server, n8n and the APISIX gateway. Ports are listed under
-[Deployment](deployment.md#compose-stack) and at the [bottom of this
-page](#ports-at-a-glance).
+the MCP server, n8n and the APISIX gateway. The gateway is the public edge,
+so the backend should never be reached directly in a real deployment.
 
 ## Running the pieces individually
 
@@ -53,8 +66,9 @@ when the whole Compose stack runs.
 
 `DEV=1` sets `--dev-mode`, which pins every request to `TENANT_ID` instead of
 resolving a tenant from a JWT — that is what makes the API usable with plain
-`curl`, with no gateway in front. Never enable it outside development; see
-[Auth & Multi-Tenancy](auth.md).
+`curl`, with no gateway in front. Never enable it outside development; it is
+for local testing only and weakens tenant isolation. See [Auth &
+Multi-Tenancy](auth.md).
 
 Check it:
 

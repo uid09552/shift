@@ -1,0 +1,84 @@
+# Renovate — dependency update pull requests. Counterpart of the `renovate`
+# job in .gitlab-ci.yml.
+#
+# Reads renovate.json5 (what to update and how to bundle it) and opens a pull
+# request per update or bundle: the backend's crates, the UI's npm packages,
+# the planner's and agent's Python packages (uv.lock included), the docs and
+# e2e requirements, the Dockerfile and Compose images, and the actions and
+# TRIVY_VERSION in these workflows. Each pull request gets the ordinary CI run,
+# so all four images are built and scanned before anyone merges. Nothing is
+# merged automatically.
+#
+# Set it up once:
+#   1. Create a fine-grained personal access token (or a GitHub App token)
+#      for this repository: Contents, Pull requests, Issues and Workflows —
+#      read and write. GITHUB_TOKEN will not do: pull requests it opens do not
+#      trigger CI, and it cannot change files under .github/workflows.
+#   2. Settings > Secrets and variables > Actions: RENOVATE_TOKEN = that token.
+#   3. Keep Issues enabled. Renovate keeps a "Dependency Dashboard" issue
+#      listing every pending update; ticking one there makes the next run open
+#      it — that is also how a PostgreSQL or Keycloak major gets approved.
+#
+# Alternatively install the hosted Renovate GitHub App and delete this file.
+#
+# To run it now: Actions > Renovate > Run workflow.
+
+name: Renovate
+
+on:
+  schedule:
+    # Weekdays 05:00 Europe/Berlin (cron is UTC; 03:00 UTC in summer time).
+    - cron: "0 3 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Two runs at once would race on the same branches.
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check the token
+        env:
+          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+        run: |
+          if [ -z "$RENOVATE_TOKEN" ]; then
+            echo "RENOVATE_TOKEN is not set." >&2
+            echo "See the setup notes at the top of .github/workflows/renovate.yml." >&2
+            exit 1
+          fi
+
+      # Remembers what each branch was built from, so an unchanged run is quick.
+      - uses: actions/cache@v4
+        with:
+          path: /tmp/renovate/cache/renovate/repository
+          key: renovate-${{ github.run_id }}
+          restore-keys: renovate-
+      # The action runs Renovate as uid 12021; give it the cache directory.
+      - run: mkdir -p /tmp/renovate && sudo chown -R 12021:0 /tmp/renovate
+
+      - uses: renovatebot/github-action@v43.0.0
+        with:
+          token: ${{ secrets.RENOVATE_TOKEN }}
+          renovate-version: 44.93.0
+          mount-docker-socket: false
+        env:
+          # This repository only, not every repository the token can reach.
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          # renovate.json5 is committed, so there is nothing to onboard — and
+          # if it were ever removed, Renovate should stop rather than fall back
+          # to defaults.
+          RENOVATE_ONBOARDING: "false"
+          RENOVATE_REQUIRE_CONFIG: required
+          # Cargo, npm and uv are installed on demand, at the versions the
+          # manifests ask for, to regenerate the lockfiles.
+          RENOVATE_BINARY_SOURCE: install
+          RENOVATE_BASE_DIR: /tmp/renovate
+          RENOVATE_REPOSITORY_CACHE: enabled
+          LOG_LEVEL: info

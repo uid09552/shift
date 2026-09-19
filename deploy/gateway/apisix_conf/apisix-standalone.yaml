@@ -288,11 +288,15 @@ routes:
       response-rewrite:
         headers:
           set:
-            Content-Security-Policy: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+            Content-Security-Policy: "default-src 'none'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; sandbox"
             X-Content-Type-Options: nosniff
             X-Frame-Options: DENY
             Referrer-Policy: no-referrer
-            Cache-Control: "no-store"
+            Permissions-Policy: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+            Cross-Origin-Resource-Policy: same-origin
+            Cross-Origin-Opener-Policy: same-origin
+            X-Permitted-Cross-Domain-Policies: none
+            Cache-Control: "no-store, no-cache, must-revalidate, private"
             Strict-Transport-Security: "max-age=31536000; includeSubDomains"
     upstream:
       type: roundrobin
@@ -329,11 +333,15 @@ routes:
       response-rewrite:
         headers:
           set:
-            Content-Security-Policy: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+            Content-Security-Policy: "default-src 'none'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; sandbox"
             X-Content-Type-Options: nosniff
             X-Frame-Options: DENY
             Referrer-Policy: no-referrer
-            Cache-Control: "no-store"
+            Permissions-Policy: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+            Cross-Origin-Resource-Policy: same-origin
+            Cross-Origin-Opener-Policy: same-origin
+            X-Permitted-Cross-Domain-Policies: none
+            Cache-Control: "no-store, no-cache, must-revalidate, private"
             Strict-Transport-Security: "max-age=31536000; includeSubDomains"
     upstream:
       type: roundrobin

@@ -26,6 +26,30 @@ is the map; the spec is the territory.
 | `GET` | `/health` | Liveness — outside `/api/v1`, no auth |
 | `GET` | `/api/v1/self` | Current user, decoded from the gateway's `X-Userinfo` header |
 
+## Role authorization map
+
+The route-level permission rules are enforced centrally by the backend middleware
+in `src/services/tenant.rs` and by a few endpoint-specific admin checks. The
+summary below is the product contract for the API.
+
+| Endpoint group | `shift-viewer` | `shift-planner` | `shift-admin` |
+|---|---|---|---|
+| Read-only data (`/employees`, `/shifts`, `/workstations`, `/analysis/*`, `/info`) | ✅ read | ✅ read/write | ✅ read/write |
+| Write data (`POST/PUT/PATCH/DELETE` on master data) | ❌ | ✅ | ✅ |
+| `/shift-wishes` | ✅ own records only | ✅ any record | ✅ any record |
+| `/wish-settings` | ✅ read only | ✅ read only | ✅ read/write |
+| `/users` and `/users/{id}/roles` | ❌ | ❌ | ✅ |
+| `/planner/*` | ❌ | ✅ | ✅ |
+| `/planner-settings` | ✅ read only | ✅ read/write | ✅ read/write |
+| `/audit-logs` | ✅ read | ✅ read | ✅ read |
+
+The grant model is intentionally simple:
+
+- `shift-viewer`: read access everywhere, plus writes only on `shift-wishes` for
+  the caller's own employee record.
+- `shift-planner`: all write operations except the admin-only actions.
+- `shift-admin`: everything above, plus user-management and wish-window changes.
+
 ## Employees
 
 | Method | Path | Purpose |

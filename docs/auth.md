@@ -81,10 +81,52 @@ The same middleware reads the realm roles from the token:
 | `shift-planner` | Every method — `GET`, `POST`, `PUT`, `PATCH`, `DELETE` |
 | `shift-viewer` | `GET`/`HEAD` only, plus their own self-service data |
 
+### Role matrix by action
+
+The backend enforces this in one place: `RoleContext::allows()` in
+[`src/services/tenant.rs`](src/services/tenant.rs). The table below summarizes the
+real behavior the gateway and backend are expected to uphold.
+
+| Action class | `shift-viewer` | `shift-planner` | `shift-admin` |
+|---|---|---|---|
+| Read any tenant resource | ✅ | ✅ | ✅ |
+| Create / update / delete any tenant resource | ❌ | ✅ | ✅ |
+| Update the wish window | ❌ | ❌ | ✅ |
+| Manage organization users and roles | ❌ | ❌ | ✅ |
+| Create / delete own shift wishes | ✅ (own employee only) | ✅ (anyone) | ✅ (anyone) |
+| Trigger optimizer runs / plan tasks | ❌ | ✅ | ✅ |
+| Read optimizer results / fairness / analysis | ✅ | ✅ | ✅ |
+| Reset or change solver settings | ❌ | ✅ | ✅ |
+| Access `/self` and identity endpoints | ✅ | ✅ | ✅ |
+
+The only mutation a `shift-viewer` may make outside their own data is the
+self-service path `shift-wishes`, and even that is checked again by the handler
+against the call's `email` / `preferred_username` before it is executed.
+
 Anything else in `realm_access.roles` is ignored. A method the caller's roles do
 not cover is rejected with **403** before the handler runs, so read-only access
 is enforced in one place rather than per route. A token with none of these roles
 can do nothing at all — not even read.
+
+### OWASP Top 10 web controls in this stack
+
+This application aligns to the OWASP Top 10 for Web Applications by enforcing the
+critical controls at the edge and in the application:
+
+- A01: Broken Access Control — tenant scoping + realm-role checks + admin-only
+  enforcement in the backend (`TenantContext`, `RoleContext`, `UserContext`).
+- A05: Security Misconfiguration — APISIX sets hardened response headers and
+  only exposes the app through the gateway.
+- A07: Identification and Authentication Failures — OIDC is terminated by
+  APISIX against Keycloak before the backend sees a request.
+- A09: Security Logging and Monitoring — audit events are recorded for user
+  management and wish-window changes.
+- A03: Injection — JSON input is validated and role names are restricted to the
+  app's own `shift-*` roles; unsupported roles are rejected by name.
+
+The backend is intentionally not reachable directly; it expects the gateway to
+have already verified the token signature and "tenant" membership, and it trusts
+only the `x-access-token` + `X-Userinfo` data APISIX injects.
 
 In dev mode there is no token, so every request is treated as a planner **and**
 an admin — otherwise admin-only screens would be unreachable without a gateway

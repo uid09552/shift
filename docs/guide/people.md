@@ -12,6 +12,12 @@ The list shows, at a glance, every person's monthly hours target, the shifts
 they work and the qualifications they hold. Press **Add User** for a new
 colleague, or **Edit** on anyone already listed.
 
+!!! note "An employee is not a login"
+    This list is who works on the ward. Whether any of them can *sign in*, and
+    what they may press if they do, is a separate question — see [Users, roles
+    and history](administration.md). The two are joined by the e-mail address,
+    so use the same one on both.
+
 ## The employee form
 
 ![Editing an employee](../assets/screenshots/employee-edit.png)

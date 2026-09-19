@@ -14,7 +14,8 @@
 //   dockerfile      deploy/Dockerfile.* base images
 //   docker-compose  deploy/ and release/ compose files
 //   gitlabci        images in .gitlab-ci.yml, Renovate's own included
-//   custom (below)  TRIVY_VERSION in .gitlab-ci.yml
+//   github-actions  actions in .github/workflows
+//   custom (below)  TRIVY_VERSION in .gitlab-ci.yml and .github/workflows
 {
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   extends: [
@@ -58,8 +59,8 @@
       // means a bump is only proposed once the image exists, and the binary
       // release always precedes it.
       customType: 'regex',
-      description: 'Trivy version in .gitlab-ci.yml',
-      managerFilePatterns: ['/^\\.gitlab-ci\\.yml$/'],
+      description: 'Trivy version in .gitlab-ci.yml and the GitHub workflows',
+      managerFilePatterns: ['/^\\.gitlab-ci\\.yml$/', '/^\\.github/workflows/.+\\.ya?ml$/'],
       matchStrings: ['TRIVY_VERSION: "(?<currentValue>[^"]+)"'],
       depNameTemplate: 'aquasec/trivy',
       datasourceTemplate: 'docker',
@@ -96,7 +97,7 @@
       addLabels: ['tooling'],
     },
     {
-      matchFileNames: ['deploy/**', 'release/**', '.gitlab-ci.yml'],
+      matchFileNames: ['deploy/**', 'release/**', '.gitlab-ci.yml', '.github/**'],
       addLabels: ['ci-deploy'],
     },
 

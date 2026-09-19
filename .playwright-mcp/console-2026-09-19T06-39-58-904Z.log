@@ -1,0 +1,2 @@
+[     773ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost/callback?error=invalid_request&error_description=Missing+parameter%3A+code_challenge_method&state=314483c3a7f58ff27aa7674df0dadd9c&iss=http%3A%2F%2Flocalhost%2Fauth%2Frealms%2Fshift:0
+[     859ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost/favicon.ico:0

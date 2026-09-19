@@ -1,0 +1,1 @@
+[     111ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost/callback?error=invalid_request&error_description=Missing+parameter%3A+code_challenge_method&state=954b579fe27968be67fb18bd5ee29c3e&iss=http%3A%2F%2Flocalhost%2Fauth%2Frealms%2Fshift:0
