@@ -1,5 +1,5 @@
 # ---- Builder Stage ----
-FROM python:3.12-slim-bookworm AS builder
+FROM python:3.14-slim-bookworm AS builder
 
 WORKDIR /app
 
@@ -14,7 +14,7 @@ COPY agent/shift_agent ./shift_agent
 RUN uv sync --frozen --no-dev
 
 # ---- Runtime Stage ----
-FROM python:3.12-slim-bookworm
+FROM python:3.14-slim-bookworm
 
 WORKDIR /app
 

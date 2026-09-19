@@ -34,7 +34,7 @@ stages:
 
 variables:
   # Bumping this invalidates the cached binary (the cache key includes it).
-  TRIVY_VERSION: "0.72.0"
+  TRIVY_VERSION: "0.74.0"
   # Severities that count towards the gate below. The machine-readable report
   # and the SBOM always cover *all* severities regardless of this.
   SCAN_SEVERITY: "HIGH,CRITICAL"
@@ -484,7 +484,7 @@ scan:published:
 
 .mkdocs:
   stage: pages
-  image: python:3.12-slim
+  image: python:3.14-slim
   before_script:
     - pip install --no-cache-dir -r docs/requirements.txt
   cache:
