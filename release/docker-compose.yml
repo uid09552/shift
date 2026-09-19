@@ -214,7 +214,7 @@ services:
   # gateway/apisix_conf/apisix-standalone.yaml.
 
   apisix:
-    image: ${APISIX_IMAGE:-apache/apisix:3.16.0-debian}
+    image: ${APISIX_IMAGE:-apache/apisix:3.18.0-debian}
     container_name: shift_apisix
     volumes:
       - ./gateway/apisix_conf/apisix-standalone.yaml:/usr/local/apisix/conf/apisix.yaml:ro
