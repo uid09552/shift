@@ -12,7 +12,12 @@ language ("who covers the ICU night on Saturday?").
 [Documentation](https://uid09552.gitlab.io/shift/) ·
 [API specification](api/openapi.yaml) ·
 [Contributing](CONTRIBUTING.md) ·
-[License](#license)
+[License](#license) ·
+[GitLab](https://gitlab.com/uid09552/shift) ·
+[GitHub mirror](https://github.com/uid09552/shift)
+
+![The Schedule Optimizer: a calculated proposal by workstation, ready to check
+and take as the plan](docs/assets/screenshots/scheduler.png)
 
 ---
 
@@ -59,6 +64,17 @@ and takes it as the plan. Nothing reaches the roster without a person deciding.
 - Excel export, and roster import from a file.
 - English and German.
 
+<table>
+<tr>
+<td width="50%"><img src="docs/assets/screenshots/scheduler-calculate.png" alt="Coverage check before calculating"><br><sub><b>Coverage check</b>: which shifts cannot be staffed, before you calculate</sub></td>
+<td width="50%"><img src="docs/assets/screenshots/scheduler-check.png" alt="Plan check"><br><sub><b>Check &amp; fix</b>: the proposal re-checked against every rule, with a repair button</sub></td>
+</tr>
+<tr>
+<td><img src="docs/assets/screenshots/day-view.png" alt="Day view"><br><sub><b>Day view</b>: who is on the ward, hour by hour</sub></td>
+<td><img src="docs/assets/screenshots/fairness.png" alt="Fairness page"><br><sub><b>Fairness</b>: nights, weekends, hours and wishes per person</sub></td>
+</tr>
+</table>
+
 **For the organisation**
 - Multi-tenant: each organisation plans its own ward. Users and organisations
   live in Keycloak, with three roles (admin, planner, viewer).
@@ -66,7 +82,7 @@ and takes it as the plan. Nothing reaches the roster without a person deciding.
   [Model Context Protocol](https://modelcontextprotocol.io). The same tools work
   from any MCP client.
 - OpenTelemetry tracing, container images scanned by Trivy, SBOMs, and
-  dependency updates by Renovate.
+  dependency updates by Renovate, in both GitLab CI and GitHub Actions.
 
 ## Architecture
 
@@ -116,8 +132,11 @@ make pull && make up
 make iam-up          # Keycloak, as its own Compose project
 ```
 
-Then open <http://localhost/>. See [`release/README.md`](release/README.md) for
-the settings that matter before going to production.
+Then open <http://localhost/>. The images come from the GitLab registry by
+default; the GitHub mirror publishes the same ones to
+`ghcr.io/uid09552/shift/<component>`. See [`release/README.md`](release/README.md)
+for switching between them and for the settings that matter before going to
+production.
 
 ### Develop: run the pieces locally
 

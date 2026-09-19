@@ -3,6 +3,11 @@
 Thank you for helping. This page covers how to report a problem, how to set up
 the code, and what a merge request needs before it can be merged.
 
+The project lives on [GitLab](https://gitlab.com/uid09552/shift) and is
+mirrored to [GitHub](https://github.com/uid09552/shift). Issues and merge
+(pull) requests are welcome on either; both run the same build, scan and docs
+pipeline (see [Deployment](docs/deployment.md#github-actions)).
+
 ## Ways to help
 
 - **Report a bug.** Open an issue with what you did, what you expected, and
@@ -90,7 +95,8 @@ like any other; a major version usually needs a closer look at its changelog.
 
 Please **do not report security problems in public issues.** Open a
 [confidential issue](https://docs.gitlab.com/user/project/issues/confidential_issues/)
-on the project instead, describing the problem and how to reproduce it. We will
+on GitLab, or a private report under *Security › Report a vulnerability* on
+GitHub, instead, describing the problem and how to reproduce it. We will
 confirm receipt, work on a fix, and credit you when it is released, if you
 wish.
 

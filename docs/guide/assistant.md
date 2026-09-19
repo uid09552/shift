@@ -4,8 +4,9 @@ The round speech-bubble button in the bottom-right corner of every page opens
 a chat window. You can ask for things in ordinary sentences instead of hunting
 through menus.
 
-![Asking the assistant a question — it has answered and taken us to the
-Planner Settings page](../assets/screenshots/assistant.png)
+![Asking the assistant who works the night shift in the emergency department
+on a Saturday: it answers from the confirmed roster, as a
+table](../assets/screenshots/assistant.png)
 
 ## What it can do
 

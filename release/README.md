@@ -31,6 +31,11 @@ Only the four self-built services come from the project registry:
 | `planner-ui` | `registry.gitlab.com/uid09552/shift/ui:latest` |
 | `agent`, `mcp` | `registry.gitlab.com/uid09552/shift/agent:latest` |
 
+The same images are also published to GitHub's registry by the GitHub mirror
+(`ghcr.io/uid09552/shift/<component>:latest`). To use those, set
+`BACKEND_IMAGE`, `PLANNER_IMAGE`, `UI_IMAGE` and `AGENT_IMAGE` in `.env`, and
+`docker login ghcr.io` if the packages are private.
+
 `agent` and `mcp` deliberately share one image — same content, different
 command. Everything else (Postgres, NATS, APISIX, n8n — and Keycloak in the
 separate IAM project) comes from its upstream registry.

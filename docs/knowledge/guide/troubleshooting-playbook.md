@@ -69,14 +69,18 @@ One person has all the nights or all the weekends.
 
 * Check how many people have that shift ticked as **available**. If three out of
   forty can work nights, no amount of fairness weighting spreads them further.
-* Raise the **fairness weight** in Planner Settings and recalculate.
-* Raise the **time limit**. A `feasible` result is the best found before the clock
-  ran out; more time often produces a visibly better balance.
+* The **Fairness** page (Planner → Fairness) shows it: sort by *Nights* or
+  *Weekend days*.
+* Raise **Fairness** (section *Fairness & Hours*) in Planner Settings, or pick the
+  *Equal share* preset, and recalculate.
+* Set **Search effort** to *Thorough*. A `feasible` result is the best found
+  before the clock ran out; more time often produces a visibly better balance.
 
 # People are rotated between shifts every day
 
-Legal, but exhausting. Raise the **shift continuity weight** and the **week-streak
-bonus**, then recalculate.
+Legal, but exhausting. Raise **Shift continuity** and the **Week-streak bonus**
+(section *Coverage & Continuity*), or pick the *Stable rosters* preset, then
+recalculate.
 
 # Everybody is under their contracted hours
 

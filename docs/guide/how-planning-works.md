@@ -96,83 +96,120 @@ looks acceptable. This one is not.
 **Configuration → Planner Settings.** These apply to every calculation from
 now on, for your organisation.
 
-![The Planner Settings page](../assets/screenshots/planner-settings.png)
+![The Planner Settings page: use-case presets at the top, then one section per
+group of goals](../assets/screenshots/planner-settings.png)
 
 !!! warning "Change one thing at a time"
     These settings interact. If you change four values and the next roster
     looks worse, you will have no idea which one did it. Change one,
-    recalculate, compare, then move on.
+    recalculate, compare, then move on. The **Compare** tab of the Schedule
+    Optimizer shows two runs side by side for exactly this.
+
+### Use case: start from a preset
+
+The six cards at the top are starting points. Picking one fills in every
+setting below it; nothing is saved until you press **Save Changes**, and every
+value stays editable afterwards. Solver performance and **Keep rotations** are
+never touched by a preset.
+
+| Preset | What it favours |
+|---|---|
+| **Balanced** | The shipped defaults: coverage, fairness and wishes weighed against each other. |
+| **Equal share** | Everyone works a comparable amount. Hour targets win over wishes and shift continuity. |
+| **Wishes first** | Requested shifts are granted whenever the plan allows, at some cost to even hours. |
+| **Coverage first** | Critical workstations are staffed before anything else. Rest limits are looser (1 recovery day after nights, 10 h rest, up to 7 days in a row, 6 per week). |
+| **Stable rosters** | Long, predictable blocks on the same shift instead of frequent rotation. |
+| **Staff wellbeing** | Longer rest (3 recovery days, 12 h), at most 5 days in a row, a 45 h weekly ceiling, and fatigue spread evenly. The gentlest plan the ward allows. |
+
+The line under the cards says which preset the current values match, or
+*Custom mix* once you have changed something. The four small meters beside it
+(Fairness, Wishes, Coverage, Stability) show at a glance where the current mix
+leans.
+
+### Levels instead of numbers
+
+Every weighting is offered as a named level: **Off**, **Weak**, **Balanced**,
+**Strong** or **Very strong**. *Balanced* is always the shipped default for
+that setting. The bars beside each dropdown show the same level visually.
+
+Behind the levels are the raw weights the optimizer uses. Switch on **Expert
+values** (top right) to see and type them directly. A value typed by hand that
+matches no level is shown as *Custom (value)*.
+
+!!! note "Why the numbers are so far apart"
+    In expert view you will see a fairness weight of 50 000 next to a fatigue
+    weight of 100. The wide gaps make the goals effectively rank-ordered
+    inside a single score. Changing a weight by a factor of ten does not tune
+    it slightly; it can change which goal wins outright. That is why the
+    levels exist.
 
 ### Rest & Recovery
 
-Hard limits. These are the ones with legal and contractual weight.
+Hard limits: the ones with legal and contractual weight. Each is a slider.
 
 | Setting | Default | What it does |
 |---|---|---|
-| **Night shift recovery (days)** | 2 | Days off compulsory after a night shift. `0` switches it off. |
-| **Minimum rest (hours)** | 11 | Rest required between shifts on consecutive days. This is what prevents a late shift followed by an early one. `0` switches it off. |
-| **Max consecutive days** | 6 | The longest run of working days anyone may be given. `0` switches it off. |
-| **Max days per week** | 5 | Working days allowed per calendar week. `0` switches it off. |
+| **Night shift recovery** | 2 days | Days off compulsory after a night shift. `0` switches it off. |
+| **Minimum rest between shifts** | 11 h | Rest required between shifts on consecutive days. This is what prevents a late shift followed by an early one. `0` switches it off. |
+| **Max consecutive days** | 6 days | The longest run of working days anyone may be given. `0` switches it off. |
+| **Max days per week** | 5 / week | Working days allowed per calendar week. `0` switches it off. |
 
 Tightening any of these makes the roster harder to fill; tighten all four at
 once on a thin ward and you may get *infeasible*.
 
-### Objective Weights
-
-The relative importance of the competing goals. Higher wins more often.
+### Fairness & Hours
 
 | Setting | Default | What it does |
 |---|---|---|
-| **Fairness weight** | 50000 | How hard to spread hours evenly. Raise it if the roster feels lopsided; lower it if it keeps overriding wishes and shift continuity. It cannot cost coverage — that is settled first. |
-| **Monthly hours target weight** | 1000 | How hard to hit each person's contracted hours. |
-| **Workstation priority weights** | 10000 / 1000 / 100 | How strongly `High`, `Medium` and `Low` priority workstations are staffed ahead of each other. The gaps between the three numbers are what matter, not their size. |
-| **Shift continuity weight** | 500 | Reward for keeping someone on the same shift on consecutive days. Raise it if people are being rotated too often. |
-| **Week-streak bonus** | 2000 | Extra reward for a full week on the same shift. |
-
-!!! note "Why the numbers are so far apart"
-    50000 against 100 is not sloppiness. The wide gaps make the goals
-    effectively rank-ordered inside a single score: fairness beats fatigue
-    almost every time. That means changing a weight by a factor of ten does
-    not "tune" it slightly — it can change which goal wins outright.
-
-### Weekly Hours Band
-
-An optional soft floor and ceiling on hours in any 7-day window, separate from
-the monthly target. Leave the fields blank to switch it off.
-
-| Setting | What it does |
-|---|---|
-| **Min hours / week** | The floor. Blank disables it. |
-| **Max hours / week** | The ceiling. Blank disables it. |
-| **Weight** | How hard the planner tries to stay inside the band. |
-
-Useful when the monthly target alone lets someone do 70 hours one week and 10
-the next.
+| **Fairness** | Balanced | How hard to spread hours evenly. Raise it if the roster feels lopsided; lower it if it keeps overriding wishes and shift continuity. It cannot cost coverage, which is settled first. |
+| **Monthly hours target** | Balanced | How hard to hit each person's contracted hours. |
+| **Weekly hours band** | off | A soft floor and ceiling on hours per week, on top of the monthly target. Useful when the monthly target alone lets someone do 70 hours one week and 10 the next. |
+| **Minimum / Maximum per week** | Off | The floor and ceiling of the band, in hours. Only shown while the band is on. |
+| **Band strength** | Balanced | How hard the planner tries to stay inside the band. |
 
 ### Preferences, Skill Matching & Fatigue
 
 | Setting | Default | What it does |
 |---|---|---|
-| **Preference weight** | 300 | The cost of overriding a soft "rather not work" day. It never blocks an assignment — for that, leave the absence hard. |
-| **Skill downgrade weight** | 200 | The cost of covering a post with a more senior person from the same skill group, per level of difference. Only has an effect if you have set up skill groups. |
-| **Fatigue weight** | 100 | How much the ergonomic burden counts. `0` switches fatigue tracking off. |
-| **Night fatigue multiplier** | 2 | How much more tiring a night shift is than a day shift of the same length. |
+| **Shift wishes** | Balanced | The reward for granting a shift an employee asked for. *Off* ignores wishes entirely. |
+| **Preferred days off** | Balanced | The cost of overriding a soft "rather not work" day. It never blocks an assignment; for that, leave the absence hard. |
+| **Skill downgrade cost** | Balanced | The cost of covering a post with a more senior person from the same skill group. Only matters if you have set up skill groups. |
+| **Fatigue balancing** | Balanced | How hard the plan works to protect the most fatigued person. *Off* switches fatigue tracking off. |
+| **Night shift fatigue** | Twice as hard | How draining a night shift is compared with a day shift of the same length: *Same as a day shift*, *Slightly harder*, *Twice as hard* or *Three times as hard*. |
 
-### Solver Performance
+### Coverage & Continuity
 
 | Setting | Default | What it does |
 |---|---|---|
-| **Time limit (seconds)** | 120 | How long the planner may search before handing back its best answer. |
-| **Parallel workers** | 8 | How many processor threads it may use. Leave this alone unless your administrator tells you otherwise. |
+| **Keep rotations** | on | Fixed shifts and days off from [rotation patterns](creating-a-plan.md#fixed-rhythms-rotations) are planned first, ahead of staffing and every other goal. Off: the planner ignores them. The patterns stay saved and apply again when you switch it back on. |
+| **Minimum staffing** | Target | *Target (may fall short)*: the planner staffs up to each minimum whenever it can and accepts a short slot when it cannot, so you always get a plan. *Requirement (must be met)*: no slot may fall below its minimum. Use it only where a station legally cannot run short, and expect *infeasible* for a period that cannot be staffed. |
+| **Workstation priority** | Balanced | How sharply high-priority workstations are staffed before the rest when there are not enough people: *Treat all the same*, *Slight preference*, *Balanced* or *Strict order*. |
+| **Shift continuity** | Balanced | Reward for keeping someone on the same shift on consecutive days. Raise it if people are rotated too often. |
+| **Week-streak bonus** | Balanced | Extra reward for seven or more days in a row on the same shift. |
 
-**The time limit is the honest quality knob.** The planner returns the best
+### Solver Performance
+
+**Search effort** decides how long and how wide the solver searches before it
+hands back its best roster. The line under it spells out what the choice
+means.
+
+| Level | Time limit | CPU threads |
+|---|---|---|
+| **Quick** | 30 s | 4 |
+| **Balanced** (default) | 120 s | 8 |
+| **Thorough** | 300 s | 16 |
+
+*Custom* appears when the values were set to something else in expert view.
+
+**Search effort is the honest quality knob.** The planner returns the best
 roster it found within the budget, so a status of *feasible* on a large ward
-usually just means the timer expired. If a roster looks unpolished, raising the
-limit to 300 seconds and recalculating is the first thing to try — it costs
-nothing but a few minutes of waiting.
+usually just means the timer expired. If a roster looks unpolished, choosing
+**Thorough** and recalculating is the first thing to try. It costs nothing but
+a few minutes of waiting.
 
 Press **Save Changes**. The timestamp beside the button shows when the settings
-were last altered.
+were last altered, and the [audit log](administration.md#the-audit-log) shows
+by whom and what changed.
 
 ---
 
@@ -182,7 +219,7 @@ were last altered.
 |---|---|
 | A workstation is consistently thin | Not enough qualified people available, or its priority is too low relative to others |
 | One person is doing all the nights | Very few people have the night shift ticked as available |
-| People are rotated between shifts daily | Shift continuity weight too low relative to fairness |
+| People are rotated between shifts daily | **Shift continuity** too low relative to **Fairness**, or try the *Stable rosters* preset |
 | Somebody is well under their contracted hours | Their capabilities or available shifts don't match what you're staffing |
 | Everyone is under their hours | The ward is over-staffed for the workload you described — or **Match monthly hours** was left off |
 

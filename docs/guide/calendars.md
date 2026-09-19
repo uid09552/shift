@@ -11,7 +11,8 @@ whichever answers the question you actually have.
 | **Employee Calendar** | *What does one person's month look like?* |
 
 *Is this place adequately covered?* is the Schedule view read **By
-workstation** — see [below](#coverage-by-place-the-schedules-workstation-view).
+workstation**, and *is every early shift fully staffed?* is the same view **By
+shift**. See [below](#coverage-by-place-the-schedules-workstation-view).
 
 Both are under **Planner** in the menu. The week and month views, and the
 Employee Calendar, have an **Export Excel** button in the top right that saves
@@ -33,6 +34,10 @@ the end of it. Daily shows one day hour by hour — see
 month opens that day.
 
 ![The monthly schedule](../assets/screenshots/schedule-monthly.png)
+
+In the month view, **Wishes only** swaps the confirmed plan for the shift
+wishes people have entered, so you can see at a glance who asked for what
+before you calculate. Press it again to return to the plan.
 
 The **legend** along the bottom decodes the abbreviations and colours — the
 same colours you chose when setting up each shift.
@@ -60,6 +65,9 @@ changing.
 ---
 
 ## Day — one day, hour by hour
+
+![The day view: one bar per shift across a 24-hour ruler, with the current time
+marked](../assets/screenshots/day-view.png)
 
 **Daily** on the Schedule page. The arrows next to the date go back and forward
 one day; **Today** returns to today and scrolls to the current hour.
@@ -93,8 +101,15 @@ planned for the day. The search box in the top bar filters by name.
 
 ![One employee's month](../assets/screenshots/employee-calendar.png)
 
-Choose a person from the dropdown. You get their month laid out as a normal
-wall calendar, showing:
+Choose a person from the dropdown. The page has three tabs:
+
+| Tab | What it shows |
+|---|---|
+| **Calendar** | The month as a wall calendar, with ISO week numbers down the side. |
+| **Hours** | Planned hours for the month (the badge on the tab), per week and per shift, with overtime or undertime against the contract. |
+| **Absences** | Vacation, sick leave and unavailability, where you add or remove date ranges. The badge counts the entries. |
+
+The calendar shows:
 
 - **Shifts** they are working, with the workstation underneath.
 - **Absences**, colour-coded: vacation, sick leave, and days marked
@@ -103,18 +118,21 @@ wall calendar, showing:
 - **Shift wishes**, drawn as an outlined chip with a star — see [Managing your
   staff](people.md#shift-wishes).
 
-Underneath is an **Hours Summary** with the planned working hours for the
-month, which is the quickest way to check whether someone is heading over or
-under their contract.
+The **Hours** tab is the quickest way to check whether someone is heading over
+or under their contract.
 
 This is the view to print or export when somebody asks "what am I doing next
 month?"
 
 ### Editing here
 
-Click any empty day for a menu offering **Assign shift**, **Wish shift
-(optimizer)** and **Workstation**. Existing entries can be changed or deleted
-the same way as in the Schedule view.
+Click any empty day (the **+**) for a menu offering **Assign shift**, **Wish
+shift (optimizer)** and **Workstation**; see [Shift wishes](people.md#shift-wishes).
+
+Click an existing entry to open its details: the shift and workstation, who
+else is on that shift, whether a wish was fulfilled, who or what entered it (a
+person, or an optimizer run) and when it last changed. You can delete it from
+there.
 
 ---
 
@@ -132,6 +150,13 @@ day is shaping up. Cells below the **Min** you set on the shift or the
 workstation are marked, so a day showing `1` where you asked for `3` stands out
 as the real shortfall it is.
 
+**By shift** turns the same grid around: one block per shift, one row per
+workstation inside it, and the total per day in the shift's header row. It is
+the quickest way to check a single shift across the ward, for instance that
+every night is fully staffed.
+
+![The Schedule grouped by shift](../assets/screenshots/schedule-by-shift.png)
+
 !!! note "There used to be a separate page for this"
     The standalone *Workstation Calendar* showed the same confirmed plans, read
     only and for one week at a time. It has been folded into the Schedule view,
@@ -141,6 +166,8 @@ as the real shortfall it is.
 ---
 
 ## Fairness — who has had what
+
+![The Fairness page, sorted by nights](../assets/screenshots/fairness.png)
 
 **Planner → Fairness** lists everyone with their share of the confirmed roster
 over a period: *This month*, *Last month*, *This quarter*, *Last 3 months*, or a
@@ -157,8 +184,9 @@ custom range.
 
 Click any column heading to sort by it — most first, click again for least. The
 four figures at the top give the range across everyone who worked, so a gap of
-0–10 nights stands out before you read a single row. Click a name to open that
-person's calendar.
+0–10 nights stands out before you read a single row. **Only staff with shifts**
+hides people with nothing in the period. Click a name to open that person's
+calendar.
 
 It reads the **confirmed** roster only. To see how a proposal would share the
 work before you take it, use **Compare** on the Schedule Optimizer.

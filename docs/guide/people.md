@@ -131,6 +131,8 @@ role sees.
 | **Date range** | Only days inside the range you set — the usual way to collect wishes for one month and then stop. |
 | **Closed** | Nothing. |
 
+![The Wish Window page, set to Open](../assets/screenshots/wish-settings.png)
+
 Pick a state, set the two dates if you chose *Date range*, and press **Save
 Changes**. A line under the choices spells out what staff will experience.
 

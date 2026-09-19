@@ -72,23 +72,27 @@ usually obvious within a few seconds.
 
 ## The roster is unfair
 
-One person has all the nights, or all the weekends.
+One person has all the nights, or all the weekends. The
+[Fairness](calendars.md#fairness-who-has-had-what) page shows it at a glance:
+sort by *Nights* or *Weekend days*.
 
 - Check how many people have that shift ticked as **available**. If three
   people out of forty can work nights, no amount of fairness weighting will
   spread them further.
-- Raise the **fairness weight** in [Planner
-  Settings](how-planning-works.md#objective-weights) and recalculate.
-- Raise the **time limit**. On a busy ward a `feasible` result is the best
-  found before the clock ran out; more time often produces a visibly better
-  balance.
+- Raise **Fairness** in [Planner
+  Settings](how-planning-works.md#fairness-hours) and recalculate, or start
+  from the *Equal share* preset.
+- Set **Search effort** to *Thorough*. On a busy ward a `feasible` result is
+  the best found before the clock ran out; more time often produces a visibly
+  better balance.
 
 ---
 
 ## People are rotated between shifts every day
 
-Legal, but exhausting. Raise the **shift continuity weight** and the
-**week-streak bonus** in Planner Settings, then recalculate.
+Legal, but exhausting. Raise **Shift continuity** and the **Week-streak
+bonus** in [Planner Settings](how-planning-works.md#coverage-continuity), or pick
+the *Stable rosters* preset, then recalculate.
 
 ---
 

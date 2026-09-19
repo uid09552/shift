@@ -31,7 +31,7 @@ contact whoever administers your login.
 Every page shares the same frame.
 
 ![The dashboard with the menu on the left, the header along the top and the
-content in the middle](../assets/screenshots/dashboard.png)
+content in the middle, here showing one nurse's day](../assets/screenshots/dashboard.png)
 
 **Left — the menu.** Three groups you can fold open and shut:
 
@@ -43,6 +43,9 @@ content in the middle](../assets/screenshots/dashboard.png)
 
 Roughly: **Configuration** is where you describe the world, **Planner** is
 where you work with it.
+
+The small box under the menu shows the **version** you are running. Quote it
+when you report a problem.
 
 Two entries appear only if you are an administrator — **Wish Window** and
 **Users**. If you cannot see them, you are not one; see [Users, roles and
@@ -67,6 +70,7 @@ The Overview page answers "how do things stand right now?" at a glance.
 
 | Panel | What it tells you |
 |---|---|
+| **My day** | Your own confirmed shift today: times, workstation, and who else is on that workstation and on which shift. The strip of days underneath steps back and forward; **Open the full schedule →** jumps to the Schedule. The people button in the corner shows anyone else's day instead. If your login is not linked to an employee record (same e-mail address), it says so and offers the staff list. |
 | **Employees / Shifts / Workstations** | How many of each are on file. Click a card to jump to that list. |
 | **Planned Hours per Day** | A bar per day of the current month, showing total planned working hours. Gaps mean nobody is scheduled — usually because you haven't planned that far ahead yet. |
 | **Today's Coverage** | How many people are working today, how many are on leave or sick, and per workstation how many are assigned against how many are required. |

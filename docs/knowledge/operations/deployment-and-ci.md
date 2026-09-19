@@ -1,9 +1,9 @@
 ---
 type: Runbook
 title: Deployment and CI
-description: The four images, the Compose stack, registry tagging, and the GitLab pipeline including Trivy scanning, SBOMs, Renovate dependency updates and Pages.
+description: The four images, the Compose stack, registry tagging, and the GitLab and GitHub pipelines including Trivy scanning, SBOMs, Renovate dependency updates and Pages.
 resource: deploy/docker-compose.yml
-tags: [operations, deployment, docker, ci, gitlab, security, renovate]
+tags: [operations, deployment, docker, ci, gitlab, github, security, renovate]
 status: stable
 generated:
   by: claude-code/claude-opus-5
@@ -15,6 +15,9 @@ sources:
   - resource: .gitlab-ci.yml
     author: human:maxrg
     last_modified: 2026-07-31
+  - resource: .github/workflows/ci.yml
+    author: human:maxrg
+    last_modified: 2026-09-19
 ---
 
 # Images
@@ -206,6 +209,23 @@ mkdocs build --strict
 
 This OKF bundle lives under `docs/knowledge/` and is excluded from the MkDocs
 build via `exclude_docs` — it is consumed as files, not rendered as pages.
+
+# GitHub Actions
+
+The GitHub mirror (`github.com/uid09552/shift`) runs the same pipeline in
+`.github/workflows/`:
+
+| Workflow | What it does | GitLab counterpart |
+|---|---|---|
+| `ci.yml` | Builds, Trivy-scans and pushes the four images to `ghcr.io/<owner>/<repo>/<component>` (`:<short sha>`; `:<tag>` on git tags; `:latest` on the default branch and tags). Lockfile SBOMs (`sbom-source`), nightly re-scan of published images (`scan-published`). SARIF goes to code scanning. | build and scan stages |
+| `docs.yml` | `mkdocs build --strict`; deploys to GitHub Pages from `main`, keeps the site as an artifact on pull requests | `docs:build`, `pages` |
+| `renovate.yml` | Renovate on weekdays, one pull request per update or bundle | `renovate` |
+
+Setup: Pages source *GitHub Actions*; secret `RENOVATE_TOKEN` (fine-grained,
+Contents/Pull requests/Issues/Workflows read-write — `GITHUB_TOKEN` cannot
+trigger CI on the PRs it opens); optional variables `SCAN_EXIT_CODE` (default
+`0`) and `RESCAN_EXIT_CODE` (default `1`). `release/` can pull from ghcr.io by
+setting `BACKEND_IMAGE`, `PLANNER_IMAGE`, `UI_IMAGE` and `AGENT_IMAGE`.
 
 # Related
 

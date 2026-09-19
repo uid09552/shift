@@ -35,7 +35,7 @@ change anything you disagree with, and confirm it.
 **The software proposes. You decide.** Nothing it calculates goes into the
 official plan until you press a button.
 
-![The dashboard, showing headcount, planned hours per day, today's coverage
+![The dashboard, showing one person's day, headcount, planned hours per day, today's coverage
 and the most recent planning run](../assets/screenshots/dashboard.png)
 
 ## What it does not do

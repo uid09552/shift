@@ -84,7 +84,7 @@ The same middleware reads the realm roles from the token:
 ### Role matrix by action
 
 The backend enforces this in one place: `RoleContext::allows()` in
-[`src/services/tenant.rs`](src/services/tenant.rs). The table below summarizes the
+[`src/services/tenant.rs`](https://gitlab.com/uid09552/shift/-/blob/main/src/services/tenant.rs). The table below summarizes the
 real behavior the gateway and backend are expected to uphold.
 
 | Action class | `shift-viewer` | `shift-planner` | `shift-admin` |

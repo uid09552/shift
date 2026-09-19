@@ -86,8 +86,11 @@ Choose a person from the dropdown for their month as a wall calendar:
 * **Free** days the planner explicitly gave them.
 * **Shift wishes**, as an outlined chip with a star.
 
-Underneath, an **Hours Summary** with planned working hours for the month — the
-quickest way to check whether someone is heading over or under their contract.
+The page has three tabs: **Calendar** (the month, with ISO week numbers),
+**Hours** (planned hours for the month, per week and per shift, with overtime or
+undertime against the contract — the quickest way to check whether someone is
+heading over or under) and **Absences** (vacation, sick leave and unavailability
+ranges, added and removed there).
 
 This is the view to export when somebody asks "what am I doing next month?"
 

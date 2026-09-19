@@ -1,5 +1,23 @@
 # Bundle Update Log
 
+## 2026-09-19
+
+* **Change**: The project is mirrored to GitHub, with GitHub Actions
+  counterparts of the GitLab pipeline (images to ghcr.io, docs to GitHub Pages,
+  Renovate).
+* **Change**: The Planner Settings page now leads with six use-case presets
+  (Balanced, Equal share, Wishes first, Coverage first, Stable rosters, Staff
+  wellbeing) and offers every weight as a named level (Off … Very strong); raw
+  numbers sit behind an *Expert values* switch. Solver time and threads are one
+  *Search effort* choice (Quick / Balanced / Thorough).
+* **Revision**: [Troubleshooting playbook](/guide/troubleshooting-playbook.md) —
+  setting names as the page now shows them; the Fairness page as the first check
+  for an unfair roster.
+* **Revision**: [Reading calendars](/guide/reading-calendars.md) — the Employee
+  Calendar's Calendar / Hours / Absences tabs.
+* **Revision**: [Deployment and CI](/operations/deployment-and-ci.md) — the
+  GitHub Actions workflows and their one-time setup.
+
 ## 2026-08-31
 
 * **Change**: A proposed plan can now be checked before it is confirmed. New

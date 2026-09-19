@@ -21,8 +21,8 @@ The page has five tabs, in the order you work through them:
 The tab you are on is kept in the address, so a reload or a shared link lands in
 the same place.
 
-![The Schedule Optimizer, showing a calculated plan by
-workstation](../assets/screenshots/scheduler.png)
+![The Schedule Optimizer's Calculate tab: period, staff and the coverage
+check](../assets/screenshots/scheduler-calculate.png)
 
 ## The workflow in one picture
 
@@ -102,16 +102,25 @@ The counts leave out rest rules and the days-per-week cap per day, so they are
 an upper bound: a red cell is certainly short, a grey one can still come out
 thin.
 
+In the example above, *8 of 28 days short* is entirely the on-call shift
+(Rufdienst) at the emergency department: sixteen people hold the required
+qualifications and eight have the shift, but nobody has both. No calculation can
+fix that; ticking the shift for a qualified person can.
+
 ### Fixed rhythms: Rotations
 
 Many wards work to a rhythm — *early, early, late, late, night, off, off, off*.
 **Planner → Rotations** lets you write one once and apply it to people:
 
 1. **New pattern** — a name, and the days of the cycle as shift short names
-   separated by spaces, with `-` for a day off: `F F S S N - - -`. The chips
+   separated by spaces, with `-` for a day off: `F F S S Na Na - -`. The chips
    below show it; a yellow box lists anything in it the planner's rules forbid
    (too many days in a row or per week, too little rest between two shifts, work
    right after a night that needs free days).
+
+    ![A new rotation pattern: the cycle as chips, and a warning that it breaks
+    the five-days-a-week and night-recovery rules](../assets/screenshots/rotations.png)
+
 2. **Pick the pattern, the people and the period.** *Stagger* starts each next
    person that many days later in the cycle, so a team covers the rhythm between
    them.
@@ -129,13 +138,16 @@ days in the period again. Deleting a pattern leaves what was written from it.
 Press **Calculate Plan**. The button changes to *Calculating…*.
 
 The work happens in the background, so you can carry on using other pages
-while you wait. Typical wards take a few seconds to a couple of minutes; the
-time limit is set in [Planner Settings](how-planning-works.md#the-settings-page)
-and defaults to two minutes.
+while you wait. Typical wards take a few seconds to a couple of minutes; how
+long the planner may search is the **Search effort** in [Planner
+Settings](how-planning-works.md#solver-performance), two minutes by default.
 
 When it finishes, the new plan opens in the **Proposal** tab. While it runs, a
 *Calculating…* marker sits in the header; the **Runs** tab shows the queue of
 calculations, their status, and any error message.
+
+![The Runs tab: every stored proposal, newest first, with the one on screen
+marked](../assets/screenshots/scheduler-runs.png)
 
 ### The result line
 
@@ -158,8 +170,8 @@ When it finishes, a summary line appears above the calendar:
 !!! note "'feasible' is not a warning"
     On a ward of any size the planner almost always hits its time budget
     before exhausting every possibility. `feasible` means *valid and good*,
-    not *incomplete*. If you want it to try harder, raise the time limit in
-    Planner Settings.
+    not *incomplete*. If you want it to try harder, set **Search effort** to
+    *Thorough* in Planner Settings.
 
 ## Step 4 — Review the proposal
 
@@ -228,6 +240,9 @@ The report opens with a verdict:
 | **Clean** | Nothing found. Go ahead and confirm. |
 | **Worth a look** | No rule is broken, but the planner traded something away — a workstation left short, a requested day off overridden, someone well off their contracted hours. |
 | **Rules broken** | Something breaks a hard rule. Fix it before confirming. |
+
+![A plan check with the verdict "Worth a look": no rule broken, but 138
+understaffed slots](../assets/screenshots/scheduler-check.png)
 
 Below that comes one entry per rule broken, each with a count and a few named
 examples — *"Too little rest between two shifts ×3 · Anna M. — Late on 12 Aug to
@@ -343,6 +358,9 @@ green when it is better and red when it is worse:
 | **Hours gap between staff** | The difference between whoever works the fewest and the most hours. Smaller is fairer. |
 | **Shifts assigned** | How many shifts are given out in total. |
 | **Score** | The planner's own score. Only comparable between runs with the same settings — which is why the figures above are there. |
+
+![Two runs compared: the summary figures, and per person and day what
+differs](../assets/screenshots/scheduler-compare.png)
 
 Below it, a grid shows every day that differs, per person: `F→S` means an early
 shift in A and a late one in B, `–` is a day off, and `⇄` means the same shift

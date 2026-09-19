@@ -34,7 +34,13 @@ that neither of them is a single point of failure.
 
 ## Adding someone
 
-Open **Configuration → Users** and press **Add User**.
+Open **Configuration → Users**. It lists everyone who belongs to your
+organisation, with a tickbox per role.
+
+![The Users page: each member with their roles as
+tickboxes](../assets/screenshots/users.png)
+
+Press **Add User**.
 
 | Field | What to put in it |
 |---|---|
@@ -127,6 +133,9 @@ Along the top:
 ### Reading an entry
 
 Click any row to open it.
+
+![An audit entry opened: which planner settings changed, before and
+after](../assets/screenshots/audit-log.png)
 
 - **A change** shows a three-column table — *Field*, *Before*, *After* — with
   one row per thing that actually differs, and a line saying which earlier

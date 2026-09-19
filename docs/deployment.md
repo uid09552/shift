@@ -103,6 +103,17 @@ make push-all REGISTRY=registry.example.com/other-project
 `VERSION` defaults to `git describe --tags --always --dirty`, falling back to
 `latest`.
 
+The project is built in two places, and each publishes the same four images
+under the same names:
+
+| Host | Registry | Built by |
+|---|---|---|
+| GitLab (`origin`) | `registry.gitlab.com/uid09552/shift/<component>` | `.gitlab-ci.yml`, below |
+| GitHub (mirror) | `ghcr.io/uid09552/shift/<component>` | `.github/workflows/ci.yml`, see [GitHub Actions](#github-actions) |
+
+Either works for `release/`: point `BACKEND_IMAGE`, `PLANNER_IMAGE`,
+`UI_IMAGE` and `AGENT_IMAGE` in its `.env` at the registry you want.
+
 ## GitLab CI
 
 ### Runner requirements
@@ -397,6 +408,45 @@ pip install -r docs/requirements.txt
 mkdocs serve          # live reload on :8000
 mkdocs build --strict
 ```
+
+## GitHub Actions
+
+The GitHub mirror runs the same pipeline as GitLab CI, split into three
+workflows under `.github/workflows/`. Each file's header comment is the
+reference; this is the overview.
+
+| Workflow | Runs on | What it does | GitLab counterpart |
+|---|---|---|---|
+| `ci.yml` | push, pull request, nightly, manual | Builds the four images, scans them with Trivy, uploads SARIF to code scanning and pushes to `ghcr.io/<owner>/<repo>/<component>`. Also scans the committed lockfiles (`sbom-source`) and, nightly or on demand, re-scans the images already published (`scan-published`). | build and scan stages |
+| `docs.yml` | pull request touching `docs/` or `mkdocs.yml`, push to `main`, manual | `mkdocs build --strict`; on `main` it deploys to GitHub Pages, on a pull request it keeps the built site as an artifact for seven days. | `docs:build`, `pages` |
+| `renovate.yml` | weekdays 03:00 UTC, manual | Runs Renovate against `renovate.json5` and opens one pull request per update or bundle. Nothing is merged automatically. | `renovate` |
+
+Every push builds and publishes `:<short sha>`. A git tag also publishes
+`:<tag>`, and both a git tag and a push to the default branch move `:latest`.
+Pull requests build and scan but never push.
+
+### One-time setup on GitHub
+
+1. **Pages:** Settings › Pages › Build and deployment › Source: *GitHub
+   Actions*. Otherwise `docs.yml` builds but cannot deploy.
+2. **Renovate:** create a fine-grained token with *Contents*, *Pull requests*,
+   *Issues* and *Workflows* read/write on this repository and store it as the
+   Actions secret `RENOVATE_TOKEN`. `GITHUB_TOKEN` is not enough: pull requests
+   it opens do not trigger CI, and it cannot edit workflow files. Keep Issues
+   enabled for Renovate's Dependency Dashboard. (Or install the hosted Renovate
+   app and delete `renovate.yml`.)
+3. **Scan gate (optional):** the repository variable `SCAN_EXIT_CODE=1` makes a
+   HIGH or CRITICAL finding fail `build` before the image is pushed.
+   `RESCAN_EXIT_CODE` (default `1`) does the same for the nightly re-scan, whose
+   failure is what GitHub e-mails the owner about.
+4. **Package visibility:** new ghcr.io packages start private. Make them public
+   under the package's settings if `release/` should pull without
+   `docker login ghcr.io`.
+
+### Re-scanning on demand
+
+Actions › CI › *Run workflow* re-scans the published images at the tag you
+give (`latest` by default), without rebuilding.
 
 ## Production checklist
 
