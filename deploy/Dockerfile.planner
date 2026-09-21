@@ -3,15 +3,21 @@ FROM python:3.14-slim-bookworm AS builder
 
 WORKDIR /app
 
-# Install uv for fast dependency management
-RUN pip install uv
+# Install uv for fast dependency management. Pinned so the builder does not
+# change under us between two builds of the same commit.
+RUN pip install --no-cache-dir uv==0.12.17
 
 # Copy project files
 COPY planner/pyproject.toml planner/uv.lock* planner/README.md ./
 COPY planner/shift_planner ./shift_planner
 
-# Install dependencies
-RUN uv sync --frozen --no-dev
+# Install dependencies against this image's own Python. Left to itself uv may
+# fetch a managed CPython of a different minor version, and the venv it builds
+# then does not match the interpreter the runtime stage ships — the two stages
+# only agree by accident. UV_PYTHON_DOWNLOADS=never turns that into a build
+# failure instead of an image that breaks on start.
+ENV UV_PYTHON_DOWNLOADS=never
+RUN uv sync --frozen --no-dev --python /usr/local/bin/python3
 
 # ---- Runtime Stage ----
 FROM python:3.14-slim-bookworm
@@ -23,6 +29,15 @@ COPY --from=builder /app/.venv /app/.venv
 
 # Copy application code
 COPY planner/shift_planner ./shift_planner
+
+# Drop pip from the runtime image: the application runs out of /app/.venv and
+# never installs anything, so pip is a builder-only tool here. It also carries
+# vendored copies of msgpack and setuptools (pip/_vendor/vendor.txt), which is
+# where Trivy reads GHSA-6v7p-g79w-8964 and CVE-2025-47273 from — findings the
+# base image cannot clear, since upstream pip still vendors those versions.
+RUN rm -rf /usr/local/lib/python3*/site-packages/pip \
+           /usr/local/lib/python3*/site-packages/pip-*.dist-info \
+           /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.*
 
 # Ensure the virtual environment is in PATH
 ENV PATH="/app/.venv/bin:$PATH"
