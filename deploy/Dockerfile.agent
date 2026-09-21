@@ -3,15 +3,23 @@ FROM python:3.14-slim-bookworm AS builder
 
 WORKDIR /app
 
-# Install uv for fast dependency management
-RUN pip install uv
+# Install uv for fast dependency management. Pinned: an unpinned uv changed
+# which interpreter it picks from one build to the next, and older versions
+# preferred a *downloaded* CPython over the one this image ships.
+RUN pip install --no-cache-dir uv==0.12.17
 
 # Copy project files
 COPY agent/pyproject.toml agent/uv.lock* agent/README.md ./
 COPY agent/shift_agent ./shift_agent
 
-# Install dependencies
-RUN uv sync --frozen --no-dev
+# Install dependencies against this image's own Python. Without pinning the
+# interpreter, uv may fetch a managed CPython instead, and the whole thing —
+# including the unpatched setuptools it bundles — is copied into the runtime
+# stage with the venv, where Trivy rightly flags it (GHSA-6v7p-g79w-8964,
+# CVE-2025-47273). UV_PYTHON_DOWNLOADS=never turns a miss into a build failure
+# rather than a silent second interpreter.
+ENV UV_PYTHON_DOWNLOADS=never
+RUN uv sync --frozen --no-dev --python /usr/local/bin/python3
 
 # ---- Runtime Stage ----
 FROM python:3.14-slim-bookworm
