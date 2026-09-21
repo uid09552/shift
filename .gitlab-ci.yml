@@ -571,7 +571,7 @@ pages:
 renovate:
   stage: maintenance
   needs: []
-  image: ghcr.io/renovatebot/renovate:44.93.0
+  image: ghcr.io/renovatebot/renovate:44.105.1
   # Two runs at once would race on the same branches.
   resource_group: renovate
   timeout: 1h
