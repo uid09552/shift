@@ -44,7 +44,7 @@ services:
       retries: 10
 
   keycloak:
-    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.2}
+    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.7}
     container_name: shift_keycloak
     command: start-dev --import-realm
     environment:

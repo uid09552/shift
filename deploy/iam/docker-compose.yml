@@ -40,7 +40,7 @@ services:
       retries: 10
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.2
+    image: quay.io/keycloak/keycloak:26.7
     container_name: shift_keycloak
     restart: unless-stopped
     command: start-dev --import-realm
