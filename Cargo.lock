@@ -2457,7 +2457,7 @@ dependencies = [
  "async-nats",
  "async-trait",
  "axum",
- "base64 0.22.1",
+ "base64 0.23.1",
  "calamine",
  "chrono",
  "clap",
