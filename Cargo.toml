@@ -37,7 +37,7 @@ async-nats = "0.38"
 # "query" and "form" are for the Keycloak admin client (services/keycloak.rs):
 # query parameters on the admin API, and the client-credentials token request.
 reqwest = { version = "0.13", default-features = false, features = ["json", "blocking", "rustls", "http2", "query", "form"] }
-base64 = "0.22"
+base64 = "0.23"
 futures-util = "0.3.32"
 rust_xlsxwriter = "0.96.0"
 calamine = "0.36.0"
