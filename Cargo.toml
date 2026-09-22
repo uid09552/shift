@@ -14,7 +14,7 @@ env_logger = "0.10"
 thiserror = "1.0"
 axum = { version = "0.7", features = ["multipart"] }
 tower = "0.4"
-tower-http = { version = "0.5", features = ["cors"] }
+tower-http = { version = "0.7", features = ["cors"] }
 figment = { version = "0.10", features = ["env", "yaml"] }
 url = "2"
 
