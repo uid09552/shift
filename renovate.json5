@@ -151,16 +151,34 @@
       groupName: 'docs and e2e tooling non-major',
     },
 
-    // Angular pins the TypeScript it accepts — a TypeScript major outside an
-    // Angular major fails `npm ci` on the peer range. Keep it in the merge
-    // request Angular's monorepo group already makes for its major. Renovate
-    // only bumps versions: an Angular major still wants `ng update` run on the
-    // branch for its migrations.
+    // Angular ships as three separate monorepos as far as `config:recommended`
+    // is concerned — @angular/*, @angular/cli + @angular/build, and
+    // @angular/material + @angular/cdk — so a major lands as three merge
+    // requests. Each one is unmergeable on its own: the packages pin each
+    // other by peer range, so bumping one group while the others sit at the
+    // old major fails `npm ci` with ERESOLVE, and all three pipelines go red
+    // until someone closes them. Put the whole major in one merge request.
+    //
+    // Renovate only bumps versions: an Angular major still wants `ng update`
+    // run on the branch for its migrations.
+    {
+      matchFileNames: ['ui/**'],
+      matchUpdateTypes: ['major'],
+      matchPackageNames: ['@angular/**', '@angular-devkit/**', 'ng-packagr', 'zone.js'],
+      groupName: 'angular monorepo',
+    },
+
+    // TypeScript is *not* in that group: Angular accepts a narrow range of it
+    // (v22: >=6.0 <6.1), and Renovate offers the newest major there is, which
+    // overshoots and fails `npm ci` on @angular/build's peer range — that is
+    // what made the v22 merge request red even once the three groups above
+    // were one. `ng update` picks the version Angular wants, so leave it to
+    // the same hands that run the migrations.
     {
       matchFileNames: ['ui/**'],
       matchPackageNames: ['typescript'],
       matchUpdateTypes: ['major'],
-      groupName: 'angular monorepo',
+      enabled: false,
     },
 
     // ---- Container images --------------------------------------------------
