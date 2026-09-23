@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { SidebarService } from '../../services/sidebar.service';
 import { CommonModule } from '@angular/common';
 
@@ -7,6 +7,7 @@ import { CommonModule } from '@angular/common';
   imports: [
     CommonModule,
   ],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './backdrop.component.html',
 })
 

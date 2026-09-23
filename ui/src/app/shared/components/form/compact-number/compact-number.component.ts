@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 
 /**
  * Narrow number input for exact values shown next to a friendlier control —
@@ -9,6 +9,7 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
   selector: 'app-compact-number',
   standalone: true,
   imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <input
       type="number"

@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { RouterModule } from '@angular/router';
 
 import { TranslatePipe } from '../../i18n/translate.pipe';
@@ -9,6 +9,7 @@ import { InfoService, ServerInfo } from '../../services/info.service';
 @Component({
   selector: 'app-sidebar-widget',
   imports: [RouterModule, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div
       class="mx-auto mb-10 w-full max-w-60 rounded-2xl bg-gray-50 px-4 py-5 text-center dark:bg-white/[0.03]"

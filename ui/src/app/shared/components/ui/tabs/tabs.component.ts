@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 
 export interface TabItem {
   /** Stable key — also what a deep link stores, so keep it URL-friendly. */
@@ -62,6 +62,7 @@ export interface TabItem {
       }
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     /* Scrolls sideways when the labels outgrow the width. overflow-y is pinned
        to hidden because leaving it visible makes the browser compute it as

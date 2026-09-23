@@ -5,7 +5,8 @@ import {
   EventEmitter,
   HostListener,
   Input,
-  Output
+  Output,
+  ChangeDetectionStrategy
 } from '@angular/core';
 
 @Component({
@@ -14,6 +15,7 @@ import {
     CommonModule,
   ],
   templateUrl: './modal.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: ``
 })
 export class ModalComponent {

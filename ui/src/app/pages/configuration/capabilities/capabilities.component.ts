@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CapabilityService, Capability, ImportResult } from '../../../shared/services/capability.service';
@@ -243,6 +243,7 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
       </div>
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: ``,
 })
 export class CapabilitiesComponent implements OnInit {

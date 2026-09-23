@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin, of } from 'rxjs';
@@ -24,6 +24,7 @@ import { PatternIssue, checkPattern, formatSequence, parseSequence } from './rot
   selector: 'app-rotations',
   standalone: true,
   imports: [CommonModule, FormsModule, PageBreadcrumbComponent, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <app-page-breadcrumb pageTitle="nav.rotations" />
 

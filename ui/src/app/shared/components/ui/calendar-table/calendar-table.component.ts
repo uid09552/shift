@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnDestroy } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { TranslatePipe } from '../../../i18n/translate.pipe';
 
@@ -54,6 +54,7 @@ export interface CalendarTableRowContextMenuEvent {
   selector: 'app-calendar-table',
   standalone: true,
   imports: [CommonModule, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './calendar-table.component.html',
 })
 export class CalendarTableComponent implements OnDestroy {

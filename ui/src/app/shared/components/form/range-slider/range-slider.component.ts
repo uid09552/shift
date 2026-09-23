@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 
 /**
  * Slider for settings that are a real-world quantity (days, hours) rather than
@@ -9,6 +9,7 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
   selector: 'app-range-slider',
   standalone: true,
   imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="flex w-full items-center gap-3">
       <input

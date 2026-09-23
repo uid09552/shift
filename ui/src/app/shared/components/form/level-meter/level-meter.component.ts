@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 
 /**
  * Five (or n) small segments filled up to `filled` — a compact, non-numeric
@@ -12,6 +12,7 @@ import { Component, Input } from '@angular/core';
   selector: 'app-level-meter',
   standalone: true,
   imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <span class="inline-flex items-end gap-[3px]" aria-hidden="true">
       @for (segment of segments; track segment) {

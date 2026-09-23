@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { AfterViewChecked, Component, ElementRef, ViewChild } from '@angular/core';
+import { AfterViewChecked, Component, ElementRef, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NavigationStart, Router } from '@angular/router';
 import { Marked, Renderer } from 'marked';
@@ -44,6 +44,7 @@ const markdown = new Marked({ gfm: true, breaks: true, renderer });
   selector: 'app-chat-widget',
   standalone: true,
   imports: [CommonModule, FormsModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './chat-widget.component.html',
 })
 export class ChatWidgetComponent implements AfterViewChecked {

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 import { LevelMeterComponent } from '../level-meter/level-meter.component';
 
 export interface LevelOption {
@@ -19,6 +19,7 @@ export interface LevelOption {
   selector: 'app-level-select',
   standalone: true,
   imports: [CommonModule, LevelMeterComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="flex items-center gap-3">
       <app-level-meter [filled]="meterFilled" [steps]="meterSteps" />

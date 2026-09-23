@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, TitleCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Observable, forkJoin, Subscription } from 'rxjs';
@@ -538,6 +538,7 @@ type DeactivateMode = 'complete' | 'period';
       }
     </app-modal>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: ``,
 })
 export class WorkstationsComponent implements OnInit, OnDestroy {

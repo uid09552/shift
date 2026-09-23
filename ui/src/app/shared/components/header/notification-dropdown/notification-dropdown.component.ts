@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { DropdownComponent } from '../../ui/dropdown/dropdown.component';
 import { DropdownItemComponent } from '../../ui/dropdown/dropdown-item/dropdown-item.component';
@@ -13,6 +13,7 @@ const MAX_NOTIFICATIONS = 10;
 @Component({
   selector: 'app-notification-dropdown',
   templateUrl: './notification-dropdown.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [CommonModule, RouterModule, DropdownComponent, DropdownItemComponent, ModalComponent, TranslatePipe],
 })
 export class NotificationDropdownComponent {

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import {
   CellDetail,
@@ -255,6 +255,7 @@ import {
       }
     </ng-template>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .grouped-table {
       border-collapse: separate;

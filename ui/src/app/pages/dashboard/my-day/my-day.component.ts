@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -58,6 +58,7 @@ type UnavailableReason = 'no-session' | 'no-employee' | null;
   selector: 'app-my-day',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, DropdownComponent, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './my-day.component.html',
 })
 export class MyDayComponent implements OnInit {

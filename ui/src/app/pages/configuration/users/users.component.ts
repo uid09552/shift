@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -277,6 +277,7 @@ const ROLE_OPTIONS: { value: ShiftRole; label: string; hint: string }[] = [
       </div>
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: ``,
 })
 export class UsersComponent implements OnInit {

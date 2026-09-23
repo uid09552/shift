@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -36,6 +36,7 @@ export interface WorkstationCoverage {
     RouterLink,
     NgApexchartsModule,
     MyDayComponent, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './ecommerce.component.html',
 })
 export class EcommerceComponent implements OnInit {
