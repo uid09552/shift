@@ -10,10 +10,10 @@ tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 clap = { version = "4.4", features = ["derive"] }
-env_logger = "0.10"
+env_logger = "0.11"
 thiserror = "1.0"
 axum = { version = "0.7", features = ["multipart"] }
-tower = "0.4"
+tower = "0.5"
 tower-http = { version = "0.7", features = ["cors"] }
 figment = { version = "0.10", features = ["env", "yaml"] }
 url = "2"
@@ -39,7 +39,7 @@ async-nats = "0.50"
 reqwest = { version = "0.13", default-features = false, features = ["json", "blocking", "rustls", "http2", "query", "form"] }
 base64 = "0.23"
 futures-util = "0.3.32"
-rust_xlsxwriter = "0.96.0"
+rust_xlsxwriter = "0.99.0"
 calamine = "0.36.0"
 # Observability (OpenTelemetry traces + metrics over OTLP, off unless configured)
 tracing = "0.1"
