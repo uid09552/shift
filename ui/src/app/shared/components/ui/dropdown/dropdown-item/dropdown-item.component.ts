@@ -1,10 +1,11 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
 import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-dropdown-item',
   templateUrl: './dropdown-item.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [CommonModule, RouterModule]
 })
 export class DropdownItemComponent {

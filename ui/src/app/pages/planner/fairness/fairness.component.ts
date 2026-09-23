@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -30,6 +30,7 @@ type Preset = 'thisMonth' | 'lastMonth' | 'thisQuarter' | 'last3Months' | 'custo
   selector: 'app-fairness',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterModule, PageBreadcrumbComponent, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <app-page-breadcrumb pageTitle="nav.fairness" />
 

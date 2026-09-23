@@ -1,4 +1,4 @@
-import { Component, HostListener, OnInit, OnDestroy } from '@angular/core';
+import { Component, HostListener, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { forkJoin, of, Subscription } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -77,6 +77,7 @@ interface WishCellData {
     TranslatePipe,
   ],
   templateUrl: './kalender.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './kalender.component.css',
 })
 export class KalenderComponent implements OnInit, OnDestroy {

@@ -1,4 +1,4 @@
-import { Component, ElementRef, Input, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, Input, OnDestroy, OnInit, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription, forkJoin, interval } from 'rxjs';
@@ -77,6 +77,7 @@ const LABEL_WIDTH = 220;
   standalone: true,
   imports: [CommonModule, FormsModule, TranslatePipe],
   templateUrl: './day-view.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './day-view.component.css',
 })
 export class DayViewComponent implements OnInit, OnDestroy {

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { InfoTooltipComponent } from '../../ui/info-tooltip/info-tooltip.component';
 
 /**
@@ -13,6 +13,7 @@ import { InfoTooltipComponent } from '../../ui/info-tooltip/info-tooltip.compone
   selector: 'app-setting-row',
   standalone: true,
   imports: [CommonModule, InfoTooltipComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div
       class="flex flex-col gap-3 px-5 py-4 transition-opacity sm:flex-row sm:items-center sm:justify-between sm:gap-8 sm:px-6"

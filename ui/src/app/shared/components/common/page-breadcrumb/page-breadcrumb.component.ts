@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { RouterModule } from '@angular/router';
 
 import { TranslatePipe } from '../../../i18n/translate.pipe';
@@ -10,6 +10,7 @@ import { TranslatePipe } from '../../../i18n/translate.pipe';
     TranslatePipe,
   ],
   templateUrl: './page-breadcrumb.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: ``
 })
 export class PageBreadcrumbComponent {

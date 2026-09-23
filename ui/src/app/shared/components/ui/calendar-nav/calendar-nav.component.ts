@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 import { TranslatePipe } from '../../../i18n/translate.pipe';
@@ -7,6 +7,7 @@ import { TranslatePipe } from '../../../i18n/translate.pipe';
   selector: 'app-calendar-nav',
   standalone: true,
   imports: [CommonModule, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="flex items-center gap-2">
       <button

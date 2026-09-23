@@ -1,4 +1,4 @@
-import { Component, ElementRef, HostListener, inject } from '@angular/core';
+import { Component, ElementRef, HostListener, inject, ChangeDetectionStrategy } from '@angular/core';
 
 import { TranslatePipe } from '../../../i18n/translate.pipe';
 import { TranslationService, Language } from '../../../i18n/translation.service';
@@ -11,6 +11,7 @@ import { TranslationService, Language } from '../../../i18n/translation.service'
   selector: 'app-language-switcher',
   standalone: true,
   imports: [TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="relative">
       <button

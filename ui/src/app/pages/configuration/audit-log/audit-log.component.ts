@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Params, Router, RouterModule } from '@angular/router';
@@ -65,6 +65,7 @@ interface Row {
   selector: 'app-audit-log',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterModule, PageBreadcrumbComponent, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <app-page-breadcrumb pageTitle="nav.auditLog" />
 

@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
@@ -84,6 +84,7 @@ function isOptimizerTab(value: string | null): value is OptimizerTab {
   standalone: true,
   imports: [CommonModule, FormsModule, PageBreadcrumbComponent, CalendarNavComponent, CalendarTableComponent, TabsComponent, DateRangePickerComponent, TranslatePipe],
   templateUrl: './scheduler.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './scheduler.component.css',
 })
 export class SchedulerComponent implements OnInit, OnDestroy {

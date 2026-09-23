@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild } from '@angular/core';
+import { Component, ElementRef, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SidebarService } from '../../services/sidebar.service';
 import { GlobalSearchService } from '../../services/global-search.service';
@@ -22,6 +22,7 @@ import { TranslatePipe } from '../../i18n/translate.pipe';
     LanguageSwitcherComponent,
     TranslatePipe,
   ],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './app-header.component.html',
 })
 export class AppHeaderComponent {

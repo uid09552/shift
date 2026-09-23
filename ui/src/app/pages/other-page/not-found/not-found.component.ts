@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { GridShapeComponent } from '../../../shared/components/common/grid-shape/grid-shape.component';
 import { RouterModule } from '@angular/router';
 
@@ -9,6 +9,7 @@ import { RouterModule } from '@angular/router';
     RouterModule,
   ],
   templateUrl: './not-found.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: ``
 })
 export class NotFoundComponent {

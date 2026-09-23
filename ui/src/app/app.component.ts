@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { ConfirmDialogComponent } from './shared/components/ui/confirm-dialog/confirm-dialog.component';
 import { ContextMenuComponent } from './shared/components/ui/context-menu/context-menu.component';
@@ -14,6 +14,7 @@ import { ChatWidgetComponent } from './shared/components/chat/chat-widget.compon
     ChatWidgetComponent,
   ],
   templateUrl: './app.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './app.component.css',
 })
 export class AppComponent {

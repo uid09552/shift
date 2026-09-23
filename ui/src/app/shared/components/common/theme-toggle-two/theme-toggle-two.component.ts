@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { ThemeService } from '../../../services/theme.service';
 
 
@@ -6,6 +6,7 @@ import { ThemeService } from '../../../services/theme.service';
   selector: 'app-theme-toggle-two',
   imports: [],
   templateUrl: './theme-toggle-two.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: ``
 })
 export class ThemeToggleTwoComponent {

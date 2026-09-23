@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { AuthPageLayoutComponent } from '../../../shared/layout/auth-page-layout/auth-page-layout.component';
 import { SignupFormComponent } from '../../../shared/components/auth/signup-form/signup-form.component';
 
@@ -9,6 +9,7 @@ import { SignupFormComponent } from '../../../shared/components/auth/signup-form
     SignupFormComponent,
   ],
   templateUrl: './sign-up.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: ``
 })
 export class SignUpComponent {

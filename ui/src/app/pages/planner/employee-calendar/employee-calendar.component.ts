@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -153,6 +153,7 @@ interface ShiftHoursSummary {
     TranslatePipe,
   ],
   templateUrl: './employee-calendar.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './employee-calendar.component.css',
 })
 export class EmployeeCalendarComponent implements OnInit {

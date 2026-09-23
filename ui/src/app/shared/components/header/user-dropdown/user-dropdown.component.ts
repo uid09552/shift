@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { DropdownComponent } from '../../ui/dropdown/dropdown.component';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
@@ -8,6 +8,7 @@ import { TranslatePipe } from '../../../i18n/translate.pipe';
 @Component({
   selector: 'app-user-dropdown',
   templateUrl: './user-dropdown.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [CommonModule, RouterModule, DropdownComponent, TranslatePipe],
 })
 export class UserDropdownComponent implements OnInit {

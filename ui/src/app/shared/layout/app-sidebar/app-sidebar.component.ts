@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, QueryList, ViewChildren, ChangeDetectorRef } from '@angular/core';
+import { Component, ElementRef, QueryList, ViewChildren, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
 import { SidebarService } from '../../services/sidebar.service';
 import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import { SafeHtmlPipe } from '../../pipe/safe-html.pipe';
@@ -32,6 +32,7 @@ function routePath(url: string): string {
     SidebarWidgetComponent,
     TranslatePipe
   ],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './app-sidebar.component.html',
 })
 export class AppSidebarComponent {
