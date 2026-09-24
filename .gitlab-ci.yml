@@ -92,9 +92,9 @@ workflow:
 
 .build:
   stage: build
-  image: docker:28-cli
+  image: docker:29-cli
   services:
-    - name: docker:28-dind
+    - name: docker:29-dind
       alias: docker
   cache:
     # Two entries: the binary (invalidated by version bumps) and the
