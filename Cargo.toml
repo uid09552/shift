@@ -44,7 +44,7 @@ calamine = "0.36.0"
 # Observability (OpenTelemetry traces + metrics over OTLP, off unless configured)
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-tracing-opentelemetry = "0.33"
+tracing-opentelemetry = "0.34"
 opentelemetry = { version = "0.32", features = ["metrics", "trace"] }
 opentelemetry_sdk = { version = "0.32", features = ["trace", "metrics"] }
 opentelemetry-otlp = { version = "0.32", default-features = false, features = ["grpc-tonic", "tls", "tls-roots", "tls-webpki-roots", "http-proto", "reqwest-blocking-client", "trace", "metrics", "internal-logs"] }
