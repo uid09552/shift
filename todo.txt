@@ -1,21 +1,4 @@
-1) rotation berücksichtigen im schichtplan optimizer algorithmus. es soll im planner settings, einstellbar ein (aktivierien, deaktivieren)
-   DONE. Planner settings → Coverage & continuity → "Keep rotations" (on by default).
-   On: rotations and other fixed assignments are planned first, as before. Off:
-   the optimizer plans as if there were none; the rotations stay saved. Setting
-   keep_fixed_assignments (migration 28), sent to the solver as a constraint, so
-   the assistant can also try "what if without rotations?"; its plan check stops
-   flagging unkept rotations when the setting is off.
-2) in dienstplan optimieren, datum selection, sollte kein text sondern kalender auswahl sein, ui creahsed oder ist überladen, wenn ich versuche jahr zu ändern.
-   DONE. Cause: typing a year into the date field passes through 0002, 0020, 0202…
-   and each asked for a coverage forecast thousands of years long. The date range
-   is now picked on a calendar (with year arrows), at most 92 days; the backend
-   refuses periods over 366 days.
-3) recreate readme.md it should become an opensource service. describe the project, purpose, contribution....
-   DONE. README.md rewritten; CONTRIBUTING.md and LICENSE (Apache-2.0) added.
 
---- Proposals (2026-09-25). Not started. Effort: S = view over existing data,
---- M = new endpoint or two, L = new tables + workflow. 4-10 are detailed in
---- docs/ui-proposals.md; 11-22 are new.
 
 Around the finished roster (the biggest gap: planning is strong, everything after it is thin)
 
