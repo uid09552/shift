@@ -23,7 +23,8 @@ export interface PaginatedConfirmedShiftPlanResponse {
 }
 
 export interface UpdateConfirmedShiftPlanRequest {
-  shift_id?: string;
+  /** null clears the shift — e.g. when the person is marked absent. */
+  shift_id?: string | null;
   workstation_id?: string | null;
   is_present?: boolean;
   absence_type?: string;

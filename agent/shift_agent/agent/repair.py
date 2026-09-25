@@ -375,6 +375,7 @@ class _Rules:
             "min_rest_hours": 11.0,
             "max_consecutive_days": 6,
             "max_working_days_per_week": 5,
+            "personal_limits_mode": "hard",
         }
         for key, value in (rules.get("constraints") or {}).items():
             if key in cfg and value is not None:
@@ -461,6 +462,11 @@ class _Rules:
             return f"does not work the {self.shift_name(shift_id)}"
         if day.isoformat() in self.unavailable.get(employee_id, set()):
             return "away that day"
+        if (
+            (self.employees.get(employee_id) or {}).get("no_night_shifts")
+            and (self.shifts.get(shift_id) or {}).get("is_night_shift")
+        ):
+            return "does not work night shifts (personal limit)"
         if workstation_id is None:
             return None
         workstation = self.workstations.get(workstation_id)
@@ -558,6 +564,12 @@ class _Rules:
             if streak > limit:
                 return f"would be {streak} working days in a row (limit {limit})"
 
+        # Personal night / weekend caps per calendar month — hard only in
+        # hard personal_limits_mode; in soft mode the solver may go over.
+        reason = self._personal_limit_reason(employee_id, day, shift_id, plan)
+        if reason:
+            return reason
+
         # Working days per seven-day block, counted from the start of the
         # period exactly as the solver buckets them.
         weekly = self.cfg["max_working_days_per_week"] or 0
@@ -567,6 +579,38 @@ class _Rules:
             if sum(1 for d in block if d in worked) + 1 > weekly:
                 return f"would be more than {weekly} working days in that week"
 
+        return None
+
+
+    def _personal_limit_reason(
+        self, employee_id: str, day: date, shift_id: str, plan: _Plan
+    ) -> str | None:
+        if self.cfg["personal_limits_mode"] != "hard":
+            return None
+        employee = self.employees.get(employee_id) or {}
+        worked = [
+            d for d in plan.days_by_employee.get(employee_id) or set()
+            if (d.year, d.month) == (day.year, day.month)
+        ]
+        max_nights = employee.get("max_nights_per_month")
+        if max_nights is not None and (self.shifts.get(shift_id) or {}).get("is_night_shift"):
+            nights = sum(
+                1 for d in worked
+                if (self.shifts.get((plan.get(employee_id, d) or ("", None))[0]) or {}).get("is_night_shift")
+            )
+            if nights + 1 > max_nights:
+                return f"would be more than {max_nights} night shifts this month (personal limit)"
+        max_weekends = employee.get("max_weekends_per_month")
+        if max_weekends is not None and day.weekday() >= 5:
+            saturday = day - timedelta(days=day.weekday() - 5)
+            weekends = {
+                d - timedelta(days=d.weekday() - 5)
+                for d in plan.days_by_employee.get(employee_id) or set()
+                if d.weekday() >= 5
+            }
+            weekends = {s for s in weekends if (s.year, s.month) == (saturday.year, saturday.month)}
+            if saturday not in weekends and len(weekends) + 1 > max_weekends:
+                return f"would be more than {max_weekends} weekends this month (personal limit)"
         return None
 
 

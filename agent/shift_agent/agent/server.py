@@ -72,7 +72,7 @@ from shift_agent.agent.documents import (
     parse_document,
 )
 from shift_agent.agent.graph import build_graph, build_llm, connect_mcp, disconnect_mcp
-from shift_agent.agent import repair, roster, validation
+from shift_agent.agent import repair, replacement, roster, validation
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -447,6 +447,53 @@ def create_app(knowledge_path: str | None = None) -> Flask:
             report["after"]["error_count"],
         )
         return jsonify(report)
+
+    # ---- Short-notice replacement (auth-protected) ----
+    @app.route("/api/v1/roster/replacements", methods=["POST"])
+    @require_auth
+    def find_replacements():
+        """Who can take an absent person's shift in the confirmed roster.
+
+        Body: { "employee_id": str, "date": "YYYY-MM-DD" }
+        Response: the slot, the colleagues who may legally take it ranked
+        best first (wish, preferred day off, hours below target, rest), and
+        everyone else with the rule that rules them out. Nothing is written.
+        """
+        if not request.is_json:
+            return jsonify({"error": "Content-Type must be application/json"}), 415
+        data = request.get_json(silent=True) or {}
+        employee_id = data.get("employee_id")
+        if not employee_id or not isinstance(employee_id, str):
+            return jsonify({"error": "Missing 'employee_id' (string)"}), 400
+        day = replacement._parse_day(data.get("date"))
+        if day is None:
+            return jsonify({"error": "Missing or invalid 'date' (YYYY-MM-DD)"}), 400
+
+        reset_token = set_forwarded_token(_request_token())
+        try:
+            with telemetry.span("agent.find_replacements", **{"agent.date": day.isoformat()}):
+                try:
+                    graph = _get_or_create_graph()
+                except Exception:
+                    logger.exception("Graph build / MCP connection failed")
+                    return jsonify({"error": "Agent backend unavailable"}), 503
+                try:
+                    answer = replacement.search(graph.mcp_client.call_sync, employee_id, day)
+                except validation.ValidationError as exc:
+                    return jsonify({"error": str(exc)}), 404
+                except repair.RepairError as exc:
+                    return jsonify({"error": str(exc)}), 404
+                except Exception:
+                    logger.exception("Replacement search failed for %s on %s", employee_id, day)
+                    return jsonify({"error": "The replacement search failed."}), 502
+        finally:
+            reset_forwarded_token(reset_token)
+
+        logger.info(
+            "Replacement for %s on %s: %d candidate(s), %d unavailable",
+            employee_id, day, len(answer["candidates"]), len(answer["unavailable"]),
+        )
+        return jsonify(answer)
 
     # ---- Roster file upload (auth-protected) ----
     @app.route("/api/v1/chat/upload", methods=["POST"])
