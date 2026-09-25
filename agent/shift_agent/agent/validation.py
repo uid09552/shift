@@ -418,6 +418,25 @@ class _Validator:
             self.by_emp_day[(a.employee_id, a.day)].append(a)
             self.days_by_employee[a.employee_id].add(a.day)
 
+        # The confirmed roster just before the period (preparePlan's
+        # `history`): never checked itself, but its recovery days, rest and
+        # running streaks bind the period's first days — as in the solver.
+        self.history: list[Assignment] = []
+        for row in rules.get("history") or []:
+            try:
+                day = _parse_date(row["date"])
+            except (KeyError, ValueError):
+                continue
+            if day < self.start and row.get("employee_id") and row.get("shift_id"):
+                self.history.append(
+                    Assignment(row["employee_id"], day, row["shift_id"], None)
+                )
+        self.history_by_emp_day: dict[tuple[str, date], list[Assignment]] = defaultdict(list)
+        self.history_days: dict[str, set[date]] = defaultdict(set)
+        for a in self.history:
+            self.history_by_emp_day[(a.employee_id, a.day)].append(a)
+            self.history_days[a.employee_id].add(a.day)
+
     # -- naming ------------------------------------------------------------
 
     def _emp_name(self, employee_id: str) -> str:
@@ -687,10 +706,12 @@ class _Validator:
         tenant's ``night_shift_recovery_days`` for night shifts, whichever is
         larger."""
         night_recovery = self.cfg["night_shift_recovery_days"] or 0
-        for a in self.assignments:
+        for a in [*self.history, *self.assignments]:
             shift = self.shifts.get(a.shift_id)
-            weekday_time = self.shift_wt.get((a.shift_id, _weekday(a.day)))
-            if shift is None or weekday_time is None:
+            # No weekday time: a history row on a day the shift no longer runs
+            # still owes the night recovery, as in the solver.
+            weekday_time = self.shift_wt.get((a.shift_id, _weekday(a.day))) or {}
+            if shift is None:
                 continue
             recovery = max(
                 weekday_time.get("free_days_after_shift") or 0,
@@ -744,7 +765,9 @@ class _Validator:
         min_rest = self.cfg["min_rest_hours"] or 0
         if min_rest <= 0:
             return
-        for (employee_id, day), rows in self.by_emp_day.items():
+        for (employee_id, day), rows in [
+            *self.history_by_emp_day.items(), *self.by_emp_day.items(),
+        ]:
             following = day + timedelta(days=1)
             next_rows = self.by_emp_day.get((employee_id, following))
             if not next_rows:
@@ -777,13 +800,15 @@ class _Validator:
         if limit <= 0:
             return
         for employee_id, days in self.days_by_employee.items():
-            worked = sorted(days)
+            # A streak already running before the period counts; one that
+            # ends before it is not this plan's to answer for.
+            worked = sorted(days | self.history_days.get(employee_id, set()))
             streak_start = None
             previous = None
             for day in [*worked, None]:
                 if previous is not None and (day is None or day != previous + timedelta(days=1)):
                     length = (previous - streak_start).days + 1
-                    if length > limit:
+                    if length > limit and previous >= self.start:
                         self.findings.add(
                             "max_consecutive_days", SEVERITY_ERROR,
                             "Too many days worked in a row",

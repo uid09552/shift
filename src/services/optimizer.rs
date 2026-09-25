@@ -8,7 +8,7 @@ use axum::{
 use chrono::{Local, NaiveDate, Utc};
 use crate::broker::JetStreamStatus;
 use crate::errors::AppError;
-use crate::models::{ConstraintTask, PlanningPeriod, ShiftTask, ShiftWeekdayTimeTask, TaskDTO, TaskResultDto, EmployeeTask, WorkstationTask, WorkstationUnavailabilityRange, CapabilityTask, PreferredOffTask, ShiftWishTask, FixedShiftTask};
+use crate::models::{ConstraintTask, PlanningPeriod, ShiftTask, ShiftWeekdayTimeTask, TaskDTO, TaskResultDto, EmployeeTask, WorkstationTask, WorkstationUnavailabilityRange, CapabilityTask, PreferredOffTask, ShiftWishTask, FixedShiftTask, HistoryShiftTask};
 use crate::repository::{AppState, domain::*};
 use crate::services::audit_log::{self, AuditActor};
 use crate::services::tenant::TenantContext;
@@ -117,6 +117,11 @@ fn check_period(start: chrono::NaiveDate, end: chrono::NaiveDate) -> Result<(), 
 }
 
 // ── OptimizerService ─────────────────────────────────────────────────────────
+
+/// Days before the period whose confirmed roster goes to the optimizer as
+/// `history`. Covers the longest rule that reaches back: `max_consecutive_days`
+/// is at most 14, recovery days at most 7.
+const HISTORY_DAYS: i64 = 14;
 
 pub struct OptimizerService {
     state: AppState,
@@ -231,6 +236,25 @@ impl OptimizerService {
             });
         }
 
+        // What was actually worked just before the period: its rest rules
+        // still bind the first days (see TaskDTO::history).
+        let history_start = period_start - chrono::Duration::days(HISTORY_DAYS);
+        let history_end = period_start - chrono::Duration::days(1);
+        let history: Vec<HistoryShiftTask> = state
+            .confirmed_shift_plan_repo
+            .get_confirmed_shift_plans_for_date_range(tenant_id, history_start, history_end, None, None)
+            .await?
+            .into_iter()
+            .filter(|p| p.is_present)
+            .filter_map(|p| {
+                p.shift_id.map(|shift_id| HistoryShiftTask {
+                    employee_id: p.employee_id.to_string(),
+                    date: p.date.to_string(),
+                    shift_id: shift_id.to_string(),
+                })
+            })
+            .collect();
+
         let employee_tasks: Vec<EmployeeTask> = employees.into_iter()
             .map(|emp| {
                 let unavailability = unavail_map.get(&emp.id).cloned().unwrap_or_default();
@@ -277,6 +301,7 @@ impl OptimizerService {
             workstations: workstation_tasks,
             employees: employee_tasks,
             capabilities: capability_tasks,
+            history,
             constraints,
         })
     }

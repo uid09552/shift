@@ -44,6 +44,13 @@ Planner / optimizer
 11) Period boundaries — the solver sees only the planning period, so a night on the
     31st doesn't block the 1st and rest/consecutive-day limits restart every month.
     Send the last N days of the confirmed roster as read-only history. [M]
+    DONE. The backend sends the confirmed roster of the 14 days before the period
+    as `history` (TaskDTO, /planner/prepare and /planner/plan). The solver carries
+    recovery days, minimum rest and running streaks (max_consecutive_days) across
+    the start; blocked slots get no variable, so locks/rotations on them are
+    named in `message`, never infeasible. The agent's plan check follows the same
+    history. Not carried: the weekly day cap (7-day blocks from the period start).
+    Tests: planner/tests/test_history.py.
 12) Public holidays per region — holiday calendar (tenant setting, e.g. Bavaria),
     counted like weekends in fairness, optional own staffing minimum; today "holiday"
     exists only as an absence type. [M]

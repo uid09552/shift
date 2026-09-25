@@ -61,8 +61,21 @@ pub struct TaskDTO {
     // don't set skill_group see no change from a plain required-skills match.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub capabilities: Vec<CapabilityTask>,
+    // The confirmed roster in the days before the period (HISTORY_DAYS).
+    // Read-only for the optimizer: it carries rest rules across the period
+    // start — recovery after a night on the last day, rest before the first
+    // morning, a streak of working days already running.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub history: Vec<HistoryShiftTask>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub constraints: Option<ConstraintTask>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct HistoryShiftTask {
+    pub employee_id: String,
+    pub date: String,
+    pub shift_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

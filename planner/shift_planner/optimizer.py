@@ -167,6 +167,7 @@ class ShiftPlanner:
         self._parse_config(data)
         self._load_capability_catalog(data)
         self._build_lookups()
+        self._load_history()
 
         self.model = cp_model.CpModel()
 
@@ -212,6 +213,7 @@ class ShiftPlanner:
         self.shifts = data["shifts"]
         self.workstations = data["workstations"]
         self.locked_assignments = data.get("locked_assignments") or []
+        self.history = data.get("history") or []
         self.num_emp = len(self.employees)
         self.num_shifts = len(self.shifts)
         self.num_ws = len(self.workstations)
@@ -303,6 +305,95 @@ class ShiftPlanner:
             for e_idx, emp in enumerate(employees)
             if emp.get("monthly_working_hours", 0.0) > 0
         }
+
+    def _load_history(self) -> None:
+        """What the days before the period still demand of the first ones.
+
+        The solver sees only the planning period, so without this a night on
+        the 31st would not block the 1st and every streak would restart at the
+        period start. From the `history` rows (the confirmed roster just
+        before the period) this derives:
+
+        - `history_blocked_days`: (employee id, d_idx) -> reason — a recovery
+          day owed after a shift worked before the period;
+        - `history_blocked_shifts`: (employee id, d_idx, shift id) -> reason —
+          a shift on the first day that would start too soon after the last
+          shift before it (min_rest);
+        - `history_worked`: e_idx -> days before the period start that were
+          worked (1 = the day before), for the consecutive-days limit.
+
+        Blocked slots get no decision variable at all, like an absence: a lock
+        or fixed assignment on one is then reported, never made infeasible.
+        """
+        self.history_blocked_days: dict = {}
+        self.history_blocked_shifts: dict = {}
+        self.history_worked: dict = {}
+        if not self.history:
+            return
+
+        emp_idx = {e["id"]: i for i, e in enumerate(self.employees)}
+        shift_names = {s["id"]: s["name"] for s in self.shifts}
+        used = 0
+        for row in self.history:
+            e_idx = emp_idx.get(row["employee_id"])
+            day = parse_date(row["date"])
+            days_before = (self.start - day).days
+            if e_idx is None or days_before <= 0:
+                continue  # someone not in this run, or not before the period
+            used += 1
+            eid = row["employee_id"]
+            self.history_worked.setdefault(e_idx, set()).add(days_before)
+
+            sid = row["shift_id"]
+            if sid not in shift_names:
+                continue  # a shift since deleted: it still counts as a worked day
+            wday = weekday_num(day)
+            label = f"{shift_names[sid]} on {day}"
+            if (sid, wday) in self.shift_wt:
+                recovery = self._shift_recovery_days(sid, wday)
+            else:  # hand-entered on a weekday the shift no longer runs
+                recovery = self.night_recovery if self.shift_is_night[sid] else 0
+            for d_idx in range(0, recovery - days_before + 1):
+                if d_idx < self.num_days:
+                    self.history_blocked_days.setdefault(
+                        (eid, d_idx), f"recovery day after {label}",
+                    )
+            if days_before == 1 and recovery == 0 and (sid, wday) in self.shift_wt:
+                for s2 in self.shifts:
+                    sid2 = s2["id"]
+                    if (sid2, self.day_wd[0]) not in self.shift_wt:
+                        continue
+                    rest = self._rest_hours(sid, wday, sid2, self.day_wd[0])
+                    if rest < self.min_rest or rest < 0:
+                        self.history_blocked_shifts.setdefault(
+                            (eid, 0, sid2), f"too little rest after {label}",
+                        )
+
+        logger.info(
+            "History: %d of %d row(s) before %s used; %d day(s) and %d first-day "
+            "shift(s) blocked",
+            used, len(self.history), self.start,
+            len(self.history_blocked_days), len(self.history_blocked_shifts),
+        )
+
+    def _history_block(self, eid: str, d_idx: int, sid: str) -> str | None:
+        """Why history rules this slot out, or None."""
+        return (
+            self.history_blocked_days.get((eid, d_idx))
+            or self.history_blocked_shifts.get((eid, d_idx, sid))
+        )
+
+    def _rest_hours(self, sid1: str, wd1: str, sid2: str, wd2: str) -> float:
+        """Hours between the end of sid1 on one day and the start of sid2 on
+        the next. A shift whose end_time is at or before its start_time runs
+        past midnight; a negative result means the two overlap."""
+        start1 = _parse_time_minutes(self.shift_wt[(sid1, wd1)]["start_time"])
+        end1 = _parse_time_minutes(self.shift_wt[(sid1, wd1)]["end_time"])
+        if end1 <= start1:
+            end1 += 24 * 60  # runs into the next day
+        # Day 2 starts 24h after day 1.
+        start2 = 24 * 60 + _parse_time_minutes(self.shift_wt[(sid2, wd2)]["start_time"])
+        return (start2 - end1) / 60.0
 
     def _load_capability_catalog(self, data: dict) -> None:
         """Skill-level catalog (see CapabilityInfo): capabilities without a
@@ -415,6 +506,8 @@ class ShiftPlanner:
                         continue
                     if sid not in self.emp_avail_shifts[eid]:
                         continue
+                    if self._history_block(eid, d_idx, sid):
+                        continue
                     for w_idx, ws in enumerate(self.workstations):
                         wid = ws["id"]
                         if sid not in self.ws_op_shifts[wid]:
@@ -486,7 +579,10 @@ class ShiftPlanner:
                 continue
             var = self.x.get((e_idx, d_idx, s_idx, w_idx))
             if var is None:
-                if self._ws_unavailable_on(lock["workstation_id"], self.days[d_idx]):
+                history = self._history_block(lock["employee_id"], d_idx, lock["shift_id"])
+                if history:
+                    self.lock_warnings.append(f"{where}: {history}")
+                elif self._ws_unavailable_on(lock["workstation_id"], self.days[d_idx]):
                     self.lock_warnings.append(f"{where}: the workstation is closed that day")
                 else:
                     self.lock_warnings.append(
@@ -554,6 +650,9 @@ class ShiftPlanner:
             return "absent that day"
         if sid not in self.emp_avail_shifts[emp["id"]]:
             return "the shift is not among their available shifts"
+        history = self._history_block(emp["id"], d_idx, sid)
+        if history:
+            return history
         if self.day_wd[d_idx] not in self.shift_weekdays[sid]:
             return "the shift does not run on that weekday"
         if not self._shift_open_somewhere(sid, day):
@@ -707,20 +806,11 @@ class ShiftPlanner:
                     # night shift when night_shift_recovery_days is 0 — still
                     # need the rest check.
                     continue
-                wt1 = self.shift_wt[(sid1, wd1)]
-                start1 = _parse_time_minutes(wt1["start_time"])
-                end1 = _parse_time_minutes(wt1["end_time"])
-                if end1 <= start1:
-                    end1 += 24 * 60  # runs into the next day
                 for s2_idx, s2 in enumerate(self.shifts):
                     sid2 = s2["id"]
                     if (sid2, wd2) not in self.shift_wt:
                         continue
-                    # Day 2 starts 24h after day 1.
-                    start2 = 24 * 60 + _parse_time_minutes(
-                        self.shift_wt[(sid2, wd2)]["start_time"]
-                    )
-                    rest_hours = (start2 - end1) / 60.0
+                    rest_hours = self._rest_hours(sid1, wd1, sid2, wd2)
                     if rest_hours < self.min_rest or rest_hours < 0:
                         pairs.append((s1_idx, s2_idx))
             forbidden_cache[key] = pairs
@@ -760,6 +850,26 @@ class ShiftPlanner:
                     window_terms.extend(day_terms)
                 else:
                     self.model.Add(sum(window_terms) <= self.max_consec)
+
+            # Windows that begin before the period: the days already worked
+            # there (history) use up part of the allowance.
+            worked_before = self.history_worked.get(e_idx, set())
+            for first in range(-self.max_consec, 0):
+                already = sum(1 for d in range(first, 0) if -d in worked_before)
+                if not already:
+                    continue
+                allowed = self.max_consec - already
+                window_terms = []
+                days_in_period = 0
+                for d in range(0, min(first + self.max_consec + 1, self.num_days)):
+                    day_terms = self.vars_by_emp_day.get((e_idx, d))
+                    if not day_terms:
+                        break  # a day they cannot work ends the streak anyway
+                    window_terms.extend(day_terms)
+                    days_in_period += 1
+                else:
+                    if days_in_period > allowed:
+                        self.model.Add(sum(window_terms) <= allowed)
 
     # ---- Objective (soft constraints) --------------------------------------
 
