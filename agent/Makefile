@@ -1,4 +1,4 @@
-.PHONY: install sync chat api api-custom api-debug mcp mcp-http mcp-token knowledge test-api clean help
+.PHONY: install sync chat api api-custom api-debug mcp mcp-http mcp-token knowledge test test-api clean help
 
 # Default target
 all: install
@@ -56,6 +56,10 @@ sys.exit(json.dumps(d)) if 'access_token' not in d else print(d['access_token'])
 knowledge:
 	uv run shift-agent knowledge $(if $(Q),"$(Q)",)
 
+# Unit tests (pytest is fetched for the run, not a project dependency)
+test:
+	uv run --with pytest pytest -q tests
+
 # Quick smoke test of the API (no auth)
 test-api:
 	@echo "Starting API server for testing..."
@@ -105,6 +109,7 @@ help:
 	@echo "  make mcp-http    Start MCP server (streamable HTTP, :8900)"
 	@echo "  make mcp-token   Fetch an access token for the HTTP MCP server"
 	@echo "  make knowledge   List the knowledge bundle (Q=\"...\" to search it)"
+	@echo "  make test        Run the unit tests"
 	@echo "  make test-api    Smoke test the REST API (no auth)"
 	@echo "  make test-api-auth  Smoke test with Keycloak auth"
 	@echo "  make clean       Remove .venv and build artifacts"

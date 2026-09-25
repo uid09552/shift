@@ -198,6 +198,11 @@ Base URL: `http://localhost:8080/api/v1`
   planner's own instruction where the rules allow. `strategy` is `repair`
   (local moves) or `resolve` (re-solve the period, keeping what was pinned).
   Also served by the agent — see `agent/shift_agent/agent/repair.py`
+- `POST /agent/roster/replacements` - Short-notice replacement: who may take an
+  absent person's shift in the confirmed roster, ranked (wish, preferred day off,
+  hours below target, rest), and why everyone else may not. Read-only; the
+  Schedule page's *Find replacement…* uses it. See
+  `agent/shift_agent/agent/replacement.py`
 - `GET /shift-assignments`, `POST /shift-assignments/clear` - Fixed shift
   assignments in a period (per employee: `/employees/{id}/shift-assignments`)
 - `GET/POST /rotation-patterns`, `POST /rotation-patterns/{id}/apply` - Rotation

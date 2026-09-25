@@ -37,6 +37,7 @@ flowchart TB
 | `roster.py` | `previewRosterUpload`, `interpretRosterUpload`, `applyRosterUpload`, plus the per-session store the uploaded grid lives in. |
 | `validation.py` | `validateOptimizedPlan` and the `POST /api/v1/plan/validate` endpoint — checking a proposed plan against the rules it was solved under. See [Plan verification](#plan-verification). |
 | `repair.py` | `repairOptimizedPlan` and the `POST /api/v1/plan/fix` endpoint — putting right what the check found, and saving it. See [Plan repair](#plan-repair). |
+| `replacement.py` | The `POST /api/v1/roster/replacements` endpoint — who can take an absent person's shift in the confirmed roster. See [Short-notice replacement](#short-notice-replacement). |
 | `server.py` | The HTTP surface. Validates the caller's token against Keycloak's JWKS, then stores it in a contextvar for the duration of the agent call. |
 | `auth.py` | Keycloak verification plus the contextvar holding the token. |
 
@@ -258,6 +259,41 @@ uv run shift-agent fix <result-id> -i "take Anna off Thursday"
 uv run shift-agent fix <result-id> --strategy resolve --dry-run   # nothing saved
 uv run shift-agent fix <result-id> --json
 ```
+
+## Short-notice replacement
+
+`POST /api/v1/roster/replacements` answers *"Anna is sick tomorrow — who can
+take her shift?"* for the **confirmed** roster, the one people are working to.
+
+```bash
+curl -X POST http://localhost:8899/api/v1/roster/replacements \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"employee_id": "<anna>", "date": "2026-09-26"}'
+```
+
+It reads the rules for the date's month (`preparePlan`, which carries personal
+limits and the settings) and the confirmed roster from 14 days before that
+month to 14 days after it, then asks the repair's own question —
+`_Rules.blocking_reason` — of every colleague for Anna's shift and workstation:
+away or absent, not qualified, does not work that shift, already working that
+day, the station already at its maximum, recovery days, minimum rest, too long
+a streak, the weekly day cap, a hard personal limit. Whoever is ruled out comes
+back in `unavailable` with that reason. Everyone else is in `candidates`,
+ranked:
+
+1. a shift wish for exactly that slot;
+2. not on one of their preferred days off;
+3. furthest below their hours target for the month;
+4. most rest since their last shift.
+
+A colleague whose day is a planned day off (a `free` row, as *Take as Plan*
+writes) counts as available, and their `free_plan_id` names the row the new
+shift replaces — there is one row per person and day. `slot.staffed_without`
+with `min_employees` / `max_employees` says whether anyone is needed at all.
+
+Nothing is written. On the Schedule page, *Find replacement…* in a cell's menu
+opens the list; *Assign* marks the absent person (sick, vacation or absent) and
+puts the colleague on the shift through the ordinary confirmed-plan endpoints.
 
 ## Roster uploads
 

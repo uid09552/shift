@@ -423,6 +423,17 @@
                           </button>
                           <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
                           <button
+                            (click)="openReplacement(employee.id, day, $event)"
+                            data-testid="schedule-find-replacement"
+                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-brand-600 transition hover:bg-gray-50 dark:text-brand-400 dark:hover:bg-gray-700/50"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 11 2 2 4-4"/>
+                            </svg>
+                            {{ 'schedule.findReplacement' | t }}
+                          </button>
+                          <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
+                          <button
                             (click)="cancelEdit()"
                             class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-500 transition hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/50"
                           >
@@ -762,3 +773,9 @@
     </div>
   }
 </app-modal>
+
+<app-replacement-dialog
+  [request]="replacementRequest"
+  (closed)="replacementRequest = null"
+  (replaced)="onReplaced($event)"
+/>

@@ -54,6 +54,15 @@ Planner / optimizer
     hard vs soft staffing) and show both in Compare; the assistant already asks this. [S]
 16) Short-notice replacement — "Anna is sick tomorrow": rank qualified, rested, under-
     hours colleagues for that slot, using the repair logic for one slot only. [M]
+    DONE. Schedule page → a shift's menu → "Find replacement…": everyone the rules
+    allow (repair's blocking_reason — skills, rest, recovery, streaks, weekly cap,
+    station maximum, hard personal limits) ranked by wish, preferred day off,
+    hours below the month's target, then rest; everyone else with the reason.
+    Shows how many are left on the shift against its minimum. "Assign" marks the
+    absent person sick / vacation / absent and puts the colleague on the shift.
+    Agent endpoint POST /agent/roster/replacements (read-only). The repair now
+    also respects personal limits. Tests: agent/tests/test_replacement.py
+    (make test in agent/).
 
 Organisation / data
 

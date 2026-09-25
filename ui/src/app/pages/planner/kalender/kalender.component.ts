@@ -31,6 +31,7 @@ import { GlobalSearchService } from '../../../shared/services/global-search.serv
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
 import { ModalComponent } from '../../../shared/components/ui/modal/modal.component';
+import { ReplacementDialogComponent, ReplacementDone, ReplacementRequest } from './replacement-dialog.component';
 import { GroupedPlanViewComponent } from './grouped-plan-view.component';
 import { DayViewComponent } from '../day-view/day-view.component';
 import {
@@ -74,6 +75,7 @@ interface WishCellData {
     GroupedPlanViewComponent,
     DayViewComponent,
     ModalComponent,
+    ReplacementDialogComponent,
     TranslatePipe,
   ],
   templateUrl: './kalender.component.html',
@@ -826,6 +828,31 @@ export class KalenderComponent implements OnInit, OnDestroy {
   cancelEdit(): void {
     this.editingCell = null;
     this.pendingWorkstationId = null;
+  }
+
+  // ── Short-notice replacement ──────────────────────────────────
+
+  /** The absent person and day the replacement dialog is open for. */
+  replacementRequest: ReplacementRequest | null = null;
+
+  openReplacement(employeeId: string, day: DayInfo, event: Event): void {
+    event.stopPropagation();
+    this.editingCell = null;
+    this.pendingWorkstationId = null;
+    this.replacementRequest = { employeeId, date: this.formatDate(day.date) };
+  }
+
+  /** Both cells changed on the server: the absence, and the colleague's new shift. */
+  onReplaced(done: ReplacementDone): void {
+    for (const plan of [done.absent, done.replacement]) {
+      let inner = this.planMap.get(plan.employee_id);
+      if (!inner) {
+        inner = new Map();
+        this.planMap.set(plan.employee_id, inner);
+      }
+      inner.set(plan.date, plan);
+    }
+    this.replacementRequest = null;
   }
 
   startDelete(employeeId: string, day: DayInfo, planId: string, event: Event): void {
