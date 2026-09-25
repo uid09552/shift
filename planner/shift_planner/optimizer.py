@@ -113,6 +113,7 @@ _DEFAULT_CONSTRAINTS = {
     "night_shift_fatigue_multiplier": 2.0,
     "min_staffing_mode": "soft",  # or "hard" — see ConstraintConfig
     "keep_fixed_assignments": True,  # False: plan as if employees had no fixed_shifts
+    "personal_limits_mode": "hard",  # or "soft" — see ConstraintConfig
     "solver_time_limit_seconds": 120.0,
     "solver_num_workers": 8,
 }
@@ -197,6 +198,9 @@ class ShiftPlanner:
         self.fixed_terms: list = []
         # Fixed assignments no plan could keep (absent, not qualified, …).
         self.fixed_warnings: list[str] = []
+        # Soft-mode nights/weekends over a personal limit, as (IntVar, upper
+        # bound). Minimised right after coverage — see _solve.
+        self.personal_excess: list = []
 
     # ---- Input parsing -----------------------------------------------------
 
@@ -244,6 +248,7 @@ class ShiftPlanner:
         self.night_fatigue_mult = cfg["night_shift_fatigue_multiplier"]
         self.min_staffing_hard = cfg["min_staffing_mode"] == "hard"
         self.keep_fixed = cfg["keep_fixed_assignments"]
+        self.personal_limits_hard = cfg["personal_limits_mode"] == "hard"
         self.time_limit = cfg["solver_time_limit_seconds"]
         self.num_workers = cfg["solver_num_workers"]
         logger.info("Constraint config: %s", cfg)
@@ -260,6 +265,8 @@ class ShiftPlanner:
         self.emp_preferred_off = {e["id"]: e.get("preferred_off", []) for e in employees}
         self.emp_wishes = {e["id"]: e.get("wishes", []) for e in employees}
         self.emp_fixed = {e["id"]: e.get("fixed_shifts") or [] for e in employees}
+        self.emp_no_nights = {e["id"] for e in employees if e.get("no_night_shifts")}
+        self.emp_days_off = {e["id"]: set(e.get("preferred_days_off") or []) for e in employees}
 
         self.ws_req_skills = {w["id"]: set(w["required_skills"]) for w in workstations}
         self.ws_op_shifts = {w["id"]: set(w["operating_shifts"]) for w in workstations}
@@ -508,6 +515,8 @@ class ShiftPlanner:
                         continue
                     if self._history_block(eid, d_idx, sid):
                         continue
+                    if eid in self.emp_no_nights and self.shift_is_night[sid]:
+                        continue
                     for w_idx, ws in enumerate(self.workstations):
                         wid = ws["id"]
                         if sid not in self.ws_op_shifts[wid]:
@@ -545,6 +554,7 @@ class ShiftPlanner:
         self._limit_weekly_days()
         self._limit_min_rest()
         self._limit_consecutive_days()
+        self._limit_personal_nights_and_weekends()
 
     def _pin_locked_assignments(self) -> None:
         """0) Assignments the caller fixed: solve around them, don't re-decide them.
@@ -653,6 +663,8 @@ class ShiftPlanner:
         history = self._history_block(emp["id"], d_idx, sid)
         if history:
             return history
+        if emp["id"] in self.emp_no_nights and self.shift_is_night.get(sid):
+            return "they do not work night shifts"
         if self.day_wd[d_idx] not in self.shift_weekdays[sid]:
             return "the shift does not run on that weekday"
         if not self._shift_open_somewhere(sid, day):
@@ -871,6 +883,60 @@ class ShiftPlanner:
                     if days_in_period > allowed:
                         self.model.Add(sum(window_terms) <= allowed)
 
+    def _limit_personal_nights_and_weekends(self) -> None:
+        """8) Personal limits: max_nights_per_month and max_weekends_per_month,
+        per employee and calendar month (only the part of the month inside the
+        period is planned, so that part gets the whole allowance).
+
+        A weekend counts when Saturday or Sunday is worked; it belongs to the
+        month of its Saturday. Hard mode caps the count; soft mode lets it go
+        over, minimised in _solve right after coverage — so it only goes over
+        to fill a slot that would otherwise stay empty.
+        (no_night_shifts is handled at variable creation: always hard.)
+        """
+        night_idx = [i for i, s in enumerate(self.shifts) if self.shift_is_night[s["id"]]]
+        for e_idx, emp in enumerate(self.employees):
+            max_nights = emp.get("max_nights_per_month")
+            max_weekends = emp.get("max_weekends_per_month")
+            if max_nights is not None and night_idx:
+                by_month: dict = {}
+                for d_idx, day in enumerate(self.days):
+                    for s_idx in night_idx:
+                        by_month.setdefault((day.year, day.month), []).extend(
+                            self.vars_by_emp_day_shift.get((e_idx, d_idx, s_idx), [])
+                        )
+                for (year, month), terms in by_month.items():
+                    self._cap_personal(terms, max_nights, f"nights_{e_idx}_{year}_{month}")
+            if max_weekends is not None:
+                weekends: dict = {}  # Saturday -> [vars of that Saturday and Sunday]
+                for d_idx, day in enumerate(self.days):
+                    if day.weekday() < 5:
+                        continue
+                    saturday = day - timedelta(days=day.weekday() - 5)
+                    weekends.setdefault(saturday, []).extend(
+                        self.vars_by_emp_day.get((e_idx, d_idx), [])
+                    )
+                by_month = {}
+                for saturday, terms in weekends.items():
+                    if not terms:
+                        continue
+                    worked = self.model.NewBoolVar(f"weekend_{e_idx}_{saturday}")
+                    for var in terms:
+                        self.model.AddImplication(var, worked)
+                    by_month.setdefault((saturday.year, saturday.month), []).append(worked)
+                for (year, month), terms in by_month.items():
+                    self._cap_personal(terms, max_weekends, f"weekends_{e_idx}_{year}_{month}")
+
+    def _cap_personal(self, terms: list, limit: int, name: str) -> None:
+        if len(terms) <= limit:
+            return  # cannot be exceeded
+        if self.personal_limits_hard:
+            self.model.Add(sum(terms) <= limit)
+            return
+        excess = self.model.NewIntVar(0, len(terms), f"excess_{name}")
+        self.model.Add(sum(terms) - excess <= limit)
+        self.personal_excess.append((excess, len(terms)))
+
     # ---- Objective (soft constraints) --------------------------------------
 
     def _add_objective(self) -> None:
@@ -882,6 +948,7 @@ class ShiftPlanner:
         self._penalize_monthly_hours_deviation()
         self._penalize_weekly_hours_band()
         self._penalize_preference_violations()
+        self._penalize_preferred_days_off()
         self._reward_wishes()
         self._penalize_fatigue()
         self._reward_shift_continuity()
@@ -1045,6 +1112,21 @@ class ShiftPlanner:
                 self.model.Add(sum(terms) == violated)
                 self.obj_terms.append(-self.preference_w * violated)
 
+    def _penalize_preferred_days_off(self) -> None:
+        """3d) Recurring preferred days off (personal limits): each day worked
+        on one of the employee's preferred_days_off weekdays costs
+        preference_weight, exactly like a one-off preferred_off day."""
+        if self.preference_w <= 0:
+            return
+        for e_idx, emp in enumerate(self.employees):
+            weekdays = self.emp_days_off.get(emp["id"])
+            if not weekdays:
+                continue
+            for d_idx, wday in enumerate(self.day_wd):
+                if wday in weekdays:
+                    for var in self.vars_by_emp_day.get((e_idx, d_idx), []):
+                        self.obj_terms.append(-self.preference_w * var)
+
     def _reward_wishes(self) -> None:
         """3c-bis) Shift wishes: employees may wish to work a specific shift on
         a specific date. The positive counterpart of preferred_off — fulfilling
@@ -1206,7 +1288,8 @@ class ShiftPlanner:
         its slot earns — and the solver leaves the slot empty. Instead:
 
         1. Minimise broken fixed assignments, then the priority-weighted
-           shortfall against every minimum.
+           shortfall against every minimum, then the nights/weekends over a
+           soft personal limit.
         2. Pin that result (never more shortfall than phase 1 found) and hint
            its plan, then optimise balance, wishes, fatigue, continuity, …
 
@@ -1217,13 +1300,18 @@ class ShiftPlanner:
         fallback = None  # phase-1 plan, if phase 2 finds nothing in time
         coverage_proven = True
 
-        if self.shortfall_vars or self.fixed_terms:
-            # Fixed assignments first, then coverage: one broken fixed
-            # assignment outweighs the largest shortfall the model allows.
+        if self.shortfall_vars or self.fixed_terms or self.personal_excess:
+            # Fixed assignments first, then coverage, then personal limits:
+            # each tier's weight exceeds the largest total the tiers below it
+            # can reach, so the order is strict.
+            excess = sum(v for v, _ub in self.personal_excess)
+            coverage_weight = sum(ub for _v, ub in self.personal_excess) + 1
             shortfall = sum(w * v for v, w, _ub in self.shortfall_vars)
-            fixed_weight = sum(w * ub for _v, w, ub in self.shortfall_vars) + 1
+            fixed_weight = coverage_weight * (
+                sum(w * ub for _v, w, ub in self.shortfall_vars) + 1
+            )
             broken = sum(violation for *_, violation, _label in self.fixed_terms)
-            weighted = fixed_weight * broken + shortfall
+            weighted = fixed_weight * broken + coverage_weight * shortfall + excess
             self.model.Minimize(weighted)
             solver, status = self._run_solver(
                 self.time_limit * _COVERAGE_TIME_SHARE, "coverage"
@@ -1335,6 +1423,32 @@ class ShiftPlanner:
                     gaps.append(f"{day} {shift['name']} (all workstations) {have}/{need}")
         return gaps
 
+    def _personal_limits_exceeded(self, assigned: dict) -> list[str]:
+        """'Alice: 5 nights in 2026-09 (max 4)' for every personal limit the
+        plan goes over — only possible in soft mode."""
+        nights: dict = {}
+        weekends: dict = {}
+        for (e_idx, d_idx), (s_idx, _w_idx) in assigned.items():
+            day = self.days[d_idx]
+            if self.shift_is_night[self.shifts[s_idx]["id"]]:
+                key = (e_idx, day.year, day.month)
+                nights[key] = nights.get(key, 0) + 1
+            if day.weekday() >= 5:
+                saturday = day - timedelta(days=day.weekday() - 5)
+                weekends.setdefault((e_idx, saturday.year, saturday.month), set()).add(saturday)
+        over = []
+        for (e_idx, year, month), count in sorted(nights.items()):
+            limit = self.employees[e_idx].get("max_nights_per_month")
+            if limit is not None and count > limit:
+                name = self.employees[e_idx]["name"]
+                over.append(f"{name}: {count} nights in {year}-{month:02d} (max {limit})")
+        for (e_idx, year, month), saturdays in sorted(weekends.items()):
+            limit = self.employees[e_idx].get("max_weekends_per_month")
+            if limit is not None and len(saturdays) > limit:
+                name = self.employees[e_idx]["name"]
+                over.append(f"{name}: {len(saturdays)} weekends in {year}-{month:02d} (max {limit})")
+        return over
+
     def _build_schedule(self, assigned: dict) -> list:
         """Per-day schedule grouped by shift."""
         by_day_shift: dict = {}
@@ -1421,6 +1535,7 @@ class ShiftPlanner:
             _listing("Fixed assignment(s) not kept", not_kept),
             _listing("Ignored locked assignment(s)", self.lock_warnings),
             _listing("Below minimum staffing", gaps),
+            _listing("Personal limit(s) exceeded", self._personal_limits_exceeded(assigned)),
             note,
         ]
         return SchedulingOutput(

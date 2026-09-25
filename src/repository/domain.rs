@@ -476,6 +476,9 @@ pub struct PlannerSettingsDomain {
     /// Keep employees' fixed assignments (rotations) ahead of every other goal,
     /// or plan as if there were none.
     pub keep_fixed_assignments: bool,
+    /// Whether employees' max_nights_per_month / max_weekends_per_month are
+    /// hard limits or penalised targets. Same two values as min_staffing_mode.
+    pub personal_limits_mode: MinStaffingMode,
 }
 
 /// Whether `min_employees` (per shift/day and per workstation/shift/day) is a
@@ -504,6 +507,15 @@ impl MinStaffingMode {
         match value {
             "hard" => MinStaffingMode::Hard,
             _ => MinStaffingMode::Soft,
+        }
+    }
+
+    /// Like `from_db`, for a column whose safe fallback is not `Soft`.
+    pub fn from_db_or(value: &str, fallback: MinStaffingMode) -> Self {
+        match value {
+            "hard" => MinStaffingMode::Hard,
+            "soft" => MinStaffingMode::Soft,
+            _ => fallback,
         }
     }
 }
@@ -545,6 +557,8 @@ pub struct UpdatePlannerSettings {
     pub min_staffing_mode: MinStaffingMode,
     #[serde(default = "default_keep_fixed_assignments")]
     pub keep_fixed_assignments: bool,
+    #[serde(default = "default_personal_limits_mode")]
+    pub personal_limits_mode: MinStaffingMode,
 }
 
 fn default_weekly_hours_target_weight() -> i32 { 1000 }
@@ -557,6 +571,7 @@ fn default_shift_continuity_week_bonus() -> i32 { 2000 }
 fn default_wish_weight() -> i32 { 20000 }
 fn default_min_staffing_mode() -> MinStaffingMode { MinStaffingMode::Soft }
 fn default_keep_fixed_assignments() -> bool { true }
+fn default_personal_limits_mode() -> MinStaffingMode { MinStaffingMode::Hard }
 
 #[async_trait]
 pub trait PlannerSettingsRepository {
@@ -643,4 +658,61 @@ pub trait WishSettingsRepository {
     /// access — the behaviour that predates the window.
     async fn get_or_create_wish_settings(&self, tenant_id: &str) -> Result<WishSettingsDomain, AppError>;
     async fn update_wish_settings(&self, tenant_id: &str, settings: UpdateWishSettings) -> Result<WishSettingsDomain, AppError>;
+}
+
+/// One employee's personal limits (`employee_personal_limits`). An employee
+/// without a row has none — `PersonalLimitsDomain::none`.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct PersonalLimitsDomain {
+    pub employee_id: Uuid,
+    /// Night shifts per calendar month; None = no personal limit.
+    pub max_nights_per_month: Option<i16>,
+    /// Weekends (Saturday and/or Sunday worked) per calendar month.
+    pub max_weekends_per_month: Option<i16>,
+    /// Never on a night shift — always hard.
+    pub no_night_shifts: bool,
+    /// Weekdays they would rather have off, 0 = Monday … 6 = Sunday. Soft.
+    pub preferred_days_off: Vec<i16>,
+    /// None until the limits are first saved.
+    pub updated_at: Option<chrono::NaiveDateTime>,
+}
+
+impl PersonalLimitsDomain {
+    pub fn none(employee_id: Uuid) -> Self {
+        Self {
+            employee_id,
+            max_nights_per_month: None,
+            max_weekends_per_month: None,
+            no_night_shifts: false,
+            preferred_days_off: Vec::new(),
+            updated_at: None,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.max_nights_per_month.is_none()
+            && self.max_weekends_per_month.is_none()
+            && !self.no_night_shifts
+            && self.preferred_days_off.is_empty()
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct UpdatePersonalLimits {
+    #[serde(default)]
+    pub max_nights_per_month: Option<i16>,
+    #[serde(default)]
+    pub max_weekends_per_month: Option<i16>,
+    #[serde(default)]
+    pub no_night_shifts: bool,
+    #[serde(default)]
+    pub preferred_days_off: Vec<i16>,
+}
+
+#[async_trait]
+pub trait PersonalLimitsRepository {
+    async fn list_personal_limits(&self, tenant_id: &str) -> Result<Vec<PersonalLimitsDomain>, AppError>;
+    /// The employee's limits, or `PersonalLimitsDomain::none` when none are saved.
+    async fn get_personal_limits(&self, tenant_id: &str, employee_id: Uuid) -> Result<PersonalLimitsDomain, AppError>;
+    async fn update_personal_limits(&self, tenant_id: &str, employee_id: Uuid, limits: UpdatePersonalLimits) -> Result<PersonalLimitsDomain, AppError>;
 }

@@ -34,6 +34,7 @@ pub struct PlannerSettings {
     pub wish_weight: i32,
     pub min_staffing_mode: String,
     pub keep_fixed_assignments: bool,
+    pub personal_limits_mode: String,
 }
 
 #[derive(Insertable, AsChangeset, Debug, Clone)]
@@ -63,6 +64,7 @@ pub struct NewPlannerSettings {
     pub wish_weight: i32,
     pub min_staffing_mode: String,
     pub keep_fixed_assignments: bool,
+    pub personal_limits_mode: String,
 }
 
 impl NewPlannerSettings {
@@ -93,6 +95,7 @@ impl NewPlannerSettings {
             wish_weight: 20000,
             min_staffing_mode: "soft".to_string(),
             keep_fixed_assignments: true,
+            personal_limits_mode: "hard".to_string(),
         }
     }
 }

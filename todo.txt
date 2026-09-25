@@ -58,6 +58,15 @@ Planner / optimizer
     night", not just capability per workstation. New rule type in planner + check. [M]
 14) Personal limits — per employee max nights per month, max weekends, no nights
     (e.g. pregnancy, age), preferred days off. Soft or hard, like min_staffing_mode. [M]
+    DONE. Employees → edit → "Personal limits": max night shifts and max weekends
+    per calendar month, "no night shifts", preferred weekdays off (table
+    employee_personal_limits, migration 29; GET/PUT /employees/{id}/personal-limits).
+    Planner settings → "Personal limits": rule (hard, default) or target (soft —
+    exceeded only to fill a shift that would stay short, as little as possible,
+    and named in the result). No night shifts is always hard; preferred days off
+    cost preference_weight like one-off preferred days. The assistant's plan check
+    flags all four. Tests: planner/tests/test_personal_limits.py,
+    tests/personal_limits.rs.
 15) What-if scenarios — solve the same period under two settings (e.g. rotations on/off,
     hard vs soft staffing) and show both in Compare; the assistant already asks this. [S]
 16) Short-notice replacement — "Anna is sick tomorrow": rank qualified, rested, under-

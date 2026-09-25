@@ -184,6 +184,9 @@ Base URL: `http://localhost:8080/api/v1`
 - `GET/POST /unavailability` - Employee unavailability
 - `GET/POST /shift-wishes` - Employee shift wishes
 - `GET/PUT /wish-settings` - Shift-wish window (PUT: `shift-admin` only)
+- `GET/PUT /employees/{id}/personal-limits` - An employee's personal limits: max
+  nights / weekends per month, no nights, preferred weekdays off (all: `GET
+  /personal-limits`)
 - `GET/POST /users` - Users of the caller's organization (`shift-admin` only)
 - `PUT /users/{id}/roles` - Replace a user's shift roles (`shift-admin` only)
 - `DELETE /users/{id}` - Remove a user from the organization (`shift-admin` only)
@@ -380,6 +383,11 @@ tool posts to it and waits, which a queue cannot offer. In
 - `keep_fixed_assignments`: bool (default true) — keep employees' `fixed_shifts`
   (rotations) ahead of every other goal, or plan as if there were none. A
   planner setting ("Keep rotations"); the agent's plan check follows it
+- `personal_limits_mode`: "soft" | "hard" (default "hard") — employees'
+  `max_nights_per_month` / `max_weekends_per_month` (per calendar month) are
+  caps, or exceeded only to fill a slot that would stay short (named in
+  `message`). `no_night_shifts` is always hard; `preferred_days_off` costs
+  `preference_weight`. Set per employee on the Employees page
 - `solver_time_limit_seconds`: float (default 120.0)
 - `solver_num_workers`: int (default 8)
 

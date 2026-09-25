@@ -11,6 +11,7 @@ pub mod auditlogrepository;
 pub mod plannersettingsrepository;
 pub mod wishsettingsrepository;
 pub mod rotationpatternrepository;
+pub mod personallimitsrepository;
 
 use std::sync::Arc;
 use crate::database::DbPool;
@@ -34,6 +35,7 @@ use self::auditlogrepository::DieselAuditLogRepository;
 use self::plannersettingsrepository::DieselPlannerSettingsRepository;
 use self::wishsettingsrepository::DieselWishSettingsRepository;
 use self::rotationpatternrepository::DieselRotationPatternRepository;
+use self::personallimitsrepository::DieselPersonalLimitsRepository;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -53,6 +55,7 @@ pub struct AppState {
     pub planner_settings_repo: DieselPlannerSettingsRepository,
     pub wish_settings_repo: DieselWishSettingsRepository,
     pub rotation_pattern_repo: DieselRotationPatternRepository,
+    pub personal_limits_repo: DieselPersonalLimitsRepository,
     pub pool: Arc<DbPool>,
     pub nats_client: Option<async_nats::Client>,
     pub jetstream_status: JetStreamStatus,
@@ -84,6 +87,7 @@ impl AppState {
             planner_settings_repo: DieselPlannerSettingsRepository { pool: Arc::clone(&pool) },
             wish_settings_repo: DieselWishSettingsRepository { pool: Arc::clone(&pool) },
             rotation_pattern_repo: DieselRotationPatternRepository { pool: Arc::clone(&pool) },
+            personal_limits_repo: DieselPersonalLimitsRepository { pool: Arc::clone(&pool) },
             pool,
             nats_client: None,
             jetstream_status: JetStreamStatus::Unavailable,
@@ -112,6 +116,7 @@ impl AppState {
             planner_settings_repo: DieselPlannerSettingsRepository { pool: Arc::clone(&pool) },
             wish_settings_repo: DieselWishSettingsRepository { pool: Arc::clone(&pool) },
             rotation_pattern_repo: DieselRotationPatternRepository { pool: Arc::clone(&pool) },
+            personal_limits_repo: DieselPersonalLimitsRepository { pool: Arc::clone(&pool) },
             pool,
             nats_client: Some(nats_client),
             jetstream_status,
