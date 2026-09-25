@@ -53,7 +53,7 @@ worked example. The backend builds this payload from the database — call
 | `planning_period` | `start_date`, `end_date` |
 | `shifts` | `id`, `name`, `is_night_shift`, `weekday_times[]` |
 | `workstations` | `id`, `name`, `required_skills`, `priority`, `operating_shifts`, `min/max_employees`, `unavailability[]` |
-| `employees` | `id`, `name`, `skills`, `available_shifts`, `unavailability[]`, `monthly_working_hours`, `preferred_off[]`, `fixed_shifts[]` (rotations; see `keep_fixed_assignments`) |
+| `employees` | `id`, `name`, `skills`, `available_shifts`, `unavailability[]`, `monthly_working_hours`, `preferred_off[]`, `fixed_shifts[]` (rotations; see `keep_fixed_assignments`), personal limits `max_nights_per_month`, `max_weekends_per_month`, `no_night_shifts`, `preferred_days_off[]` (rule 12) |
 | `capabilities` | `id`, `level`, `skill_group` — for the skill-downgrade objective |
 | `locked_assignments` | `employee_id`, `date`, `shift_id`, `workstation_id` — rows the solver must keep |
 | `history` | `employee_id`, `date`, `shift_id` — the confirmed roster of the 14 days before the period, read-only (see rule 11) |
@@ -111,6 +111,17 @@ Violating any of these makes a solution invalid.
     A blocked slot gets no variable, like an absence, so a lock or fixed
     assignment on it is named in `message` instead of failing the run. Rule 6
     counts seven-day blocks from the period start and does not look back.
+12. **Personal limits** — per employee, set on their profile (table
+    `employee_personal_limits`). `no_night_shifts` removes every night-shift
+    variable for them: always hard. `max_nights_per_month` and
+    `max_weekends_per_month` count per calendar month (a weekend — Saturday
+    and/or Sunday worked — belongs to the month of its Saturday; only the part
+    of a month inside the period is planned, and it gets the whole allowance).
+    With `personal_limits_mode` `hard` (default) they are caps. With `soft` the
+    excess is minimised in phase 1 right after coverage, so a limit is only
+    exceeded to fill a slot that would otherwise stay short; `message` names
+    every limit exceeded. `preferred_days_off` (weekdays) is soft — see
+    Preferences below.
 
 Note the asymmetry on staffing bands: **maximum is hard, minimum is soft.** If
 minimum staffing were hard, a short-staffed week would return `infeasible` and
@@ -128,7 +139,7 @@ The solver maximises a weighted sum:
 | Equal treatment | Minimises the spread of working hours across employees (`equality_weight`) |
 | Monthly hours target | Symmetric penalty on deviation from each employee's contracted hours |
 | Weekly hour band | Soft `weekly_min_hours` / `weekly_max_hours` over 7-day blocks |
-| Preferences | Penalises overriding a soft `preferred_off` entry |
+| Preferences | Penalises overriding a soft `preferred_off` entry, and each day worked on one of an employee's `preferred_days_off` weekdays (`preference_weight`) |
 | Skill downgrade | Penalises staffing a post with an over-qualified person, by level gap within a `skill_group` |
 | Fatigue | Ergonomic cost per shift, amplified for night shifts; minimises the **worst-off** employee's fatigue rather than the average |
 | Shift continuity | Rewards keeping the same shift on consecutive days, with a bonus for a whole week |
@@ -160,6 +171,7 @@ through `PUT /api/v1/planner-settings` or the UI's planner settings page.
 | `fatigue_weight` | `100` | Weight on the ergonomic term |
 | `night_shift_fatigue_multiplier` | `2.0` | Night-shift fatigue factor |
 | `keep_fixed_assignments` | `true` | Keep `fixed_shifts` (rotations) ahead of every other goal; `false` ignores them |
+| `personal_limits_mode` | `hard` | Employees' `max_nights_per_month` / `max_weekends_per_month`: caps (`hard`) or exceeded only to fill a short slot (`soft`) |
 | `solver_time_limit_seconds` | `120.0` | Wall-clock budget |
 | `solver_num_workers` | `8` | Parallel search workers |
 

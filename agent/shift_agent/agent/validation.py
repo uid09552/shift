@@ -60,6 +60,7 @@ _DEFAULT_CONSTRAINTS = {
     "max_consecutive_days": 6,
     "max_working_days_per_week": 5,
     "keep_fixed_assignments": True,
+    "personal_limits_mode": "hard",
 }
 
 SEVERITY_ERROR = "error"
@@ -472,6 +473,7 @@ class _Validator:
         self._check_weekly_days()
         self._check_min_rest()
         self._check_consecutive_days()
+        self._check_personal_limits()
         self._check_preferences()
         self._check_fixed_assignments()
         self._check_hours()
@@ -820,6 +822,63 @@ class _Validator:
                 elif previous is None:
                     streak_start = day
                 previous = day
+
+    def _check_personal_limits(self) -> None:
+        """The employee's own limits (preparePlan's employees[]): no night
+        shifts is always an error; max nights / weekends per calendar month
+        are errors in hard personal_limits_mode and warnings in soft, where the
+        solver may go over to fill a slot. Preferred days off are soft and
+        reported as a warning."""
+        over_severity = (
+            SEVERITY_ERROR if self.cfg["personal_limits_mode"] == "hard" else SEVERITY_WARNING
+        )
+        nights: dict[tuple[str, int, int], int] = defaultdict(int)
+        weekends: dict[tuple[str, int, int], set[date]] = defaultdict(set)
+        for a in self.assignments:
+            employee = self.employees.get(a.employee_id) or {}
+            shift = self.shifts.get(a.shift_id) or {}
+            if shift.get("is_night_shift"):
+                if employee.get("no_night_shifts"):
+                    self.findings.add(
+                        "personal_no_nights", SEVERITY_ERROR,
+                        "Night shift for someone who does not work nights",
+                        "Their personal limits rule out night shifts.",
+                        f"{self._emp_name(a.employee_id)} — {self._shift_name(a.shift_id)} "
+                        f"on {a.day.isoformat()}",
+                    )
+                nights[(a.employee_id, a.day.year, a.day.month)] += 1
+            if a.day.weekday() >= 5:
+                saturday = a.day - timedelta(days=a.day.weekday() - 5)
+                weekends[(a.employee_id, saturday.year, saturday.month)].add(saturday)
+            if str(a.day.weekday()) in (employee.get("preferred_days_off") or []):
+                self.findings.add(
+                    "personal_preferred_day_off", SEVERITY_WARNING,
+                    "Working on a preferred day off",
+                    "The employee would rather have this weekday off (a preference, "
+                    "not a rule).",
+                    f"{self._emp_name(a.employee_id)} — {a.day.isoformat()}",
+                )
+        for (employee_id, year, month), count in sorted(nights.items()):
+            limit = (self.employees.get(employee_id) or {}).get("max_nights_per_month")
+            if limit is not None and count > limit:
+                self.findings.add(
+                    "personal_max_nights", over_severity,
+                    "More night shifts in a month than the person's limit",
+                    "Night shifts per calendar month are capped per employee.",
+                    f"{self._emp_name(employee_id)} — {count} nights in "
+                    f"{year}-{month:02d} (max {limit})",
+                )
+        for (employee_id, year, month), saturdays in sorted(weekends.items()):
+            limit = (self.employees.get(employee_id) or {}).get("max_weekends_per_month")
+            if limit is not None and len(saturdays) > limit:
+                self.findings.add(
+                    "personal_max_weekends", over_severity,
+                    "More weekends in a month than the person's limit",
+                    "Weekends worked (Saturday and/or Sunday) per calendar month are "
+                    "capped per employee.",
+                    f"{self._emp_name(employee_id)} — {len(saturdays)} weekends in "
+                    f"{year}-{month:02d} (max {limit})",
+                )
 
     def _check_preferences(self) -> None:
         """Soft: the days people asked to have off. Never a breach — the solver

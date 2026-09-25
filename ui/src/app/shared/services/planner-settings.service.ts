@@ -39,6 +39,8 @@ export interface PlannerSettings {
   min_staffing_mode: MinStaffingMode;
   /** Rotations and other fixed assignments: kept first (true) or ignored when planning. */
   keep_fixed_assignments: boolean;
+  /** Employees' personal max nights / weekends per month: never exceeded (hard) or only to fill a slot (soft). */
+  personal_limits_mode: MinStaffingMode;
 }
 
 export type UpdatePlannerSettingsRequest = Omit<PlannerSettings, 'updated_at'>;

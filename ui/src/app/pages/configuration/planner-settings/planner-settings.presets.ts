@@ -94,11 +94,16 @@ export const SOLVER_EFFORTS: readonly SolverEffort[] = [
 ];
 
 /** Everything a use-case preset sets. Solver performance is deliberately left alone. */
-// Templates tune weights. Whether rotations are kept is a decision about the
-// ward, not a weighting, so picking a template never changes it.
+// Templates tune weights. Whether rotations are kept, or how firmly people's
+// personal limits hold, is a decision about the ward, not a weighting, so
+// picking a template never changes either.
 export type PresetValues = Omit<
   PlannerSettings,
-  'updated_at' | 'solver_time_limit_seconds' | 'solver_num_workers' | 'keep_fixed_assignments'
+  | 'updated_at'
+  | 'solver_time_limit_seconds'
+  | 'solver_num_workers'
+  | 'keep_fixed_assignments'
+  | 'personal_limits_mode'
 >;
 
 export interface UseCaseTemplate {

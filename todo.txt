@@ -1,21 +1,4 @@
-1) rotation berücksichtigen im schichtplan optimizer algorithmus. es soll im planner settings, einstellbar ein (aktivierien, deaktivieren)
-   DONE. Planner settings → Coverage & continuity → "Keep rotations" (on by default).
-   On: rotations and other fixed assignments are planned first, as before. Off:
-   the optimizer plans as if there were none; the rotations stay saved. Setting
-   keep_fixed_assignments (migration 28), sent to the solver as a constraint, so
-   the assistant can also try "what if without rotations?"; its plan check stops
-   flagging unkept rotations when the setting is off.
-2) in dienstplan optimieren, datum selection, sollte kein text sondern kalender auswahl sein, ui creahsed oder ist überladen, wenn ich versuche jahr zu ändern.
-   DONE. Cause: typing a year into the date field passes through 0002, 0020, 0202…
-   and each asked for a coverage forecast thousands of years long. The date range
-   is now picked on a calendar (with year arrows), at most 92 days; the backend
-   refuses periods over 366 days.
-3) recreate readme.md it should become an opensource service. describe the project, purpose, contribution....
-   DONE. README.md rewritten; CONTRIBUTING.md and LICENSE (Apache-2.0) added.
 
---- Proposals (2026-09-25). Not started. Effort: S = view over existing data,
---- M = new endpoint or two, L = new tables + workflow. 4-10 are detailed in
---- docs/ui-proposals.md; 11-22 are new.
 
 Around the finished roster (the biggest gap: planning is strong, everything after it is thin)
 
@@ -58,6 +41,15 @@ Planner / optimizer
     night", not just capability per workstation. New rule type in planner + check. [M]
 14) Personal limits — per employee max nights per month, max weekends, no nights
     (e.g. pregnancy, age), preferred days off. Soft or hard, like min_staffing_mode. [M]
+    DONE. Employees → edit → "Personal limits": max night shifts and max weekends
+    per calendar month, "no night shifts", preferred weekdays off (table
+    employee_personal_limits, migration 29; GET/PUT /employees/{id}/personal-limits).
+    Planner settings → "Personal limits": rule (hard, default) or target (soft —
+    exceeded only to fill a shift that would stay short, as little as possible,
+    and named in the result). No night shifts is always hard; preferred days off
+    cost preference_weight like one-off preferred days. The assistant's plan check
+    flags all four. Tests: planner/tests/test_personal_limits.py,
+    tests/personal_limits.rs.
 15) What-if scenarios — solve the same period under two settings (e.g. rotations on/off,
     hard vs soft staffing) and show both in Compare; the assistant already asks this. [S]
 16) Short-notice replacement — "Anna is sick tomorrow": rank qualified, rested, under-

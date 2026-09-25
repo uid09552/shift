@@ -255,12 +255,23 @@ impl OptimizerService {
             })
             .collect();
 
+        let mut limits_map: std::collections::HashMap<Uuid, crate::repository::domain::PersonalLimitsDomain> = state
+            .personal_limits_repo
+            .list_personal_limits(tenant_id)
+            .await?
+            .into_iter()
+            .map(|l| (l.employee_id, l))
+            .collect();
+
         let employee_tasks: Vec<EmployeeTask> = employees.into_iter()
             .map(|emp| {
                 let unavailability = unavail_map.get(&emp.id).cloned().unwrap_or_default();
                 let preferred_off = preferred_off_map.get(&emp.id).cloned().unwrap_or_default();
                 let wishes = wish_map.get(&emp.id).cloned().unwrap_or_default();
                 let fixed_shifts = fixed_map.remove(&emp.id).unwrap_or_default();
+                let limits = limits_map
+                    .remove(&emp.id)
+                    .unwrap_or_else(|| crate::repository::domain::PersonalLimitsDomain::none(emp.id));
                 EmployeeTask {
                     id: emp.id.to_string(),
                     name: emp.name,
@@ -271,6 +282,10 @@ impl OptimizerService {
                     preferred_off,
                     wishes,
                     fixed_shifts,
+                    max_nights_per_month: limits.max_nights_per_month,
+                    max_weekends_per_month: limits.max_weekends_per_month,
+                    no_night_shifts: limits.no_night_shifts,
+                    preferred_days_off: limits.preferred_days_off.iter().map(|d| d.to_string()).collect(),
                 }
             }).collect();
 
@@ -536,6 +551,7 @@ async fn build_constraints(
                 wish_weight: Some(s.wish_weight),
                 min_staffing_mode: Some(s.min_staffing_mode.as_str().to_string()),
                 keep_fixed_assignments: Some(s.keep_fixed_assignments),
+                personal_limits_mode: Some(s.personal_limits_mode.as_str().to_string()),
             }
         }
         Err(e) => {

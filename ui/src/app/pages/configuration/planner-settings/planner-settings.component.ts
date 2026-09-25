@@ -445,6 +445,22 @@ const DEFAULT_BAND: { min: number; max: number } = { min: 30, max: 45 };
             }
 
             <app-setting-row
+              controlId="personalLimitsMode"
+              [label]="'plannerSettings.personalLimitsMode.label' | t"
+              [description]="'plannerSettings.personalLimitsMode.hint' | t"
+              [tooltip]="'plannerSettings.personalLimitsMode.tooltip' | t"
+            >
+              <app-level-select
+                id="personalLimitsMode"
+                data-testid="planner-settings-personal-limits-mode"
+                [options]="personalLimitsOptions"
+                [value]="form.personal_limits_mode"
+                [meterFilled]="form.personal_limits_mode === 'hard' ? 5 : 2"
+                (valueChange)="onPersonalLimitsModeChange($event)"
+              />
+            </app-setting-row>
+
+            <app-setting-row
               controlId="priorityWeights"
               [label]="'plannerSettings.priorityWeights' | t"
               [description]="'plannerSettings.priorityHint' | t"
@@ -607,6 +623,7 @@ export class PlannerSettingsComponent implements OnInit {
     shift_continuity_week_bonus: 2000,
     min_staffing_mode: 'soft',
     keep_fixed_assignments: true,
+    personal_limits_mode: 'hard',
   };
 
   ngOnInit(): void {
@@ -799,6 +816,19 @@ export class PlannerSettingsComponent implements OnInit {
 
   onMinStaffingModeChange(value: string): void {
     this.form.min_staffing_mode = value === 'hard' ? 'hard' : 'soft';
+  }
+
+  // ── Personal limits: hard or soft ─────────────────────────────
+
+  get personalLimitsOptions(): LevelOption[] {
+    return [
+      { value: 'soft', label: this.translations.t('plannerSettings.personalLimitsMode.soft') },
+      { value: 'hard', label: this.translations.t('plannerSettings.personalLimitsMode.hard') },
+    ];
+  }
+
+  onPersonalLimitsModeChange(value: string): void {
+    this.form.personal_limits_mode = value === 'soft' ? 'soft' : 'hard';
   }
 
   // ── Workstation priority ──────────────────────────────────────

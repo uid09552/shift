@@ -29,6 +29,7 @@ use crate::services::{
     unavailability::UnavailabilityService,
     user_management::UserManagementService,
     wish_settings::WishSettingsService,
+    personal_limits::PersonalLimitsService,
     workstation::WorkstationService,
     workstation_unavailability::WorkstationUnavailabilityService,
 };
@@ -76,6 +77,11 @@ pub fn create_router(state: AppState) -> Router {
             "/employees/:employee_id/available-shifts",
             get(EmployeeService::get_employee_available_shifts).post(EmployeeService::add_employee_available_shift),
         )
+        .route(
+            "/employees/:employee_id/personal-limits",
+            get(PersonalLimitsService::get_personal_limits).put(PersonalLimitsService::update_personal_limits),
+        )
+        .route("/personal-limits", get(PersonalLimitsService::list_personal_limits))
         // Shifts
         .route("/shifts", get(ShiftService::list_shifts).post(ShiftService::create_shift))
         .route("/shifts/template", get(ShiftService::download_template))

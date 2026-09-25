@@ -291,6 +291,81 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /employees/{employeeId}/personal-limits:
+    get:
+      tags:
+        - Employees
+      summary: Get an employee's personal limits
+      description: >
+        What this employee may be planned for beyond the ward's rules. An employee
+        who has none saved answers with every field empty.
+      operationId: getPersonalLimits
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The employee's personal limits
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonalLimits'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Employees
+      summary: Replace an employee's personal limits
+      description: >
+        Replaces the limits as a whole; an empty body clears them. Weekdays are
+        stored sorted and without duplicates.
+      operationId: updatePersonalLimits
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePersonalLimits'
+      responses:
+        '200':
+          description: The saved limits
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonalLimits'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /personal-limits:
+    get:
+      tags:
+        - Employees
+      summary: List every employee's personal limits
+      description: Employees without a saved row have none and are not listed.
+      operationId: listPersonalLimits
+      responses:
+        '200':
+          description: Saved personal limits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PersonalLimits'
+
   /employees/{employeeId}/available-shifts:
     get:
       tags:
@@ -3223,6 +3298,16 @@ components:
             (true, the default), or plans as if there were none (false). The
             assignments themselves are not touched either way.
           example: true
+        personal_limits_mode:
+          type: string
+          enum: [soft, hard]
+          description: >
+            How employees' max_nights_per_month and max_weekends_per_month hold.
+            hard (default) never exceeds them — a shift stays short instead;
+            soft exceeds them only to fill a shift that would otherwise stay
+            short, as little as possible, and names every excess in the result.
+            no_night_shifts is always hard.
+          example: hard
         skill_downgrade_weight:
           type: integer
           minimum: 0
@@ -3331,6 +3416,11 @@ components:
           type: boolean
           default: true
           description: Keep rotations and other fixed assignments (true) or ignore them when planning (false)
+        personal_limits_mode:
+          type: string
+          enum: [soft, hard]
+          default: hard
+          description: Employees' personal max nights / weekends per month are a rule (hard) or a target (soft)
         skill_downgrade_weight:
           type: integer
           minimum: 0
@@ -4201,6 +4291,81 @@ components:
               shift_id:
                 type: string
                 nullable: true
+        max_nights_per_month:
+          type: integer
+          nullable: true
+          description: Personal limit on night shifts per calendar month (see personal_limits_mode)
+        max_weekends_per_month:
+          type: integer
+          nullable: true
+          description: Personal limit on weekends worked (Saturday and/or Sunday) per calendar month
+        no_night_shifts:
+          type: boolean
+          description: Never plan this employee on a night shift (always hard). Omitted when false
+        preferred_days_off:
+          type: array
+          items:
+            type: string
+            enum: ["0", "1", "2", "3", "4", "5", "6"]
+          description: Weekdays (0 = Monday) the employee would rather have off; soft, preference_weight per day worked
+
+    PersonalLimits:
+      type: object
+      required: [employee_id, no_night_shifts, preferred_days_off]
+      properties:
+        employee_id:
+          type: string
+          format: uuid
+        max_nights_per_month:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 31
+          description: Night shifts per calendar month; null = no personal limit
+        max_weekends_per_month:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 5
+          description: Weekends (Saturday and/or Sunday worked) per calendar month; null = no limit
+        no_night_shifts:
+          type: boolean
+          description: Never on a night shift — always a hard rule
+        preferred_days_off:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+          description: Weekdays they would rather have off, 0 = Monday … 6 = Sunday (soft)
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: null until the limits are first saved
+
+    UpdatePersonalLimits:
+      type: object
+      properties:
+        max_nights_per_month:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 31
+        max_weekends_per_month:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 5
+        no_night_shifts:
+          type: boolean
+          default: false
+        preferred_days_off:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
 
     ShiftWishTask:
       type: object
@@ -4306,6 +4471,10 @@ components:
         keep_fixed_assignments:
           type: boolean
           description: false makes the solver ignore employees' fixed_shifts (rotations)
+        personal_limits_mode:
+          type: string
+          enum: [soft, hard]
+          description: Whether employees' max_nights_per_month / max_weekends_per_month are hard or soft
 
     Error:
       type: object

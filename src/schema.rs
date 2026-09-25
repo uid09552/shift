@@ -188,6 +188,20 @@ diesel::table! {
         wish_weight -> Int4,
         min_staffing_mode -> Varchar,
         keep_fixed_assignments -> Bool,
+        personal_limits_mode -> Varchar,
+    }
+}
+
+diesel::table! {
+    employee_personal_limits (employee_id) {
+        employee_id -> Uuid,
+        tenant_id -> Varchar,
+        max_nights_per_month -> Nullable<Int2>,
+        max_weekends_per_month -> Nullable<Int2>,
+        no_night_shifts -> Bool,
+        preferred_days_off -> Array<Int2>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
     }
 }
 
@@ -244,6 +258,7 @@ diesel::joinable!(employee_shift_assignments -> shifts (shift_id));
 diesel::joinable!(confirmed_shift_plans -> employees (employee_id));
 diesel::joinable!(confirmed_shift_plans -> shifts (shift_id));
 diesel::joinable!(confirmed_shift_plans -> workstations (workstation_id));
+diesel::joinable!(employee_personal_limits -> employees (employee_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     capabilities,
@@ -265,4 +280,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     planner_settings,
     wish_settings,
     rotation_patterns,
+    employee_personal_limits,
 );

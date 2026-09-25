@@ -1,13 +1,14 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { Observable, forkJoin, Subscription } from 'rxjs';
+import { Observable, forkJoin, Subscription, catchError, throwError } from 'rxjs';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
 import { InputFieldComponent } from '../../../shared/components/form/input/input-field.component';
 import { LabelComponent } from '../../../shared/components/form/label/label.component';
 import { ButtonComponent } from '../../../shared/components/ui/button/button.component';
 import { DateRangePickerComponent, MarkedDay } from '../../../shared/components/ui/date-range-picker/date-range-picker.component';
-import { EmployeeService, EmployeeProfile, CreateEmployeeRequest, PaginatedEmployeeResponse, ImportResult } from '../../../shared/services/employee.service';
+import { EmployeeService, EmployeeProfile, CreateEmployeeRequest, PaginatedEmployeeResponse, ImportResult, PersonalLimits } from '../../../shared/services/employee.service';
 import { CapabilityService, Capability } from '../../../shared/services/capability.service';
 import { ShiftService, Shift } from '../../../shared/services/shift.service';
 import { UnavailabilityService } from '../../../shared/services/unavailability.service';
@@ -31,6 +32,7 @@ interface LeaveEntry {
   imports: [
     CommonModule,
     FormsModule,
+    RouterLink,
     PageBreadcrumbComponent,
     InputFieldComponent,
     LabelComponent,
@@ -136,6 +138,88 @@ interface LeaveEntry {
                     </label>
                   }
                 </div>
+              }
+            </div>
+
+            <!-- Personal limits (only in edit mode) -->
+            <div class="mb-5 rounded-lg border border-gray-200 p-4 dark:border-gray-700" data-testid="personal-limits">
+              <app-label className="mb-1">{{ 'userProfiles.limits.title' | t }}</app-label>
+              <p class="mb-4 text-xs text-gray-500 dark:text-gray-400">{{ 'userProfiles.limits.hint' | t }}</p>
+
+              <div class="grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <app-label for="limitMaxNights" className="mb-1.5">{{ 'userProfiles.limits.maxNights' | t }}</app-label>
+                  <input
+                    id="limitMaxNights"
+                    type="number"
+                    min="0"
+                    max="31"
+                    data-testid="personal-limits-max-nights"
+                    [placeholder]="'userProfiles.limits.noLimit' | t"
+                    [disabled]="formLimits.no_night_shifts"
+                    [ngModel]="formLimits.max_nights_per_month"
+                    (ngModelChange)="formLimits.max_nights_per_month = limitValue($event, 31)"
+                    [ngModelOptions]="{ standalone: true }"
+                    class="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
+                  />
+                </div>
+                <div>
+                  <app-label for="limitMaxWeekends" className="mb-1.5">{{ 'userProfiles.limits.maxWeekends' | t }}</app-label>
+                  <input
+                    id="limitMaxWeekends"
+                    type="number"
+                    min="0"
+                    max="5"
+                    data-testid="personal-limits-max-weekends"
+                    [placeholder]="'userProfiles.limits.noLimit' | t"
+                    [ngModel]="formLimits.max_weekends_per_month"
+                    (ngModelChange)="formLimits.max_weekends_per_month = limitValue($event, 5)"
+                    [ngModelOptions]="{ standalone: true }"
+                    class="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
+                  />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ 'userProfiles.limits.weekendsHint' | t }}</p>
+                </div>
+              </div>
+
+              <label class="mt-4 flex cursor-pointer items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  data-testid="personal-limits-no-nights"
+                  [(ngModel)]="formLimits.no_night_shifts"
+                  [ngModelOptions]="{ standalone: true }"
+                  class="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-700"
+                />
+                <span>
+                  {{ 'userProfiles.limits.noNights' | t }}
+                  <span class="block text-xs text-gray-500 dark:text-gray-400">{{ 'userProfiles.limits.noNightsHint' | t }}</span>
+                </span>
+              </label>
+
+              <div class="mt-4">
+                <app-label className="mb-1.5">{{ 'userProfiles.limits.preferredDaysOff' | t }}</app-label>
+                <div class="flex flex-wrap gap-1.5" role="group" [attr.aria-label]="'userProfiles.limits.preferredDaysOff' | t">
+                  @for (day of weekdays; track day) {
+                    <button
+                      type="button"
+                      [attr.data-testid]="'personal-limits-day-' + day"
+                      [attr.aria-pressed]="formLimits.preferred_days_off.includes(day)"
+                      (click)="togglePreferredDayOff(day)"
+                      class="min-w-12 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
+                      [class]="formLimits.preferred_days_off.includes(day)
+                        ? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-500/15 dark:text-brand-300'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.03]'"
+                    >{{ ('common.weekdayShort.' + day) | t }}</button>
+                  }
+                </div>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ 'userProfiles.limits.preferredDaysOffHint' | t }}</p>
+              </div>
+
+              <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">
+                {{ 'userProfiles.limits.modeNote' | t }}
+                <a routerLink="/planner-settings" class="font-medium text-brand-600 hover:underline dark:text-brand-400">{{ 'nav.plannerSettings' | t }}</a>
+              </p>
+              @if (limitsError) {
+                <p class="mt-2 text-xs text-red-500 dark:text-red-400">{{ limitsError | t }}</p>
               }
             </div>
 
@@ -497,6 +581,9 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
   formName = '';
   formEmail = '';
   formMonthlyWorkingHours: number = 0;
+  formLimits: PersonalLimits = UserProfilesComponent.noLimits();
+  limitsError: string | null = null;
+  readonly weekdays = [0, 1, 2, 3, 4, 5, 6];
 
   // Search
   private searchQuery = '';
@@ -653,10 +740,17 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
       shifts: this.shiftService.getShifts(),
       unavailabilities: this.unavailabilityService.getUnavailabilities(employee.id),
       absences: this.confirmedShiftPlanService.getEmployeeConfirmedShiftPlans(employee.id),
+      limits: this.employeeService.getPersonalLimits(employee.id),
     }).subscribe({
-      next: ({ capabilities, shifts, unavailabilities, absences }) => {
+      next: ({ capabilities, shifts, unavailabilities, absences, limits }) => {
         this.allCapabilities = capabilities;
         this.allShifts = shifts;
+        this.formLimits = {
+          max_nights_per_month: limits.max_nights_per_month,
+          max_weekends_per_month: limits.max_weekends_per_month,
+          no_night_shifts: limits.no_night_shifts,
+          preferred_days_off: [...limits.preferred_days_off],
+        };
 
         const unavailEntries: LeaveEntry[] = unavailabilities.map(u => ({
           id: u.id,
@@ -697,10 +791,30 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
     this.formMonthlyWorkingHours = 0;
     this.formCapabilities = {};
     this.formShifts = {};
+    this.formLimits = UserProfilesComponent.noLimits();
+    this.limitsError = null;
     this.leaveEntries = [];
     this.leaveError = null;
     this.pickerRange = null;
     this.pickerResetKey = 0;
+  }
+
+  private static noLimits(): PersonalLimits {
+    return { max_nights_per_month: null, max_weekends_per_month: null, no_night_shifts: false, preferred_days_off: [] };
+  }
+
+  /** An empty field is "no limit"; anything else is clamped to 0…max. */
+  limitValue(value: string | number | null, max: number): number | null {
+    if (value === null || value === '') return null;
+    const n = Math.round(Number(value));
+    return Number.isFinite(n) ? Math.min(Math.max(n, 0), max) : null;
+  }
+
+  togglePreferredDayOff(day: number): void {
+    const days = this.formLimits.preferred_days_off;
+    this.formLimits.preferred_days_off = days.includes(day)
+      ? days.filter((d) => d !== day)
+      : [...days, day].sort((a, b) => a - b);
   }
 
   onNameChange(value: string | number): void {
@@ -755,6 +869,22 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
           );
         }
       }
+
+      // Personal limits, replaced as a whole. No night shifts makes a night
+      // maximum meaningless, so it is not kept alongside it.
+      const limits: PersonalLimits = {
+        ...this.formLimits,
+        max_nights_per_month: this.formLimits.no_night_shifts ? null : this.formLimits.max_nights_per_month,
+      };
+      this.limitsError = null;
+      requests.push(
+        this.employeeService.updatePersonalLimits(this.editingEmployee.id, limits).pipe(
+          catchError((err) => {
+            this.limitsError = 'userProfiles.limits.saveFailed';
+            return throwError(() => err);
+          }),
+        ),
+      );
 
       // Add newly checked shifts
       for (const shift of this.allShifts) {

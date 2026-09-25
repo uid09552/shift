@@ -51,6 +51,19 @@ export interface AddAvailableShiftRequest {
   shift_id: string;
 }
 
+/**
+ * What one employee may be planned for beyond the ward's rules. Nights and
+ * weekends are per calendar month (null = no limit); whether they are a rule
+ * or a target is the planner setting `personal_limits_mode`. `no_night_shifts`
+ * is always a rule; `preferred_days_off` (0 = Monday … 6 = Sunday) a preference.
+ */
+export interface PersonalLimits {
+  max_nights_per_month: number | null;
+  max_weekends_per_month: number | null;
+  no_night_shifts: boolean;
+  preferred_days_off: number[];
+}
+
 export interface ImportResult {
   created: number;
   skipped: number;
@@ -114,6 +127,15 @@ export class EmployeeService {
 
   addEmployeeAvailableShift(employeeId: string, request: AddAvailableShiftRequest): Observable<any> {
     return this.http.post(`${this.apiUrl}/employees/${employeeId}/available-shifts`, request);
+  }
+
+  getPersonalLimits(employeeId: string): Observable<PersonalLimits> {
+    return this.http.get<PersonalLimits>(`${this.apiUrl}/employees/${employeeId}/personal-limits`);
+  }
+
+  /** Replaces the employee's limits as a whole. */
+  updatePersonalLimits(employeeId: string, limits: PersonalLimits): Observable<PersonalLimits> {
+    return this.http.put<PersonalLimits>(`${this.apiUrl}/employees/${employeeId}/personal-limits`, limits);
   }
 
   deleteEmployee(employeeId: string): Observable<void> {

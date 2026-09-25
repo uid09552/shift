@@ -47,6 +47,9 @@ pub struct ConstraintTask {
     /// `false`: the solver ignores employees' `fixed_shifts` (rotations).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub keep_fixed_assignments: Option<bool>,
+    /// "soft" | "hard": employees' max_nights_per_month / max_weekends_per_month.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub personal_limits_mode: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -164,6 +167,18 @@ pub struct EmployeeTask {
     // it cannot.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fixed_shifts: Vec<FixedShiftTask>,
+    // Personal limits (employee_personal_limits). Nights and weekends are per
+    // calendar month, hard or soft by constraints.personal_limits_mode;
+    // no_night_shifts is always hard; preferred_days_off (weekdays "0" = Monday
+    // … "6", the solver's weekday format) is soft, like preferred_off.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_nights_per_month: Option<i16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_weekends_per_month: Option<i16>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub no_night_shifts: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub preferred_days_off: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

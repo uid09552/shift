@@ -158,6 +158,14 @@ class Employee(BaseModel):
     preferred_off: List[PreferredOff] = Field(default_factory=list)
     wishes: List[ShiftWish] = Field(default_factory=list)
     fixed_shifts: List[FixedShift] = Field(default_factory=list)
+    # Personal limits. Nights and weekends count per calendar month and follow
+    # constraints.personal_limits_mode; no_night_shifts is always hard;
+    # preferred_days_off ("0" = Monday … "6" = Sunday) costs preference_weight
+    # per day worked, like preferred_off.
+    max_nights_per_month: Optional[int] = Field(default=None, ge=0, le=31)
+    max_weekends_per_month: Optional[int] = Field(default=None, ge=0, le=5)
+    no_night_shifts: bool = False
+    preferred_days_off: List[str] = Field(default_factory=list)
 
 
 class LockedAssignment(BaseModel):
@@ -296,6 +304,11 @@ class ConstraintConfig(BaseModel):
     # kept — ahead of coverage and every other goal — or ignored, so the plan
     # is what the solver would do without them.
     keep_fixed_assignments: bool = True
+    # "hard": an employee's max_nights_per_month / max_weekends_per_month are
+    # never exceeded (a slot stays empty instead). "soft": exceeded only to fill
+    # a slot that would otherwise stay empty — as little as possible, ahead of
+    # every other goal — and named in `message`.
+    personal_limits_mode: Literal["soft", "hard"] = "hard"
 
     # Solver time limit in seconds
     solver_time_limit_seconds: float = Field(default=120.0, gt=0)

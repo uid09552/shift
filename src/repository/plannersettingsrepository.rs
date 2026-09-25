@@ -40,6 +40,7 @@ fn to_domain(s: PlannerSettings) -> PlannerSettingsDomain {
         wish_weight: s.wish_weight,
         min_staffing_mode: MinStaffingMode::from_db(&s.min_staffing_mode),
         keep_fixed_assignments: s.keep_fixed_assignments,
+        personal_limits_mode: MinStaffingMode::from_db_or(&s.personal_limits_mode, MinStaffingMode::Hard),
     }
 }
 
@@ -102,6 +103,7 @@ impl PlannerSettingsRepository for DieselPlannerSettingsRepository {
                 wish_weight: settings.wish_weight,
                 min_staffing_mode: settings.min_staffing_mode.as_str().to_string(),
                 keep_fixed_assignments: settings.keep_fixed_assignments,
+                personal_limits_mode: settings.personal_limits_mode.as_str().to_string(),
             };
             let updated: PlannerSettings = diesel::insert_into(planner_settings::table)
                 .values(&new_settings)

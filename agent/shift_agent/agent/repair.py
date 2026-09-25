@@ -136,7 +136,8 @@ invent one. Leave a list empty when the note says nothing about it.
 - A named rule the planner wants relaxed for this run goes in constraints, using \
 the exact setting name: night_shift_recovery_days, min_rest_hours, \
 max_consecutive_days, max_working_days_per_week, wish_weight, \
-min_staffing_mode ("soft"/"hard"), equality_weight, preference_weight.
+min_staffing_mode ("soft"/"hard"), personal_limits_mode ("soft"/"hard"), \
+equality_weight, preference_weight.
 - A date the note gives loosely ("Thursday") must be resolved to a date inside \
 the planning period; if it is ambiguous, leave it out rather than guessing.
 - If the note only describes what is wrong without asking for anything \
