@@ -3981,8 +3981,33 @@ components:
             Capability catalog with skill-level metadata, used by the optimizer's
             skill-downgrade objective. Empty/omitted means no skill-level
             substitution is attempted (equivalent to today's plain match).
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoryShiftTask'
+          description: >
+            The confirmed roster (shifts worked) in the 14 days before the period.
+            Read-only for the optimizer: it carries rest rules across the period
+            start — recovery days after a night on the last day, minimum rest
+            before the first shift, and a streak of working days already running.
+            Omitted when there is none.
         constraints:
           $ref: '#/components/schemas/ConstraintTask'
+
+    HistoryShiftTask:
+      type: object
+      required:
+        - employee_id
+        - date
+        - shift_id
+      properties:
+        employee_id:
+          type: string
+        date:
+          type: string
+          format: date
+        shift_id:
+          type: string
 
     CapabilityTask:
       type: object

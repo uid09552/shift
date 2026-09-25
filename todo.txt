@@ -12,3 +12,70 @@
    refuses periods over 366 days.
 3) recreate readme.md it should become an opensource service. describe the project, purpose, contribution....
    DONE. README.md rewritten; CONTRIBUTING.md and LICENSE (Apache-2.0) added.
+
+--- Proposals (2026-09-25). Not started. Effort: S = view over existing data,
+--- M = new endpoint or two, L = new tables + workflow. 4-10 are detailed in
+--- docs/ui-proposals.md; 11-22 are new.
+
+Around the finished roster (the biggest gap: planning is strong, everything after it is thin)
+
+4) Hours account (Zeitkonto) — per employee, contract hours vs worked hours, carried
+   month to month. One analysis endpoint over confirmed_shift_plans + monthly target;
+   a column on Fairness and Employee Calendar. [S]
+5) Compliance check over the confirmed roster — /agent/plan/validate works on a
+   proposal only; run the same rules over a date range of the roster actually worked
+   (after hand edits and swaps). [M]
+6) Absence requests and approval — shift-viewer requests leave, planner approves or
+   rejects. Status + approver on unavailabilities, leave entitlement per year, only
+   approved absences reach the optimizer. [L]
+7) Publish and notify — plan versions (draft/published), a diff between versions and a
+   notification to everyone whose shift moved (e-mail first; the header already has an
+   empty notification dropdown). [L]
+8) Shift swaps and open shifts — employee offers a shift, a qualified colleague takes
+   it, planner confirms; the rule check from 5) decides whether it is allowed. [L]
+9) Qualification matrix and expiry — employee x capability grid (free, data exists),
+   then valid_until on employee capabilities: expired ones are ignored by the
+   optimizer, the dashboard warns 30 days ahead. [S -> M]
+10) Personal calendar feed — signed, revocable ICS URL per employee, so shifts show up
+    in the phone calendar. [M]
+
+Planner / optimizer
+
+11) Period boundaries — the solver sees only the planning period, so a night on the
+    31st doesn't block the 1st and rest/consecutive-day limits restart every month.
+    Send the last N days of the confirmed roster as read-only history. [M]
+    DONE. The backend sends the confirmed roster of the 14 days before the period
+    as `history` (TaskDTO, /planner/prepare and /planner/plan). The solver carries
+    recovery days, minimum rest and running streaks (max_consecutive_days) across
+    the start; blocked slots get no variable, so locks/rotations on them are
+    named in `message`, never infeasible. The agent's plan check follows the same
+    history. Not carried: the weekly day cap (7-day blocks from the period start).
+    Tests: planner/tests/test_history.py.
+12) Public holidays per region — holiday calendar (tenant setting, e.g. Bavaria),
+    counted like weekends in fairness, optional own staffing minimum; today "holiday"
+    exists only as an absence type. [M]
+13) Skill mix per shift — "at least one senior / one with Intensive Care on every
+    night", not just capability per workstation. New rule type in planner + check. [M]
+14) Personal limits — per employee max nights per month, max weekends, no nights
+    (e.g. pregnancy, age), preferred days off. Soft or hard, like min_staffing_mode. [M]
+15) What-if scenarios — solve the same period under two settings (e.g. rotations on/off,
+    hard vs soft staffing) and show both in Compare; the assistant already asks this. [S]
+16) Short-notice replacement — "Anna is sick tomorrow": rank qualified, rested, under-
+    hours colleagues for that slot, using the repair logic for one slot only. [M]
+
+Organisation / data
+
+17) Departments / wards as a level above workstations — planners see and plan only
+    their department; today a tenant is one flat pool. [L]
+18) Personnel cost — hourly rate and night/weekend/holiday surcharges; cost per plan
+    in Compare and as an optional optimizer goal. [M]
+19) Roster export for payroll — confirmed month as CSV/DATEV-style file with surcharge
+    hours (builds on 12 and 18). [M]
+
+Quality / operations
+
+20) Handler tests — list_tasks, list_users, list_shifts and other route handlers have no
+    covering test; add HTTP-level tests next to tests/*.rs, run in CI. [M]
+21) E2E beyond Overview — Robot suites for Scheduler (calculate -> take as plan),
+    Rotations and Wish window, the flows most likely to regress. [M]
+22) Backup/restore runbook and a scheduled pg_dump in deploy/, tested restore. [S]

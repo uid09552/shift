@@ -388,6 +388,11 @@ Alongside `constraints`, the input carries `locked_assignments` —
 turn a re-solve into a repair: the model plans around them instead of
 re-deciding them. Impossible locks are dropped and reported in `message`.
 
+It also carries `history` — `{employee_id, date, shift_id}` rows of the confirmed
+roster in the 14 days before the period (filled by the backend). Read-only: they
+carry recovery days, minimum rest and running streaks across the period start,
+so a night on the 31st still blocks the 1st. The agent's plan check follows them.
+
 ### NATS JetStream
 Used for asynchronous task processing:
 - Optimization tasks are published to JetStream

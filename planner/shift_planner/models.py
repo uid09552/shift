@@ -177,6 +177,21 @@ class LockedAssignment(BaseModel):
     workstation_id: str = Field(..., min_length=1)
 
 
+class HistoryShift(BaseModel):
+    """A shift someone already worked in the days before the period.
+
+    Read-only: the solver never plans these days, it only carries their
+    consequences across the period start — the recovery days owed after a
+    night on the last day, the rest before the first morning, and a streak of
+    working days that is already running. Rows on or after the period start
+    are ignored.
+    """
+
+    employee_id: str = Field(..., min_length=1)
+    date: date
+    shift_id: str = Field(..., min_length=1)
+
+
 class CapabilityInfo(BaseModel):
     """Capability catalog entry carrying skill-level metadata.
 
@@ -300,6 +315,8 @@ class SchedulingInput(BaseModel):
     # Assignments the solver may not change. Everything else is solved around
     # them — see LockedAssignment.
     locked_assignments: List[LockedAssignment] = Field(default_factory=list)
+    # The confirmed roster just before the period — see HistoryShift.
+    history: List[HistoryShift] = Field(default_factory=list)
     constraints: ConstraintConfig = Field(default_factory=ConstraintConfig)
 
     @field_validator("shifts", "workstations", "employees")

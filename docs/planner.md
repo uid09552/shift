@@ -56,6 +56,7 @@ worked example. The backend builds this payload from the database — call
 | `employees` | `id`, `name`, `skills`, `available_shifts`, `unavailability[]`, `monthly_working_hours`, `preferred_off[]`, `fixed_shifts[]` (rotations; see `keep_fixed_assignments`) |
 | `capabilities` | `id`, `level`, `skill_group` — for the skill-downgrade objective |
 | `locked_assignments` | `employee_id`, `date`, `shift_id`, `workstation_id` — rows the solver must keep |
+| `history` | `employee_id`, `date`, `shift_id` — the confirmed roster of the 14 days before the period, read-only (see rule 11) |
 | `constraints` | the `ConstraintConfig` block below |
 
 Each `weekday_times` entry carries `weekday`, start/end times,
@@ -101,6 +102,15 @@ Violating any of these makes a solution invalid.
     that shift — is dropped and named in `message` rather than failing the run;
     locked rows that cannot coexist *do* make the plan infeasible, and the
     message says so.
+11. **The days before the period** — `history` carries rules 5, 7 and 8 across
+    the period start: a night on the last day still owes its recovery days in
+    the new period, a late shift the evening before still rules out the first
+    early shift, and a streak of working days already running counts against
+    `max_consecutive_days`. The backend fills it from the confirmed roster of
+    the 14 days before the start (the longest any of those rules reaches back).
+    A blocked slot gets no variable, like an absence, so a lock or fixed
+    assignment on it is named in `message` instead of failing the run. Rule 6
+    counts seven-day blocks from the period start and does not look back.
 
 Note the asymmetry on staffing bands: **maximum is hard, minimum is soft.** If
 minimum staffing were hard, a short-staffed week would return `infeasible` and
