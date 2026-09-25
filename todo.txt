@@ -79,3 +79,4 @@ Quality / operations
 21) E2E beyond Overview — Robot suites for Scheduler (calculate -> take as plan),
     Rotations and Wish window, the flows most likely to regress. [M]
 22) Backup/restore runbook and a scheduled pg_dump in deploy/, tested restore. [S]
+23) build docker as same as in gitlab-ci but as github action and push to gitlab ci
