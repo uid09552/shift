@@ -1,7 +1,7 @@
 
 
 Around the finished roster (the biggest gap: planning is strong, everything after it is thin)
-
+1) whish as cron expresssion to open on ...
 4) Hours account (Zeitkonto) — per employee, contract hours vs worked hours, carried
    month to month. One analysis endpoint over confirmed_shift_plans + monthly target;
    a column on Fairness and Employee Calendar. [S]
