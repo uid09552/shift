@@ -26,6 +26,9 @@
 
   timezone: 'Europe/Berlin',
   labels: ['dependencies'],
+  // Let GitHub merge dependency updates once required CI checks pass.
+  automerge: true,
+  platformAutomerge: true,
 
   // The CI schedule decides how often Renovate runs, so it should not also be
   // throttled per hour — that would leave most updates for the next run.
