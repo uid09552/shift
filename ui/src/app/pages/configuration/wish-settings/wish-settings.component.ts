@@ -178,21 +178,26 @@ const MAX_INTERVAL: Record<ScheduleUnit, number> = { days: 365, weeks: 52, month
               <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'wishSettings.schedule.title' | t }}</h3>
               <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'wishSettings.schedule.sub' | t }}</p>
             </div>
-            <label class="flex shrink-0 items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <input
-                type="checkbox"
-                data-testid="wish-schedule-enabled"
-                [checked]="schedule.enabled"
-                [disabled]="!canEdit"
-                (change)="schedule.enabled = !schedule.enabled"
-                class="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500/20"
-              />
-              {{ 'wishSettings.schedule.enable' | t }}
-            </label>
+            <button
+              type="button"
+              role="switch"
+              data-testid="wish-schedule-enabled"
+              [attr.aria-checked]="schedule.enabled"
+              [attr.aria-label]="'wishSettings.schedule.enable' | t"
+              [disabled]="!canEdit"
+              (click)="schedule.enabled = !schedule.enabled"
+              class="relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-hidden focus-visible:ring-3 focus-visible:ring-brand-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+              [class]="schedule.enabled ? 'bg-brand-500' : 'bg-gray-300 dark:bg-gray-700'"
+            >
+              <span
+                class="inline-block h-5 w-5 transform rounded-full bg-white shadow-theme-xs transition-transform"
+                [class]="schedule.enabled ? 'translate-x-5' : 'translate-x-0.5'"
+              ></span>
+            </button>
           </div>
 
           <div
-            class="grid grid-cols-1 gap-5 border-t border-gray-100 px-5 py-5 transition-opacity dark:border-white/[0.05] sm:grid-cols-2 sm:px-6 lg:grid-cols-3"
+            class="grid grid-cols-1 items-start gap-x-5 gap-y-6 border-t border-gray-100 px-5 py-6 transition-opacity dark:border-white/[0.05] sm:grid-cols-2 sm:px-6 lg:grid-cols-3"
             [class.opacity-50]="!schedule.enabled"
           >
             <div>
@@ -251,19 +256,21 @@ const MAX_INTERVAL: Record<ScheduleUnit, number> = { days: 365, weeks: 52, month
             </div>
           </div>
 
-          <div class="border-t border-gray-100 bg-gray-50/60 px-5 py-3.5 dark:border-white/[0.05] dark:bg-white/[0.02] sm:px-6">
-            <p class="text-xs text-gray-600 dark:text-gray-400">
-              @if (schedule.enabled) {
-                {{ 'wishSettings.schedule.override' | t }}
-                @if (nextChange) {
-                  <span class="font-medium text-gray-700 dark:text-gray-300">
-                    {{ (nextChange.opens ? 'wishSettings.schedule.nextOpens' : 'wishSettings.schedule.nextCloses') | t: { date: nextChange.at } }}
-                  </span>
-                }
-              } @else {
-                {{ 'wishSettings.schedule.off' | t }}
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-gray-100 bg-gray-50/60 px-5 py-3.5 dark:border-white/[0.05] dark:bg-white/[0.02] sm:px-6">
+            @if (schedule.enabled) {
+              @if (nextChange) {
+                <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
+                  [class]="nextChange.opens
+                    ? 'bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400'
+                    : 'bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400'">
+                  <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+                  {{ (nextChange.opens ? 'wishSettings.schedule.nextOpens' : 'wishSettings.schedule.nextCloses') | t: { date: nextChange.at } }}
+                </span>
               }
-            </p>
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ 'wishSettings.schedule.override' | t }}</span>
+            } @else {
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ 'wishSettings.schedule.off' | t }}</span>
+            }
           </div>
         </div>
 
