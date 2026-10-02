@@ -1,10 +1,10 @@
 use axum::{extract::State, Json};
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::errors::AppError;
 use crate::repository::domain::{
-    UpdateWishSettings, WishMode, WishSettingsDomain, WishSettingsRepository,
+    ScheduleUnit, UpdateWishSettings, WishMode, WishScheduleDomain, WishSettingsDomain, WishSettingsRepository,
 };
 use crate::repository::AppState;
 use crate::services::audit_log::{self, AuditActor};
@@ -16,15 +16,35 @@ pub struct WishSettingsResponse {
     pub mode: WishMode,
     pub window_start: Option<NaiveDate>,
     pub window_end: Option<NaiveDate>,
+    pub schedule: WishScheduleResponse,
     pub updated_at: NaiveDateTime,
+}
+
+#[derive(Serialize, Debug)]
+pub struct WishScheduleResponse {
+    #[serde(flatten)]
+    pub schedule: WishScheduleDomain,
+    /// The next time the schedule flips the window (UTC); None while switched off.
+    pub next_change_at: Option<NaiveDateTime>,
+    pub next_change_opens: Option<bool>,
 }
 
 impl From<WishSettingsDomain> for WishSettingsResponse {
     fn from(s: WishSettingsDomain) -> Self {
+        let next = s
+            .schedule
+            .enabled
+            .then(|| s.schedule.next_change(Utc::now().naive_utc()))
+            .flatten();
         Self {
             mode: s.mode,
             window_start: s.window_start,
             window_end: s.window_end,
+            schedule: WishScheduleResponse {
+                schedule: s.schedule,
+                next_change_at: next.map(|(at, _)| at),
+                next_change_opens: next.map(|(_, opens)| opens),
+            },
             updated_at: s.updated_at,
         }
     }
@@ -37,6 +57,29 @@ pub struct UpdateWishSettingsRequest {
     pub window_start: Option<NaiveDate>,
     #[serde(default)]
     pub window_end: Option<NaiveDate>,
+    /// Left out = keep the stored schedule.
+    #[serde(default)]
+    pub schedule: Option<UpdateWishScheduleRequest>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct UpdateWishScheduleRequest {
+    pub enabled: bool,
+    pub unit: ScheduleUnit,
+    pub interval: i32,
+    #[serde(default)]
+    pub weekday: i16,
+    #[serde(default = "first_of_month")]
+    pub day_of_month: i16,
+    pub time: NaiveTime,
+    pub open_days: i32,
+    /// Defaults to today (UTC).
+    #[serde(default)]
+    pub start_date: Option<NaiveDate>,
+}
+
+fn first_of_month() -> i16 {
+    1
 }
 
 pub struct WishSettingsService;
@@ -74,7 +117,21 @@ impl WishSettingsService {
             window_end: body.window_end,
         };
 
-        let settings = state.wish_settings_repo.update_wish_settings(&tenant.0, update).await?;
+        let mut settings = state.wish_settings_repo.update_wish_settings(&tenant.0, update).await?;
+        if let Some(schedule) = body.schedule {
+            let schedule = WishScheduleDomain {
+                enabled: schedule.enabled,
+                unit: schedule.unit,
+                interval: schedule.interval,
+                weekday: schedule.weekday,
+                day_of_month: schedule.day_of_month,
+                time: schedule.time,
+                open_days: schedule.open_days,
+                start_date: schedule.start_date.or_else(|| Some(Utc::now().date_naive())),
+                applied_open: None,
+            };
+            settings = state.wish_settings_repo.update_wish_schedule(&tenant.0, schedule).await?;
+        }
         let response = WishSettingsResponse::from(settings);
 
         let changes = serde_json::to_string(&response).unwrap_or_default();
@@ -97,6 +154,30 @@ fn validate(body: &UpdateWishSettingsRequest) -> Result<(), AppError> {
             return Err(AppError::Validation("window_start must be on or before window_end".into()));
         }
     }
+    if let Some(s) = &body.schedule {
+        validate_schedule(s)?;
+    }
+    Ok(())
+}
+
+fn validate_schedule(s: &UpdateWishScheduleRequest) -> Result<(), AppError> {
+    let max_interval = match s.unit {
+        ScheduleUnit::Days => 365,
+        ScheduleUnit::Weeks => 52,
+        ScheduleUnit::Months => 24,
+    };
+    if s.interval < 1 || s.interval > max_interval {
+        return Err(AppError::Validation(format!("interval must be between 1 and {max_interval}")));
+    }
+    if !(0..=6).contains(&s.weekday) {
+        return Err(AppError::Validation("weekday must be between 0 (Monday) and 6 (Sunday)".into()));
+    }
+    if !(1..=31).contains(&s.day_of_month) {
+        return Err(AppError::Validation("day_of_month must be between 1 and 31".into()));
+    }
+    if !(1..=366).contains(&s.open_days) {
+        return Err(AppError::Validation("open_days must be between 1 and 366".into()));
+    }
     Ok(())
 }
 
@@ -110,6 +191,7 @@ mod tests {
             mode,
             window_start: start.map(date),
             window_end: end.map(date),
+            schedule: None,
         }
     }
 
@@ -119,6 +201,7 @@ mod tests {
             mode,
             window_start: start.map(date),
             window_end: end.map(date),
+            schedule: WishScheduleDomain::default(),
             updated_at: NaiveDateTime::default(),
         }
     }

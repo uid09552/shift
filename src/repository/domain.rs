@@ -1,5 +1,4 @@
-use chrono::NaiveDate;
-use chrono::NaiveTime;
+use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::errors::AppError;
@@ -623,7 +622,133 @@ pub struct WishSettingsDomain {
     pub mode: WishMode,
     pub window_start: Option<NaiveDate>,
     pub window_end: Option<NaiveDate>,
+    pub schedule: WishScheduleDomain,
     pub updated_at: chrono::NaiveDateTime,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ScheduleUnit {
+    Days,
+    Weeks,
+    Months,
+}
+
+impl ScheduleUnit {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ScheduleUnit::Days => "days",
+            ScheduleUnit::Weeks => "weeks",
+            ScheduleUnit::Months => "months",
+        }
+    }
+
+    pub fn from_db(value: &str) -> Self {
+        match value {
+            "days" => ScheduleUnit::Days,
+            "months" => ScheduleUnit::Months,
+            _ => ScheduleUnit::Weeks,
+        }
+    }
+}
+
+/// Recurring rule that opens the wish window and closes it again `open_days` later.
+/// All times are UTC.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct WishScheduleDomain {
+    pub enabled: bool,
+    pub unit: ScheduleUnit,
+    /// Every `interval` days / weeks / months.
+    pub interval: i32,
+    /// 0 = Monday … 6 = Sunday; used by `Weeks`.
+    pub weekday: i16,
+    /// 1–31, clamped to the month's last day; used by `Months`.
+    pub day_of_month: i16,
+    pub time: NaiveTime,
+    /// How long the window stays open from each occurrence.
+    pub open_days: i32,
+    /// First occurrence on or after this date; also anchors the interval.
+    pub start_date: Option<NaiveDate>,
+    /// State the background job last wrote; None until it first applies.
+    #[serde(skip)]
+    pub applied_open: Option<bool>,
+}
+
+impl Default for WishScheduleDomain {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            unit: ScheduleUnit::Weeks,
+            interval: 1,
+            weekday: 0,
+            day_of_month: 1,
+            time: NaiveTime::from_hms_opt(0, 0, 0).unwrap(),
+            open_days: 7,
+            start_date: None,
+            applied_open: None,
+        }
+    }
+}
+
+fn days_in_month(year: i32, month: u32) -> u32 {
+    let (ny, nm) = if month == 12 { (year + 1, 1) } else { (year, month + 1) };
+    NaiveDate::from_ymd_opt(ny, nm, 1)
+        .and_then(|first| first.pred_opt())
+        .map_or(28, |last| last.day())
+}
+
+impl WishScheduleDomain {
+    fn occurs_on(&self, date: NaiveDate) -> bool {
+        let Some(start) = self.start_date else { return false };
+        if date < start {
+            return false;
+        }
+        let interval = i64::from(self.interval.max(1));
+        match self.unit {
+            ScheduleUnit::Days => (date - start).num_days() % interval == 0,
+            ScheduleUnit::Weeks => {
+                let first_monday = start - Duration::days(i64::from(start.weekday().num_days_from_monday()));
+                i64::from(date.weekday().num_days_from_monday()) == i64::from(self.weekday)
+                    && ((date - first_monday).num_days() / 7) % interval == 0
+            }
+            ScheduleUnit::Months => {
+                let months = i64::from((date.year() - start.year()) * 12 + date.month() as i32 - start.month() as i32);
+                let day = u32::try_from(self.day_of_month).unwrap_or(1).min(days_in_month(date.year(), date.month()));
+                months % interval == 0 && date.day() == day
+            }
+        }
+    }
+
+    /// Whether the schedule has the window open at `now` (ignores `enabled`).
+    pub fn is_open_at(&self, now: NaiveDateTime) -> bool {
+        let open_for = Duration::days(i64::from(self.open_days.max(1)));
+        (0..=self.open_days.max(1)).any(|back| {
+            let date = now.date() - Duration::days(i64::from(back));
+            let opens = date.and_time(self.time);
+            self.occurs_on(date) && opens <= now && now < opens + open_for
+        })
+    }
+
+    /// The next moment after `now` the window flips, and whether it then opens.
+    pub fn next_change(&self, now: NaiveDateTime) -> Option<(NaiveDateTime, bool)> {
+        let open_for = Duration::days(i64::from(self.open_days.max(1)));
+        let current = self.is_open_at(now);
+        let first = now.date() - open_for;
+        let mut best: Option<NaiveDateTime> = None;
+        for offset in 0..=(800 + self.open_days.max(1)) {
+            let date = first + Duration::days(i64::from(offset));
+            if !self.occurs_on(date) {
+                continue;
+            }
+            let opens = date.and_time(self.time);
+            for candidate in [opens, opens + open_for] {
+                if candidate > now && self.is_open_at(candidate) != current && best.map_or(true, |b| candidate < b) {
+                    best = Some(candidate);
+                }
+            }
+        }
+        best.map(|at| (at, !current))
+    }
 }
 
 impl WishSettingsDomain {
@@ -658,6 +783,13 @@ pub trait WishSettingsRepository {
     /// access — the behaviour that predates the window.
     async fn get_or_create_wish_settings(&self, tenant_id: &str) -> Result<WishSettingsDomain, AppError>;
     async fn update_wish_settings(&self, tenant_id: &str, settings: UpdateWishSettings) -> Result<WishSettingsDomain, AppError>;
+    /// Replaces the recurring schedule; the mode and window are untouched.
+    async fn update_wish_schedule(&self, tenant_id: &str, schedule: WishScheduleDomain) -> Result<WishSettingsDomain, AppError>;
+    /// Every tenant whose schedule is switched on.
+    async fn list_scheduled_wish_settings(&self) -> Result<Vec<(String, WishSettingsDomain)>, AppError>;
+    /// Sets the mode to open/closed, unless the job already applied that state.
+    /// Returns whether it changed anything, so concurrent replicas apply once.
+    async fn apply_scheduled_wish_state(&self, tenant_id: &str, open: bool) -> Result<bool, AppError>;
 }
 
 /// One employee's personal limits (`employee_personal_limits`). An employee

@@ -8,16 +8,46 @@ import { Observable } from 'rxjs';
  */
 export type WishMode = 'enabled' | 'disabled' | 'date_range';
 
+export type ScheduleUnit = 'days' | 'weeks' | 'months';
+
+/** Recurring open/close rule, evaluated by a background job in UTC. */
+export interface WishSchedule {
+  enabled: boolean;
+  unit: ScheduleUnit;
+  /** Every N days / weeks / months. */
+  interval: number;
+  /** 0 = Monday … 6 = Sunday; used by `weeks`. */
+  weekday: number;
+  /** 1–31, clamped to the month's last day; used by `months`. */
+  day_of_month: number;
+  /** HH:MM:SS (UTC). */
+  time: string;
+  /** How long the window stays open from each occurrence. */
+  open_days: number;
+  start_date: string | null;
+}
+
+export interface WishScheduleStatus extends WishSchedule {
+  next_change_at: string | null;
+  next_change_opens: boolean | null;
+}
+
 export interface WishSettings {
   mode: WishMode;
   /** Inclusive; only meaningful while mode is `date_range`. */
   window_start: string | null;
   /** Inclusive; only meaningful while mode is `date_range`. */
   window_end: string | null;
+  schedule: WishScheduleStatus;
   updated_at: string;
 }
 
-export type UpdateWishSettingsRequest = Omit<WishSettings, 'updated_at'>;
+export interface UpdateWishSettingsRequest {
+  mode: WishMode;
+  window_start: string | null;
+  window_end: string | null;
+  schedule: WishSchedule;
+}
 
 /**
  * The tenant's shift-wish window. Readable by everyone — the calendar needs it to

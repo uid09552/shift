@@ -38,7 +38,7 @@ pub use shift_wish::{NewShiftWish, ShiftWish};
 pub use task_dto::{ConstraintTask, TaskDTO, PlanningPeriod, ShiftTask, ShiftWeekdayTimeTask, WorkstationTask, WorkstationUnavailabilityRange, EmployeeTask, CapabilityTask, PreferredOffTask, ShiftWishTask, FixedShiftTask, HistoryShiftTask};
 pub use task_result_dto::{TaskResultDto, PlanningPeriodResult, DaySchedule, ShiftSchedule, ShiftAssignment, EmployeeSummary, EmployeeShiftSummary, EmployeeDailyPlan, DailyPlanEntry};
 pub use unavailability::{NewUnavailability, Unavailability};
-pub use wish_settings::{NewWishSettings, WishSettings};
+pub use wish_settings::{NewWishSettings, WishScheduleChangeset, WishSettings};
 pub use personal_limits::{NewPersonalLimits, PersonalLimits};
 pub use workstation::{NewWorkstation, Workstation};
 pub use workstation_required_capabilities::{NewWorkstationRequiredCapability, WorkstationRequiredCapability};

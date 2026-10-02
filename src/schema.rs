@@ -213,6 +213,15 @@ diesel::table! {
         window_end -> Nullable<Date>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
+        schedule_enabled -> Bool,
+        schedule_unit -> Varchar,
+        schedule_interval -> Int4,
+        schedule_weekday -> Int2,
+        schedule_day_of_month -> Int2,
+        schedule_time -> Time,
+        schedule_open_days -> Int4,
+        schedule_start_date -> Nullable<Date>,
+        schedule_applied_open -> Nullable<Bool>,
     }
 }
 

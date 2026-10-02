@@ -4005,9 +4005,62 @@ components:
           format: date
           nullable: true
           description: Last date wishes may be placed for, inclusive. Only meaningful when mode is date_range.
+        schedule:
+          allOf:
+            - $ref: '#/components/schemas/WishSchedule'
+            - type: object
+              properties:
+                next_change_at:
+                  type: string
+                  format: date-time
+                  nullable: true
+                  description: Next time (UTC) the schedule flips the window; null while the schedule is off.
+                next_change_opens:
+                  type: boolean
+                  nullable: true
         updated_at:
           type: string
           format: date-time
+
+    WishSchedule:
+      type: object
+      description: >
+        Recurring rule a background job (once a minute, per tenant) uses to set
+        the window to `enabled` at each occurrence and `disabled` open_days later.
+        A manual change holds until the next switch. Times are UTC.
+      required: [enabled, unit, interval, time, open_days]
+      properties:
+        enabled:
+          type: boolean
+        unit:
+          type: string
+          enum: [days, weeks, months]
+        interval:
+          type: integer
+          minimum: 1
+          description: Every N units. At most 365 days, 52 weeks or 24 months.
+        weekday:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: 0 = Monday. Used by weeks.
+        day_of_month:
+          type: integer
+          minimum: 1
+          maximum: 31
+          description: Clamped to the month's last day. Used by months.
+        time:
+          type: string
+          example: '08:00:00'
+        open_days:
+          type: integer
+          minimum: 1
+          maximum: 366
+        start_date:
+          type: string
+          format: date
+          nullable: true
+          description: First possible occurrence; anchors the interval. Defaults to today on save.
 
     UpdateWishSettingsRequest:
       type: object
@@ -4026,6 +4079,8 @@ components:
           format: date
           nullable: true
           description: Required when mode is date_range; must be on or after window_start.
+        schedule:
+          $ref: '#/components/schemas/WishSchedule'
 
     WishMode:
       type: string

@@ -217,6 +217,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             state.keycloak = keycloak_settings(&config.keycloak)
                 .map(|settings| Arc::new(KeycloakAdmin::new(settings)));
             let addr = format!("{}:{}", config.server.listen, config.server.port).parse::<SocketAddr>()?;
+            shift::services::wish_schedule::spawn(state.clone());
             server::start_server(state, addr).await?;
 
             // Flush whatever is still batched before the process goes away.

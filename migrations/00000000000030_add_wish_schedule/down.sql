@@ -1,0 +1,10 @@
+ALTER TABLE wish_settings
+    DROP COLUMN schedule_enabled,
+    DROP COLUMN schedule_unit,
+    DROP COLUMN schedule_interval,
+    DROP COLUMN schedule_weekday,
+    DROP COLUMN schedule_day_of_month,
+    DROP COLUMN schedule_time,
+    DROP COLUMN schedule_open_days,
+    DROP COLUMN schedule_start_date,
+    DROP COLUMN schedule_applied_open;
