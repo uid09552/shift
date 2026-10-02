@@ -235,8 +235,8 @@ import { PatternIssue, checkPattern, formatSequence, parseSequence } from './rot
                       @for (cell of result.rows[0]?.cells ?? []; track cell.date; let first = $first) {
                         @let label = dayLabel(cell.date, first);
                         <th class="min-w-[34px] px-0.5 pb-1 text-center font-normal" [class.text-gray-400]="label.weekend" [class.text-gray-500]="!label.weekend">
-                          <div class="h-3.5 text-[10px] font-medium text-gray-400 dark:text-gray-500">{{ label.month }}</div>
-                          <div class="text-[10px]">{{ label.weekday }}</div>
+                          <div class="h-3.5 text-[11px] font-medium text-gray-400 dark:text-gray-500">{{ label.month }}</div>
+                          <div class="text-[11px]">{{ label.weekday }}</div>
                           <div class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ label.day }}</div>
                         </th>
                       }

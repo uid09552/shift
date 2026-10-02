@@ -13,7 +13,7 @@ html {
       primary: mat.$azure-palette,
       tertiary: mat.$blue-palette,
     ),
-    typography: Roboto,
+    typography: (plain-family: ('Inter Variable', system-ui, sans-serif), brand-family: ('Inter Variable', system-ui, sans-serif)),
     density: 0,
   ));
 }
@@ -30,6 +30,13 @@ body {
   background-color: var(--mat-sys-surface);
   color: var(--mat-sys-on-surface);
   font: var(--mat-sys-body-medium);
+  font-family: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-feature-settings: 'calt', 'ss03';
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+
+  // Soft grey canvas so white cards read as raised surfaces.
+  --mat-sys-surface: var(--color-gray-50, #f9fafb);
 
   // Reset the user agent margin.
   margin: 0;

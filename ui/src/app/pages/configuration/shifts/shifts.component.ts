@@ -144,7 +144,7 @@ const WEEKDAY_COUNT = 7;
                         <!-- A shift may run past midnight; say so where the end time is entered. -->
                         @if (formWeekdays[day.value].enabled && crossesMidnight(formWeekdays[day.value])) {
                           <span
-                            class="pointer-events-none absolute -right-1.5 -top-1.5 rounded-full bg-brand-500 px-1.5 py-px text-[10px] font-semibold leading-tight text-white shadow-theme-xs"
+                            class="pointer-events-none absolute -right-1.5 -top-1.5 rounded-full bg-brand-500 px-1.5 py-px text-[11px] font-semibold leading-tight text-white shadow-theme-xs"
                             [title]="'shifts.nextDayHint' | t"
                           >{{ 'shifts.nextDay' | t }}</span>
                         }

@@ -76,7 +76,7 @@
                   (click)="viewPerson(person)"
                 >
                   <span
-                    class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-600 dark:bg-white/[0.06] dark:text-gray-300"
+                    class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[11px] font-semibold text-gray-600 dark:bg-white/[0.06] dark:text-gray-300"
                     aria-hidden="true"
                   >{{ initials(person.name) }}</span>
                   <span class="truncate">{{ person.name }}</span>
@@ -257,7 +257,7 @@
                     ]"
                   >
                     <p
-                      class="text-[10px] uppercase tracking-wide sm:text-[11px]"
+                      class="text-[11px] uppercase tracking-wide sm:text-[11px]"
                       [ngClass]="day.isSelected
                         ? 'font-semibold text-brand-600 dark:text-brand-400'
                         : day.isToday
@@ -273,7 +273,7 @@
 
                     @if (day.shiftName) {
                       <span
-                        class="mt-2 inline-flex max-w-full items-center rounded-full px-1 py-0.5 text-[10px] font-medium leading-4 sm:px-2 sm:text-[11px]"
+                        class="mt-2 inline-flex max-w-full items-center rounded-full px-1 py-0.5 text-[11px] font-medium leading-4 sm:px-2 sm:text-[11px]"
                         [style.background-color]="day.shiftColor || '#465fff'"
                         [style.color]="textOn(day.shiftColor)"
                         aria-hidden="true"

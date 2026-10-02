@@ -81,6 +81,7 @@ export const de: Record<TranslationKey, string> = {
   // ── Header ──────────────────────────────────────────────────────
   'header.searchPlaceholder': 'Suchen oder Befehl eingeben…',
   'header.toggleSidebar': 'Seitenleiste umschalten',
+  'header.toggleMenu': 'Kopfzeilenmenü umschalten',
   'header.languageSwitcher': 'Sprache wechseln',
 
   // ── Browser tab titles ──────────────────────────────────────────

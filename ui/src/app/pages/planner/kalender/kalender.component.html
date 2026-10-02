@@ -322,7 +322,7 @@
                         </span>
                         @if (cell.workstation && viewMode === 'week') {
                           <span
-                            class="w-full truncate text-[10px] leading-tight text-gray-500 cursor-pointer hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
+                            class="w-full truncate text-[11px] leading-tight text-gray-500 cursor-pointer hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
                             [title]="'schedule.changeWorkstation' | t: { workstation: getWorkstationName(cell.workstation) }"
                             (click)="startEdit(employee.id, day, $event)"
                           >
@@ -362,7 +362,7 @@
                           class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
                           (click)="$event.stopPropagation()"
                         >
-                          <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+                          <div class="px-3 py-1.5 text-[11px] font-semibold uppercase text-gray-400 dark:text-gray-500">
                             {{ 'schedule.changeShift' | t }}
                           </div>
                           @for (shift of shifts; track shift.id) {
@@ -388,7 +388,7 @@
                             </button>
                           }
                           <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                          <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+                          <div class="px-3 py-1.5 text-[11px] font-semibold uppercase text-gray-400 dark:text-gray-500">
                             {{ 'common.workstation' | t }}
                           </div>
                           @for (ws of workstations; track ws.id) {
@@ -409,7 +409,7 @@
                                 {{ ws.name }}
                               </span>
                               @if (closed) {
-                                <span class="ml-auto text-[10px] text-gray-400 dark:text-gray-500">{{ 'schedule.workstationClosed' | t }}</span>
+                                <span class="ml-auto text-[11px] text-gray-400 dark:text-gray-500">{{ 'schedule.workstationClosed' | t }}</span>
                               }
                             </button>
                           }
@@ -576,7 +576,7 @@
                           class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
                           (click)="$event.stopPropagation()"
                         >
-                          <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+                          <div class="px-3 py-1.5 text-[11px] font-semibold uppercase text-gray-400 dark:text-gray-500">
                             {{ 'schedule.assignShift' | t }}
                           </div>
                           @for (shift of shifts; track shift.id) {
@@ -596,7 +596,7 @@
                             </button>
                           }
                           <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                          <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+                          <div class="px-3 py-1.5 text-[11px] font-semibold uppercase text-gray-400 dark:text-gray-500">
                             {{ 'common.workstation' | t }}
                           </div>
                           @for (ws of workstations; track ws.id) {
@@ -617,7 +617,7 @@
                                 {{ ws.name }}
                               </span>
                               @if (closed) {
-                                <span class="ml-auto text-[10px] text-gray-400 dark:text-gray-500">{{ 'schedule.workstationClosed' | t }}</span>
+                                <span class="ml-auto text-[11px] text-gray-400 dark:text-gray-500">{{ 'schedule.workstationClosed' | t }}</span>
                               }
                             </button>
                           }

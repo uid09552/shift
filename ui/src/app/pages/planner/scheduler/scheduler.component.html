@@ -248,8 +248,8 @@
                           [class.text-gray-400]="day.weekday >= 5"
                           [class.text-gray-500]="day.weekday < 5"
                         >
-                          <div class="h-3.5 text-[10px] font-medium text-gray-400 dark:text-gray-500">{{ label.month }}</div>
-                          <div class="text-[10px]">{{ label.weekday }}</div>
+                          <div class="h-3.5 text-[11px] font-medium text-gray-400 dark:text-gray-500">{{ label.month }}</div>
+                          <div class="text-[11px]">{{ label.weekday }}</div>
                           <div class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ label.day }}</div>
                         </th>
                       }
@@ -276,7 +276,7 @@
                                 }"
                                 [attr.aria-label]="('scheduler.coverage.cellSummary' | t: { required: cell.required, available: cell.available }) + ' · ' + row.shiftName"
                               >
-                                <span class="font-semibold">{{ cell.required }}</span><span class="mt-px text-[10px] opacity-60">/{{ cell.available }}</span>
+                                <span class="font-semibold">{{ cell.required }}</span><span class="mt-px text-[11px] opacity-60">/{{ cell.available }}</span>
                               </button>
                             } @else if (cell.runs) {
                               <!-- Runs, but nothing to fill: no minimum, or every station closed. -->
@@ -301,7 +301,7 @@
                               [class.dark:text-warning-400]="day.level === 'tight'"
                               [class.text-gray-700]="day.level === 'ok'"
                               [class.dark:text-gray-300]="day.level === 'ok'"
-                            >{{ day.required }}</span><span class="mt-px block text-[10px] text-gray-400 dark:text-gray-500">/{{ day.available }}</span>
+                            >{{ day.required }}</span><span class="mt-px block text-[11px] text-gray-400 dark:text-gray-500">/{{ day.available }}</span>
                           }
                         </td>
                       }
@@ -691,7 +691,7 @@
                     @for (change of fixReport.changes; track change.employee_id + change.date + change.rule) {
                       <li class="flex items-start gap-2 text-xs text-gray-600 dark:text-gray-300">
                         <span
-                          class="mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase"
+                          class="mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium uppercase"
                           [class.bg-red-100]="change.action === 'cleared'"
                           [class.text-red-700]="change.action === 'cleared'"
                           [class.dark:bg-red-900/30]="change.action === 'cleared'"
@@ -934,8 +934,8 @@
                     @for (date of cmp.dates; track date; let first = $first) {
                       @let label = coverageDayLabel(date, first);
                       <th class="sticky top-0 z-10 bg-white px-px pb-1 text-center font-normal text-gray-500 dark:bg-gray-900">
-                        <div class="h-3.5 text-[10px] font-medium text-gray-400 dark:text-gray-500">{{ label.month }}</div>
-                        <div class="text-[10px]">{{ label.weekday }}</div>
+                        <div class="h-3.5 text-[11px] font-medium text-gray-400 dark:text-gray-500">{{ label.month }}</div>
+                        <div class="text-[11px]">{{ label.weekday }}</div>
                         <div class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ label.day }}</div>
                       </th>
                     }

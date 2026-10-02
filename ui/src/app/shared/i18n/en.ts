@@ -82,6 +82,7 @@ export const en = {
   // ── Header ──────────────────────────────────────────────────────
   'header.searchPlaceholder': 'Search or type command…',
   'header.toggleSidebar': 'Toggle Sidebar',
+  'header.toggleMenu': 'Toggle header menu',
   'header.languageSwitcher': 'Change language',
 
   // ── Browser tab titles ──────────────────────────────────────────

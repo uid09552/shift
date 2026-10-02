@@ -108,7 +108,7 @@
     <!-- Day headers, with the week-number gutter the rows below line up with -->
     <div class="calendar-grid mb-1">
       <div
-        class="flex items-center justify-center py-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500"
+        class="flex items-center justify-center py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500"
         [title]="'employeeCalendar.weekNumberTitle' | t"
       >
         {{ 'employeeCalendar.weekAbbrev' | t }}
@@ -186,7 +186,7 @@
               <!-- Unavailability indicator -->
               @if (day.isCurrentMonth && day.isUnavailable) {
                 <div class="mb-0.5 flex items-center justify-center">
-                  <span class="inline-flex items-center rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                  <span class="inline-flex items-center rounded-full bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
                     {{ 'employeeCalendar.unavailable' | t }}
                   </span>
                 </div>
@@ -264,7 +264,7 @@
                       </span>
                     }
                     @if (day.workstationName) {
-                      <span class="w-full truncate text-[10px] leading-tight text-gray-500 dark:text-gray-400">
+                      <span class="w-full truncate text-[11px] leading-tight text-gray-500 dark:text-gray-400">
                         {{ day.workstationName }}
                       </span>
                     }
@@ -302,7 +302,7 @@
                     class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
                     (click)="$event.stopPropagation()"
                   >
-                    <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+                    <div class="px-3 py-1.5 text-[11px] font-semibold uppercase text-gray-400 dark:text-gray-500">
                       {{ 'schedule.changeShift' | t }}
                     </div>
                     @for (shift of shifts; track shift.id) {
@@ -328,7 +328,7 @@
                       </button>
                     }
                     <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                    <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+                    <div class="px-3 py-1.5 text-[11px] font-semibold uppercase text-gray-400 dark:text-gray-500">
                       {{ 'common.workstation' | t }}
                     </div>
                     @for (ws of workstations; track ws.id) {
@@ -349,7 +349,7 @@
                           {{ ws.name }}
                         </span>
                         @if (closed) {
-                          <span class="ml-auto text-[10px] text-gray-400 dark:text-gray-500">{{ 'schedule.workstationClosed' | t }}</span>
+                          <span class="ml-auto text-[11px] text-gray-400 dark:text-gray-500">{{ 'schedule.workstationClosed' | t }}</span>
                         }
                       </button>
                     }
@@ -466,7 +466,7 @@
                     class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
                     (click)="$event.stopPropagation()"
                   >
-                    <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+                    <div class="px-3 py-1.5 text-[11px] font-semibold uppercase text-gray-400 dark:text-gray-500">
                       {{ 'schedule.assignShift' | t }}
                     </div>
                     @for (shift of shifts; track shift.id) {
@@ -487,7 +487,7 @@
                     }
                     @if (!day.wish && canWishOn(formatDate(day.date))) {
                       <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                      <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+                      <div class="px-3 py-1.5 text-[11px] font-semibold uppercase text-gray-400 dark:text-gray-500">
                         {{ 'employeeCalendar.wishShift' | t }}
                       </div>
                       @for (shift of shifts; track shift.id) {
@@ -507,7 +507,7 @@
                       }
                     }
                     <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                    <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+                    <div class="px-3 py-1.5 text-[11px] font-semibold uppercase text-gray-400 dark:text-gray-500">
                       {{ 'common.workstation' | t }}
                     </div>
                     @for (ws of workstations; track ws.id) {
@@ -528,7 +528,7 @@
                           {{ ws.name }}
                         </span>
                         @if (closed) {
-                          <span class="ml-auto text-[10px] text-gray-400 dark:text-gray-500">{{ 'schedule.workstationClosed' | t }}</span>
+                          <span class="ml-auto text-[11px] text-gray-400 dark:text-gray-500">{{ 'schedule.workstationClosed' | t }}</span>
                         }
                       </button>
                     }

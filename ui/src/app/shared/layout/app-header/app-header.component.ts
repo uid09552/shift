@@ -29,6 +29,7 @@ export class AppHeaderComponent {
   isApplicationMenuOpen = false;
   readonly isMobileOpen$;
   searchQuery = '';
+  readonly shortcutHint = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ K' : 'Ctrl K';
 
   @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
 
@@ -61,6 +62,11 @@ export class AppHeaderComponent {
 
   onSearch(term: string): void {
     this.globalSearchService.setSearchTerm(term);
+  }
+
+  clearSearch(): void {
+    this.searchQuery = '';
+    this.onSearch('');
   }
 
   handleKeyDown = (event: KeyboardEvent) => {

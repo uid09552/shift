@@ -28,8 +28,8 @@ export class ButtonComponent {
 
   get sizeClasses(): string {
     return this.size === 'sm'
-      ? 'px-4 py-3 text-sm'
-      : 'px-5 py-3.5 text-sm';
+      ? 'h-9 px-3.5 text-sm font-medium'
+      : 'h-11 px-5 text-sm font-medium';
   }
 
   get variantClasses(): string {
@@ -45,7 +45,7 @@ export class ButtonComponent {
   }
 
   get disabledClasses(): string {
-    return this.disabled ? 'cursor-not-allowed opacity-50' : '';
+    return this.disabled ? 'cursor-not-allowed opacity-50' : 'active:translate-y-px';
   }
 
   onClick(event: Event) {

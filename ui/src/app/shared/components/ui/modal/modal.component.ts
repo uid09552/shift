@@ -40,6 +40,14 @@ export class ModalComponent {
 
   ngOnChanges() {
     document.body.style.overflow = this.isOpen ? 'hidden' : 'unset';
+    if (this.isOpen) {
+      // Move focus into the dialog so keyboard users do not keep tabbing behind it.
+      setTimeout(() =>
+        this.el.nativeElement
+          .querySelector('[role="dialog"] input, [role="dialog"] select, [role="dialog"] textarea')
+          ?.focus(),
+      );
+    }
   }
 
   onBackdropClick(event: MouseEvent) {

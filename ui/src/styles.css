@@ -1,5 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap")
-layer(base);
+@import "@fontsource-variable/inter";
 
 @import "tailwindcss";
 @import "swiper/css/bundle";
@@ -8,7 +7,7 @@ layer(base);
 
 @theme {
   --font-*: initial;
-  --font-outfit: Outfit, sans-serif;
+  --font-outfit: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
   --breakpoint-*: initial;
   --breakpoint-2xsm: 375px;
@@ -189,10 +188,61 @@ layer(base);
   body {
     @apply relative font-normal font-outfit z-1;
   }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  /* Keyboard focus is always visible; mouse clicks do not draw a ring. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+  }
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: none;
+  }
+  /* Digits line up in grids, tables and counters. */
+  table,
+  input[type="number"],
+  input[type="time"],
+  input[type="date"] {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Light-mode gray-400 text fails contrast on white; darken it, dark mode keeps the original. */
+  :root {
+    --color-gray-400: #707b91;
+  }
+  :root.dark {
+    --color-gray-400: #98a2b3;
+  }
+  ::selection {
+    background: var(--color-brand-100);
+    color: var(--color-brand-900);
+  }
+  .dark ::selection {
+    background: var(--color-brand-800);
+    color: white;
+  }
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @utility menu-item {
-  @apply relative flex items-center w-full gap-3 px-3 py-2 font-medium rounded-lg text-theme-sm;
+  @apply relative flex items-center w-full gap-3 px-3 py-2 font-medium rounded-lg text-theme-sm transition-colors duration-150;
 }
 
 @utility menu-item-active {

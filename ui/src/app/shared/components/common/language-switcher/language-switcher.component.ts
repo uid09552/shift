@@ -34,7 +34,7 @@ import { TranslationService, Language } from '../../../i18n/translation.service'
           class="absolute right-0 z-50 mt-2 min-w-[9rem] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-800 dark:bg-gray-900"
           role="listbox"
         >
-          <div class="px-3 py-1.5 text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+          <div class="px-3 py-1.5 text-[11px] font-semibold uppercase text-gray-400 dark:text-gray-500">
             {{ 'common.language' | t }}
           </div>
           @for (language of translations.languages; track language) {

@@ -213,7 +213,7 @@ import {
         </div>
       } @else {
         @if (cell.closed) {
-          <span class="mb-1 block text-[10px] font-medium text-warning-600 dark:text-warning-400">
+          <span class="mb-1 block text-[11px] font-medium text-warning-600 dark:text-warning-400">
             {{ 'schedule.workstationClosed' | t }}
           </span>
         }
@@ -246,7 +246,7 @@ import {
                   {{ bucket.required ? bucket.people.length + '/' + bucket.required : bucket.people.length }}
                 </span>
               </span>
-              <span class="block truncate text-[10px] leading-tight text-gray-500 dark:text-gray-400">
+              <span class="block truncate text-[11px] leading-tight text-gray-500 dark:text-gray-400">
                 {{ names(bucket) }}
               </span>
             </span>

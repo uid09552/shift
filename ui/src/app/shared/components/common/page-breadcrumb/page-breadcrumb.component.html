@@ -1,12 +1,12 @@
 <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
-  <h2 class="text-xl font-semibold text-gray-800 dark:text-white/90">
+  <h1 class="text-xl font-semibold tracking-tight text-gray-900 dark:text-white/90">
     {{ pageTitle | t }}
-  </h2>
-  <nav>
+  </h1>
+  <nav [attr.aria-label]="'common.home' | t">
     <ol class="flex items-center gap-1.5">
       <li>
         <a
-          class="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400"
+          class="inline-flex items-center gap-1.5 rounded text-sm text-gray-500 transition-colors hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
           routerLink="/"
         >
           {{ 'common.home' | t }}
@@ -28,7 +28,7 @@
           </svg>
         </a>
       </li>
-      <li class="text-sm text-gray-800 dark:text-white/90">
+      <li class="text-sm text-gray-800 dark:text-white/90" aria-current="page">
         {{ pageTitle | t }}
       </li>
     </ol>

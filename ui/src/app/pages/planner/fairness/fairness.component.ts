@@ -139,7 +139,7 @@ type Preset = 'thisMonth' | 'lastMonth' | 'thisQuarter' | 'last3Months' | 'custo
                         [attr.data-testid]="'fairness-sort-' + col.key"
                       >
                         {{ col.label | t }}
-                        <span class="w-2 text-[10px]" aria-hidden="true">{{ sortColumn === col.key ? (sortDirection === 'asc' ? '▲' : '▼') : '' }}</span>
+                        <span class="w-2 text-[11px]" aria-hidden="true">{{ sortColumn === col.key ? (sortDirection === 'asc' ? '▲' : '▼') : '' }}</span>
                       </button>
                     </th>
                   }
