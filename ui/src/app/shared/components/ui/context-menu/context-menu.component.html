@@ -1,26 +1,97 @@
 @if (state) {
   <div
     #menuRef
-    class="fixed z-99999 min-w-[140px] overflow-hidden rounded-lg border border-gray-200 bg-white py-1.5 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"
+    class="fixed z-99999 min-w-[200px] max-h-[80vh] overflow-y-auto rounded-lg border border-gray-200 bg-white py-1.5 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"
     [style.left.px]="state.x"
     [style.top.px]="state.y"
+    role="menu"
   >
-    @for (item of state.items; track item.label) {
-      <button
-        type="button"
-        (click)="runAction(item.action)"
-        class="block w-full px-4 py-2 text-left text-sm font-medium transition"
-        [class.text-gray-700]="!item.danger"
-        [class.dark:text-gray-300]="!item.danger"
-        [class.hover:bg-gray-50]="!item.danger"
-        [class.dark:hover:bg-white/[0.05]]="!item.danger"
-        [class.text-error-600]="item.danger"
-        [class.dark:text-error-400]="item.danger"
-        [class.hover:bg-error-50]="item.danger"
-        [class.dark:hover:bg-error-500/15]="item.danger"
-      >
-        {{ item.label }}
-      </button>
+    @for (item of state.items; track $index) {
+      @if (item.separator) {
+        <div class="my-1 border-t border-gray-100 dark:border-gray-800" role="separator"></div>
+      } @else if (item.heading) {
+        <div class="px-4 pb-1 pt-2 text-[11px] font-semibold uppercase text-gray-400 dark:text-gray-500">
+          {{ item.label }}
+        </div>
+      } @else {
+        <button
+          type="button"
+          role="menuitem"
+          [disabled]="item.disabled"
+          (click)="runAction(item.action)"
+          class="flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+          [class.text-gray-700]="!item.danger"
+          [class.dark:text-gray-300]="!item.danger"
+          [class.hover:bg-gray-50]="!item.danger && !item.disabled"
+          [class.dark:hover:bg-white/[0.05]]="!item.danger && !item.disabled"
+          [class.text-error-600]="item.danger"
+          [class.dark:text-error-400]="item.danger"
+          [class.hover:bg-error-50]="item.danger"
+          [class.dark:hover:bg-error-500/15]="item.danger"
+        >
+          <span class="flex h-4 w-4 shrink-0 items-center justify-center">
+            @if (item.color) {
+              <span class="h-3 w-3 rounded-sm" [style.backgroundColor]="item.color"></span>
+            } @else {
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                @switch (item.icon) {
+                  @case ('swap') {
+                    <path d="m16 3 4 4-4 4" /><path d="M20 7H4" /><path d="m8 21-4-4 4-4" /><path d="M4 17h16" />
+                  }
+                  @case ('replace') {
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="m17 11 2 2 4-4" />
+                  }
+                  @case ('shift') {
+                    <circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" />
+                  }
+                  @case ('workstation') {
+                    <path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" />
+                  }
+                  @case ('trash') {
+                    <path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                  }
+                  @case ('plus') {
+                    <path d="M12 5v14" /><path d="M5 12h14" />
+                  }
+                  @case ('ban') {
+                    <circle cx="12" cy="12" r="10" /><path d="m4.9 4.9 14.2 14.2" />
+                  }
+                }
+              </svg>
+            }
+          </span>
+          <span class="flex-1">{{ item.label }}</span>
+          @if (item.hint) {
+            <span class="text-[11px] font-normal text-gray-400 dark:text-gray-500">{{ item.hint }}</span>
+          }
+          @if (item.active) {
+            <svg
+              class="text-brand-500"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+          }
+        </button>
+      }
     }
   </div>
 }

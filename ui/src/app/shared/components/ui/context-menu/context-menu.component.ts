@@ -18,9 +18,9 @@ export class ContextMenuComponent {
     this.contextMenuService.state$.subscribe((s) => (this.state = s));
   }
 
-  runAction(action: () => void): void {
+  runAction(action?: () => void): void {
     this.contextMenuService.close();
-    action();
+    action?.();
   }
 
   @HostListener('document:mousedown', ['$event'])

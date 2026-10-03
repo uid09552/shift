@@ -1,10 +1,30 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 
+export type ContextMenuIcon =
+  | 'swap'
+  | 'replace'
+  | 'shift'
+  | 'workstation'
+  | 'trash'
+  | 'plus'
+  | 'ban';
+
 export interface ContextMenuItem {
   label: string;
   danger?: boolean;
-  action: () => void;
+  action?: () => void;
+  icon?: ContextMenuIcon;
+  /** A colour swatch shown instead of an icon, e.g. a shift's colour. */
+  color?: string;
+  /** Marks the current value of a choice; shown with a check. */
+  active?: boolean;
+  disabled?: boolean;
+  /** Small right-aligned note, e.g. "closed". */
+  hint?: string;
+  /** A non-clickable section title. */
+  heading?: boolean;
+  separator?: boolean;
 }
 
 export interface ContextMenuState {

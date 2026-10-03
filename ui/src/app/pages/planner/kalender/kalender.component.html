@@ -310,6 +310,7 @@
                     [class.ring-inset]="isSwapSource(employee.id, dateStr)"
                     [class.ring-brand-500]="isSwapSource(employee.id, dateStr)"
                     (click)="swapSource && onSwapTarget(employee.id, day)"
+                    (contextmenu)="onCellContextMenu($event, employee.id, day)"
                   >
                     @if (wishesOnly) {
                       <!-- Wishes-only view: the requested shift, read-only -->
@@ -344,7 +345,6 @@
                         [style.backgroundColor]="getShiftBg(cell.shift)"
                         [style.borderLeft]="'3px solid ' + getShiftColor(cell.shift)"
                         [title]="viewMode === 'month' && cell.workstation ? getWorkstationName(cell.workstation) : null"
-                        (contextmenu)="onChipContextMenu($event, employee.id, day)"
                       >
                         <span
                           class="text-xs font-bold leading-tight"
@@ -353,126 +353,11 @@
                           {{ getShiftShortName(cell.shift) }}
                         </span>
                         @if (cell.workstation && viewMode === 'week') {
-                          <span
-                            class="w-full truncate text-[11px] leading-tight text-gray-500 cursor-pointer hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
-                            [title]="'schedule.changeWorkstation' | t: { workstation: getWorkstationName(cell.workstation) }"
-                            (click)="startEdit(employee.id, day, $event)"
-                          >
+                          <span class="w-full truncate text-[11px] leading-tight text-gray-500 dark:text-gray-400">
                             {{ getWorkstationName(cell.workstation) }}
                           </span>
                         }
-
-                        <!-- Action buttons (visible on hover) -->
-                        <div
-                          class="cell-actions absolute -top-1 right-0 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/chip:opacity-100"
-                          (click)="$event.stopPropagation()"
-                        >
-                          <button
-                            (click)="startEdit(employee.id, day, $event)"
-                            class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 shadow-sm ring-1 ring-gray-200 transition hover:text-brand-600 hover:ring-brand-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-brand-400 dark:hover:ring-brand-600"
-                            [title]="'schedule.changeShiftType' | t"
-                          >
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
-                            </svg>
-                          </button>
-                          <button
-                            (click)="startDelete(employee.id, day, cell.plan!.id, $event)"
-                            class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 shadow-sm ring-1 ring-gray-200 transition hover:text-red-600 hover:ring-red-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-red-400 dark:hover:ring-red-600"
-                            [title]="'schedule.deleteAssignment' | t"
-                          >
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                              <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-                            </svg>
-                          </button>
-                        </div>
                       </div>
-
-                      <!-- Shift type dropdown (edit mode) -->
-                      @if (isEditing(employee.id, dateStr)) {
-                        <div
-                          class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
-                          (click)="$event.stopPropagation()"
-                        >
-                          <div class="px-3 py-1.5 text-[11px] font-semibold uppercase text-gray-400 dark:text-gray-500">
-                            {{ 'schedule.changeShift' | t }}
-                          </div>
-                          @for (shift of shifts; track shift.id) {
-                            <button
-                              (click)="onShiftSelect(employee.id, day, shift.id)"
-                              class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                              [class.bg-brand-50]="cell.plan.shift_id === shift.id"
-                              [class.dark:bg-brand-500/10]="cell.plan.shift_id === shift.id"
-                            >
-                              <span
-                                class="inline-block h-3 w-3 rounded-sm"
-                                [style.backgroundColor]="shift.color"
-                              ></span>
-                              <span
-                                class="font-medium"
-                                [class.text-brand-600]="cell.plan.shift_id === shift.id"
-                                [class.dark:text-brand-400]="cell.plan.shift_id === shift.id"
-                              >
-                                {{ shift.short_name }}
-                              </span>
-                              <span class="text-gray-400 dark:text-gray-500">–</span>
-                              <span class="text-gray-500 dark:text-gray-400">{{ shift.name }}</span>
-                            </button>
-                          }
-                          <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                          <div class="px-3 py-1.5 text-[11px] font-semibold uppercase text-gray-400 dark:text-gray-500">
-                            {{ 'common.workstation' | t }}
-                          </div>
-                          @for (ws of workstations; track ws.id) {
-                            <!-- A closed station stays listed (it may be the current one) but cannot be picked. -->
-                            @let closed = isClosed(ws, day);
-                            <button
-                              (click)="onWorkstationSelect(employee.id, day, ws.id)"
-                              [disabled]="closed && cell.plan!.workstation_id !== ws.id"
-                              class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent dark:hover:bg-gray-700/50"
-                              [class.bg-brand-50]="cell.plan!.workstation_id === ws.id"
-                              [class.dark:bg-brand-500/10]="cell.plan!.workstation_id === ws.id"
-                            >
-                              <span
-                                class="font-medium"
-                                [class.text-brand-600]="cell.plan!.workstation_id === ws.id"
-                                [class.dark:text-brand-400]="cell.plan!.workstation_id === ws.id"
-                              >
-                                {{ ws.name }}
-                              </span>
-                              @if (closed) {
-                                <span class="ml-auto text-[11px] text-gray-400 dark:text-gray-500">{{ 'schedule.workstationClosed' | t }}</span>
-                              }
-                            </button>
-                          }
-                          <button
-                            (click)="onWorkstationSelect(employee.id, day, null)"
-                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-500 transition hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/50"
-                            [class.bg-brand-50]="!cell.plan!.workstation_id"
-                            [class.dark:bg-brand-500/10]="!cell.plan!.workstation_id"
-                          >
-                            <span class="italic">{{ 'common.none' | t }}</span>
-                          </button>
-                          <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                          <button
-                            (click)="openReplacement(employee.id, day, $event)"
-                            data-testid="schedule-find-replacement"
-                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-brand-600 transition hover:bg-gray-50 dark:text-brand-400 dark:hover:bg-gray-700/50"
-                          >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 11 2 2 4-4"/>
-                            </svg>
-                            {{ 'schedule.findReplacement' | t }}
-                          </button>
-                          <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                          <button
-                            (click)="cancelEdit()"
-                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-500 transition hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/50"
-                          >
-                            {{ 'common.cancel' | t }}
-                          </button>
-                        </div>
-                      }
 
                       <!-- Delete confirmation -->
                       @if (isDeleting(employee.id, dateStr)) {
@@ -538,22 +423,6 @@
                           </span>
                         </div>
 
-                        <!-- Action buttons (visible on hover) -->
-                        <div
-                          class="cell-actions absolute -top-1 right-0 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/chip:opacity-100"
-                          (click)="$event.stopPropagation()"
-                        >
-                          <button
-                            (click)="startDelete(employee.id, day, cell.plan!.id, $event)"
-                            class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 shadow-sm ring-1 ring-gray-200 transition hover:text-red-600 hover:ring-red-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-red-400 dark:hover:ring-red-600"
-                            [title]="'schedule.deleteAbsence' | t"
-                          >
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                              <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-                            </svg>
-                          </button>
-                        </div>
-
                         <!-- Delete confirmation -->
                         @if (isDeleting(employee.id, dateStr)) {
                           <div
@@ -593,7 +462,7 @@
                     } @else {
                       <div
                         class="empty-cell group/empty flex h-full cursor-pointer items-center justify-center rounded-lg px-2 py-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-white/[0.05]"
-                        (click)="startEdit(employee.id, day, $event)"
+                        (click)="!swapSource && openCellMenu($event, employee.id, day)"
                       >
                         <span
                           class="text-xs text-gray-300 transition-colors group-hover/empty:text-gray-400 dark:text-gray-700 dark:group-hover/empty:text-gray-500"
@@ -601,75 +470,6 @@
                           +
                         </span>
                       </div>
-
-                      <!-- Shift type dropdown for empty cell (add mode) -->
-                      @if (isEditing(employee.id, dateStr)) {
-                        <div
-                          class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
-                          (click)="$event.stopPropagation()"
-                        >
-                          <div class="px-3 py-1.5 text-[11px] font-semibold uppercase text-gray-400 dark:text-gray-500">
-                            {{ 'schedule.assignShift' | t }}
-                          </div>
-                          @for (shift of shifts; track shift.id) {
-                            <button
-                              (click)="onShiftSelect(employee.id, day, shift.id)"
-                              class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                            >
-                              <span
-                                class="inline-block h-3 w-3 rounded-sm"
-                                [style.backgroundColor]="shift.color"
-                              ></span>
-                              <span class="font-medium">
-                                {{ shift.short_name }}
-                              </span>
-                              <span class="text-gray-400 dark:text-gray-500">–</span>
-                              <span class="text-gray-500 dark:text-gray-400">{{ shift.name }}</span>
-                            </button>
-                          }
-                          <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                          <div class="px-3 py-1.5 text-[11px] font-semibold uppercase text-gray-400 dark:text-gray-500">
-                            {{ 'common.workstation' | t }}
-                          </div>
-                          @for (ws of workstations; track ws.id) {
-                            <!-- A closed station stays listed (it may be the current one) but cannot be picked. -->
-                            @let closed = isClosed(ws, day);
-                            <button
-                              (click)="onWorkstationSelect(employee.id, day, ws.id)"
-                              [disabled]="closed && pendingWorkstationId !== ws.id"
-                              class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent dark:hover:bg-gray-700/50"
-                              [class.bg-brand-50]="pendingWorkstationId === ws.id"
-                              [class.dark:bg-brand-500/10]="pendingWorkstationId === ws.id"
-                            >
-                              <span
-                                class="font-medium"
-                                [class.text-brand-600]="pendingWorkstationId === ws.id"
-                                [class.dark:text-brand-400]="pendingWorkstationId === ws.id"
-                              >
-                                {{ ws.name }}
-                              </span>
-                              @if (closed) {
-                                <span class="ml-auto text-[11px] text-gray-400 dark:text-gray-500">{{ 'schedule.workstationClosed' | t }}</span>
-                              }
-                            </button>
-                          }
-                          <button
-                            (click)="onWorkstationSelect(employee.id, day, null)"
-                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-500 transition hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/50"
-                            [class.bg-brand-50]="!pendingWorkstationId"
-                            [class.dark:bg-brand-500/10]="!pendingWorkstationId"
-                          >
-                            <span class="italic">{{ 'common.none' | t }}</span>
-                          </button>
-                          <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                          <button
-                            (click)="cancelEdit()"
-                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-500 transition hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/50"
-                          >
-                            {{ 'common.cancel' | t }}
-                          </button>
-                        </div>
-                      }
                     }
                   </td>
                 }
@@ -801,6 +601,72 @@
             }
           </div>
         }
+      </div>
+    </div>
+  }
+</app-modal>
+
+<!-- Confirm a swap: who gives which shift to whom -->
+<app-modal
+  [isOpen]="swapPending !== null"
+  className="max-w-[560px] m-4"
+  (close)="cancelSwapConfirm()"
+>
+  @if (swapPending) {
+    <div class="p-5 sm:p-6" data-testid="swap-confirm-dialog">
+      <h4 class="pr-10 text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'schedule.swapConfirmTitle' | t }}</h4>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ 'schedule.swapConfirmText' | t }}</p>
+
+      <div class="mt-5 space-y-3">
+        @for (row of swapPending.rows; track row.name) {
+          <div class="rounded-xl border border-gray-200 p-4 dark:border-white/[0.08]">
+            <div class="mb-3 flex items-center gap-2.5">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                {{ row.name.charAt(0).toUpperCase() }}
+              </span>
+              <span class="text-sm font-semibold text-gray-800 dark:text-white/90">{{ row.name }}</span>
+            </div>
+            <div class="flex items-center gap-3">
+              @for (side of [row.from, row.to]; track $index) {
+                <div class="min-w-0 flex-1 rounded-lg px-3 py-2" [style.backgroundColor]="getShiftBg(side.shift)" [style.borderLeft]="'3px solid ' + getShiftColor(side.shift)">
+                  <div class="text-[11px] uppercase text-gray-500 dark:text-gray-400">
+                    {{ ($index === 0 ? 'schedule.swapNow' : 'schedule.swapAfter') | t }}
+                  </div>
+                  <div class="truncate text-sm font-bold" [style.color]="getShiftColor(side.shift)">
+                    {{ side.shift?.name ?? ('schedule.unknownShift' | t) }}
+                  </div>
+                  <div class="truncate text-xs text-gray-600 dark:text-gray-300">{{ side.date }}</div>
+                  <div class="truncate text-xs text-gray-500 dark:text-gray-400">
+                    {{ side.workstation?.name ?? ('schedule.noWorkstation' | t) }}
+                  </div>
+                </div>
+                @if ($index === 0) {
+                  <svg class="shrink-0 text-gray-400" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+                  </svg>
+                }
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      <div class="mt-6 flex justify-end gap-3">
+        <button
+          type="button"
+          (click)="cancelSwapConfirm()"
+          class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
+        >
+          {{ 'common.cancel' | t }}
+        </button>
+        <button
+          type="button"
+          (click)="confirmSwap()"
+          data-testid="swap-confirm"
+          class="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600"
+        >
+          {{ 'schedule.swapConfirm' | t }}
+        </button>
       </div>
     </div>
   }

@@ -32,7 +32,7 @@ import { HolidayService } from '../../../shared/services/holiday.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
 import { ModalComponent } from '../../../shared/components/ui/modal/modal.component';
-import { ContextMenuService } from '../../../shared/components/ui/context-menu/context-menu.service';
+import { ContextMenuItem, ContextMenuService } from '../../../shared/components/ui/context-menu/context-menu.service';
 import { ReplacementDialogComponent, ReplacementDone, ReplacementRequest } from './replacement-dialog.component';
 import { GroupedPlanViewComponent } from './grouped-plan-view.component';
 import { DayViewComponent } from '../day-view/day-view.component';
@@ -61,6 +61,25 @@ interface CellData {
 export type ScheduleView = 'day' | 'week' | 'month';
 
 const SCHEDULE_VIEWS: readonly ScheduleView[] = ['day', 'week', 'month'];
+
+interface SwapSide {
+  date: string;
+  shift: Shift | null;
+  workstation: Workstation | null;
+}
+
+interface SwapRow {
+  name: string;
+  from: SwapSide;
+  to: SwapSide;
+}
+
+interface SwapPreview {
+  a: ConfirmedShiftPlan;
+  b: ConfirmedShiftPlan;
+  crossDay: boolean;
+  rows: SwapRow[];
+}
 
 interface WishCellData {
   wish: ShiftWish | null;
@@ -127,17 +146,11 @@ export class KalenderComponent implements OnInit, OnDestroy {
   loading = true;
   error: string | null = null;
 
-  // Edit state: which cell is currently in edit mode
-  editingCell: { employeeId: string; dateStr: string } | null = null;
-
   // Delete confirmation state
   deletingCell: { employeeId: string; dateStr: string; planId: string } | null = null;
 
   // Processing state for a specific cell
   processingCell: { employeeId: string; dateStr: string } | null = null;
-
-  // Pending workstation selection for empty cells (used when creating new plans)
-  pendingWorkstationId: string | null = null;
 
   // Resizable employee column
   employeeColWidth = 200;
@@ -299,7 +312,6 @@ export class KalenderComponent implements OnInit, OnDestroy {
     if (mode !== 'week') {
       this.setGroupMode('employee');
     }
-    this.editingCell = null;
     this.deletingCell = null;
     this.detail = null;
     this.computeDays();
@@ -315,7 +327,6 @@ export class KalenderComponent implements OnInit, OnDestroy {
   setGroupMode(mode: GroupMode): void {
     if (this.groupMode === mode) return;
     this.groupMode = mode;
-    this.editingCell = null;
     this.deletingCell = null;
     this.detail = null;
     this.buildGroups();
@@ -324,7 +335,6 @@ export class KalenderComponent implements OnInit, OnDestroy {
   toggleWishesOnly(): void {
     this.wishesOnly = !this.wishesOnly;
     this.detail = null;
-    this.editingCell = null;
     this.deletingCell = null;
     this.loadPeriod();
   }
@@ -816,13 +826,6 @@ export class KalenderComponent implements OnInit, OnDestroy {
 
   // ── Edit / Delete helpers ────────────────────────────────────────
 
-  isEditing(employeeId: string, dateStr: string): boolean {
-    return (
-      this.editingCell?.employeeId === employeeId &&
-      this.editingCell?.dateStr === dateStr
-    );
-  }
-
   isDeleting(employeeId: string, dateStr: string): boolean {
     return (
       this.deletingCell?.employeeId === employeeId &&
@@ -837,21 +840,83 @@ export class KalenderComponent implements OnInit, OnDestroy {
     );
   }
 
-  startEdit(employeeId: string, day: DayInfo, event: Event): void {
-    event.stopPropagation();
-    if (this.swapSource) {
-      this.onSwapTarget(employeeId, day);
-      return;
-    }
+  /** Right-click (or the + of an empty cell): everything that can be done to this cell. */
+  openCellMenu(event: MouseEvent, employeeId: string, day: DayInfo): void {
     const dateStr = this.formatDate(day.date);
-    this.deletingCell = null;
-    this.pendingWorkstationId = null;
-    this.editingCell = { employeeId, dateStr };
+    const plan = this.planMap.get(employeeId)?.get(dateStr);
+    const t = (key: string) => this.translations.t(key);
+    const items: ContextMenuItem[] = [];
+
+    const shiftItems = (heading: string): void => {
+      items.push({ label: heading, heading: true });
+      for (const shift of this.shifts) {
+        items.push({
+          label: `${shift.short_name} – ${shift.name}`,
+          color: shift.color,
+          active: plan?.shift_id === shift.id,
+          action: () => this.onShiftSelect(employeeId, day, shift.id),
+        });
+      }
+    };
+
+    if (!plan) {
+      shiftItems(t('schedule.assignShift'));
+    } else if (plan.is_present) {
+      if (plan.shift_id) {
+        items.push(
+          { label: t('schedule.swapWith'), icon: 'swap', action: () => this.startSwap(employeeId, dateStr) },
+          {
+            label: t('schedule.findReplacement'),
+            icon: 'replace',
+            action: () => this.openReplacement(employeeId, day),
+          },
+          { label: '', separator: true },
+        );
+      }
+      shiftItems(t('schedule.changeShift'));
+      items.push({ label: '', separator: true }, { label: t('common.workstation'), heading: true });
+      for (const ws of this.workstations) {
+        // A closed station stays listed (it may be the current one) but cannot be picked.
+        const current = plan.workstation_id === ws.id;
+        const closed = this.isClosed(ws, day);
+        items.push({
+          label: ws.name,
+          icon: 'workstation',
+          active: current,
+          disabled: closed && !current,
+          hint: closed ? t('schedule.workstationClosed') : undefined,
+          action: () => this.onWorkstationSelect(employeeId, day, ws.id),
+        });
+      }
+      items.push({
+        label: t('common.none'),
+        icon: 'ban',
+        active: !plan.workstation_id,
+        action: () => this.onWorkstationSelect(employeeId, day, null),
+      });
+    }
+
+    if (plan) {
+      if (items.length) items.push({ label: '', separator: true });
+      items.push({
+        label: t(plan.is_present ? 'schedule.deleteAssignment' : 'schedule.deleteAbsence'),
+        icon: 'trash',
+        danger: true,
+        action: () => {
+          this.deletingCell = { employeeId, dateStr, planId: plan.id };
+        },
+      });
+    }
+    this.contextMenu.open(event, items);
   }
 
-  cancelEdit(): void {
-    this.editingCell = null;
-    this.pendingWorkstationId = null;
+  onCellContextMenu(event: MouseEvent, employeeId: string, day: DayInfo): void {
+    if (this.wishesOnly) return;
+    if (this.swapSource) {
+      event.preventDefault();
+      return;
+    }
+    this.openCellMenu(event, employeeId, day);
   }
 
   // ── Short-notice replacement ──────────────────────────────────
@@ -859,10 +924,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
   /** The absent person and day the replacement dialog is open for. */
   replacementRequest: ReplacementRequest | null = null;
 
-  openReplacement(employeeId: string, day: DayInfo, event: Event): void {
-    event.stopPropagation();
-    this.editingCell = null;
-    this.pendingWorkstationId = null;
+  openReplacement(employeeId: string, day: DayInfo): void {
     this.replacementRequest = { employeeId, date: this.formatDate(day.date) };
   }
 
@@ -884,23 +946,17 @@ export class KalenderComponent implements OnInit, OnDestroy {
   /** The shift picked with "swap with…", waiting for a target cell. */
   swapSource: { employeeId: string; dateStr: string; name: string } | null = null;
 
-  onChipContextMenu(event: MouseEvent, employeeId: string, day: DayInfo): void {
-    if (this.swapSource) return;
-    const dateStr = this.formatDate(day.date);
-    const plan = this.planMap.get(employeeId)?.get(dateStr);
-    if (!plan?.is_present || !plan.shift_id) return;
-    const name = this.employees.find((e) => e.id === employeeId)?.name ?? '';
-    this.contextMenu.open(event, [
-      {
-        label: this.translations.t('schedule.swapWith'),
-        action: () => {
-          this.editingCell = null;
-          this.deletingCell = null;
-          this.saveError = null;
-          this.swapSource = { employeeId, dateStr, name };
-        },
-      },
-    ]);
+  /** The two shifts about to be swapped, shown for confirmation. */
+  swapPending: SwapPreview | null = null;
+
+  private startSwap(employeeId: string, dateStr: string): void {
+    this.deletingCell = null;
+    this.saveError = null;
+    this.swapSource = { employeeId, dateStr, name: this.employeeName(employeeId) };
+  }
+
+  private employeeName(id: string): string {
+    return this.allEmployees.find((e) => e.id === id)?.name ?? '';
   }
 
   cancelSwap(): void {
@@ -943,7 +999,46 @@ export class KalenderComponent implements OnInit, OnDestroy {
 
     this.swapSource = null;
     this.saveError = null;
-    this.processingCell = { employeeId, dateStr };
+    this.swapPending = {
+      a,
+      b,
+      crossDay,
+      rows: [
+        this.swapRow(a, b),
+        this.swapRow(b, a),
+      ],
+    };
+  }
+
+  /** One person's side of the swap: what they work now and what they will work. */
+  private swapRow(own: ConfirmedShiftPlan, other: ConfirmedShiftPlan): SwapRow {
+    const side = (date: string, plan: ConfirmedShiftPlan): SwapSide => ({
+      date: new Date(`${date}T00:00:00`).toLocaleDateString(this.translations.locale, {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      }),
+      shift: this.shifts.find((s) => s.id === plan.shift_id) ?? null,
+      workstation: this.workstations.find((w) => w.id === plan.workstation_id) ?? null,
+    });
+    return {
+      name: this.employeeName(own.employee_id),
+      from: side(own.date, own),
+      to: side(other.date, other),
+    };
+  }
+
+  cancelSwapConfirm(): void {
+    this.swapPending = null;
+  }
+
+  confirmSwap(): void {
+    const pending = this.swapPending;
+    if (!pending) return;
+    this.swapPending = null;
+    const { a, b, crossDay } = pending;
+    this.processingCell = { employeeId: b.employee_id, dateStr: b.date };
 
     const done = (plans: ConfirmedShiftPlan[]) => {
       for (const p of plans) {
@@ -1008,13 +1103,6 @@ export class KalenderComponent implements OnInit, OnDestroy {
       .subscribe({ next: done, error: failed });
   }
 
-  startDelete(employeeId: string, day: DayInfo, planId: string, event: Event): void {
-    event.stopPropagation();
-    const dateStr = this.formatDate(day.date);
-    this.editingCell = null;
-    this.deletingCell = { employeeId, dateStr, planId };
-  }
-
   cancelDelete(): void {
     this.deletingCell = null;
   }
@@ -1026,12 +1114,11 @@ export class KalenderComponent implements OnInit, OnDestroy {
     // If no existing plan, create a new one
     if (!plan) {
       this.processingCell = { employeeId, dateStr };
-      this.editingCell = null;
 
       this.confirmedShiftPlanService
         .createConfirmedShiftPlan(employeeId, {
           shift_id: newShiftId,
-          workstation_id: this.pendingWorkstationId,
+          workstation_id: null,
           date: dateStr,
           is_present: true,
           creation_type: 'manual',
@@ -1046,26 +1133,20 @@ export class KalenderComponent implements OnInit, OnDestroy {
             }
             inner.set(dateStr, created);
             this.processingCell = null;
-            this.pendingWorkstationId = null;
           },
           error: (err) => {
             console.error('Failed to create shift plan', err);
             this.showSaveError(err);
             this.processingCell = null;
-            this.pendingWorkstationId = null;
           },
         });
       return;
     }
 
     // Don't update if same shift selected
-    if (plan.shift_id === newShiftId) {
-      this.editingCell = null;
-      return;
-    }
+    if (plan.shift_id === newShiftId) return;
 
     this.processingCell = { employeeId, dateStr };
-    this.editingCell = null;
 
     this.confirmedShiftPlanService
       .updateConfirmedShiftPlan(plan.id, { shift_id: newShiftId })
@@ -1090,21 +1171,9 @@ export class KalenderComponent implements OnInit, OnDestroy {
     const dateStr = this.formatDate(day.date);
     const plan = this.planMap.get(employeeId)?.get(dateStr);
 
-    // If no existing plan, store as pending and keep dropdown open for shift selection
-    if (!plan) {
-      this.pendingWorkstationId = workstationId;
-      return;
-    }
-
-    // Don't update if same workstation selected
-    if (plan.workstation_id === workstationId) {
-      this.editingCell = null;
-      this.pendingWorkstationId = null;
-      return;
-    }
+    if (!plan || plan.workstation_id === workstationId) return;
 
     this.processingCell = { employeeId, dateStr };
-    this.editingCell = null;
 
     this.confirmedShiftPlanService
       .updateConfirmedShiftPlan(plan.id, { workstation_id: workstationId })
@@ -1285,8 +1354,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
   // Close dropdowns when clicking outside
   onDocumentClick(event: MouseEvent): void {
     const target = event.target as HTMLElement;
-    if (!target.closest('.cell-actions') && !target.closest('.shift-dropdown') && !target.closest('.delete-confirm')) {
-      this.editingCell = null;
+    if (!target.closest('.delete-confirm')) {
       this.deletingCell = null;
     }
   }
