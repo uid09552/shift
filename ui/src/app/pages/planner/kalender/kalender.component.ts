@@ -28,6 +28,7 @@ import {
   isClosedOn,
 } from '../../../shared/services/workstation-unavailability.service';
 import { GlobalSearchService } from '../../../shared/services/global-search.service';
+import { HolidayService } from '../../../shared/services/holiday.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
 import { ModalComponent } from '../../../shared/components/ui/modal/modal.component';
@@ -150,6 +151,9 @@ export class KalenderComponent implements OnInit, OnDestroy {
   /** Workstation closures overlapping the visible period. */
   private closures: WorkstationUnavailability[] = [];
 
+  /** Public holidays of the visible period, date (YYYY-MM-DD) -> name. */
+  holidays = new Map<string, string>();
+
   /** Why the last edit in the grid was refused, until dismissed. */
   saveError: string | null = null;
 
@@ -160,6 +164,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
     private confirmedShiftPlanService: ConfirmedShiftPlanService,
     private shiftWishService: ShiftWishService,
     private workstationUnavailabilityService: WorkstationUnavailabilityService,
+    private holidayService: HolidayService,
     private globalSearchService: GlobalSearchService,
     private translations: TranslationService,
     private router: Router,
@@ -411,11 +416,24 @@ export class KalenderComponent implements OnInit, OnDestroy {
       this.loading = false;
       return;
     }
+    this.loadHolidays();
     if (this.wishesOnly) {
       this.loadWishes();
     } else {
       this.loadPlans();
     }
+  }
+
+  // Marks only; a holiday source that is down must not blank the grid.
+  private loadHolidays(): void {
+    this.holidayService
+      .getHolidays(this.formatDate(this.periodStart), this.formatDate(this.periodEnd))
+      .pipe(catchError(() => of(new Map<string, string>())))
+      .subscribe((holidays) => (this.holidays = holidays));
+  }
+
+  holidayName(day: DayInfo): string | null {
+    return this.holidays.get(this.formatDate(day.date)) ?? null;
   }
 
   loadPlans(): void {

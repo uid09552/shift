@@ -14,6 +14,30 @@ pub struct Config {
     /// baked in (see services::info).
     #[serde(default)]
     pub build: BuildConfig,
+    /// Public-holiday source. Env: `SHIFT_HOLIDAYS__URL`, `SHIFT_HOLIDAYS__STATE`.
+    #[serde(default)]
+    pub holidays: HolidayConfig,
+}
+
+/// Where public holidays are fetched from (the api-feiertage.de JSON format)
+/// and for which German federal state.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HolidayConfig {
+    /// `false`: nothing is fetched and the planner sees no holidays.
+    pub enabled: bool,
+    pub url: String,
+    /// Two-letter state code, e.g. `by` (Bavaria).
+    pub state: String,
+}
+
+impl Default for HolidayConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            url: "https://get.api-feiertage.de".to_string(),
+            state: "by".to_string(),
+        }
+    }
 }
 
 /// A deployment's own statement of what it runs, overriding the version the
@@ -198,6 +222,7 @@ impl Default for Config {
                 sample_ratio: 1.0,
             },
             build: BuildConfig::default(),
+            holidays: HolidayConfig::default(),
         }
     }
 }

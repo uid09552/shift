@@ -366,6 +366,62 @@ paths:
                 items:
                   $ref: '#/components/schemas/PersonalLimits'
 
+  /holidays:
+    get:
+      tags:
+        - Planner
+      summary: Public holidays in a date range
+      description: >-
+        Holidays of the configured state. Years not stored yet are fetched from
+        the configured holiday API first. A holiday runs on its shifts' Sunday
+        times and counts as a weekend day.
+      operationId: listHolidays
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Holidays in the range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HolidaysResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /holidays/sync:
+    post:
+      tags:
+        - Planner
+      summary: Fetch holidays again from the holiday API
+      operationId: syncHolidays
+      parameters:
+        - name: year
+          in: query
+          required: false
+          description: Defaults to this year and the next.
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: The holidays now stored for those years
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HolidaysResponse'
+        '503':
+          description: Holidays are switched off or the holiday API is unreachable
+
   /employees/{employeeId}/available-shifts:
     get:
       tags:
@@ -4136,8 +4192,38 @@ components:
             start — recovery days after a night on the last day, minimum rest
             before the first shift, and a streak of working days already running.
             Omitted when there is none.
+        holidays:
+          type: array
+          items:
+            type: string
+            format: date
+          description: >
+            Public holidays from 14 days before the period to its end. A holiday
+            runs on its shifts' Sunday times and counts as a weekend day (weekend
+            limits, plan check). Omitted when there is none.
         constraints:
           $ref: '#/components/schemas/ConstraintTask'
+
+    HolidaysResponse:
+      type: object
+      properties:
+        state:
+          type: string
+          description: Configured state code, e.g. by
+        enabled:
+          type: boolean
+        holidays:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              name:
+                type: string
+              state:
+                type: string
 
     HistoryShiftTask:
       type: object

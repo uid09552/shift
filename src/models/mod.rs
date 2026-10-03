@@ -17,6 +17,7 @@ pub mod task_result_dto;
 pub mod unavailability;
 pub mod wish_settings;
 pub mod personal_limits;
+pub mod public_holiday;
 pub mod workstation;
 pub mod workstation_required_capabilities;
 pub mod workstation_unavailability;
@@ -40,6 +41,7 @@ pub use task_result_dto::{TaskResultDto, PlanningPeriodResult, DaySchedule, Shif
 pub use unavailability::{NewUnavailability, Unavailability};
 pub use wish_settings::{NewWishSettings, WishScheduleChangeset, WishSettings};
 pub use personal_limits::{NewPersonalLimits, PersonalLimits};
+pub use public_holiday::{NewPublicHoliday, PublicHoliday};
 pub use workstation::{NewWorkstation, Workstation};
 pub use workstation_required_capabilities::{NewWorkstationRequiredCapability, WorkstationRequiredCapability};
 pub use workstation_unavailability::{NewWorkstationUnavailability, WorkstationUnavailability};

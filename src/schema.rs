@@ -249,6 +249,16 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    public_holidays (tenant_id, holiday_date) {
+        tenant_id -> Varchar,
+        holiday_date -> Date,
+        name -> Varchar,
+        state -> Varchar,
+        created_at -> Timestamptz,
+    }
+}
+
 diesel::joinable!(planning_tasks -> optimized_shift_results (result_id));
 diesel::joinable!(employee_available_shifts -> employees (employee_id));
 diesel::joinable!(employee_available_shifts -> shifts (shift_id));

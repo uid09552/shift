@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use chrono::Datelike;
 use chrono::NaiveDate;
 use diesel::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -23,8 +23,42 @@ use super::domain::{
 };
 
 /// Stored weekdays run 0 = Monday … 6 = Sunday (see shift_weekday_times).
-fn weekday_of(date: NaiveDate) -> i16 {
+/// A public holiday is a Sunday: it uses the shift's Sunday times.
+fn weekday_of(date: NaiveDate, holidays: &HashSet<NaiveDate>) -> i16 {
+    if holidays.contains(&date) {
+        return 6;
+    }
     date.weekday().num_days_from_monday() as i16
+}
+
+/// The Saturday of the weekend a day belongs to, or None on an ordinary
+/// weekday. A holiday joins the nearest weekend (Mon–Wed the one before,
+/// Thu–Fri the one after), as in the planner.
+fn weekend_saturday(date: NaiveDate, holidays: &HashSet<NaiveDate>) -> Option<NaiveDate> {
+    let wd = date.weekday().num_days_from_monday() as i64;
+    if wd >= 5 {
+        return Some(date - chrono::Duration::days(wd - 5));
+    }
+    if holidays.contains(&date) {
+        return Some(if wd <= 2 { date - chrono::Duration::days(wd + 2) } else { date + chrono::Duration::days(5 - wd) });
+    }
+    None
+}
+
+fn load_holidays(
+    conn: &mut PgConnection,
+    tenant_id: &str,
+    from: NaiveDate,
+    to: NaiveDate,
+) -> Result<HashSet<NaiveDate>, AppError> {
+    use crate::schema::public_holidays;
+    public_holidays::table
+        .filter(public_holidays::tenant_id.eq(tenant_id))
+        .filter(public_holidays::holiday_date.between(from, to))
+        .select(public_holidays::holiday_date)
+        .load::<NaiveDate>(conn)
+        .map(|v| v.into_iter().collect())
+        .map_err(|_| AppError::Internal)
 }
 
 /// Hours of one weekday time. An end at or before the start runs past midnight
@@ -98,11 +132,12 @@ impl AnalysisRepository for DieselAnalysisRepository {
             let ws_names: HashMap<Uuid, String> = ws_list.into_iter().map(|w| (w.id, w.name)).collect();
 
             // Aggregate: (date, workstation_id) -> total planned hours
+            let holidays = load_holidays(&mut conn, &tenant_id, from_date, to_date)?;
             let mut result_map: HashMap<(NaiveDate, Uuid), f64> = HashMap::new();
             for plan in &plans {
                 if let Some(ws_id) = plan.workstation_id {
                     let hours = plan.shift_id
-                        .and_then(|sid| shift_weekday_hours.get(&(sid, weekday_of(plan.date))).copied())
+                        .and_then(|sid| shift_weekday_hours.get(&(sid, weekday_of(plan.date, &holidays))).copied())
                         .unwrap_or(0.0);
                     *result_map.entry((plan.date, ws_id)).or_insert(0.0) += hours;
                 }
@@ -367,7 +402,9 @@ impl AnalysisRepository for DieselAnalysisRepository {
                 .load(&mut conn)
                 .map_err(|_| AppError::Internal)?;
 
-            Ok(fairness(&staff, &plans, &times, &wishes, from_date, to_date))
+            let holidays = load_holidays(&mut conn, &tenant_id, from_date, to_date)?;
+
+            Ok(fairness(&staff, &plans, &times, &wishes, &holidays, from_date, to_date))
         })
         .await
         .map_err(|_| AppError::Internal)?
@@ -382,6 +419,7 @@ fn fairness(
     plans: &[models::ConfirmedShiftPlan],
     times: &[models::ShiftWeekdayTime],
     wishes: &[models::ShiftWish],
+    holidays: &HashSet<NaiveDate>,
     from_date: NaiveDate,
     to_date: NaiveDate,
 ) -> Vec<EmployeeFairnessDomain> {
@@ -415,7 +453,7 @@ fn fairness(
         .collect();
 
     let mut worked: std::collections::HashSet<(Uuid, NaiveDate, Uuid)> = Default::default();
-    let mut weekends: std::collections::HashSet<(Uuid, i32, u32)> = Default::default();
+    let mut weekends: std::collections::HashSet<(Uuid, NaiveDate)> = Default::default();
     for plan in plans {
         let Some(row) = rows.get_mut(&plan.employee_id) else { continue };
         if !plan.is_present {
@@ -425,7 +463,7 @@ fn fairness(
             continue;
         }
         let Some(shift_id) = plan.shift_id else { continue };
-        let time = by_day.get(&(shift_id, weekday_of(plan.date)));
+        let time = by_day.get(&(shift_id, weekday_of(plan.date, holidays)));
         row.shifts += 1;
         row.hours += time.map(|t| shift_hours(t)).unwrap_or(0.0);
         let night = match time {
@@ -435,14 +473,13 @@ fn fairness(
         if night {
             row.night_shifts += 1;
         }
-        if weekday_of(plan.date) >= 5 {
+        if let Some(saturday) = weekend_saturday(plan.date, holidays) {
             row.weekend_days += 1;
-            let week = plan.date.iso_week();
-            weekends.insert((plan.employee_id, week.year(), week.week()));
+            weekends.insert((plan.employee_id, saturday));
         }
         worked.insert((plan.employee_id, plan.date, shift_id));
     }
-    for (employee_id, _, _) in &weekends {
+    for (employee_id, _) in &weekends {
         if let Some(row) = rows.get_mut(employee_id) {
             row.weekends += 1;
         }
@@ -541,7 +578,7 @@ mod tests {
             models::ShiftWish { id: Uuid::new_v4(), employee_id: anna.id, shift_id: early, wish_date: date("2026-09-16"), tenant_id: "t".into(), created_at: NaiveDateTime::default() },
         ];
 
-        let rows = fairness(&staff, &plans, &all_times, &wishes, date("2026-09-01"), date("2026-09-30"));
+        let rows = fairness(&staff, &plans, &all_times, &wishes, &HashSet::new(), date("2026-09-01"), date("2026-09-30"));
 
         let a = rows.iter().find(|r| r.employee_name == "Anna").unwrap();
         assert_eq!(a.shifts, 3);
@@ -566,7 +603,7 @@ mod tests {
         t[1].end_time = NaiveTime::from_hms_opt(18, 0, 0).unwrap();
         let staff = [employee("Anna", 0.0)];
         let plans = [plan(&staff[0], "2026-09-07", Some(shift), None)];
-        let rows = fairness(&staff, &plans, &t, &[], date("2026-09-07"), date("2026-09-07"));
+        let rows = fairness(&staff, &plans, &t, &[], &HashSet::new(), date("2026-09-07"), date("2026-09-07"));
         assert_eq!(rows[0].hours, 8.0);
     }
 }

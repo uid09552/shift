@@ -214,6 +214,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let mut state = AppState::with_nats(Arc::new(pool), broker_conn.client, broker_conn.jetstream_status, config.optimizer.url.clone());
             state.dev_mode = config.tenant.dev_mode;
             state.default_tenant_id = config.tenant.tenant_id.clone();
+            state.holiday_config = config.holidays.clone();
             state.keycloak = keycloak_settings(&config.keycloak)
                 .map(|settings| Arc::new(KeycloakAdmin::new(settings)));
             let addr = format!("{}:{}", config.server.listen, config.server.port).parse::<SocketAddr>()?;

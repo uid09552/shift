@@ -93,6 +93,20 @@ its standard `OTEL_*` (or GitLab `CI_*`) environment variable — see
     configured tenant. It exists so the API is usable without a gateway during
     development. Never enable it on a shared or production deployment.
 
+### `holidays`
+
+Public holidays, fetched as JSON from an [api-feiertage.de](https://get.api-feiertage.de)
+compatible API and stored per tenant (years are fetched on first use;
+`POST /api/v1/holidays/sync` refreshes them). A holiday runs on its shifts'
+**Sunday** times and counts as a weekend day for the optimizer, the plan
+check and the fairness figures.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `true` | `false`: nothing is fetched, the planner sees no holidays. Env: `SHIFT_HOLIDAYS__ENABLED` |
+| `url` | `https://get.api-feiertage.de` | Source; called with `?states=<state>&years=<year>`. Env: `SHIFT_HOLIDAYS__URL` |
+| `state` | `by` | Two-letter German state code. Env: `SHIFT_HOLIDAYS__STATE` |
+
 ### `build`
 
 What `GET /api/v1/info` reports. Empty keys fall back to what the build

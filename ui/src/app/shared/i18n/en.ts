@@ -117,6 +117,7 @@ export const en = {
   'schedule.workstationDisabled': 'disabled',
   'schedule.saveFailed': 'The change could not be saved.',
   'schedule.workstationClosed': 'Closed',
+  'schedule.holidayHint': 'Public holiday: Sunday times apply and the day counts as a weekend',
   'schedule.showDetails': 'Show who is assigned',
   'schedule.assignedCount': '{count} assigned',
   'schedule.understaffed': 'Fewer people than the configured minimum',

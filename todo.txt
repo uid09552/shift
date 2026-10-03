@@ -1,7 +1,6 @@
 
 
 Around the finished roster (the biggest gap: planning is strong, everything after it is thin)
-1) whish as cron expresssion to open on ...
 4) Hours account (Zeitkonto) — per employee, contract hours vs worked hours, carried
    month to month. One analysis endpoint over confirmed_shift_plans + monthly target;
    a column on Fairness and Employee Calendar. [S]
@@ -37,6 +36,12 @@ Planner / optimizer
 12) Public holidays per region — holiday calendar (tenant setting, e.g. Bavaria),
     counted like weekends in fairness, optional own staffing minimum; today "holiday"
     exists only as an absence type. [M]
+    DONE (state and URL from config `holidays`, not a tenant setting; no own
+    staffing minimum). Fetched from api-feiertage.de JSON, stored per tenant
+    (table public_holidays, migration 31; GET /holidays, POST /holidays/sync).
+    A holiday runs on its shifts' Sunday times and counts as a weekend day in the
+    solver, the agent's plan check/repair and Fairness; shown in the Schedule
+    and Employee calendar. Tests: planner/tests/test_holidays.py.
 13) Skill mix per shift — "at least one senior / one with Intensive Care on every
     night", not just capability per workstation. New rule type in planner + check. [M]
 14) Personal limits — per employee max nights per month, max weekends, no nights

@@ -255,6 +255,12 @@ impl OptimizerService {
             })
             .collect();
 
+        let holidays: Vec<String> = crate::services::holiday::dates_in_range(state, tenant_id, history_start, period_end)
+            .await?
+            .into_iter()
+            .map(|d| d.to_string())
+            .collect();
+
         let mut limits_map: std::collections::HashMap<Uuid, crate::repository::domain::PersonalLimitsDomain> = state
             .personal_limits_repo
             .list_personal_limits(tenant_id)
@@ -317,6 +323,7 @@ impl OptimizerService {
             employees: employee_tasks,
             capabilities: capability_tasks,
             history,
+            holidays,
             constraints,
         })
     }

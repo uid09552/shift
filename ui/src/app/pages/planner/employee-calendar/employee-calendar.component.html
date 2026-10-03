@@ -178,10 +178,19 @@
               class="calendar-cell"
               [class.other-month]="!day.isCurrentMonth"
               [class.today]="day.isToday"
-              [class.weekend]="day.isWeekend"
+              [class.weekend]="day.isWeekend || !!day.holidayName"
               [class.cell-editing]="isEditing(formatDate(day.date)) || isDeleting(formatDate(day.date)) || isDeletingWish(formatDate(day.date))"
             >
               <div class="day-number">{{ day.dayNum }}</div>
+
+              <!-- Public holiday: runs on Sunday times and counts as a weekend day -->
+              @if (day.isCurrentMonth && day.holidayName) {
+                <div class="mb-0.5 flex items-center justify-center" [title]="'schedule.holidayHint' | t">
+                  <span class="inline-flex max-w-full items-center truncate rounded-full bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
+                    {{ day.holidayName }}
+                  </span>
+                </div>
+              }
 
               <!-- Unavailability indicator -->
               @if (day.isCurrentMonth && day.isUnavailable) {

@@ -848,3 +848,19 @@ pub trait PersonalLimitsRepository {
     async fn get_personal_limits(&self, tenant_id: &str, employee_id: Uuid) -> Result<PersonalLimitsDomain, AppError>;
     async fn update_personal_limits(&self, tenant_id: &str, employee_id: Uuid, limits: UpdatePersonalLimits) -> Result<PersonalLimitsDomain, AppError>;
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct HolidayDomain {
+    pub date: NaiveDate,
+    pub name: String,
+    pub state: String,
+}
+
+#[async_trait]
+pub trait HolidayRepository {
+    async fn list_holidays(&self, tenant_id: &str, from: NaiveDate, to: NaiveDate) -> Result<Vec<HolidayDomain>, AppError>;
+    /// How many holidays are stored in the range for this state.
+    async fn count_holidays(&self, tenant_id: &str, from: NaiveDate, to: NaiveDate, state: &str) -> Result<i64, AppError>;
+    /// Replaces everything stored in `from..=to` with `holidays`.
+    async fn replace_holidays(&self, tenant_id: &str, from: NaiveDate, to: NaiveDate, holidays: Vec<HolidayDomain>) -> Result<(), AppError>;
+}

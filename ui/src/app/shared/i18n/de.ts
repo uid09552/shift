@@ -116,6 +116,7 @@ export const de: Record<TranslationKey, string> = {
   'schedule.workstationDisabled': 'deaktiviert',
   'schedule.saveFailed': 'Die Änderung konnte nicht gespeichert werden.',
   'schedule.workstationClosed': 'Geschlossen',
+  'schedule.holidayHint': 'Feiertag: es gelten die Sonntagszeiten, der Tag zählt als Wochenende',
   'schedule.showDetails': 'Zeigen, wer eingeteilt ist',
   'schedule.assignedCount': '{count} eingeteilt',
   'schedule.understaffed': 'Weniger Personen als die eingestellte Mindestbesetzung',

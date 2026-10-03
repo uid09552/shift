@@ -165,9 +165,32 @@ def workstation_closed(workstation: dict, day: date) -> bool:
     return False
 
 
-def _weekday(day: date) -> str:
-    """The weekday key used throughout the optimizer contract: '0' = Monday."""
-    return str(day.weekday())
+def _weekday(day: date, holidays: frozenset | set = frozenset()) -> str:
+    """The weekday key used throughout the optimizer contract: '0' = Monday.
+
+    A public holiday is a Sunday, as in the solver."""
+    return "6" if day in holidays else str(day.weekday())
+
+
+def _weekend_key(day: date, holidays: frozenset | set = frozenset()) -> date | None:
+    """The Saturday of the weekend a day belongs to (a holiday joins the nearest
+    one), or None on an ordinary weekday. Mirrors the solver's weekend_key."""
+    wd = day.weekday()
+    if wd >= 5:
+        return day - timedelta(days=wd - 5)
+    if day in holidays:
+        return day - timedelta(days=wd + 2) if wd <= 2 else day + timedelta(days=5 - wd)
+    return None
+
+
+def _holidays(rules: dict) -> frozenset:
+    out = set()
+    for value in rules.get("holidays") or []:
+        try:
+            out.add(_parse_date(value))
+        except (TypeError, ValueError):
+            continue
+    return frozenset(out)
 
 
 def _minutes(value: str) -> int:
@@ -378,6 +401,7 @@ class _Validator:
         except (KeyError, ValueError) as exc:
             raise ValidationError("The plan has no usable planning period.") from exc
         self.days = _date_range(self.start, self.end)
+        self.holidays = _holidays(rules)
 
         cfg = dict(_DEFAULT_CONSTRAINTS)
         for key, value in (rules.get("constraints") or {}).items():
@@ -545,7 +569,7 @@ class _Validator:
             if employee is None or shift is None:
                 continue  # Already reported as an unknown entity.
 
-            weekday = _weekday(a.day)
+            weekday = _weekday(a.day, self.holidays)
             if (a.shift_id, weekday) not in self.shift_wt:
                 self.findings.add(
                     "shift_not_operating", SEVERITY_ERROR,
@@ -643,7 +667,7 @@ class _Validator:
                 per_ws[(a.day, a.shift_id, a.workstation_id)] += 1
 
         for day in self.days:
-            weekday = _weekday(day)
+            weekday = _weekday(day, self.holidays)
             for shift_id, shift in self.shifts.items():
                 weekday_time = self.shift_wt.get((shift_id, weekday))
                 if weekday_time is None:
@@ -712,7 +736,7 @@ class _Validator:
             shift = self.shifts.get(a.shift_id)
             # No weekday time: a history row on a day the shift no longer runs
             # still owes the night recovery, as in the solver.
-            weekday_time = self.shift_wt.get((a.shift_id, _weekday(a.day))) or {}
+            weekday_time = self.shift_wt.get((a.shift_id, _weekday(a.day, self.holidays))) or {}
             if shift is None:
                 continue
             recovery = max(
@@ -776,12 +800,12 @@ class _Validator:
                 continue
             for first in rows:
                 shift = self.shifts.get(first.shift_id)
-                first_time = self.shift_wt.get((first.shift_id, _weekday(day)))
+                first_time = self.shift_wt.get((first.shift_id, _weekday(day, self.holidays)))
                 if shift is None or first_time is None or shift.get("is_night_shift"):
                     continue
                 end = _minutes(first_time["end_time"])
                 for second in next_rows:
-                    second_time = self.shift_wt.get((second.shift_id, _weekday(following)))
+                    second_time = self.shift_wt.get((second.shift_id, _weekday(following, self.holidays)))
                     if second_time is None:
                         continue
                     rest = (24 * 60 - end + _minutes(second_time["start_time"])) / 60.0
@@ -847,8 +871,8 @@ class _Validator:
                         f"on {a.day.isoformat()}",
                     )
                 nights[(a.employee_id, a.day.year, a.day.month)] += 1
-            if a.day.weekday() >= 5:
-                saturday = a.day - timedelta(days=a.day.weekday() - 5)
+            if _weekend_key(a.day, self.holidays) is not None:
+                saturday = _weekend_key(a.day, self.holidays)
                 weekends[(a.employee_id, saturday.year, saturday.month)].add(saturday)
             if str(a.day.weekday()) in (employee.get("preferred_days_off") or []):
                 self.findings.add(
@@ -947,7 +971,7 @@ class _Validator:
             return
         hours: dict[str, float] = defaultdict(float)
         for a in self.assignments:
-            weekday_time = self.shift_wt.get((a.shift_id, _weekday(a.day)))
+            weekday_time = self.shift_wt.get((a.shift_id, _weekday(a.day, self.holidays)))
             if weekday_time is not None:
                 hours[a.employee_id] += _duration_hours(weekday_time)
         self.hours_by_employee = dict(hours)

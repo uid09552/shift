@@ -41,6 +41,14 @@ otel:
   gitlab_project_name: "" # CI_PROJECT_NAME
   sample_ratio: 1.0
 
+# Public holidays, fetched as JSON from api-feiertage.de and stored per tenant.
+# A holiday runs on a shift's Sunday times and counts as a weekend day.
+# Env: SHIFT_HOLIDAYS__ENABLED, SHIFT_HOLIDAYS__URL, SHIFT_HOLIDAYS__STATE.
+holidays:
+  enabled: true
+  url: "https://get.api-feiertage.de"
+  state: "by"          # two-letter German state code
+
 # What GET /api/v1/info reports. Leave empty to report what the build baked in
 # (APP_VERSION / GIT_COMMIT / BUILD_DATE, set by GitLab CI as Docker build
 # arguments); a local build without them reports the crate version.

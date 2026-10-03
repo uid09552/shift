@@ -330,6 +330,9 @@ class SchedulingInput(BaseModel):
     locked_assignments: List[LockedAssignment] = Field(default_factory=list)
     # The confirmed roster just before the period — see HistoryShift.
     history: List[HistoryShift] = Field(default_factory=list)
+    # Public holidays in and just before the period. Each runs on its shift's
+    # Sunday times and counts as a weekend day.
+    holidays: List[date] = Field(default_factory=list)
     constraints: ConstraintConfig = Field(default_factory=ConstraintConfig)
 
     @field_validator("shifts", "workstations", "employees")

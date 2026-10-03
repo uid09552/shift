@@ -12,6 +12,7 @@ pub mod plannersettingsrepository;
 pub mod wishsettingsrepository;
 pub mod rotationpatternrepository;
 pub mod personallimitsrepository;
+pub mod holidayrepository;
 
 use std::sync::Arc;
 use crate::database::DbPool;
@@ -36,6 +37,8 @@ use self::plannersettingsrepository::DieselPlannerSettingsRepository;
 use self::wishsettingsrepository::DieselWishSettingsRepository;
 use self::rotationpatternrepository::DieselRotationPatternRepository;
 use self::personallimitsrepository::DieselPersonalLimitsRepository;
+use self::holidayrepository::DieselHolidayRepository;
+use crate::config::HolidayConfig;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -56,6 +59,9 @@ pub struct AppState {
     pub wish_settings_repo: DieselWishSettingsRepository,
     pub rotation_pattern_repo: DieselRotationPatternRepository,
     pub personal_limits_repo: DieselPersonalLimitsRepository,
+    pub holiday_repo: DieselHolidayRepository,
+    /// Where and for which state holidays are fetched.
+    pub holiday_config: HolidayConfig,
     pub pool: Arc<DbPool>,
     pub nats_client: Option<async_nats::Client>,
     pub jetstream_status: JetStreamStatus,
@@ -88,6 +94,8 @@ impl AppState {
             wish_settings_repo: DieselWishSettingsRepository { pool: Arc::clone(&pool) },
             rotation_pattern_repo: DieselRotationPatternRepository { pool: Arc::clone(&pool) },
             personal_limits_repo: DieselPersonalLimitsRepository { pool: Arc::clone(&pool) },
+            holiday_repo: DieselHolidayRepository { pool: Arc::clone(&pool) },
+            holiday_config: HolidayConfig::default(),
             pool,
             nats_client: None,
             jetstream_status: JetStreamStatus::Unavailable,
@@ -117,6 +125,8 @@ impl AppState {
             wish_settings_repo: DieselWishSettingsRepository { pool: Arc::clone(&pool) },
             rotation_pattern_repo: DieselRotationPatternRepository { pool: Arc::clone(&pool) },
             personal_limits_repo: DieselPersonalLimitsRepository { pool: Arc::clone(&pool) },
+            holiday_repo: DieselHolidayRepository { pool: Arc::clone(&pool) },
+            holiday_config: HolidayConfig::default(),
             pool,
             nats_client: Some(nats_client),
             jetstream_status,

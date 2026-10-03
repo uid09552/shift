@@ -70,6 +70,10 @@ pub struct TaskDTO {
     // morning, a streak of working days already running.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub history: Vec<HistoryShiftTask>,
+    // Public holidays (YYYY-MM-DD) from HISTORY_DAYS before the period to its
+    // end. A holiday runs on its shifts' Sunday times and counts as a weekend day.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub holidays: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub constraints: Option<ConstraintTask>,
 }

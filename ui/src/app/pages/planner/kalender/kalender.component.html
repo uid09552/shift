@@ -200,8 +200,10 @@
                   [class.px-0.5]="viewMode === 'month'"
                   [class.bg-brand-50]="day.isToday"
                   [class.dark:bg-brand-500/10]="day.isToday"
-                  [class.bg-white]="!day.isToday"
+                  [class.bg-white]="!day.isToday && !holidayName(day)"
+                  [class.bg-amber-50]="!day.isToday && !!holidayName(day)"
                   [class.dark:bg-white/5]="!day.isToday"
+                  [title]="holidayName(day) ?? ''"
                 >
                   <button
                     type="button"
@@ -226,6 +228,11 @@
                   >
                     {{ day.dayNum }}
                   </div>
+                  @if (holidayName(day); as holiday) {
+                    <div class="mt-0.5 truncate text-[10px] font-medium normal-case text-amber-700 dark:text-amber-400">
+                      {{ viewMode === 'week' ? holiday : '★' }}
+                    </div>
+                  }
                   </button>
                 </th>
               }
@@ -279,6 +286,8 @@
                     [class.px-0.5]="viewMode === 'month'"
                     [class.bg-brand-50/40]="day.isToday"
                     [class.dark:bg-brand-500/5]="day.isToday"
+                    [class.bg-amber-50/60]="!day.isToday && !!holidayName(day)"
+                    [class.dark:bg-amber-500/5]="!day.isToday && !!holidayName(day)"
                   >
                     @if (wishesOnly) {
                       <!-- Wishes-only view: the requested shift, read-only -->

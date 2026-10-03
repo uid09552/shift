@@ -44,6 +44,7 @@ import { ModalComponent } from '../../../shared/components/ui/modal/modal.compon
 import { ThemeService } from '../../../shared/services/theme.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
+import { HolidayService } from '../../../shared/services/holiday.service';
 
 interface LeaveEntry {
   id: string;
@@ -58,6 +59,8 @@ interface CalendarDay {
   isCurrentMonth: boolean;
   isToday: boolean;
   isWeekend: boolean;
+  /** Name of the public holiday, if the day is one. */
+  holidayName: string | null;
   plan: ConfirmedShiftPlan | null;
   shiftName: string | null;
   shiftColor: string | null;
@@ -249,6 +252,9 @@ export class EmployeeCalendarComponent implements OnInit {
   // `.dark .calendar-cell` against the global `.dark` class on <html>.
   theme$;
 
+  /** Public holidays of the visible weeks, date -> name. */
+  private holidays = new Map<string, string>();
+
   constructor(
     private employeeService: EmployeeService,
     private shiftService: ShiftService,
@@ -263,6 +269,7 @@ export class EmployeeCalendarComponent implements OnInit {
     private router: Router,
     private confirmDialog: ConfirmDialogService,
     private themeService: ThemeService,
+    private holidayService: HolidayService,
   ) {
     const now = new Date();
     this.currentYear = now.getFullYear();
@@ -430,6 +437,7 @@ export class EmployeeCalendarComponent implements OnInit {
   }
 
   private loadPlansForMonth(): void {
+    this.loadHolidays();
     if (!this.selectedEmployeeId) {
       this.planMap.clear();
       this.buildCalendar();
@@ -459,6 +467,21 @@ export class EmployeeCalendarComponent implements OnInit {
           this.loadingPlans = false;
         },
       });
+  }
+
+  /** The grid also shows the neighbouring months' days, so the range is padded by a week. */
+  private loadHolidays(): void {
+    const from = this.formatDate(new Date(this.currentYear, this.currentMonth, -6));
+    const to = this.formatDate(new Date(this.currentYear, this.currentMonth + 1, 7));
+    this.holidayService.getHolidays(from, to).subscribe({
+      next: (holidays) => {
+        this.holidays = holidays;
+        this.applyPlansToCalendar();
+      },
+      error: () => {
+        this.holidays = new Map();
+      },
+    });
   }
 
   loadLeaveEntries(): void {
@@ -568,6 +591,7 @@ export class EmployeeCalendarComponent implements OnInit {
           isCurrentMonth,
           isToday: dateStr === todayStr,
           isWeekend,
+          holidayName: null,
           plan,
           shiftName: null,
           shiftColor: null,
@@ -595,6 +619,7 @@ export class EmployeeCalendarComponent implements OnInit {
         const dateStr = this.formatDate(day.date);
         const plan = this.planMap.get(dateStr) || null;
         day.plan = plan;
+        day.holidayName = this.holidays.get(dateStr) ?? null;
         day.isUnavailable = unavailDates.has(dateStr);
 
         if (plan) {

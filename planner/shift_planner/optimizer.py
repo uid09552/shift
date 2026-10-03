@@ -49,9 +49,24 @@ def weekday_name(date) -> str:
     return _WEEKDAY_MAP[date.weekday()]
 
 
-def weekday_num(date) -> str:
-    """Return numeric weekday string matching input format ('0'=monday … '6'=sunday)."""
-    return str(date.weekday())
+def weekday_num(date, holidays=()) -> str:
+    """Return numeric weekday string matching input format ('0'=monday … '6'=sunday).
+
+    A public holiday is a Sunday: it uses the shift's Sunday times."""
+    return "6" if date in holidays else str(date.weekday())
+
+
+def weekend_key(date, holidays=()):
+    """The Saturday of the weekend this day belongs to, or None on a normal weekday.
+
+    A holiday joins the nearest weekend (Mon–Wed the one before, Thu–Fri the one
+    after), so a long weekend is still one weekend."""
+    wd = date.weekday()
+    if wd >= 5:
+        return date - timedelta(days=wd - 5)
+    if date in holidays:
+        return date - timedelta(days=wd + 2) if wd <= 2 else date + timedelta(days=5 - wd)
+    return None
 
 
 def parse_date(s):
@@ -209,7 +224,8 @@ class ShiftPlanner:
         self.end = parse_date(data["planning_period"]["end_date"])
         self.days = list(date_range(self.start, self.end))
         self.day_index = {day: idx for idx, day in enumerate(self.days)}
-        self.day_wd = [weekday_num(day) for day in self.days]
+        self.holidays = {parse_date(h) for h in data.get("holidays") or []}
+        self.day_wd = [weekday_num(day, self.holidays) for day in self.days]
         self.num_days = len(self.days)
 
     def _parse_entities(self, data: dict) -> None:
@@ -354,7 +370,7 @@ class ShiftPlanner:
             sid = row["shift_id"]
             if sid not in shift_names:
                 continue  # a shift since deleted: it still counts as a worked day
-            wday = weekday_num(day)
+            wday = weekday_num(day, self.holidays)
             label = f"{shift_names[sid]} on {day}"
             if (sid, wday) in self.shift_wt:
                 recovery = self._shift_recovery_days(sid, wday)
@@ -910,9 +926,9 @@ class ShiftPlanner:
             if max_weekends is not None:
                 weekends: dict = {}  # Saturday -> [vars of that Saturday and Sunday]
                 for d_idx, day in enumerate(self.days):
-                    if day.weekday() < 5:
+                    saturday = weekend_key(day, self.holidays)
+                    if saturday is None:
                         continue
-                    saturday = day - timedelta(days=day.weekday() - 5)
                     weekends.setdefault(saturday, []).extend(
                         self.vars_by_emp_day.get((e_idx, d_idx), [])
                     )
@@ -1433,8 +1449,8 @@ class ShiftPlanner:
             if self.shift_is_night[self.shifts[s_idx]["id"]]:
                 key = (e_idx, day.year, day.month)
                 nights[key] = nights.get(key, 0) + 1
-            if day.weekday() >= 5:
-                saturday = day - timedelta(days=day.weekday() - 5)
+            saturday = weekend_key(day, self.holidays)
+            if saturday is not None:
                 weekends.setdefault((e_idx, saturday.year, saturday.month), set()).add(saturday)
         over = []
         for (e_idx, year, month), count in sorted(nights.items()):

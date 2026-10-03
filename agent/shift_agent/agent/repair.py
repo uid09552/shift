@@ -58,6 +58,8 @@ from shift_agent.agent.validation import (
     _minutes,
     _parse_date,
     _weekday,
+    _weekend_key,
+    _holidays,
     collect,
     compat_gap,
     validate,
@@ -357,6 +359,7 @@ class _Rules:
         except (KeyError, ValueError) as exc:
             raise RepairError("The plan has no usable planning period.") from exc
         self.days = _date_range(self.start, self.end)
+        self.holidays = _holidays(rules)
 
         self.employees = {e["id"]: e for e in rules.get("employees") or []}
         self.shifts = {s["id"]: s for s in rules.get("shifts") or []}
@@ -427,7 +430,7 @@ class _Rules:
         return self._compat[key]
 
     def weekday_time(self, shift_id: str, day: date) -> dict | None:
-        return self.shift_wt.get((shift_id, _weekday(day)))
+        return self.shift_wt.get((shift_id, _weekday(day, self.holidays)))
 
     def recovery_days(self, shift_id: str, day: date) -> int:
         """Free days owed after working this shift on this day."""
@@ -601,12 +604,12 @@ class _Rules:
             if nights + 1 > max_nights:
                 return f"would be more than {max_nights} night shifts this month (personal limit)"
         max_weekends = employee.get("max_weekends_per_month")
-        if max_weekends is not None and day.weekday() >= 5:
-            saturday = day - timedelta(days=day.weekday() - 5)
+        if max_weekends is not None and _weekend_key(day, self.holidays) is not None:
+            saturday = _weekend_key(day, self.holidays)
             weekends = {
-                d - timedelta(days=d.weekday() - 5)
+                _weekend_key(d, self.holidays)
                 for d in plan.days_by_employee.get(employee_id) or set()
-                if d.weekday() >= 5
+                if _weekend_key(d, self.holidays) is not None
             }
             weekends = {s for s in weekends if (s.year, s.month) == (saturday.year, saturday.month)}
             if saturday not in weekends and len(weekends) + 1 > max_weekends:

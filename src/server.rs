@@ -19,6 +19,7 @@ use crate::services::{
     capability::CapabilityService,
     confirmed_shift_plan::ConfirmedShiftPlanService,
     employee::EmployeeService,
+    holiday::HolidayService,
     optimizer,
     planner_settings::PlannerSettingsService,
     rotation_pattern::RotationPatternService,
@@ -82,6 +83,9 @@ pub fn create_router(state: AppState) -> Router {
             get(PersonalLimitsService::get_personal_limits).put(PersonalLimitsService::update_personal_limits),
         )
         .route("/personal-limits", get(PersonalLimitsService::list_personal_limits))
+        // Public holidays
+        .route("/holidays", get(HolidayService::list_holidays))
+        .route("/holidays/sync", post(HolidayService::sync_holidays))
         // Shifts
         .route("/shifts", get(ShiftService::list_shifts).post(ShiftService::create_shift))
         .route("/shifts/template", get(ShiftService::download_template))
