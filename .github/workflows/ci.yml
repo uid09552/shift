@@ -77,7 +77,7 @@ jobs:
         # command (see deploy/docker-compose.yml).
         component: [backend, planner, ui, agent]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
       - name: Target image
         id: meta
@@ -124,7 +124,7 @@ jobs:
       # image out of the registry. The Dockerfiles COPY from the repo root
       # (e.g. `COPY ui/ .`), so the build context is the root, not deploy/.
       - name: Build
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: deploy/Dockerfile.${{ matrix.component }}
@@ -155,7 +155,7 @@ jobs:
       - name: Date
         id: date
         run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v6
+      - uses: actions/cache@v4
         with:
           path: .cache/trivy/db
           key: trivy-db-${{ steps.date.outputs.day }}
@@ -208,7 +208,7 @@ jobs:
           category: image-${{ matrix.component }}
 
       # `if: always()` so a failing gate still publishes the evidence.
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: security-image-${{ matrix.component }}
@@ -267,7 +267,7 @@ jobs:
             source_path: "agent"
             skip_dirs: ".venv"
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
       - uses: aquasecurity/setup-trivy@v0.3.1
         with:
@@ -277,7 +277,7 @@ jobs:
       - name: Date
         id: date
         run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v6
+      - uses: actions/cache@v4
         with:
           path: .cache/trivy/db
           key: trivy-db-${{ steps.date.outputs.day }}
@@ -312,7 +312,7 @@ jobs:
             --exit-code "$GATE_EXIT_CODE" \
             "$SOURCE_PATH"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: security-source-${{ matrix.component }}
@@ -357,7 +357,7 @@ jobs:
       - name: Date
         id: date
         run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v6
+      - uses: actions/cache@v4
         with:
           path: .cache/trivy/db
           key: trivy-db-${{ steps.date.outputs.day }}
@@ -393,7 +393,7 @@ jobs:
           sarif_file: security/trivy-published-${{ matrix.component }}.sarif
           category: image-${{ matrix.component }}
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: security-published-${{ matrix.component }}
