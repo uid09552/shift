@@ -1,7 +1,7 @@
 import { Component, HostListener, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { forkJoin, of, Subscription } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { catchError, switchMap } from 'rxjs/operators';
 import { ActivatedRoute, Router } from '@angular/router';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
 import { CalendarNavComponent } from '../../../shared/components/ui/calendar-nav/calendar-nav.component';
@@ -32,6 +32,7 @@ import { HolidayService } from '../../../shared/services/holiday.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
 import { ModalComponent } from '../../../shared/components/ui/modal/modal.component';
+import { ContextMenuService } from '../../../shared/components/ui/context-menu/context-menu.service';
 import { ReplacementDialogComponent, ReplacementDone, ReplacementRequest } from './replacement-dialog.component';
 import { GroupedPlanViewComponent } from './grouped-plan-view.component';
 import { DayViewComponent } from '../day-view/day-view.component';
@@ -167,6 +168,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
     private holidayService: HolidayService,
     private globalSearchService: GlobalSearchService,
     private translations: TranslationService,
+    private contextMenu: ContextMenuService,
     private router: Router,
     private route: ActivatedRoute,
   ) {}
@@ -837,6 +839,10 @@ export class KalenderComponent implements OnInit, OnDestroy {
 
   startEdit(employeeId: string, day: DayInfo, event: Event): void {
     event.stopPropagation();
+    if (this.swapSource) {
+      this.onSwapTarget(employeeId, day);
+      return;
+    }
     const dateStr = this.formatDate(day.date);
     this.deletingCell = null;
     this.pendingWorkstationId = null;
@@ -871,6 +877,135 @@ export class KalenderComponent implements OnInit, OnDestroy {
       inner.set(plan.date, plan);
     }
     this.replacementRequest = null;
+  }
+
+  // ── Swap with a colleague ─────────────────────────────────────
+
+  /** The shift picked with "swap with…", waiting for a target cell. */
+  swapSource: { employeeId: string; dateStr: string; name: string } | null = null;
+
+  onChipContextMenu(event: MouseEvent, employeeId: string, day: DayInfo): void {
+    if (this.swapSource) return;
+    const dateStr = this.formatDate(day.date);
+    const plan = this.planMap.get(employeeId)?.get(dateStr);
+    if (!plan?.is_present || !plan.shift_id) return;
+    const name = this.employees.find((e) => e.id === employeeId)?.name ?? '';
+    this.contextMenu.open(event, [
+      {
+        label: this.translations.t('schedule.swapWith'),
+        action: () => {
+          this.editingCell = null;
+          this.deletingCell = null;
+          this.saveError = null;
+          this.swapSource = { employeeId, dateStr, name };
+        },
+      },
+    ]);
+  }
+
+  cancelSwap(): void {
+    this.swapSource = null;
+  }
+
+  isSwapSource(employeeId: string, dateStr: string): boolean {
+    return this.swapSource?.employeeId === employeeId && this.swapSource.dateStr === dateStr;
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    this.swapSource = null;
+  }
+
+  /** Same day: the two people trade shifts. Different days: each takes the other's shift on its day. */
+  onSwapTarget(employeeId: string, day: DayInfo): void {
+    const src = this.swapSource;
+    if (!src) return;
+    const dateStr = this.formatDate(day.date);
+    if (this.isSwapSource(employeeId, dateStr)) return;
+    if (src.employeeId === employeeId) {
+      this.saveError = this.translations.t('schedule.swapSamePerson');
+      return;
+    }
+    const a = this.planMap.get(src.employeeId)?.get(src.dateStr);
+    const b = this.planMap.get(employeeId)?.get(dateStr);
+    if (!a || !b?.is_present || !b.shift_id) {
+      this.saveError = this.translations.t('schedule.swapNoShift');
+      return;
+    }
+    const crossDay = src.dateStr !== dateStr;
+    if (
+      crossDay &&
+      (this.planMap.get(src.employeeId)?.has(dateStr) || this.planMap.get(employeeId)?.has(src.dateStr))
+    ) {
+      this.saveError = this.translations.t('schedule.swapBlocked');
+      return;
+    }
+
+    this.swapSource = null;
+    this.saveError = null;
+    this.processingCell = { employeeId, dateStr };
+
+    const done = (plans: ConfirmedShiftPlan[]) => {
+      for (const p of plans) {
+        let inner = this.planMap.get(p.employee_id);
+        if (!inner) {
+          inner = new Map();
+          this.planMap.set(p.employee_id, inner);
+        }
+        inner.set(p.date, p);
+      }
+      this.processingCell = null;
+      this.buildGroups();
+    };
+    const failed = (err: any) => {
+      console.error('Failed to swap shifts', err);
+      this.showSaveError(err);
+      this.processingCell = null;
+      this.loadPlans();
+    };
+
+    if (!crossDay) {
+      forkJoin([
+        this.confirmedShiftPlanService.updateConfirmedShiftPlan(a.id, {
+          shift_id: b.shift_id,
+          workstation_id: b.workstation_id,
+        }),
+        this.confirmedShiftPlanService.updateConfirmedShiftPlan(b.id, {
+          shift_id: a.shift_id,
+          workstation_id: a.workstation_id,
+        }),
+      ]).subscribe({ next: done, error: failed });
+      return;
+    }
+
+    // Each person gives up their cell and takes the other's shift on the other's day.
+    forkJoin([
+      this.confirmedShiftPlanService.deleteConfirmedShiftPlan(a.id),
+      this.confirmedShiftPlanService.deleteConfirmedShiftPlan(b.id),
+    ])
+      .pipe(
+        switchMap(() => {
+          this.planMap.get(a.employee_id)?.delete(a.date);
+          this.planMap.get(b.employee_id)?.delete(b.date);
+          return forkJoin([
+            this.confirmedShiftPlanService.createConfirmedShiftPlan(a.employee_id, {
+              shift_id: b.shift_id,
+              workstation_id: b.workstation_id,
+              date: b.date,
+              is_present: true,
+              creation_type: 'manual',
+            }),
+            this.confirmedShiftPlanService.createConfirmedShiftPlan(b.employee_id, {
+              shift_id: a.shift_id,
+              workstation_id: a.workstation_id,
+              date: a.date,
+              is_present: true,
+              creation_type: 'manual',
+            }),
+          ]);
+        }),
+      )
+      .subscribe({ next: done, error: failed });
   }
 
   startDelete(employeeId: string, day: DayInfo, planId: string, event: Event): void {

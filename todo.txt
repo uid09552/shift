@@ -1,6 +1,7 @@
 
 
 Around the finished roster (the biggest gap: planning is strong, everything after it is thin)
+1) make week hours of employee, instead of monthly workhours. adjust ui, backend, docs. okf file.
 4) Hours account (Zeitkonto) — per employee, contract hours vs worked hours, carried
    month to month. One analysis endpoint over confirmed_shift_plans + monthly target;
    a column on Fairness and Employee Calendar. [S]

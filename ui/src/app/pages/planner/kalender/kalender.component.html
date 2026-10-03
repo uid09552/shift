@@ -120,6 +120,23 @@
     </div>
   }
 
+  @if (swapSource) {
+    <div
+      class="mx-5 mb-3 flex items-center justify-between gap-3 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"
+      role="status"
+      data-testid="schedule-swap-banner"
+    >
+      <span>{{ 'schedule.swapPick' | t: { name: swapSource.name, date: swapSource.dateStr } }}</span>
+      <button
+        type="button"
+        (click)="cancelSwap()"
+        class="shrink-0 rounded-md border border-brand-300 px-2 py-1 text-xs font-medium transition hover:bg-brand-100 dark:border-brand-500/40 dark:hover:bg-brand-500/20"
+      >
+        {{ 'common.cancel' | t }}
+      </button>
+    </div>
+  }
+
   @if (viewMode === 'day') {
     <!-- One day, hour by hour. The arrows above page through days. -->
     <app-day-view [date]="anchorDate" />
@@ -288,6 +305,11 @@
                     [class.dark:bg-brand-500/5]="day.isToday"
                     [class.bg-amber-50/60]="!day.isToday && !!holidayName(day)"
                     [class.dark:bg-amber-500/5]="!day.isToday && !!holidayName(day)"
+                    [class.cursor-pointer]="!!swapSource"
+                    [class.ring-2]="isSwapSource(employee.id, dateStr)"
+                    [class.ring-inset]="isSwapSource(employee.id, dateStr)"
+                    [class.ring-brand-500]="isSwapSource(employee.id, dateStr)"
+                    (click)="swapSource && onSwapTarget(employee.id, day)"
                   >
                     @if (wishesOnly) {
                       <!-- Wishes-only view: the requested shift, read-only -->
@@ -322,6 +344,7 @@
                         [style.backgroundColor]="getShiftBg(cell.shift)"
                         [style.borderLeft]="'3px solid ' + getShiftColor(cell.shift)"
                         [title]="viewMode === 'month' && cell.workstation ? getWorkstationName(cell.workstation) : null"
+                        (contextmenu)="onChipContextMenu($event, employee.id, day)"
                       >
                         <span
                           class="text-xs font-bold leading-tight"
