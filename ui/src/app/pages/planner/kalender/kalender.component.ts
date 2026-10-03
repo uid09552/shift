@@ -66,6 +66,7 @@ interface SwapSide {
   date: string;
   shift: Shift | null;
   workstation: Workstation | null;
+  free: boolean;
 }
 
 interface SwapRow {
@@ -76,7 +77,12 @@ interface SwapRow {
 
 interface SwapPreview {
   a: ConfirmedShiftPlan;
-  b: ConfirmedShiftPlan;
+  /** The other person's shift, or null when they have a free day. */
+  b: ConfirmedShiftPlan | null;
+  /** A free-day entry on the target cell that the incoming shift replaces. */
+  freeTarget: ConfirmedShiftPlan | null;
+  targetEmployeeId: string;
+  targetDate: string;
   crossDay: boolean;
   rows: SwapRow[];
 }
@@ -972,7 +978,10 @@ export class KalenderComponent implements OnInit, OnDestroy {
     this.swapSource = null;
   }
 
-  /** Same day: the two people trade shifts. Different days: each takes the other's shift on its day. */
+  /**
+   * Onto a shift, same day: the two people trade shifts. Different days: each takes the other's
+   * shift on its day. Onto a free day: the shift moves to that person on the chosen day.
+   */
   onSwapTarget(employeeId: string, day: DayInfo): void {
     const src = this.swapSource;
     if (!src) return;
@@ -983,13 +992,23 @@ export class KalenderComponent implements OnInit, OnDestroy {
       return;
     }
     const a = this.planMap.get(src.employeeId)?.get(src.dateStr);
-    const b = this.planMap.get(employeeId)?.get(dateStr);
-    if (!a || !b?.is_present || !b.shift_id) {
-      this.saveError = this.translations.t('schedule.swapNoShift');
+    const b = this.planMap.get(employeeId)?.get(dateStr) ?? null;
+    if (!a) return;
+
+    // A day without a shift is free; sick leave, vacation and the like are not.
+    const targetIsFree = !b || (!b.shift_id && (b.is_present || !b.absence_type || b.absence_type === 'free'));
+    if (b && !b.shift_id && !targetIsFree) {
+      this.saveError = this.translations.t('schedule.swapAbsent');
       return;
     }
+    if (!targetIsFree && !b?.is_present) {
+      this.saveError = this.translations.t('schedule.swapAbsent');
+      return;
+    }
+
     const crossDay = src.dateStr !== dateStr;
     if (
+      !targetIsFree &&
       crossDay &&
       (this.planMap.get(src.employeeId)?.has(dateStr) || this.planMap.get(employeeId)?.has(src.dateStr))
     ) {
@@ -999,33 +1018,33 @@ export class KalenderComponent implements OnInit, OnDestroy {
 
     this.swapSource = null;
     this.saveError = null;
-    this.swapPending = {
-      a,
-      b,
-      crossDay,
-      rows: [
-        this.swapRow(a, b),
-        this.swapRow(b, a),
-      ],
-    };
-  }
-
-  /** One person's side of the swap: what they work now and what they will work. */
-  private swapRow(own: ConfirmedShiftPlan, other: ConfirmedShiftPlan): SwapRow {
-    const side = (date: string, plan: ConfirmedShiftPlan): SwapSide => ({
+    const side = (date: string, plan: ConfirmedShiftPlan | null): SwapSide => ({
       date: new Date(`${date}T00:00:00`).toLocaleDateString(this.translations.locale, {
         weekday: 'short',
         day: 'numeric',
         month: 'short',
         year: 'numeric',
       }),
-      shift: this.shifts.find((s) => s.id === plan.shift_id) ?? null,
-      workstation: this.workstations.find((w) => w.id === plan.workstation_id) ?? null,
+      shift: this.shifts.find((s) => s.id === plan?.shift_id) ?? null,
+      workstation: this.workstations.find((w) => w.id === plan?.workstation_id) ?? null,
+      free: !plan?.shift_id,
     });
-    return {
-      name: this.employeeName(own.employee_id),
-      from: side(own.date, own),
-      to: side(other.date, other),
+    const target = targetIsFree ? null : b;
+    this.swapPending = {
+      a,
+      b: target,
+      freeTarget: b,
+      targetEmployeeId: employeeId,
+      targetDate: dateStr,
+      crossDay,
+      rows: [
+        { name: this.employeeName(a.employee_id), from: side(a.date, a), to: side(target?.date ?? a.date, target) },
+        {
+          name: this.employeeName(employeeId),
+          from: side(dateStr, target),
+          to: side(target ? a.date : dateStr, a),
+        },
+      ],
     };
   }
 
@@ -1037,8 +1056,8 @@ export class KalenderComponent implements OnInit, OnDestroy {
     const pending = this.swapPending;
     if (!pending) return;
     this.swapPending = null;
-    const { a, b, crossDay } = pending;
-    this.processingCell = { employeeId: b.employee_id, dateStr: b.date };
+    const { a, b, crossDay, freeTarget, targetEmployeeId, targetDate } = pending;
+    this.processingCell = { employeeId: targetEmployeeId, dateStr: targetDate };
 
     const done = (plans: ConfirmedShiftPlan[]) => {
       for (const p of plans) {
@@ -1058,6 +1077,29 @@ export class KalenderComponent implements OnInit, OnDestroy {
       this.processingCell = null;
       this.loadPlans();
     };
+
+    if (!b) {
+      // The shift goes to the free person; the giver's day becomes free.
+      forkJoin([
+        this.confirmedShiftPlanService.deleteConfirmedShiftPlan(a.id),
+        ...(freeTarget ? [this.confirmedShiftPlanService.deleteConfirmedShiftPlan(freeTarget.id)] : []),
+      ])
+        .pipe(
+          switchMap(() => {
+            this.planMap.get(a.employee_id)?.delete(a.date);
+            this.planMap.get(targetEmployeeId)?.delete(targetDate);
+            return this.confirmedShiftPlanService.createConfirmedShiftPlan(targetEmployeeId, {
+              shift_id: a.shift_id,
+              workstation_id: a.workstation_id,
+              date: targetDate,
+              is_present: true,
+              creation_type: 'manual',
+            });
+          }),
+        )
+        .subscribe({ next: (created) => done([created]), error: failed });
+      return;
+    }
 
     if (!crossDay) {
       forkJoin([
