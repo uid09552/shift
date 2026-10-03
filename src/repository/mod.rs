@@ -72,6 +72,8 @@ pub struct AppState {
     /// when the deployment configures no Keycloak — those endpoints then answer
     /// 503 instead of the server refusing to start.
     pub keycloak: Option<Arc<KeycloakAdmin>>,
+    /// Verifies the `x-access-token` JWT. `None` outside dev mode refuses every request.
+    pub token_verifier: Option<Arc<crate::services::token_verifier::TokenVerifier>>,
 }
 
 impl AppState {
@@ -103,6 +105,7 @@ impl AppState {
             dev_mode: false,
             default_tenant_id: "0".to_string(),
             keycloak: None,
+            token_verifier: None,
         }
     }
 
@@ -134,6 +137,7 @@ impl AppState {
             dev_mode: false,
             default_tenant_id: "0".to_string(),
             keycloak: None,
+            token_verifier: None,
         }
     }
 }

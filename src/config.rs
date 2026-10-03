@@ -17,6 +17,18 @@ pub struct Config {
     /// Public-holiday source. Env: `SHIFT_HOLIDAYS__URL`, `SHIFT_HOLIDAYS__STATE`.
     #[serde(default)]
     pub holidays: HolidayConfig,
+    #[serde(default)]
+    pub auth: AuthConfig,
+}
+
+/// How access tokens are verified (signature, expiry, issue date). Env:
+/// `SHIFT_AUTH__JWKS_URL`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AuthConfig {
+    /// Keycloak's JWKS endpoint. Empty = derived from `keycloak.url` and
+    /// `keycloak.realm`; with neither set, every request is refused outside dev mode.
+    #[serde(default)]
+    pub jwks_url: String,
 }
 
 /// Where public holidays are fetched from (the api-feiertage.de JSON format)
@@ -223,6 +235,7 @@ impl Default for Config {
             },
             build: BuildConfig::default(),
             holidays: HolidayConfig::default(),
+            auth: AuthConfig::default(),
         }
     }
 }

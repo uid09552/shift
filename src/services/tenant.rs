@@ -4,10 +4,12 @@ use axum::http::request::Parts;
 use axum::http::{Method, StatusCode};
 use axum::middleware::Next;
 use axum::response::Response;
+#[cfg(test)]
 use base64::{engine::general_purpose, Engine as _};
 
 use crate::errors::AppError;
 use crate::repository::AppState;
+use crate::services::token_verifier::TokenError;
 
 /// Realm role granting full read/write access.
 const ROLE_PLANNER: &str = "shift-planner";
@@ -195,8 +197,15 @@ pub async fn authenticate(
             .ok_or_else(|| unauthorized("No x-access-token header — the request did not come through the gateway"))?
             .to_str()
             .map_err(|_| unauthorized("The x-access-token header is not valid text"))?;
-        let claims = claims_from_token(token)
-            .ok_or_else(|| unauthorized("The x-access-token is not a decodable JWT"))?;
+        let verifier = state.token_verifier.as_ref().ok_or_else(|| {
+            AppError::Unavailable(
+                "Token verification is not configured (set auth.jwks_url or keycloak.url)".into(),
+            )
+        })?;
+        let claims = verifier.verify(token).await.map_err(|e| match e {
+            TokenError::Invalid(why) => unauthorized(&format!("The x-access-token is not valid: {why}")),
+            TokenError::KeysUnavailable(why) => AppError::Unavailable(format!("Cannot verify tokens: {why}")),
+        })?;
         let tenant = tenant_from_claims(&claims).ok_or_else(|| {
             unauthorized(
                 "No 'tenant' claim in the token — the user is not a member of any Keycloak \
@@ -235,16 +244,15 @@ pub async fn authenticate(
     Ok(next.run(request).await)
 }
 
-/// A 401 that says which part of the token was missing. The gateway verifies the
-/// signature, so every rejection here is a configuration problem — an opaque 401
-/// sends whoever hit it looking in the wrong place (it did exactly that once).
+/// A 401 that says which part of the token was missing. The signature and expiry
+/// are verified against the realm's JWKS before the claims are read.
 fn unauthorized(reason: &str) -> AppError {
     AppError::Unauthorized(reason.to_string())
 }
 
-/// Decodes the payload of a JWT access token. The gateway (APISIX openid-connect
-/// plugin) has already verified the token's signature and expiry, so only the payload
-/// is decoded here.
+/// Decodes a JWT payload without verifying it. Test helper only: the middleware
+/// reads claims from `TokenVerifier::verify`.
+#[cfg(test)]
 fn claims_from_token(token: &str) -> Option<serde_json::Value> {
     let token = token.strip_prefix("Bearer ").unwrap_or(token);
     let payload = token.split('.').nth(1)?;

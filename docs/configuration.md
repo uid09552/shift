@@ -93,6 +93,17 @@ its standard `OTEL_*` (or GitLab `CI_*`) environment variable — see
     configured tenant. It exists so the API is usable without a gateway during
     development. Never enable it on a shared or production deployment.
 
+### `auth`
+
+The backend verifies the `x-access-token` JWT itself: signature against
+Keycloak's JWKS (asymmetric algorithms only; keys cached, refetched on an
+unknown `kid`), expiry, not-before and issue date. The issuer is not checked. Outside dev mode, with no JWKS
+source configured, every request is refused.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `jwks_url` | `""` | JWKS endpoint. Empty: `<keycloak.url>/realms/<realm>/protocol/openid-connect/certs`. Env: `SHIFT_AUTH__JWKS_URL` |
+
 ### `holidays`
 
 Public holidays, fetched as JSON from an [api-feiertage.de](https://get.api-feiertage.de)

@@ -22,3 +22,4 @@ pub mod wish_settings;
 pub mod wish_schedule;
 pub mod personal_limits;
 pub mod holiday;
+pub mod token_verifier;

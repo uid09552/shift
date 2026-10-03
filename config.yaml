@@ -41,6 +41,12 @@ otel:
   gitlab_project_name: "" # CI_PROJECT_NAME
   sample_ratio: 1.0
 
+# Access-token verification (signature, expiry, issue date) against Keycloak's JWKS.
+# Without jwks_url it is derived from keycloak.url + realm; with neither, every
+# request is refused outside dev mode.
+auth:
+  jwks_url: "http://keycloak:8080/auth/realms/shift/protocol/openid-connect/certs"
+
 # Public holidays, fetched as JSON from api-feiertage.de and stored per tenant.
 # A holiday runs on a shift's Sunday times and counts as a weekend day.
 # Env: SHIFT_HOLIDAYS__ENABLED, SHIFT_HOLIDAYS__URL, SHIFT_HOLIDAYS__STATE.

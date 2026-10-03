@@ -215,6 +215,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             state.dev_mode = config.tenant.dev_mode;
             state.default_tenant_id = config.tenant.tenant_id.clone();
             state.holiday_config = config.holidays.clone();
+            state.token_verifier = token_verifier(&config).map(Arc::new);
+            if state.token_verifier.is_none() && !state.dev_mode {
+                eprintln!("WARNING: no JWKS URL (auth.jwks_url or keycloak.url) — every API request will be refused");
+            }
             state.keycloak = keycloak_settings(&config.keycloak)
                 .map(|settings| Arc::new(KeycloakAdmin::new(settings)));
             let addr = format!("{}:{}", config.server.listen, config.server.port).parse::<SocketAddr>()?;
@@ -227,6 +231,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     Ok(())
+}
+
+/// The access-token verifier, from `auth.jwks_url` or else Keycloak's certs URL.
+fn token_verifier(config: &config::Config) -> Option<shift::services::token_verifier::TokenVerifier> {
+    let jwks_url = if !config.auth.jwks_url.trim().is_empty() {
+        config.auth.jwks_url.trim().to_string()
+    } else if !config.keycloak.url.trim().is_empty() {
+        format!(
+            "{}/realms/{}/protocol/openid-connect/certs",
+            config.keycloak.url.trim().trim_end_matches('/'),
+            config.keycloak.realm.trim(),
+        )
+    } else {
+        return None;
+    };
+    Some(shift::services::token_verifier::TokenVerifier::new(jwks_url))
 }
 
 /// The Keycloak connection to use, or `None` when the deployment configures none.
