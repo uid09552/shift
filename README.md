@@ -14,7 +14,8 @@ language ("who covers the ICU night on Saturday?").
 [Contributing](CONTRIBUTING.md) ·
 [License](#license) ·
 [GitLab](https://gitlab.com/uid09552/shift) ·
-[GitHub mirror](https://github.com/uid09552/shift)
+[GitHub mirror](https://github.com/uid09552/shift) ·
+[Android app](https://github.com/uid09552/shiftviewer)
 
 ![The Schedule Optimizer: a calculated proposal by workstation, ready to check
 and take as the plan](docs/assets/screenshots/scheduler.png)
@@ -63,6 +64,9 @@ and takes it as the plan. Nothing reaches the roster without a person deciding.
 - An audit log of who changed what, with a field-by-field diff.
 - Excel export, and roster import from a file.
 - English and German.
+- An Android app, [Shift Viewer](https://github.com/uid09552/shiftviewer),
+  built on the same API. Staff get their own view of the roster; planners get a
+  planning view with almost all the features of the web app.
 
 <table>
 <tr>
@@ -106,6 +110,7 @@ flowchart LR
 | Backend: REST API, data, tenants, audit | [`src/`](src/), [`migrations/`](migrations/) | Rust, Axum, Diesel, PostgreSQL |
 | Optimizer: builds the roster | [`planner/`](planner/) | Python, OR-Tools CP-SAT, Flask, NATS |
 | Web app | [`ui/`](ui/) | Angular, Tailwind CSS |
+| Android app | [uid09552/shiftviewer](https://github.com/uid09552/shiftviewer) (separate repository) | Android |
 | Assistant and MCP server | [`agent/`](agent/) | Python, LangGraph, FastMCP |
 | Deployment: Compose stack, gateway, Keycloak | [`deploy/`](deploy/), [`release/`](release/) | Docker Compose, APISIX, Keycloak |
 | Documentation | [`docs/`](docs/) | MkDocs Material |
