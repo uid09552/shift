@@ -22,9 +22,11 @@ RUN npm run build -- \
 # Stage 2: Serve with nginx
 FROM nginx:alpine
 
-# The base image lags Alpine's security fixes (the nightly re-scan of the
-# published image caught libexpat); take them at build time.
-RUN apk upgrade --no-cache
+# Check for Alpine security fixes on every image build, not only when nginx's
+# base image changes. BUILD_DATE is passed by both CI pipelines.
+ARG BUILD_DATE=""
+RUN echo "Refreshing Alpine packages for ${BUILD_DATE:-local build}" \
+    && apk upgrade --no-cache
 
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist/ng-tailadmin/browser /usr/share/nginx/html
