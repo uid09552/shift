@@ -40,7 +40,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
         tenant_id: &str,
         name: &str,
         email: &str,
-        monthly_working_hours: f64,
+        weekly_working_hours: Option<f64>,
     ) -> Result<Employee, AppError> {
         let tenant_id = tenant_id.to_string();
         let name = name.to_string();
@@ -50,7 +50,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
         telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
 
-            let new_employee = NewEmployee { name: &name, email: &email, monthly_working_hours, tenant_id: &tenant_id };
+            let new_employee = NewEmployee { name: &name, email: &email, weekly_working_hours, tenant_id: &tenant_id };
 
             diesel::insert_into(employees::table)
                 .values(&new_employee)
@@ -64,7 +64,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
                     id: e.id,
                     name: e.name,
                     email: e.email,
-                    monthly_working_hours: e.monthly_working_hours,
+                    weekly_working_hours: e.weekly_working_hours,
                     available_shifts: vec![],
                     capabilities: vec![],
                 })
@@ -119,7 +119,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
                         id: e.id,
                         name: e.name,
                         email: e.email,
-                        monthly_working_hours: e.monthly_working_hours,
+                        weekly_working_hours: e.weekly_working_hours,
                         available_shifts,
                         capabilities,
                     }))
@@ -177,7 +177,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
                         id: e.id,
                         name: e.name,
                         email: e.email,
-                        monthly_working_hours: e.monthly_working_hours,
+                        weekly_working_hours: e.weekly_working_hours,
                         available_shifts,
                         capabilities,
                     }))
@@ -239,7 +239,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
                     id: e.id,
                     name: e.name,
                     email: e.email,
-                    monthly_working_hours: e.monthly_working_hours,
+                    weekly_working_hours: e.weekly_working_hours,
                     available_shifts,
                     capabilities,
                 });
@@ -296,7 +296,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
                     id: e.id,
                     name: e.name,
                     email: e.email,
-                    monthly_working_hours: e.monthly_working_hours,
+                    weekly_working_hours: e.weekly_working_hours,
                     available_shifts,
                     capabilities,
                 });
@@ -359,13 +359,13 @@ impl EmployeeRepository for DieselEmployeeRepository {
     }
 
     async fn update_employee(&self, tenant_id: &str, employee: Employee) -> Result<(), AppError> {
-        // Update employee fields (name, email, monthly_working_hours) in DB
+        // Update employee fields (name, email, weekly_working_hours) in DB
         let tenant_id = tenant_id.to_string();
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         let emp_id = employee.id;
         let emp_name = employee.name.clone();
         let emp_email = employee.email.clone();
-        let emp_monthly_working_hours = employee.monthly_working_hours;
+        let emp_weekly_working_hours = employee.weekly_working_hours;
         telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             diesel::update(
@@ -376,7 +376,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
                 .set((
                     employees::name.eq(emp_name),
                     employees::email.eq(emp_email),
-                    employees::monthly_working_hours.eq(emp_monthly_working_hours),
+                    employees::weekly_working_hours.eq(emp_weekly_working_hours),
                 ))
                 .execute(&mut conn)
                 .map_err(|_| AppError::DbError)?;

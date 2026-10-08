@@ -70,7 +70,7 @@ The **Calculate** tab controls what gets calculated.
 |---|---|
 | **Weeks / Date range** | *Weeks* plans a number of weeks starting from now (2, 4, 6…). *Date range* lets you pick an exact start and end date. |
 | **Plan `4w`** | How many weeks ahead to plan, when in *Weeks* mode. |
-| **Match monthly hours** | Tick this to make the planner work hard at hitting each person's contracted monthly hours. Leave it off when planning a short stretch that isn't a whole month, where the target doesn't mean much. |
+| **Match contract hours** | Tick this to make the planner work hard at hitting each person's contracted hours. Their weekly hours are prorated to the stretch you plan (× days ÷ 7), so this works for any length, not just whole months. |
 | **All Employees** | Restricts the calculation to a subset of staff. Useful for planning one team separately; leave it on *All Employees* for a normal ward roster. |
 
 !!! tip "How far ahead to plan"

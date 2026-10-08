@@ -50,7 +50,7 @@ endpoint or two, **L** = new tables and a workflow.
 The single most-asked question in a ward, and the data is already there.
 
 One page, one row per employee, one column per month: contracted hours
-(`employees.monthly_working_hours`), planned hours (confirmed plans × the shift's
+(`employees.weekly_working_hours`, or the tenant default, × the month's days ÷ 7), planned hours (confirmed plans × the shift's
 `weekday_times` duration), the difference, and a running balance carried forward.
 Click a row for the month's days behind the number.
 

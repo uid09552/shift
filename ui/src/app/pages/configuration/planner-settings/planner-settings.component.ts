@@ -231,6 +231,22 @@ const DEFAULT_BAND: { min: number; max: number } = { min: 30, max: 45 };
             </app-setting-row>
 
             <app-setting-row
+              controlId="defaultWeeklyWorkingHours"
+              [label]="'plannerSettings.defaultWeeklyHours.label' | t"
+              [description]="'plannerSettings.defaultWeeklyHours.hint' | t"
+              [tooltip]="'plannerSettings.defaultWeeklyHours.tooltip' | t"
+            >
+              <app-range-slider
+                id="defaultWeeklyWorkingHours"
+                data-testid="planner-settings-default-weekly-hours"
+                [min]="1" [max]="60" [step]="0.5"
+                [value]="form.default_weekly_working_hours"
+                [valueLabel]="weeklyHoursLabel(form.default_weekly_working_hours)"
+                (valueChange)="form.default_weekly_working_hours = $event"
+              />
+            </app-setting-row>
+
+            <app-setting-row
               controlId="monthlyHoursTargetWeight"
               [label]="'plannerSettings.monthlyHoursTargetWeight.label' | t"
               [description]="'plannerSettings.monthlyHoursTargetWeight.hint' | t"
@@ -624,6 +640,7 @@ export class PlannerSettingsComponent implements OnInit {
     min_staffing_mode: 'soft',
     keep_fixed_assignments: true,
     personal_limits_mode: 'hard',
+    default_weekly_working_hours: 40,
   };
 
   ngOnInit(): void {

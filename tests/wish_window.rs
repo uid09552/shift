@@ -69,7 +69,7 @@ impl TestApp {
             .values(NewEmployee {
                 name: "Wish Window Tester",
                 email: &employee_email,
-                monthly_working_hours: 160.0,
+                weekly_working_hours: Some(40.0),
                 tenant_id: &tenant,
             })
             .returning(employees::id)

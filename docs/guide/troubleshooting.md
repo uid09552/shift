@@ -61,8 +61,8 @@ Almost always one of:
 
 - **No capabilities ticked** on their profile — they are eligible for nothing.
 - **Few available shifts** ticked — they only fit a narrow slot.
-- **A low monthly hours figure** — they are being scheduled correctly for a
-  part-time contract.
+- **Low weekly hours** — they are being scheduled correctly for a part-time
+  contract.
 - **A long stretch of unavailability** entered and forgotten about.
 
 Open their profile and their Employee Calendar side by side; the cause is
@@ -98,7 +98,7 @@ the *Stable rosters* preset, then recalculate.
 
 ## Everybody is under their contracted hours
 
-Check whether **Match monthly hours** was ticked on the Schedule Optimizer.
+Check whether **Match contract hours** was ticked on the Schedule Optimizer.
 Without it, the planner does not push towards each person's target.
 
 If it was ticked, the ward may simply have more staff than the workstations

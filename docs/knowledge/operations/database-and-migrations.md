@@ -37,7 +37,7 @@ database migrates it.
 | 02 | `workstation_active_shift_ids_array` | shifts operating at a workstation |
 | 03 | `add_shift_short_name_and_color` | calendar presentation |
 | 04 | `add_employee_shift_assignments` | fixed pre-assignments |
-| 05 | `add_employee_monthly_working_hours` | contracted monthly target |
+| 05 | `add_employee_monthly_working_hours` | contracted monthly target (replaced by 33) |
 | 06 | `add_confirmed_shift_plans` | the approved schedule |
 | 07 | `add_optimized_shift_results` | raw solver output as JSONB |
 | 08 | `add_workstation_to_confirmed_shift_plans` | plans record *where*, not just *when* |
@@ -57,6 +57,15 @@ database migrates it.
 | 22 | `paper_algorithm_extensions` | skill levels, soft preferences, weekly hour bands, fatigue weights |
 | 23 | `add_shift_wishes` | employee shift wishes |
 | 24 | `add_wish_weight` | per-tenant `wish_weight` on `planner_settings` |
+| 25 | `add_wish_settings` | per-tenant window for self-service wishing |
+| 26 | `add_min_staffing_mode` | minimum staffing as target or rule |
+| 27 | `add_rotation_patterns` | rotation patterns behind fixed assignments |
+| 28 | `add_keep_fixed_assignments` | planner setting to ignore rotations |
+| 29 | `add_personal_limits` | per-employee night / weekend limits |
+| 30 | `add_wish_schedule` | recurring open/close schedule for the wish window |
+| 31 | `add_public_holidays` | public holidays per tenant |
+| 32 | `add_shift_swap_requests` | employee shift swap requests |
+| 33 | `weekly_working_hours` | contracted hours per week, optional; tenant default (40 h) on `planner_settings` |
 
 # Working with Diesel
 
@@ -78,7 +87,7 @@ discovered when someone needs it.
 
 | Table | Key columns |
 |---|---|
-| `employees` | `name`, `email`, `monthly_working_hours` |
+| `employees` | `name`, `email`, `weekly_working_hours?` (`NULL` = the tenant default) |
 | `capabilities` | `name`, `level`, `skill_group` |
 | `shifts` | `name`, `short_name`, `color`, `order` |
 | `shift_weekday_times` | `shift_id`, `weekday`, `start_time`, `end_time`, `min_employees`, `max_employees`, `free_days_after_shift` |

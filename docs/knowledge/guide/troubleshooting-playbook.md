@@ -58,7 +58,7 @@ it could not do better, not a bug.
 # Somebody is barely scheduled at all
 
 Almost always one of: **no capabilities ticked** (eligible for nothing), **few
-available shifts**, **a low monthly hours figure** (correct for a part-time
+available shifts**, **low weekly hours** (correct for a part-time
 contract), or **a long stretch of unavailability** entered and forgotten. Open
 their profile and their Employee Calendar side by side; the cause is usually
 obvious in seconds.
@@ -84,7 +84,7 @@ recalculate.
 
 # Everybody is under their contracted hours
 
-Check whether **Match monthly hours** was ticked on the Schedule Optimizer.
+Check whether **Match contract hours** was ticked on the Schedule Optimizer.
 Without it the planner does not push towards each person's target. If it was
 ticked, the ward may simply have more staff than the workstations you described
 need — the planner will not invent work.

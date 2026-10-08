@@ -48,6 +48,27 @@ pub fn xlsx_download_response(bytes: Vec<u8>, filename: &str) -> Response {
 /// Parses the first worksheet of an `.xlsx` file into rows of trimmed cell
 /// strings, skipping the header row.
 pub fn parse_rows(bytes: &[u8]) -> Result<Vec<Vec<String>>, AppError> {
+    let rows = read_first_sheet(bytes)?
+        .into_iter()
+        .skip(1) // header row
+        .filter(|row: &Vec<String>| row.iter().any(|cell| !cell.is_empty()))
+        .collect();
+    Ok(rows)
+}
+
+/// The header row of the first worksheet, lower-cased — for imports that must
+/// tell an outdated template from the current one.
+pub fn parse_header(bytes: &[u8]) -> Result<Vec<String>, AppError> {
+    Ok(read_first_sheet(bytes)?
+        .into_iter()
+        .next()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|cell| cell.to_lowercase())
+        .collect())
+}
+
+fn read_first_sheet(bytes: &[u8]) -> Result<Vec<Vec<String>>, AppError> {
     let mut workbook: Xlsx<_> = open_workbook_from_rs(Cursor::new(bytes))
         .map_err(|_| AppError::Validation("Could not read uploaded file as .xlsx".into()))?;
 
@@ -61,9 +82,8 @@ pub fn parse_rows(bytes: &[u8]) -> Result<Vec<Vec<String>>, AppError> {
         .worksheet_range(&sheet_name)
         .map_err(|_| AppError::Validation("Could not read worksheet".into()))?;
 
-    let rows: Vec<Vec<String>> = range
+    Ok(range
         .rows()
-        .skip(1) // header row
         .map(|row| {
             row.iter()
                 .map(|cell| match cell {
@@ -72,10 +92,7 @@ pub fn parse_rows(bytes: &[u8]) -> Result<Vec<Vec<String>>, AppError> {
                 })
                 .collect()
         })
-        .filter(|row: &Vec<String>| row.iter().any(|cell| !cell.is_empty()))
-        .collect();
-
-    Ok(rows)
+        .collect())
 }
 
 /// Pulls the bytes of the first file field (expected name `file`) out of a

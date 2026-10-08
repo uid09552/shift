@@ -110,7 +110,9 @@ backend/
 - Hospital staff with personal information
 - Have associated capabilities (skills/qualifications)
 - Can have unavailability periods
-- Monthly working hour targets
+- Contracted weekly working hours — their own, or the tenant default
+  (`default_weekly_working_hours` in planner settings, 40 h). Prorated to any
+  period as × days ÷ 7
 
 ### Shifts
 - Defined work periods (e.g., Early, Late, Night shift)

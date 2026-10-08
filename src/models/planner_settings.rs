@@ -35,6 +35,8 @@ pub struct PlannerSettings {
     pub min_staffing_mode: String,
     pub keep_fixed_assignments: bool,
     pub personal_limits_mode: String,
+    /// Weekly hours of every employee without their own value.
+    pub default_weekly_working_hours: f64,
 }
 
 #[derive(Insertable, AsChangeset, Debug, Clone)]
@@ -65,6 +67,8 @@ pub struct NewPlannerSettings {
     pub min_staffing_mode: String,
     pub keep_fixed_assignments: bool,
     pub personal_limits_mode: String,
+    /// Weekly hours of every employee without their own value.
+    pub default_weekly_working_hours: f64,
 }
 
 impl NewPlannerSettings {
@@ -96,6 +100,7 @@ impl NewPlannerSettings {
             min_staffing_mode: "soft".to_string(),
             keep_fixed_assignments: true,
             personal_limits_mode: "hard".to_string(),
+            default_weekly_working_hours: 40.0,
         }
     }
 }

@@ -48,7 +48,7 @@ problem, not a solver one.
 | Staffing shortfall | Settled in phase 1; kept in phase 2 only in case phase 1 ran out of time | — (weighted by priority) |
 | Coverage | Rewards assignments, weighted by workstation priority | `priority_weights` |
 | Equal treatment | Minimises the spread of working hours across employees | `equality_weight` |
-| Monthly hours target | Symmetric penalty on deviation from contracted hours | `monthly_hours_target_weight` |
+| Contract hours target | Symmetric penalty on deviation from contracted hours (weekly × days ÷ 7) | `monthly_hours_target_weight` |
 | Weekly hour band | Soft floor/ceiling over rolling 7-day blocks | `weekly_min_hours`, `weekly_max_hours`, `weekly_hours_target_weight` |
 | Preferences | Penalises overriding a soft `preferred_off` entry | `preference_weight` |
 | Wishes | Rewards granting a [shift wish](/concepts/shift-wish.md) | `wish_weight` |
@@ -62,10 +62,10 @@ problem, not a solver one.
 rather than the team average. An average-based cost is perfectly content to wreck
 one person's month as long as the mean looks fine; this one is not.
 
-**Monthly hours deviation is symmetric.** Overshooting a contracted target is
+**Contract hours deviation is symmetric.** Overshooting a contracted target is
 penalised exactly as much as undershooting it. That is what makes part-time
-contracts work: a 160-hour employee receives roughly twice the work of an 80-hour
-one, rather than everyone being loaded to a ceiling.
+contracts work: a 40-hours-a-week employee receives roughly twice the work of a
+20-hour one, rather than everyone being loaded to a ceiling.
 
 # Why the weights differ by orders of magnitude
 
@@ -96,7 +96,7 @@ understaffing penalty and below `equality_weight`.
 | Posts left short | Read the result's `message`: *nobody qualified and available* is a setup gap; *not enough staff left* means the pool is too small for the rules |
 | Critical posts lose out to minor ones | Widen the gaps in `priority_weights` |
 | People rotated between shifts daily | Raise `shift_continuity_weight`, `shift_continuity_week_bonus` |
-| Everyone under contracted hours | Check `monthly_hours_target_weight` is non-zero, and that **Match monthly hours** was ticked |
+| Everyone under contracted hours | Check `monthly_hours_target_weight` is non-zero, and that **Match contract hours** was ticked |
 | Wishes rarely granted | Raise `wish_weight` towards `equality_weight` |
 | Senior staff burned on junior work | Raise `skill_downgrade_weight` — requires `skill_group` and `level` to be set |
 | Roster looks generally unpolished | Raise `solver_time_limit_seconds` first — often it is just the timer |

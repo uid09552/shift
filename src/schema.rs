@@ -29,8 +29,8 @@ diesel::table! {
         id -> Uuid,
         name -> Varchar,
         email -> Varchar,
-        monthly_working_hours -> Float8,
         tenant_id -> Varchar,
+        weekly_working_hours -> Nullable<Float8>,
     }
 }
 
@@ -189,6 +189,7 @@ diesel::table! {
         min_staffing_mode -> Varchar,
         keep_fixed_assignments -> Bool,
         personal_limits_mode -> Varchar,
+        default_weekly_working_hours -> Float8,
     }
 }
 

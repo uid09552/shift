@@ -322,11 +322,12 @@ class ShiftPlanner:
         }
         self.dur_tenths = {key: int(dur * 10) for key, dur in self.dur_hours.items()}
 
-        # Monthly working-hours targets (tenths of hours, scaled to the planning period)
+        # Contract-hours targets: weekly hours prorated to the planning period
+        # (× days / 7), in tenths of hours.
         self.target_tenths_map = {
-            e_idx: int(emp["monthly_working_hours"] * 10 * self.num_days / 30)
+            e_idx: round(emp["weekly_working_hours"] * 10 * self.num_days / 7)
             for e_idx, emp in enumerate(employees)
-            if emp.get("monthly_working_hours", 0.0) > 0
+            if emp.get("weekly_working_hours", 0.0) > 0
         }
 
     def _load_history(self) -> None:
@@ -1052,8 +1053,8 @@ class ShiftPlanner:
             self.obj_terms.append(100 * min_load)
 
     def _penalize_monthly_hours_deviation(self) -> None:
-        """3) Monthly hours target: penalise deviation from each employee's
-        monthly working hours target."""
+        """3) Contract hours target: penalise deviation from each employee's
+        weekly working hours prorated to the period (× days / 7)."""
         if self.monthly_weight <= 0:
             return
         max_possible = self.num_days * 24 * 10  # tenths of hours

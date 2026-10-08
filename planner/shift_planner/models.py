@@ -154,7 +154,9 @@ class Employee(BaseModel):
     skills: List[str] = Field(default_factory=list)
     available_shifts: List[str] = Field(default_factory=list)
     unavailability: List[date] = Field(default_factory=list)
-    monthly_working_hours: float = Field(default=0.0, ge=0)
+    # Contracted hours per week, already resolved against the tenant default by
+    # the backend. The period target is weekly × days / 7; 0 = no target.
+    weekly_working_hours: float = Field(default=0.0, ge=0, le=168)
     preferred_off: List[PreferredOff] = Field(default_factory=list)
     wishes: List[ShiftWish] = Field(default_factory=list)
     fixed_shifts: List[FixedShift] = Field(default_factory=list)
@@ -254,13 +256,13 @@ class ConstraintConfig(BaseModel):
     # consecutive days.  Encourages week-long shift stability.
     shift_continuity_week_bonus: int = Field(default=2000, ge=0)
 
-    # Weight for penalizing deviation from each employee's monthly working hours target.
-    # Higher values make the solver try harder to hit each employee's target hours.
-    # Enabled by default so employees' monthly_working_hours targets are respected;
-    # set to 0 to disable.
+    # Weight for penalizing deviation from each employee's contract-hours target
+    # for the period (weekly_working_hours × days / 7). Higher values make the
+    # solver try harder to hit it. Enabled by default; set to 0 to disable. The
+    # name predates weekly hours and is kept for saved settings.
     monthly_hours_target_weight: int = Field(default=1000, ge=0)
 
-    # Soft weekly working-hours band, distinct from the monthly target above and
+    # Soft weekly working-hours band, distinct from the contract target above and
     # from the hard max_working_days_per_week day-count cap. None/0 = disabled.
     weekly_min_hours: Optional[float] = Field(default=None, ge=0)
     weekly_max_hours: Optional[float] = Field(default=None, ge=0)

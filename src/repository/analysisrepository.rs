@@ -12,12 +12,14 @@ use crate::errors::AppError;
 use crate::models as models;
 use crate::schema::confirmed_shift_plans;
 use crate::schema::employees;
+use crate::schema::planner_settings;
 use crate::schema::shift_weekday_times;
 use crate::schema::shift_wishes;
 use crate::schema::shifts;
 use crate::schema::workstations;
 
 use super::domain::{
+    effective_weekly_hours, period_target_hours,
     AnalysisRepository, DailyStaffingDomain, EmployeeFairnessDomain, ShiftDailyStaffingDomain,
     WorkingEmployeeDomain, WorkstationDailyEmployeesDomain, WorkstationDailyHoursDomain,
 };
@@ -403,8 +405,16 @@ impl AnalysisRepository for DieselAnalysisRepository {
                 .map_err(|_| AppError::Internal)?;
 
             let holidays = load_holidays(&mut conn, &tenant_id, from_date, to_date)?;
+            // No settings row yet means the shipped default.
+            let default_weekly: f64 = planner_settings::table
+                .filter(planner_settings::tenant_id.eq(&tenant_id))
+                .select(planner_settings::default_weekly_working_hours)
+                .first(&mut conn)
+                .optional()
+                .map_err(|_| AppError::Internal)?
+                .unwrap_or(models::NewPlannerSettings::defaults(&tenant_id).default_weekly_working_hours);
 
-            Ok(fairness(&staff, &plans, &times, &wishes, &holidays, from_date, to_date))
+            Ok(fairness(&staff, default_weekly, &plans, &times, &wishes, &holidays, from_date, to_date))
         })
         .await
         .map_err(|_| AppError::Internal)?
@@ -416,6 +426,7 @@ impl AnalysisRepository for DieselAnalysisRepository {
 /// question. Sorted by name; the caller sorts by whatever it is comparing.
 fn fairness(
     staff: &[models::Employee],
+    default_weekly: f64,
     plans: &[models::ConfirmedShiftPlan],
     times: &[models::ShiftWeekdayTime],
     wishes: &[models::ShiftWish],
@@ -434,8 +445,7 @@ fn fairness(
     let mut rows: HashMap<Uuid, EmployeeFairnessDomain> = staff
         .iter()
         .map(|e| {
-            let target = (e.monthly_working_hours > 0.0)
-                .then(|| round1(e.monthly_working_hours * days as f64 / 30.0));
+            let target = period_target_hours(effective_weekly_hours(e.weekly_working_hours, default_weekly), days);
             (e.id, EmployeeFairnessDomain {
                 employee_id: e.id,
                 employee_name: e.name.clone(),
@@ -516,13 +526,13 @@ mod tests {
         NaiveDate::parse_from_str(d, "%Y-%m-%d").unwrap()
     }
 
-    fn employee(name: &str, monthly: f64) -> models::Employee {
+    fn employee(name: &str, weekly: Option<f64>) -> models::Employee {
         models::Employee {
             id: Uuid::new_v4(),
             name: name.into(),
             email: format!("{name}@test.invalid"),
-            monthly_working_hours: monthly,
             tenant_id: "t".into(),
+            weekly_working_hours: weekly,
         }
     }
 
@@ -564,7 +574,8 @@ mod tests {
         let (early, night) = (Uuid::new_v4(), Uuid::new_v4());
         let mut all_times = times(early, (6, 0), (14, 0));
         all_times.extend(times(night, (22, 0), (6, 0)));
-        let staff = [employee("Anna", 150.0), employee("Ben", 0.0)];
+        // Anna 35 h a week, Ben no target, Carla the tenant default.
+        let staff = [employee("Anna", Some(35.0)), employee("Ben", Some(0.0)), employee("Carla", None)];
         let anna = &staff[0];
         let plans = vec![
             plan(anna, "2026-09-11", Some(early), None), // Friday
@@ -578,12 +589,12 @@ mod tests {
             models::ShiftWish { id: Uuid::new_v4(), employee_id: anna.id, shift_id: early, wish_date: date("2026-09-16"), tenant_id: "t".into(), created_at: NaiveDateTime::default() },
         ];
 
-        let rows = fairness(&staff, &plans, &all_times, &wishes, &HashSet::new(), date("2026-09-01"), date("2026-09-30"));
+        let rows = fairness(&staff, 40.0, &plans, &all_times, &wishes, &HashSet::new(), date("2026-09-01"), date("2026-09-30"));
 
         let a = rows.iter().find(|r| r.employee_name == "Anna").unwrap();
         assert_eq!(a.shifts, 3);
         assert_eq!(a.hours, 24.0);
-        assert_eq!(a.target_hours, Some(150.0));
+        assert_eq!(a.target_hours, Some(150.0), "35 h × 30 days / 7");
         assert_eq!(a.night_shifts, 1);
         assert_eq!(a.weekend_days, 2);
         assert_eq!(a.weekends, 1);
@@ -593,6 +604,8 @@ mod tests {
         // Nobody is left out for having nothing.
         let b = rows.iter().find(|r| r.employee_name == "Ben").unwrap();
         assert_eq!((b.shifts, b.hours, b.target_hours), (0, 0.0, None));
+        let c = rows.iter().find(|r| r.employee_name == "Carla").unwrap();
+        assert_eq!(c.target_hours, Some(171.4), "the default, 40 h × 30 days / 7");
     }
 
     #[test]
@@ -601,9 +614,9 @@ mod tests {
         let shift = Uuid::new_v4();
         let mut t = times(shift, (6, 0), (14, 0));
         t[1].end_time = NaiveTime::from_hms_opt(18, 0, 0).unwrap();
-        let staff = [employee("Anna", 0.0)];
+        let staff = [employee("Anna", Some(0.0))];
         let plans = [plan(&staff[0], "2026-09-07", Some(shift), None)];
-        let rows = fairness(&staff, &plans, &t, &[], &HashSet::new(), date("2026-09-07"), date("2026-09-07"));
+        let rows = fairness(&staff, 40.0, &plans, &t, &[], &HashSet::new(), date("2026-09-07"), date("2026-09-07"));
         assert_eq!(rows[0].hours, 8.0);
     }
 }

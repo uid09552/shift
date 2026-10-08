@@ -44,7 +44,12 @@ Or via **Configuration → Planner Settings** in the UI.
 
 One value can be overridden for a single run without changing stored settings:
 `monthly_hours_target_weight` may be passed in the `POST /planner/plan` body.
-This is what the optimizer page's **Match monthly hours** checkbox sets.
+This is what the optimizer page's **Match contract hours** checkbox sets.
+
+The settings also hold `default_weekly_working_hours` (40 unless changed): the
+contracted hours of every [employee](/concepts/employee.md) without their own.
+It is not a solver weight — the backend resolves each employee's effective hours
+before the solver sees them — and use-case templates never change it.
 
 # The full list
 

@@ -1,7 +1,7 @@
 ---
 type: Domain Entity
 title: Employee
-description: A member of staff — contracted monthly hours, the qualifications they hold, and the shift types they work at all.
+description: A member of staff — contracted weekly hours (or the tenant default), the qualifications they hold, and the shift types they work at all.
 resource: src/models/employee.rs
 tags: [domain, staff, employees]
 status: stable
@@ -29,13 +29,27 @@ A person who can be rostered. Table `employees`.
 | `id` | UUID |
 | `name` | Name as it appears on the roster |
 | `email` | Work address; also how the system recognises them if they sign in |
-| `monthly_working_hours` | Contracted monthly target |
+| `weekly_working_hours` | Contracted hours per week; `NULL` follows the tenant default, `0` = no target |
 | `tenant_id` | Isolation boundary |
 
-`monthly_working_hours` is a **target, not a ceiling**. Deviation is penalised
-symmetrically by `monthly_hours_target_weight` — overshooting is as bad as
-undershooting. This is the mechanism by which part-time contracts are respected:
-someone at 160 hours receives roughly twice the work of someone at 80.
+Contracted hours are **per week**, and optional. An employee without their own
+value follows the tenant's `default_weekly_working_hours` (planner settings,
+**40 h** unless changed); changing the default re-targets everyone who follows
+it. API responses carry both the own value and
+`effective_weekly_working_hours`, the one that applies.
+
+The effective hours are a **target, not a ceiling**. For any period they are
+prorated as weekly hours × days ÷ 7 (a two-week plan at 40 h: 80 h; a 31-day
+month at 35 h: 155 h) — by the solver, the plan check, the replacement ranking
+and Fairness alike. Deviation is penalised symmetrically by
+`monthly_hours_target_weight` (the name predates weekly hours) — overshooting is
+as bad as undershooting. This is the mechanism by which part-time contracts are
+respected: someone at 40 hours a week receives roughly twice the work of someone
+at 20.
+
+Until migration 33 the column was `monthly_working_hours`; it was converted as
+monthly × 12 ÷ 52, rounded to 0.5 (160 → 37), and employees at 0 were moved to
+the default.
 
 # Link tables
 
@@ -68,6 +82,6 @@ next week should keep all their shifts listed and record a
 # Diagnostics
 
 An employee who comes back barely scheduled is almost always one of: no
-capabilities recorded (eligible for nothing), very few available shifts, a low
-monthly hours figure (correct behaviour for a part-timer), or a forgotten stretch
+capabilities recorded (eligible for nothing), very few available shifts, low
+weekly hours (correct behaviour for a part-timer), or a forgotten stretch
 of unavailability. See [User troubleshooting](/guide/troubleshooting-playbook.md).

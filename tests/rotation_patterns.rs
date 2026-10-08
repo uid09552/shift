@@ -123,8 +123,8 @@ async fn a_pattern_is_previewed_written_planned_and_cleared() {
     let email = |n: &str| format!("{n}-{}@test.invalid", Uuid::new_v4());
     // prepare refuses without a schedulable workstation.
     app.create("/workstations", json!({ "name": "Ward", "available": true, "active_shift_ids": [early, night] })).await;
-    let anna = app.create("/employees", json!({ "name": "Anna", "email": email("anna"), "monthly_working_hours": 160 })).await;
-    let ben = app.create("/employees", json!({ "name": "Ben", "email": email("ben"), "monthly_working_hours": 160 })).await;
+    let anna = app.create("/employees", json!({ "name": "Anna", "email": email("anna"), "weekly_working_hours": 40 })).await;
+    let ben = app.create("/employees", json!({ "name": "Ben", "email": email("ben"), "weekly_working_hours": 40 })).await;
 
     // Validation: an all-off cycle and an unknown shift are refused.
     let (status, _) = app

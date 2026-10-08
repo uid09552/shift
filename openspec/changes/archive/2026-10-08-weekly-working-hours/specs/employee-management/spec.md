@@ -1,9 +1,4 @@
-# employee-management Specification
-
-## Purpose
-Maintain hospital staff, their qualifications, the shifts they may work and their contracted hours.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Employee records
 The system SHALL store per tenant an employee's name, email and contracted weekly working hours. The weekly hours SHALL be optional: an employee without a value follows the tenant's default. A value of 0 SHALL mean the employee has no hours target.
@@ -20,20 +15,6 @@ The system SHALL store per tenant an employee's name, email and contracted weekl
 - **WHEN** a client sends `monthly_working_hours`
 - **THEN** the request is refused with a message naming `weekly_working_hours`
 
-### Requirement: Capabilities and available shifts
-The system SHALL let an employee hold capabilities and a set of shifts they may work.
-
-#### Scenario: Skill-gated workstation
-- **WHEN** an employee lacks a capability a workstation requires
-- **THEN** the optimizer does not assign that employee to the workstation
-
-### Requirement: Bulk import
-The system SHALL import employees from a spreadsheet and provide a template for it.
-
-#### Scenario: Download template
-- **WHEN** a user requests the employee template
-- **THEN** a spreadsheet with the expected columns is returned
-
 ### Requirement: Contracted hours as optimizer target
 The effective weekly hours SHALL be prorated to the planning period as weekly hours × days ÷ 7 and used as a target the optimizer approaches; deviation is penalised, never forbidden. The same proration SHALL apply wherever a target for a period is shown or checked.
 
@@ -48,6 +29,8 @@ The effective weekly hours SHALL be prorated to the planning period as weekly ho
 #### Scenario: Under-staffed month
 - **WHEN** hitting the target would break a hard rule
 - **THEN** the plan is still produced with hours off target
+
+## ADDED Requirements
 
 ### Requirement: Default weekly hours
 Each tenant SHALL have a default weekly working hours setting, 40 unless changed. Planners and admins MAY change it; every role MAY read it. A change SHALL apply to every employee without their own value, from the next read on.

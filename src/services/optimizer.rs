@@ -269,6 +269,13 @@ impl OptimizerService {
             .map(|l| (l.employee_id, l))
             .collect();
 
+        // Resolved here, so the planner and the agent never need the default.
+        let default_weekly = state
+            .planner_settings_repo
+            .get_or_create_planner_settings(tenant_id)
+            .await?
+            .default_weekly_working_hours;
+
         let employee_tasks: Vec<EmployeeTask> = employees.into_iter()
             .map(|emp| {
                 let unavailability = unavail_map.get(&emp.id).cloned().unwrap_or_default();
@@ -284,7 +291,7 @@ impl OptimizerService {
                     skills: emp.capabilities.iter().map(|c| c.name.clone()).collect(),
                     available_shifts: emp.available_shifts.iter().map(|s| s.id.to_string()).collect(),
                     unavailability,
-                    monthly_working_hours: emp.monthly_working_hours,
+                    weekly_working_hours: crate::repository::domain::effective_weekly_hours(emp.weekly_working_hours, default_weekly),
                     preferred_off,
                     wishes,
                     fixed_shifts,

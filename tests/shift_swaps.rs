@@ -82,7 +82,7 @@ impl TestApp {
         let mut person = |name: &str| {
             let email = format!("{}-{}@test.invalid", name.to_lowercase(), Uuid::new_v4());
             let id = diesel::insert_into(employees::table)
-                .values(NewEmployee { name, email: &email, monthly_working_hours: 160.0, tenant_id: &tenant })
+                .values(NewEmployee { name, email: &email, weekly_working_hours: Some(40.0), tenant_id: &tenant })
                 .returning(employees::id)
                 .get_result(&mut conn)
                 .expect("insert employee");

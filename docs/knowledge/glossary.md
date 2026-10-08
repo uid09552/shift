@@ -57,8 +57,9 @@ constraint, never exceeded.
 **Min staffing** — the headcount you want. A *soft* target, not a limit. See
 [Soft minimum, hard maximum](/architecture/soft-minimum-hard-maximum.md).
 
-**Monthly working hours** — a person's contracted monthly target. Over- and
-under-shooting are penalised equally.
+**Weekly working hours** — a person's contracted hours per week, or the tenant
+default (`default_weekly_working_hours`, 40) when they have none. Prorated to a
+period as × days ÷ 7. Over- and under-shooting are penalised equally.
 
 **Optimal** — solver status: proven that no better roster exists under the given
 rules.

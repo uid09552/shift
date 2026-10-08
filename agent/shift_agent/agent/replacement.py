@@ -237,7 +237,9 @@ def _candidate(
     month_hours = sum(
         r.hours(plan.get(employee_id, d)[0], d) for d in worked if month_start <= d <= month_end
     )
-    target = float(employee.get("monthly_working_hours") or 0)
+    # Their weekly hours prorated to the calendar month (× days / 7).
+    weekly = float(employee.get("weekly_working_hours") or 0)
+    target = weekly * ((month_end - month_start).days + 1) / 7.0
     notes: list[str] = []
 
     # Rest since the end of their last shift before this one.
@@ -269,7 +271,7 @@ def _candidate(
     if preferred_off:
         notes.append("would rather have this day off")
     if target and month_hours + r.hours(shift_id, day) > target:
-        notes.append("goes over their monthly hours")
+        notes.append("goes over their hours for the month")
 
     return {
         "employee_id": employee_id,

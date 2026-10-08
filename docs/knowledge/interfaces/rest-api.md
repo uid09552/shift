@@ -58,6 +58,13 @@ spec is the territory. See
 | `GET` `POST` | `/employees/{id}/shift-assignments` | Fixed assignments |
 | `GET` `POST` | `/employees/{id}/confirmed-shift-plans` | Confirmed plan rows |
 
+`weekly_working_hours` is optional: `null` follows the tenant's
+`default_weekly_working_hours` (planner settings, 40), `0` is no target, and
+responses add `effective_weekly_working_hours`. On update an absent key leaves
+it unchanged and `null` resets it to the default. `monthly_working_hours` is
+refused with 400. Targets for a period are weekly × days ÷ 7. See
+[Employee](/concepts/employee.md).
+
 # Shifts
 
 | Method | Path | Purpose |

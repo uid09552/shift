@@ -41,6 +41,8 @@ export interface PlannerSettings {
   keep_fixed_assignments: boolean;
   /** Employees' personal max nights / weekends per month: never exceeded (hard) or only to fill a slot (soft). */
   personal_limits_mode: MinStaffingMode;
+  /** Weekly hours of every employee without their own value (40 unless changed). */
+  default_weekly_working_hours: number;
 }
 
 export type UpdatePlannerSettingsRequest = Omit<PlannerSettings, 'updated_at'>;

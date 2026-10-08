@@ -2,6 +2,17 @@
 
 ## 2026-10-08
 
+* **Change**: Contracted hours are weekly. `employees.weekly_working_hours`
+  replaces `monthly_working_hours` and is optional: empty follows the new
+  tenant setting `default_weekly_working_hours` (40 h). Every period target is
+  weekly × days ÷ 7. Migration 33 converts existing values (160 → 37) and moves
+  employees at 0 to the default.
+* **Revision**: [Employee](/concepts/employee.md), [Planner settings](/concepts/planner-settings.md),
+  [Optimizer contract](/interfaces/optimizer-contract.md), [REST API](/interfaces/rest-api.md),
+  [Objective terms](/solver/objective-terms.md), [Planner settings reference](/solver/planner-settings-reference.md),
+  [Database and migrations](/operations/database-and-migrations.md), the guides naming
+  *Match contract hours*.
+
 * **Change**: Shift swaps. An employee requests to trade a confirmed shift with
   a colleague's; the colleague accepts or declines, a planner or admin approves
   (the roster rows are exchanged) or rejects. Rule breaches come from the agent's

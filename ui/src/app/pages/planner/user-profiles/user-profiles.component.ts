@@ -17,6 +17,7 @@ import { ConfirmedShiftPlanService } from '../../../shared/services/confirmed-sh
 import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
+import { PlannerSettingsService } from '../../../shared/services/planner-settings.service';
 
 interface LeaveEntry {
   id: string;
@@ -82,18 +83,31 @@ interface LeaveEntry {
             />
           </div>
 
-          <!-- Monthly working hours -->
-          <div class="mb-5">
-            <app-label for="userMonthlyHours" className="mb-1.5">{{ 'userProfiles.monthlyHours' | t }}</app-label>
+          <!-- Weekly working hours: empty follows the tenant default -->
+          <div class="mb-5" data-testid="employee-weekly-hours">
+            <div class="mb-1.5 flex items-center justify-between gap-3">
+              <app-label for="userWeeklyHours">{{ 'userProfiles.weeklyHours' | t }}</app-label>
+              @if (formWeeklyWorkingHours !== null) {
+                <button
+                  type="button"
+                  (click)="formWeeklyWorkingHours = null"
+                  class="text-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
+                  data-testid="employee-weekly-hours-reset"
+                >{{ 'userProfiles.weeklyHoursUseDefault' | t: { hours: defaultWeeklyHours } }}</button>
+              }
+            </div>
             <app-input-field
-              id="userMonthlyHours"
-              name="userMonthlyHours"
+              id="userWeeklyHours"
+              name="userWeeklyHours"
               type="number"
-              placeholder="e.g. 160"
-              [value]="formMonthlyWorkingHours"
-              (valueChange)="onMonthlyWorkingHoursChange($event)"
+              min="0"
+              max="168"
+              [step]="0.5"
+              [placeholder]="'userProfiles.weeklyHoursPlaceholder' | t: { hours: defaultWeeklyHours }"
+              [value]="formWeeklyWorkingHours ?? ''"
+              (valueChange)="onWeeklyWorkingHoursChange($event)"
             />
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ 'userProfiles.monthlyHoursHint' | t }}</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ 'userProfiles.weeklyHoursHint' | t: { hours: defaultWeeklyHours } }}</p>
           </div>
 
           <!-- Capabilities (only in edit mode) -->
@@ -472,7 +486,10 @@ interface LeaveEntry {
                     </div>
                   </td>
                   <td class="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                    {{ employee.monthly_working_hours || '—' }}
+                    {{ employee.effective_weekly_working_hours || '—' }}
+                    @if (employee.weekly_working_hours === null) {
+                      <span class="ml-1 text-theme-xs text-gray-400 dark:text-gray-500">{{ 'userProfiles.weeklyHoursDefaultTag' | t }}</span>
+                    }
                   </td>
                   <td class="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
                     @if (employee.shifts.length === 0) {
@@ -580,7 +597,10 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
   editingEmployee: EmployeeProfile | null = null;
   formName = '';
   formEmail = '';
-  formMonthlyWorkingHours: number = 0;
+  /** Own weekly hours; null follows the tenant default. */
+  formWeeklyWorkingHours: number | null = null;
+  /** The tenant default, shown where an employee follows it. */
+  defaultWeeklyHours = 40;
   formLimits: PersonalLimits = UserProfilesComponent.noLimits();
   limitsError: string | null = null;
   readonly weekdays = [0, 1, 2, 3, 4, 5, 6];
@@ -657,10 +677,16 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
     private confirmedShiftPlanService: ConfirmedShiftPlanService,
     private confirmDialog: ConfirmDialogService,
     private translations: TranslationService,
+    private plannerSettingsService: PlannerSettingsService,
   ) {}
 
   ngOnInit(): void {
     this.loadEmployees();
+    // Readable by every role; on failure the shipped default stays shown.
+    this.plannerSettingsService.getPlannerSettings().subscribe({
+      next: (s) => (this.defaultWeeklyHours = s.default_weekly_working_hours),
+      error: () => {},
+    });
     this.searchSub = this.globalSearchService.searchTerm.subscribe((term) => {
       this.searchQuery = term;
       this.currentPage = 1;
@@ -681,7 +707,8 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
           id: emp.id,
           name: emp.name,
           email: emp.email,
-          monthly_working_hours: emp.monthly_working_hours,
+          weekly_working_hours: emp.weekly_working_hours,
+          effective_weekly_working_hours: emp.effective_weekly_working_hours,
           shifts: emp.available_shifts.map((s) => s.name),
           capabilities: emp.capabilities.map((c) => c.name),
         }));
@@ -718,7 +745,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
     this.editingEmployee = null;
     this.formName = '';
     this.formEmail = '';
-    this.formMonthlyWorkingHours = 0;
+    this.formWeeklyWorkingHours = null;
     this.formCapabilities = {};
     this.formShifts = {};
     this.showForm = true;
@@ -728,7 +755,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
     this.editingEmployee = employee;
     this.formName = employee.name;
     this.formEmail = employee.email;
-    this.formMonthlyWorkingHours = employee.monthly_working_hours;
+    this.formWeeklyWorkingHours = employee.weekly_working_hours;
     this.formCapabilities = {};
     this.formShifts = {};
     this.leaveEntries = [];
@@ -788,7 +815,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
     this.editingEmployee = null;
     this.formName = '';
     this.formEmail = '';
-    this.formMonthlyWorkingHours = 0;
+    this.formWeeklyWorkingHours = null;
     this.formCapabilities = {};
     this.formShifts = {};
     this.formLimits = UserProfilesComponent.noLimits();
@@ -825,8 +852,14 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
     this.formEmail = String(value);
   }
 
-  onMonthlyWorkingHoursChange(value: string | number): void {
-    this.formMonthlyWorkingHours = typeof value === 'string' ? parseFloat(value) || 0 : value;
+  /** A cleared field means "follow the default"; 0 is kept as "no target". */
+  onWeeklyWorkingHoursChange(value: string | number): void {
+    if (value === '' || value === null) {
+      this.formWeeklyWorkingHours = null;
+      return;
+    }
+    const hours = typeof value === 'string' ? parseFloat(value) : value;
+    this.formWeeklyWorkingHours = Number.isFinite(hours) ? Math.min(Math.max(hours, 0), 168) : null;
   }
 
   toggleCapability(capId: string, event: Event): void {
@@ -853,7 +886,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
         this.employeeService.updateEmployee(this.editingEmployee.id, {
           name: this.formName.trim(),
           email: this.formEmail.trim(),
-          monthly_working_hours: this.formMonthlyWorkingHours,
+          weekly_working_hours: this.formWeeklyWorkingHours,
         })
       );
 
@@ -911,7 +944,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
       const request: CreateEmployeeRequest = {
         name: this.formName.trim(),
         email: this.formEmail.trim(),
-        monthly_working_hours: this.formMonthlyWorkingHours,
+        weekly_working_hours: this.formWeeklyWorkingHours,
       };
 
       this.employeeService.createEmployee(request).subscribe({
@@ -923,7 +956,8 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
             id: newEmployee.id,
             name: newEmployee.name,
             email: newEmployee.email,
-            monthly_working_hours: newEmployee.monthly_working_hours,
+            weekly_working_hours: newEmployee.weekly_working_hours,
+            effective_weekly_working_hours: newEmployee.effective_weekly_working_hours,
             shifts: [],
             capabilities: [],
           };

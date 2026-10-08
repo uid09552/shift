@@ -24,9 +24,12 @@ erDiagram
 
 ## Employee
 
-A member of staff. `name`, `email`, and `monthly_working_hours` — the contracted
-monthly target the optimizer tries to hit (deviation is penalised, not
-forbidden).
+A member of staff. `name`, `email`, and `weekly_working_hours` — contracted
+hours per week, which the optimizer prorates to the period (× days ÷ 7) and
+tries to hit (deviation is penalised, not forbidden). Empty (`null`) follows the
+tenant's `default_weekly_working_hours` in planner settings, **40** unless
+changed; `0` means no hours target. API responses also carry
+`effective_weekly_working_hours`, the value that applies.
 
 Two link tables define what an employee may do:
 

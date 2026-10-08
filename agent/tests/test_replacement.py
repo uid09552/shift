@@ -22,7 +22,7 @@ def _shift(sid, start, end, night=False):
 def _emp(eid, **extra):
     return {
         "id": eid, "name": eid.title(), "skills": ["care"],
-        "available_shifts": ["early", "late", "night"], "monthly_working_hours": 160, **extra,
+        "available_shifts": ["early", "late", "night"], "weekly_working_hours": 40, **extra,
     }
 
 

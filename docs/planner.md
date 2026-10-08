@@ -53,7 +53,7 @@ worked example. The backend builds this payload from the database — call
 | `planning_period` | `start_date`, `end_date` |
 | `shifts` | `id`, `name`, `is_night_shift`, `weekday_times[]` |
 | `workstations` | `id`, `name`, `required_skills`, `priority`, `operating_shifts`, `min/max_employees`, `unavailability[]` |
-| `employees` | `id`, `name`, `skills`, `available_shifts`, `unavailability[]`, `monthly_working_hours`, `preferred_off[]`, `fixed_shifts[]` (rotations; see `keep_fixed_assignments`), personal limits `max_nights_per_month`, `max_weekends_per_month`, `no_night_shifts`, `preferred_days_off[]` (rule 12) |
+| `employees` | `id`, `name`, `skills`, `available_shifts`, `unavailability[]`, `weekly_working_hours` (effective hours per week, the tenant default already applied; 0 = no target), `preferred_off[]`, `fixed_shifts[]` (rotations; see `keep_fixed_assignments`), personal limits `max_nights_per_month`, `max_weekends_per_month`, `no_night_shifts`, `preferred_days_off[]` (rule 12) |
 | `capabilities` | `id`, `level`, `skill_group` — for the skill-downgrade objective |
 | `locked_assignments` | `employee_id`, `date`, `shift_id`, `workstation_id` — rows the solver must keep |
 | `history` | `employee_id`, `date`, `shift_id` — the confirmed roster of the 14 days before the period, read-only (see rule 11) |
@@ -137,7 +137,7 @@ The solver maximises a weighted sum:
 | Staffing shortfall | Penalises falling below `min_employees` |
 | Coverage | Rewards assignments, weighted by workstation priority |
 | Equal treatment | Minimises the spread of working hours across employees (`equality_weight`) |
-| Monthly hours target | Symmetric penalty on deviation from each employee's contracted hours |
+| Contract hours target | Symmetric penalty on deviation from each employee's contracted hours, `weekly_working_hours × days / 7` |
 | Weekly hour band | Soft `weekly_min_hours` / `weekly_max_hours` over 7-day blocks |
 | Preferences | Penalises overriding a soft `preferred_off` entry, and each day worked on one of an employee's `preferred_days_off` weekdays (`preference_weight`) |
 | Skill downgrade | Penalises staffing a post with an over-qualified person, by level gap within a `skill_group` |
@@ -163,7 +163,7 @@ through `PUT /api/v1/planner-settings` or the UI's planner settings page.
 | `priority_weights` | `high: 10000, medium: 1000, low: 100` | Coverage reward per workstation priority |
 | `shift_continuity_weight` | `500` | Reward for the same shift on consecutive days |
 | `shift_continuity_week_bonus` | `2000` | Extra reward for a consistent week |
-| `monthly_hours_target_weight` | `1000` | Weight on hitting contracted monthly hours |
+| `monthly_hours_target_weight` | `1000` | Weight on hitting contracted hours for the period (weekly × days ÷ 7); name kept from monthly hours |
 | `weekly_min_hours` / `weekly_max_hours` | `None` | Optional soft weekly hour band |
 | `weekly_hours_target_weight` | `1000` | Weight on that band |
 | `preference_weight` | `300` | Cost of overriding a soft preference |

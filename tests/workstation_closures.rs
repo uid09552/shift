@@ -240,7 +240,7 @@ async fn nobody_can_be_rostered_at_a_closed_or_deactivated_workstation() {
     let anna = app
         .create_id(
             "/employees",
-            json!({ "name": "Anna", "email": format!("anna-{}@test.invalid", Uuid::new_v4()), "monthly_working_hours": 160 }),
+            json!({ "name": "Anna", "email": format!("anna-{}@test.invalid", Uuid::new_v4()), "weekly_working_hours": 40 }),
         )
         .await;
     assert_eq!(app.close(&ward, "2026-10-01", "2026-10-05").await.0, 200);
@@ -293,7 +293,7 @@ async fn a_proposal_staffing_a_closed_workstation_is_not_taken_as_the_plan() {
     let anna = app
         .create_id(
             "/employees",
-            json!({ "name": "Anna", "email": format!("anna-{}@test.invalid", Uuid::new_v4()), "monthly_working_hours": 160 }),
+            json!({ "name": "Anna", "email": format!("anna-{}@test.invalid", Uuid::new_v4()), "weekly_working_hours": 40 }),
         )
         .await;
 

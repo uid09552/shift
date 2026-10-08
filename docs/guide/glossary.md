@@ -69,9 +69,10 @@ Every term this application uses, in plain language. Sorted alphabetically.
   it must respect — so a shortfall shows up as a thin day rather than a
   failure.
 
-**Monthly working hours**
-: A person's contracted hours per month. A target the planner aims at;
-  overshooting and undershooting are penalised equally.
+**Weekly working hours**
+: A person's contracted hours per week — their own number, or the ward's
+  default (40 h unless changed). Prorated to any plan as hours × days ÷ 7; a
+  target the planner aims at, overshooting and undershooting penalised equally.
 
 **Optimal**
 : A calculation result meaning the planner proved no better roster exists

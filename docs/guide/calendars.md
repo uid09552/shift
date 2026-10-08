@@ -200,7 +200,7 @@ custom range.
 | Column | What it counts |
 |---|---|
 | **Shifts**, **Hours** | Shifts worked and their hours. |
-| **vs target** | Hours over or under the contracted monthly hours, scaled to the period. Amber when more than 10 % off. |
+| **vs target** | Hours over or under the contracted hours — weekly hours × days ÷ 7 for the period. Amber when more than 10 % off. |
 | **Nights** | Shifts that run past midnight. |
 | **Weekend days** | Saturdays and Sundays worked; hover for how many weekends that touched. |
 | **Wishes** | Shift wishes granted, of those asked. |

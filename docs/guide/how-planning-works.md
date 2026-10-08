@@ -162,7 +162,7 @@ once on a thin ward and you may get *infeasible*.
 | Setting | Default | What it does |
 |---|---|---|
 | **Fairness** | Balanced | How hard to spread hours evenly. Raise it if the roster feels lopsided; lower it if it keeps overriding wishes and shift continuity. It cannot cost coverage, which is settled first. |
-| **Monthly hours target** | Balanced | How hard to hit each person's contracted hours. |
+| **Contract hours target** | Balanced | How hard to hit each person's contracted hours (weekly hours × days ÷ 7). |
 | **Weekly hours band** | off | A soft floor and ceiling on hours per week, on top of the monthly target. Useful when the monthly target alone lets someone do 70 hours one week and 10 the next. |
 | **Minimum / Maximum per week** | Off | The floor and ceiling of the band, in hours. Only shown while the band is on. |
 | **Band strength** | Balanced | How hard the planner tries to stay inside the band. |
@@ -221,7 +221,7 @@ by whom and what changed.
 | One person is doing all the nights | Very few people have the night shift ticked as available |
 | People are rotated between shifts daily | **Shift continuity** too low relative to **Fairness**, or try the *Stable rosters* preset |
 | Somebody is well under their contracted hours | Their capabilities or available shifts don't match what you're staffing |
-| Everyone is under their hours | The ward is over-staffed for the workload you described — or **Match monthly hours** was left off |
+| Everyone is under their hours | The ward is over-staffed for the workload you described — or **Match contract hours** was left off |
 
 For problems rather than preferences, see [When something looks
 wrong](troubleshooting.md).

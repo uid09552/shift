@@ -21,12 +21,13 @@ The screen you return to most often. **Configuration → User Profiles**.
 |---|---|
 | **Name** | As it should appear on the roster |
 | **Email** | Their work address; also how the system recognises them if they sign in |
-| **Max working hours (per month)** | Their contracted monthly hours |
+| **Weekly working hours** | Their contracted hours per week; empty follows the ward default (40 h, Planner Settings), 0 = no target |
 
-The hours figure is a **target, not a ceiling**. The planner aims each person near
-their number and treats going over and going under as equally bad. Someone at 160
-hours gets roughly twice as much work as a part-timer at 80 — that is the main
-mechanism by which part-time contracts are respected.
+The hours figure is a **target, not a ceiling**, prorated to any plan as weekly
+hours × days ÷ 7. The planner aims each person near it and treats going over and
+going under as equally bad. Someone at 40 hours a week gets roughly twice as much
+work as a part-timer at 20 — that is the main mechanism by which part-time
+contracts are respected. Changing the default re-targets everyone who follows it.
 
 # Capabilities
 

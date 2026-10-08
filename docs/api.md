@@ -65,6 +65,26 @@ The grant model is intentionally simple:
 | `GET` `POST` | `/employees/{id}/shift-assignments` | Fixed assignments |
 | `GET` `POST` | `/employees/{id}/confirmed-shift-plans` | Confirmed plan rows |
 
+### Contracted hours
+
+An employee's hours are **per week** and optional. `weekly_working_hours` is
+their own value — `null` follows the tenant's `default_weekly_working_hours`
+(`/planner-settings`, 40 unless changed; planners and admins may change it), `0`
+means no hours target. Every employee response also carries
+`effective_weekly_working_hours`, the value that applies.
+
+- Create: omit `weekly_working_hours` (or send `null`) to follow the default.
+- Update: an absent key leaves it unchanged; `null` puts the employee back on
+  the default.
+- Values run from 0 to 168. A body still sending `monthly_working_hours` is
+  refused with **400**; so is an import whose third column is the old
+  `max_working_hours` / `monthly_working_hours` header. In the template, an
+  empty hours cell means the default.
+
+Wherever a target is needed for a period it is weekly hours × days ÷ 7: the
+optimizer input (`employees[].weekly_working_hours`, already resolved), the
+plan check, the replacement ranking and `/analysis/fairness`.
+
 ## Shifts
 
 | Method | Path | Purpose |

@@ -326,7 +326,7 @@ EMP_GROUPS = [
         "extra_caps":  ["Kardiologie"],                      # can also work Station A (needs Wundversorgung+Kardiologie)
         "shifts":      ["Frühschicht", "Normalschicht", "Spätschicht", "Nachtschicht"],
         "count":       8,
-        "monthly_h":   160.0,
+        "weekly_h":    None,      # full time: follows the tenant default (40 h)
         "days_pw":     5,
         "wknd":        0.30,
     },
@@ -337,7 +337,7 @@ EMP_GROUPS = [
         "extra_caps":  [],
         "shifts":      ["Frühschicht", "Spätschicht", "Nachtschicht", "Rufdienst"],
         "count":       8,
-        "monthly_h":   160.0,
+        "weekly_h":    None,      # full time: follows the tenant default (40 h)
         "days_pw":     5,
         "wknd":        0.40,
     },
@@ -348,7 +348,7 @@ EMP_GROUPS = [
         "extra_caps":  ["Intensivpflege"],                   # combined with Beatmung → ICU eligibility (needs all 4)
         "shifts":      ["Frühschicht", "Normalschicht", "Spätschicht"],
         "count":       8,
-        "monthly_h":   160.0,
+        "weekly_h":    None,      # full time: follows the tenant default (40 h)
         "days_pw":     5,
         "wknd":        0.15,
     },
@@ -359,7 +359,7 @@ EMP_GROUPS = [
         "extra_caps":  ["Notaufnahme"],                      # combined with Wundversorgung → Notaufnahme eligibility
         "shifts":      ["Frühschicht", "Normalschicht", "Spätschicht", "Nachtschicht"],
         "count":       8,
-        "monthly_h":   160.0,
+        "weekly_h":    None,      # full time: follows the tenant default (40 h)
         "days_pw":     5,
         "wknd":        0.25,
     },
@@ -370,7 +370,7 @@ EMP_GROUPS = [
         "extra_caps":  ["Dialyse", "Onkologie"],
         "shifts":      ["Frühschicht", "Normalschicht", "Spätschicht"],
         "count":       8,
-        "monthly_h":   120.0,
+        "weekly_h":    30.0,      # part time: own weekly hours
         "days_pw":     4,
         "wknd":        0.10,
     },
@@ -425,7 +425,7 @@ for grp in EMP_GROUPS:
         resp = post("/employees", {
             "name": name,
             "email": email,
-            "monthly_working_hours": grp["monthly_h"],
+            "weekly_working_hours": grp["weekly_h"],
         })
         eid = _id(resp)
         if eid:
@@ -436,7 +436,7 @@ for grp in EMP_GROUPS:
                 "caps":            grp["caps"],
                 "extra_caps":      grp["extra_caps"],
                 "avail_shift_names": grp["shifts"],
-                "monthly_hours":   grp["monthly_h"],
+                "weekly_hours":    grp["weekly_h"],
                 "days_per_week":   grp["days_pw"],
                 "weekend_chance":  grp["wknd"],
             })

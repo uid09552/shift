@@ -8,7 +8,8 @@ Open **Configuration → User Profiles**.
 
 ![The employee list](../assets/screenshots/employees.png)
 
-The list shows, at a glance, every person's monthly hours target, the shifts
+The list shows, at a glance, every person's weekly hours (marked *default*
+where they follow the ward's default), the shifts
 they work and the qualifications they hold. Press **Add User** for a new
 colleague, or **Edit** on anyone already listed.
 
@@ -28,13 +29,17 @@ colleague, or **Edit** on anyone already listed.
 |---|---|
 | **Name** | The person's name as it should appear on the roster. |
 | **Email** | Their work address. Also how the system recognises them if they log in themselves. |
-| **Max working hours (per month)** | Their contracted monthly hours. |
+| **Weekly working hours** | Their contracted hours per week. Leave it empty to follow the ward's default (40 h unless changed in **Planner Settings → Default weekly hours**); **Use default** empties it again. 0 means no hours target. |
 
-The hours figure is a **target, not a ceiling**. The planner tries to land
-each person near their number and treats going over and going under as equally
-bad. Someone at 160 hours will be given roughly twice as much work as a
-part-timer at 80 — that is the main mechanism by which part-time contracts are
-respected.
+The hours figure is a **target, not a ceiling**. For a plan of any length the
+planner works out each person's share — weekly hours × days ÷ 7, so 80 hours
+over two weeks at 40 a week — tries to land them near it and treats going over
+and going under as equally bad. Someone at 40 hours a week will be given
+roughly twice as much work as a part-timer at 20 — that is the main mechanism
+by which part-time contracts are respected.
+
+Changing the default in Planner Settings changes the target of everyone who
+follows it, at once; people with their own number keep it.
 
 ### Capabilities
 

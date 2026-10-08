@@ -50,14 +50,14 @@ been told.
 | **Workstations / Employees** | Switches the *display*. No effect on the calculation |
 | **Weeks / Date range** | *Weeks* plans forward from now; *Date range* takes exact dates |
 | **Plan `4w`** | How many weeks ahead, in *Weeks* mode |
-| **Match monthly hours** | Makes the planner work hard at each person's contracted monthly hours. Leave off for a short stretch that isn't a whole month |
+| **Match contract hours** | Makes the planner work hard at each person's contracted hours, prorated to the period (weekly × days ÷ 7) — meaningful for any length |
 | **All Employees** | Restricts the calculation to a subset of staff |
 
 Four weeks is the usual choice. Planning further gives the planner more room to
 even out workload, but anything beyond a few weeks tends to be invalidated by real
 life.
 
-**Match monthly hours** sets `monthly_hours_target_weight` for that run only, without
+**Match contract hours** sets `monthly_hours_target_weight` for that run only, without
 changing stored settings.
 
 # Step 3 — Calculate

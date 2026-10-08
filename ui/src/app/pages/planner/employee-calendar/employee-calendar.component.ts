@@ -132,6 +132,8 @@ interface WeeklyHoursSummary {
   weekNumber: number;
   weekLabel: string;
   hours: number;
+  /** Days of that week inside the month — the month's first and last weeks may be short. */
+  days: number;
 }
 
 interface ShiftHoursSummary {
@@ -298,9 +300,19 @@ export class EmployeeCalendarComponent implements OnInit {
     });
   }
 
-  /** The selected employee's contracted monthly hours — what overtime is measured against. */
+  /** The selected employee's effective weekly hours (own value or the tenant default). */
+  get weeklyTargetHours(): number {
+    return this.employees.find((e) => e.id === this.selectedEmployeeId)?.effective_weekly_working_hours ?? 0;
+  }
+
+  /** What overtime is measured against: the weekly hours prorated to the month (× days / 7). */
   get targetHours(): number {
-    return this.employees.find((e) => e.id === this.selectedEmployeeId)?.monthly_working_hours ?? 0;
+    return this.prorated(new Date(this.currentYear, this.currentMonth + 1, 0).getDate());
+  }
+
+  /** The weekly hours prorated to `days` days, to 0.1 h — the rule the planner uses. */
+  prorated(days: number): number {
+    return Math.round((this.weeklyTargetHours * days * 10) / 7) / 10;
   }
 
   // ── Sections ─────────────────────────────────────────────────────
@@ -696,7 +708,7 @@ export class EmployeeCalendarComponent implements OnInit {
         first.getTime() === last.getTime()
           ? this.formatShortDate(first)
           : `${this.formatShortDate(first)} – ${this.formatShortDate(last)}`;
-      weekly.push({ weekNumber: week.weekNumber, weekLabel, hours: weekHours });
+      weekly.push({ weekNumber: week.weekNumber, weekLabel, hours: weekHours, days: monthDays.length });
     }
 
     this.weeklyHoursSummaries = weekly;
@@ -705,8 +717,7 @@ export class EmployeeCalendarComponent implements OnInit {
       (a, b) => b.hours - a.hours,
     );
 
-    const employee = this.employees.find((e) => e.id === this.selectedEmployeeId);
-    this.overtimeHours = monthly - (employee?.monthly_working_hours ?? 0);
+    this.overtimeHours = monthly - this.targetHours;
   }
 
   /** Duration in hours of the given shift on the given date, based on that weekday's configured times. */

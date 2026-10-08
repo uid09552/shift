@@ -107,7 +107,7 @@ paths:
       operationId: downloadEmployeeTemplate
       responses:
         '200':
-          description: .xlsx template with columns name, email, max_working_hours, capabilities, available_shifts
+          description: .xlsx template with columns name, email, weekly_working_hours (empty = the tenant default), capabilities, available_shifts. An upload whose third column is still max_working_hours or monthly_working_hours is refused with 400
           content:
             application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
               schema:
@@ -3297,7 +3297,7 @@ components:
         - id
         - name
         - email
-        - monthly_working_hours
+        - effective_weekly_working_hours
       properties:
         id:
           type: string
@@ -3312,11 +3312,22 @@ components:
           format: email
           description: Employee email (unique)
           example: "john.doe@hospital.com"
-        monthly_working_hours:
+        weekly_working_hours:
           type: number
           format: double
-          description: Monthly working hours for the employee
-          example: 160.0
+          nullable: true
+          minimum: 0
+          maximum: 168
+          description: >
+            The employee's own contracted hours per week. null follows the
+            tenant's default_weekly_working_hours (planner settings, 40 unless
+            changed); 0 means no hours target.
+          example: 38.5
+        effective_weekly_working_hours:
+          type: number
+          format: double
+          description: The weekly hours the employee is held to — their own value, or the tenant default. Prorated to a period as × days / 7.
+          example: 40.0
         available_shifts:
           type: array
           description: Shifts this employee may be scheduled for. Returned on reads; set through the available-shifts endpoints.
@@ -3510,7 +3521,7 @@ components:
         monthly_hours_target_weight:
           type: integer
           minimum: 0
-          description: Objective weight for meeting each employee's monthly working-hours target
+          description: Objective weight for meeting each employee's contract-hours target for the period (weekly hours × days / 7). The name is historical.
           example: 1000
         solver_time_limit_seconds:
           type: number
@@ -3592,6 +3603,13 @@ components:
             short, as little as possible, and names every excess in the result.
             no_night_shifts is always hard.
           example: hard
+        default_weekly_working_hours:
+          type: number
+          format: double
+          exclusiveMinimum: 0
+          maximum: 168
+          description: Weekly hours of every employee without their own weekly_working_hours.
+          example: 40.0
         skill_downgrade_weight:
           type: integer
           minimum: 0
@@ -3705,6 +3723,13 @@ components:
           enum: [soft, hard]
           default: hard
           description: Employees' personal max nights / weekends per month are a rule (hard) or a target (soft)
+        default_weekly_working_hours:
+          type: number
+          format: double
+          exclusiveMinimum: 0
+          maximum: 168
+          default: 40
+          description: Weekly hours of every employee without their own value. Changing it re-targets all of them.
         skill_downgrade_weight:
           type: integer
           minimum: 0
@@ -3766,7 +3791,6 @@ components:
       required:
         - name
         - email
-        - monthly_working_hours
       properties:
         name:
           type: string
@@ -3779,11 +3803,17 @@ components:
           minLength: 1
           maxLength: 255
           example: "john.doe@hospital.com"
-        monthly_working_hours:
+        weekly_working_hours:
           type: number
           format: double
-          description: Monthly working hours for the employee
-          example: 160.0
+          nullable: true
+          minimum: 0
+          maximum: 168
+          description: >
+            Contracted hours per week. Absent or null follows the tenant's
+            default_weekly_working_hours; 0 means no hours target. A body with
+            monthly_working_hours is refused with 400.
+          example: 38.5
 
     UpdateEmployeeRequest:
       type: object
@@ -3799,11 +3829,17 @@ components:
           minLength: 1
           maxLength: 255
           example: "john.doe@hospital.com"
-        monthly_working_hours:
+        weekly_working_hours:
           type: number
           format: double
-          description: Monthly working hours for the employee
-          example: 160.0
+          nullable: true
+          minimum: 0
+          maximum: 168
+          description: >
+            Absent leaves the hours unchanged; null puts the employee back on
+            the tenant default; a number is their own value (0 = no target).
+            A body with monthly_working_hours is refused with 400.
+          example: 38.5
 
     Shift:
       type: object
@@ -4599,7 +4635,7 @@ components:
         - skills
         - available_shifts
         - unavailability
-        - monthly_working_hours
+        - weekly_working_hours
       properties:
         id:
           type: string
@@ -4624,11 +4660,11 @@ components:
           items:
             type: string
           description: List of unavailability entries for the employee
-        monthly_working_hours:
+        weekly_working_hours:
           type: number
           format: double
-          description: Monthly working hours for the employee
-          example: 160.0
+          description: Effective contracted hours per week (the backend resolves the tenant default). The planner prorates them to the period as × days / 7; 0 = no target.
+          example: 40.0
         preferred_off:
           type: array
           items:

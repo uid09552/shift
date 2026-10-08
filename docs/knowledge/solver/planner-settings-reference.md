@@ -51,7 +51,8 @@ its rotations is a decision about the ward, not a weighting.
 |---|---|---|
 | `equality_weight` | `50000` | Weight on even workload distribution. The loudest term by design |
 | `priority_weights` | `{high: 10000, medium: 1000, low: 100}` | Coverage reward per workstation priority. The **gaps** carry the meaning, not the magnitudes |
-| `monthly_hours_target_weight` | `1000` | Weight on hitting contracted monthly hours; deviation penalised symmetrically |
+| `monthly_hours_target_weight` | `1000` | Weight on hitting contracted hours for the period (weekly × days ÷ 7); deviation penalised symmetrically. The name is historical |
+| `default_weekly_working_hours` | `40` | Contracted hours per week of every employee without their own value. Resolved by the backend; never reaches the solver as a setting |
 | `shift_continuity_weight` | `500` | Reward for the same shift on consecutive days |
 | `shift_continuity_week_bonus` | `2000` | Extra reward for a consistent full week |
 | `wish_weight` | `20000` | Reward for granting a [shift wish](/concepts/shift-wish.md); `0` disables wish handling |
@@ -88,7 +89,7 @@ and recalculating is the first thing to try — it costs nothing but waiting.
 
 `monthly_hours_target_weight` can be passed in the `POST /planner/plan` body to
 override it for a single run without changing stored settings. This is what the
-optimizer page's **Match monthly hours** checkbox does. No other setting has a
+optimizer page's **Match contract hours** checkbox does. No other setting has a
 per-run override.
 
 # Coverage gap

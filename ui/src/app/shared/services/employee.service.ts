@@ -6,7 +6,10 @@ export interface Employee {
   id: string;
   name: string;
   email: string;
-  monthly_working_hours: number;
+  /** Own contracted hours per week; null follows the tenant default. 0 = no target. */
+  weekly_working_hours: number | null;
+  /** What they are held to: the own value, or the tenant default. */
+  effective_weekly_working_hours: number;
   available_shifts: Shift[];
   capabilities: Capability[];
 }
@@ -25,7 +28,8 @@ export interface EmployeeProfile {
   id: string;
   name: string;
   email: string;
-  monthly_working_hours: number;
+  weekly_working_hours: number | null;
+  effective_weekly_working_hours: number;
   shifts: string[];
   capabilities: string[];
 }
@@ -40,7 +44,8 @@ export interface PaginatedEmployeeResponse {
 export interface CreateEmployeeRequest {
   name: string;
   email: string;
-  monthly_working_hours: number;
+  /** Omit or null to follow the tenant default. */
+  weekly_working_hours?: number | null;
 }
 
 export interface AddCapabilityRequest {
@@ -106,7 +111,8 @@ export class EmployeeService {
         id: employee.id,
         name: employee.name,
         email: employee.email,
-        monthly_working_hours: employee.monthly_working_hours,
+        weekly_working_hours: employee.weekly_working_hours,
+        effective_weekly_working_hours: employee.effective_weekly_working_hours,
         capabilities: capabilities.map((c) => c.name),
         shifts: shifts.map((s) => s.name),
       }))
@@ -117,7 +123,8 @@ export class EmployeeService {
     return this.http.post<Employee>(`${this.apiUrl}/employees`, request);
   }
 
-  updateEmployee(id: string, body: { name?: string; email?: string; monthly_working_hours?: number }): Observable<Employee> {
+  /** `weekly_working_hours: null` puts the employee back on the tenant default; omitting it leaves it unchanged. */
+  updateEmployee(id: string, body: { name?: string; email?: string; weekly_working_hours?: number | null }): Observable<Employee> {
     return this.http.put<Employee>(`${this.apiUrl}/employees/${id}`, body);
   }
 

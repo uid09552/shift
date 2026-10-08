@@ -8,9 +8,22 @@ pub struct Employee {
     pub id: Uuid,
     pub name: String,
     pub email: String,
-    pub monthly_working_hours: f64,
+    /// Own contracted hours per week; `None` follows the tenant default
+    /// (`planner_settings.default_weekly_working_hours`), `0` means no target.
+    pub weekly_working_hours: Option<f64>,
     pub available_shifts: Vec<Shift>,
     pub capabilities: Vec<Capability>,
+}
+
+/// The weekly hours an employee is held to: their own value, or the tenant default.
+pub fn effective_weekly_hours(own: Option<f64>, default: f64) -> f64 {
+    own.unwrap_or(default)
+}
+
+/// Weekly hours prorated to a period of `days` days (× days / 7), rounded to
+/// 0.1 h; `None` for an employee with no target (0 hours).
+pub fn period_target_hours(weekly: f64, days: i64) -> Option<f64> {
+    (weekly > 0.0).then(|| (weekly * days as f64 / 7.0 * 10.0).round() / 10.0)
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -233,7 +246,7 @@ use async_trait::async_trait;
 
 #[async_trait]
     pub trait EmployeeRepository {
-        async fn create_employee(&self, tenant_id: &str, name: &str, email: &str, monthly_working_hours: f64) -> Result<Employee, AppError>;
+        async fn create_employee(&self, tenant_id: &str, name: &str, email: &str, weekly_working_hours: Option<f64>) -> Result<Employee, AppError>;
         async fn get_employee(&self, tenant_id: &str, id: Uuid) -> Result<Option<Employee>, AppError>;
         async fn get_employee_by_email(&self, tenant_id: &str, email: &str) -> Result<Option<Employee>, AppError>;
         async fn list_employees(&self, tenant_id: &str, limit: Option<i64>, offset: Option<i64>) -> Result<Vec<Employee>, AppError>;
@@ -444,8 +457,8 @@ pub struct EmployeeFairnessDomain {
     /// Shifts worked (present, with a shift).
     pub shifts: i64,
     pub hours: f64,
-    /// monthly_working_hours scaled to the period (× days / 30), as the solver
-    /// reads it; None without a monthly target.
+    /// The effective weekly hours prorated to the period (× days / 7), as the
+    /// solver reads them; None for someone with no hours target.
     pub target_hours: Option<f64>,
     /// Shifts that run past midnight.
     pub night_shifts: i64,
@@ -592,6 +605,8 @@ pub struct PlannerSettingsDomain {
     /// Whether employees' max_nights_per_month / max_weekends_per_month are
     /// hard limits or penalised targets. Same two values as min_staffing_mode.
     pub personal_limits_mode: MinStaffingMode,
+    /// Weekly hours of every employee without their own value.
+    pub default_weekly_working_hours: f64,
 }
 
 /// Whether `min_employees` (per shift/day and per workstation/shift/day) is a
@@ -672,8 +687,11 @@ pub struct UpdatePlannerSettings {
     pub keep_fixed_assignments: bool,
     #[serde(default = "default_personal_limits_mode")]
     pub personal_limits_mode: MinStaffingMode,
+    #[serde(default = "default_weekly_working_hours")]
+    pub default_weekly_working_hours: f64,
 }
 
+fn default_weekly_working_hours() -> f64 { 40.0 }
 fn default_weekly_hours_target_weight() -> i32 { 1000 }
 fn default_preference_weight() -> i32 { 300 }
 fn default_skill_downgrade_weight() -> i32 { 200 }

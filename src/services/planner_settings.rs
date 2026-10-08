@@ -41,6 +41,8 @@ pub struct PlannerSettingsResponse {
     pub keep_fixed_assignments: bool,
     /// Employees' personal night/weekend limits: `hard` (default) or `soft`.
     pub personal_limits_mode: MinStaffingMode,
+    /// Weekly hours of every employee without their own value (40 unless changed).
+    pub default_weekly_working_hours: f64,
 }
 
 impl From<PlannerSettingsDomain> for PlannerSettingsResponse {
@@ -73,6 +75,7 @@ impl From<PlannerSettingsDomain> for PlannerSettingsResponse {
             min_staffing_mode: s.min_staffing_mode,
             keep_fixed_assignments: s.keep_fixed_assignments,
             personal_limits_mode: s.personal_limits_mode,
+            default_weekly_working_hours: s.default_weekly_working_hours,
         }
     }
 }
@@ -114,8 +117,11 @@ pub struct UpdatePlannerSettingsRequest {
     pub keep_fixed_assignments: bool,
     #[serde(default = "default_personal_limits_mode")]
     pub personal_limits_mode: MinStaffingMode,
+    #[serde(default = "default_weekly_working_hours")]
+    pub default_weekly_working_hours: f64,
 }
 
+fn default_weekly_working_hours() -> f64 { 40.0 }
 fn default_weekly_hours_target_weight() -> i32 { 1000 }
 fn default_preference_weight() -> i32 { 300 }
 fn default_skill_downgrade_weight() -> i32 { 200 }
@@ -172,6 +178,7 @@ impl PlannerSettingsService {
             min_staffing_mode: body.min_staffing_mode,
             keep_fixed_assignments: body.keep_fixed_assignments,
             personal_limits_mode: body.personal_limits_mode,
+            default_weekly_working_hours: body.default_weekly_working_hours,
         };
 
         let settings = state.planner_settings_repo.update_planner_settings(&tenant.0, update).await?;
@@ -219,6 +226,9 @@ fn validate(body: &UpdatePlannerSettingsRequest) -> Result<(), AppError> {
     }
     if body.weekly_min_hours.is_some_and(|v| v < 0.0) || body.weekly_max_hours.is_some_and(|v| v < 0.0) {
         return Err(AppError::Validation("weekly_min_hours/weekly_max_hours must be >= 0".into()));
+    }
+    if !(body.default_weekly_working_hours > 0.0 && body.default_weekly_working_hours <= 168.0) {
+        return Err(AppError::Validation("default_weekly_working_hours must be greater than 0 and at most 168".into()));
     }
     if body.weekly_hours_target_weight < 0 {
         return Err(AppError::Validation("weekly_hours_target_weight must be >= 0".into()));

@@ -121,7 +121,7 @@ async fn personal_limits_round_trip_and_reach_the_optimizer() {
     let night = app.create("/shifts", json!({ "name": "Night", "short_name": "N", "color": "#6366F1" })).await;
     app.create("/workstations", json!({ "name": "Ward", "available": true, "active_shift_ids": [night] })).await;
     let email = format!("anna-{}@test.invalid", Uuid::new_v4());
-    let anna = app.create("/employees", json!({ "name": "Anna", "email": email, "monthly_working_hours": 160 })).await;
+    let anna = app.create("/employees", json!({ "name": "Anna", "email": email, "weekly_working_hours": 40 })).await;
     let path = format!("/employees/{anna}/personal-limits");
 
     // No row yet: no limits.
@@ -178,7 +178,7 @@ async fn personal_limits_round_trip_and_reach_the_optimizer() {
 async fn impossible_limits_and_unknown_employees_are_refused() {
     let Some(app) = TestApp::spawn().await else { return };
     let email = format!("ben-{}@test.invalid", Uuid::new_v4());
-    let ben = app.create("/employees", json!({ "name": "Ben", "email": email, "monthly_working_hours": 160 })).await;
+    let ben = app.create("/employees", json!({ "name": "Ben", "email": email, "weekly_working_hours": 40 })).await;
     let path = format!("/employees/{ben}/personal-limits");
 
     for body in [

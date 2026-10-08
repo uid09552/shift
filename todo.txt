@@ -2,6 +2,14 @@
 
 Around the finished roster (the biggest gap: planning is strong, everything after it is thin)
 1) make week hours of employee, instead of monthly workhours. adjust ui, backend, docs. okf file.
+   DONE. employees.weekly_working_hours (optional; NULL follows
+   planner_settings.default_weekly_working_hours, 40 h; 0 = no target), migration
+   33 converts monthly × 12 / 52 (rounded to 0.5), 0 → default. Responses add
+   effective_weekly_working_hours; monthly_working_hours is refused with 400.
+   Every period target is weekly × days / 7 (optimizer, plan check, replacement,
+   Fairness, Employee calendar). Employee form: empty = default, "Use default";
+   Planner Settings: "Default weekly hours". Tests: tests/weekly_hours.rs,
+   planner/tests/test_weekly_hours.py, agent/tests/test_weekly_hours.py.
 4) Hours account (Zeitkonto) — per employee, contract hours vs worked hours, carried
    month to month. One analysis endpoint over confirmed_shift_plans + monthly target;
    a column on Fairness and Employee Calendar. [S]

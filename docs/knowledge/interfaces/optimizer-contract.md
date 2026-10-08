@@ -34,7 +34,7 @@ question of the form "why did the solver decide that".
 | `planning_period` | `start_date`, `end_date` |
 | `shifts` | `id`, `name`, `is_night_shift`, `weekday_times[]` |
 | `workstations` | `id`, `name`, `required_skills`, `priority`, `operating_shifts`, `min_employees`, `max_employees`, `unavailability[]` |
-| `employees` | `id`, `name`, `skills`, `available_shifts`, `unavailability[]`, `monthly_working_hours`, `preferred_off[]`, `wishes[]` |
+| `employees` | `id`, `name`, `skills`, `available_shifts`, `unavailability[]`, `weekly_working_hours` (effective: own value or the tenant default, resolved by the backend; target = × days ÷ 7, 0 = none), `preferred_off[]`, `wishes[]` |
 | `capabilities` | `id`, `level`, `skill_group` — for the skill-downgrade objective |
 | `locked_assignments` | `employee_id`, `date`, `shift_id`, `workstation_id` — rows the solver must keep |
 | `constraints` | The `ConstraintConfig` block |

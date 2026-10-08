@@ -156,7 +156,9 @@ pub struct EmployeeTask {
     pub skills: Vec<String>,
     pub available_shifts: Vec<String>,
     pub unavailability: Vec<String>,
-    pub monthly_working_hours: f64,
+    /// Effective contracted hours per week (own value or the tenant default);
+    /// the planner prorates them to the period as × days / 7. 0 = no target.
+    pub weekly_working_hours: f64,
     // Days/shifts the employee would rather not work (soft — see
     // Unavailability.is_soft_preference). Never blocks assignment.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

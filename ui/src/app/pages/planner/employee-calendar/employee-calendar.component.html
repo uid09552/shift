@@ -675,7 +675,12 @@
                     </span>
                     <span class="text-gray-600 dark:text-gray-400">{{ w.weekLabel }}</span>
                   </span>
-                  <span class="font-medium tabular-nums text-gray-800 dark:text-white/90">{{ w.hours | number: '1.0-1' }}h</span>
+                  <span class="tabular-nums">
+                    <span class="font-medium text-gray-800 dark:text-white/90">{{ w.hours | number: '1.0-1' }}h</span>
+                    @if (weeklyTargetHours > 0) {
+                      <span class="text-xs text-gray-400 dark:text-gray-500"> / {{ prorated(w.days) | number: '1.0-1' }}h</span>
+                    }
+                  </span>
                 </div>
               }
             </div>

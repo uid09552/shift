@@ -965,8 +965,8 @@ class _Validator:
                 )
 
     def _check_hours(self) -> None:
-        """Soft: hours worked against the employee's monthly target, scaled to
-        the planning period the way the solver scales it (÷30 × days)."""
+        """Soft: hours worked against the employee's contract hours, prorated
+        to the planning period the way the solver does it (weekly × days / 7)."""
         if not self.days:
             return
         hours: dict[str, float] = defaultdict(float)
@@ -978,10 +978,10 @@ class _Validator:
         for employee_id, employee in self.employees.items():
             if employee_id not in self.scope_ids:
                 continue
-            monthly = employee.get("monthly_working_hours") or 0
-            if monthly <= 0:
+            weekly = employee.get("weekly_working_hours") or 0
+            if weekly <= 0:
                 continue
-            target = monthly * len(self.days) / 30.0
+            target = weekly * len(self.days) / 7.0
             actual = hours.get(employee_id, 0.0)
             deviation = actual - target
             # Two thresholds together: a relative one so small targets aren't
@@ -989,8 +989,8 @@ class _Validator:
             if abs(deviation) > max(8.0, target * 0.25):
                 self.findings.add(
                     "hours_off_target", SEVERITY_WARNING,
-                    "Well off the monthly hours target",
-                    "Scaled to this planning period. The solver balances hours as a "
+                    "Well off the contract hours target",
+                    "Weekly hours prorated to this planning period. The solver balances hours as a "
                     "soft objective, so a gap is a signal rather than a fault.",
                     f"{self._emp_name(employee_id)} — {actual:.1f} h against a target of "
                     f"{target:.1f} h ({deviation:+.1f} h)",

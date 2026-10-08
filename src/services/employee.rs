@@ -9,7 +9,10 @@ use std::collections::HashMap;
 use uuid::Uuid;
 use crate::errors::AppError;
 use crate::repository::AppState;
-use crate::repository::domain::{CapabilityRepository, EmployeeRepository, ShiftRepository};
+use crate::repository::domain::{
+    effective_weekly_hours, CapabilityRepository, Employee, EmployeeRepository, PlannerSettingsRepository,
+    ShiftRepository,
+};
 use crate::services::audit_log::{self, AuditActor};
 use crate::services::tenant::TenantContext;
 use crate::services::xlsx_io::{self, ImportResult};
@@ -35,12 +38,69 @@ pub struct AddCapabilityRequest {
 
 pub struct EmployeeService;
 
+/// The template's hours column, and the names it had before hours became weekly.
+const HOURS_COLUMN: &str = "weekly_working_hours";
+const OLD_HOURS_COLUMNS: [&str; 2] = ["max_working_hours", "monthly_working_hours"];
+
+/// Most hours a week can hold.
+const MAX_WEEKLY_HOURS: f64 = 168.0;
+
+/// The tenant's default weekly hours, for everyone without their own.
+async fn default_weekly_hours(state: &AppState, tenant: &TenantContext) -> Result<f64, AppError> {
+    Ok(state
+        .planner_settings_repo
+        .get_or_create_planner_settings(&tenant.0)
+        .await?
+        .default_weekly_working_hours)
+}
+
+/// An employee as the API returns it: their own `weekly_working_hours` (null when
+/// following the default) and the `effective_weekly_working_hours` they are held to.
+fn employee_json(employee: &Employee, default_weekly: f64) -> Value {
+    let mut value = serde_json::to_value(employee).unwrap();
+    value["effective_weekly_working_hours"] =
+        serde_json::json!(effective_weekly_hours(employee.weekly_working_hours, default_weekly));
+    value
+}
+
+/// `weekly_working_hours` from a request body: `None` when the key is absent,
+/// `Some(None)` for `null` (follow the default), `Some(Some(h))` for an own value.
+/// A body still using `monthly_working_hours` is refused rather than half-applied.
+fn weekly_hours_from_body(body: &Value) -> Result<Option<Option<f64>>, AppError> {
+    if body.get("monthly_working_hours").is_some() {
+        return Err(AppError::Validation(
+            "'monthly_working_hours' is no longer supported; send 'weekly_working_hours' (hours per week, or null for the default)".into(),
+        ));
+    }
+    match body.get(HOURS_COLUMN) {
+        None => Ok(None),
+        Some(Value::Null) => Ok(Some(None)),
+        Some(v) => {
+            let hours = v
+                .as_f64()
+                .ok_or_else(|| AppError::Validation("'weekly_working_hours' must be a number or null".into()))?;
+            validate_weekly_hours(hours)?;
+            Ok(Some(Some(hours)))
+        }
+    }
+}
+
+fn validate_weekly_hours(hours: f64) -> Result<(), AppError> {
+    if (0.0..=MAX_WEEKLY_HOURS).contains(&hours) {
+        Ok(())
+    } else {
+        Err(AppError::Validation(format!(
+            "'weekly_working_hours' must be between 0 and {MAX_WEEKLY_HOURS}"
+        )))
+    }
+}
+
 impl EmployeeService {
     pub async fn list_employees(
         tenant: TenantContext,
         Query(q): Query<PaginationQuery>,
         State(state): State<AppState>,
-    ) -> Json<Value> {
+    ) -> Result<Json<Value>, AppError> {
         let limit = q.limit.map(|l| l as i64).or(Some(50));
         let offset = q.offset.map(|o| o as i64);
 
@@ -58,13 +118,14 @@ impl EmployeeService {
             .await
             .expect("Error counting employees");
 
+        let default_weekly = default_weekly_hours(&state, &tenant).await?;
         let response = PaginatedResponse {
-            data: employees,
+            data: employees.iter().map(|e| employee_json(e, default_weekly)).collect::<Vec<_>>(),
             total,
             limit: limit.unwrap_or(50),
             offset: offset.unwrap_or(0),
         };
-        Json(serde_json::to_value(response).unwrap())
+        Ok(Json(serde_json::to_value(response).unwrap()))
     }
 
     pub async fn create_employee(
@@ -83,19 +144,17 @@ impl EmployeeService {
             .and_then(|v| v.as_str())
             .ok_or_else(|| AppError::Validation("Missing 'email'".into()))?;
 
-        let monthly_working_hours = body
-            .get("monthly_working_hours")
-            .and_then(|v| v.as_f64())
-            .ok_or_else(|| AppError::Validation("Missing 'monthly_working_hours'".into()))?;
+        let weekly_working_hours = weekly_hours_from_body(&body)?.flatten();
 
         let employee = state
             .employee_repo
-            .create_employee(&tenant.0, name, email, monthly_working_hours)
+            .create_employee(&tenant.0, name, email, weekly_working_hours)
             .await?;
 
         audit_log::record(&state, &tenant.0, actor.0, "employee.create", "employee", Some(employee.id.to_string()), Some(body.to_string())).await;
 
-        Ok(Json(serde_json::to_value(employee).unwrap()))
+        let default_weekly = default_weekly_hours(&state, &tenant).await?;
+        Ok(Json(employee_json(&employee, default_weekly)))
     }
 
     pub async fn get_employee_by_id(
@@ -111,11 +170,11 @@ impl EmployeeService {
         Path(employee_id): Path<Uuid>,
         State(state): State<AppState>,
         Json(body): Json<Value>,
-    ) -> Json<Value> {
+    ) -> Result<Json<Value>, AppError> {
         // Extract optional fields from request body
         let name_opt = body.get("name").and_then(|v| v.as_str());
         let email_opt = body.get("email").and_then(|v| v.as_str());
-        let monthly_working_hours_opt = body.get("monthly_working_hours").and_then(|v| v.as_f64());
+        let weekly_working_hours_opt = weekly_hours_from_body(&body)?;
 
         // Retrieve existing employee
         let existing = state
@@ -133,8 +192,9 @@ impl EmployeeService {
                 if let Some(email) = email_opt {
                     employee.email = email.to_string();
                 }
-                if let Some(monthly_working_hours) = monthly_working_hours_opt {
-                    employee.monthly_working_hours = monthly_working_hours;
+                // Absent: unchanged. null: back to the tenant default.
+                if let Some(weekly_working_hours) = weekly_working_hours_opt {
+                    employee.weekly_working_hours = weekly_working_hours;
                 }
 
                 // Persist changes via repository
@@ -146,9 +206,10 @@ impl EmployeeService {
 
                 audit_log::record(&state, &tenant.0, actor.0, "employee.update", "employee", Some(employee_id.to_string()), Some(body.to_string())).await;
 
-                Json(serde_json::to_value(employee).unwrap())
+                let default_weekly = default_weekly_hours(&state, &tenant).await?;
+                Ok(Json(employee_json(&employee, default_weekly)))
             }
-            None => Json(serde_json::json!({ "error": "Employee not found" })),
+            None => Ok(Json(serde_json::json!({ "error": "Employee not found" }))),
         }
     }
 
@@ -156,7 +217,7 @@ impl EmployeeService {
         tenant: TenantContext,
         Path(email): Path<String>,
         State(state): State<AppState>,
-    ) -> Json<Value> {
+    ) -> Result<Json<Value>, AppError> {
         // Retrieve employee by email using repository
         let employee_opt = state
             .employee_repo
@@ -164,8 +225,11 @@ impl EmployeeService {
             .await
             .expect("Error loading employee by email");
         match employee_opt {
-            Some(employee) => Json(serde_json::to_value(employee).unwrap()),
-            None => Json(serde_json::json!({ "error": "Employee not found" })),
+            Some(employee) => {
+                let default_weekly = default_weekly_hours(&state, &tenant).await?;
+                Ok(Json(employee_json(&employee, default_weekly)))
+            }
+            None => Ok(Json(serde_json::json!({ "error": "Employee not found" }))),
         }
     }
 
@@ -250,7 +314,7 @@ impl EmployeeService {
         let bytes = xlsx_io::build_template(&[
             "name",
             "email",
-            "max_working_hours",
+            HOURS_COLUMN,
             "capabilities",
             "available_shifts",
         ])?;
@@ -264,6 +328,16 @@ impl EmployeeService {
         multipart: Multipart,
     ) -> Result<Json<Value>, AppError> {
         let bytes = xlsx_io::extract_uploaded_file(multipart).await?;
+        // An outdated template's hours were monthly; importing them as weekly
+        // would quietly quadruple everyone's target.
+        if let Some(old) = xlsx_io::parse_header(&bytes)?
+            .get(2)
+            .filter(|h| OLD_HOURS_COLUMNS.contains(&h.as_str()))
+        {
+            return Err(AppError::Validation(format!(
+                "Column '{old}' is from an old template: hours are now per week. Download the current template and fill in '{HOURS_COLUMN}' (empty = the default)"
+            )));
+        }
         let rows = xlsx_io::parse_rows(&bytes)?;
 
         let cap_by_name: HashMap<String, Uuid> = state
@@ -296,17 +370,22 @@ impl EmployeeService {
                 continue;
             }
 
-            let monthly_working_hours: f64 = match hours_str.parse() {
-                Ok(v) => v,
-                Err(_) => {
-                    result.push_error(row_num, format!("Invalid 'max_working_hours' value: '{hours_str}'"));
-                    continue;
+            // Empty: the employee follows the tenant default.
+            let weekly_working_hours: Option<f64> = if hours_str.is_empty() {
+                None
+            } else {
+                match hours_str.parse::<f64>().ok().filter(|h| validate_weekly_hours(*h).is_ok()) {
+                    Some(v) => Some(v),
+                    None => {
+                        result.push_error(row_num, format!("Invalid '{HOURS_COLUMN}' value: '{hours_str}' (0–{MAX_WEEKLY_HOURS}, or empty for the default)"));
+                        continue;
+                    }
                 }
             };
 
             let employee = match state
                 .employee_repo
-                .create_employee(&tenant.0, name, email, monthly_working_hours)
+                .create_employee(&tenant.0, name, email, weekly_working_hours)
                 .await
             {
                 Ok(e) => e,
