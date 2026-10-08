@@ -62,6 +62,30 @@ changing.
     fine. For a large reshuffle, it is safer to fix the underlying data
     (absences, availability) and recalculate.
 
+### Swapping shifts with a colleague
+
+Employees can arrange a swap themselves; a planner still has the last word.
+
+1. **Ask.** Right-click one of your own shifts (today or later) and choose
+   **Request a swap…**, then click the colleague's shift you would take
+   instead — on the same day or another. Confirm with **Send request**.
+   Nothing in the roster changes yet.
+2. **Agree.** Your colleague opens **Swap requests** at the top of the Schedule
+   and chooses **Accept** or **Decline**.
+3. **Decide.** Planners see a number on the bell once a colleague has agreed.
+   In **Swap requests**, **Review** shows what the swap would break for each of
+   the two — too little rest, a missing qualification, a personal limit — and
+   **Approve** or **Reject** decides. Approving exchanges the two shifts.
+
+Warnings never stop an approval; they are there so you decide knowingly, and
+they are kept in the [audit log](administration.md#the-audit-log). If either shift was changed
+in the meantime, approval is refused and the request is marked *Roster changed*.
+A request still open when its day comes is *Expired*. You can withdraw your own
+request until it is decided.
+
+On different days, each of you has to be free on the other's day. Planners do
+not request swaps; they change the roster directly with **Swap with…**.
+
 ---
 
 ## Day — one day, hour by hour

@@ -38,6 +38,7 @@ summary below is the product contract for the API.
 | Write data (`POST/PUT/PATCH/DELETE` on master data) | ❌ | ✅ | ✅ |
 | `/shift-wishes` | ✅ own records only | ✅ any record | ✅ any record |
 | `/wish-settings` | ✅ read only | ✅ read only | ✅ read/write |
+| `/shift-swaps` | ✅ request, answer, cancel — own only | ✅ read all, approve/reject | ✅ read all, approve/reject |
 | `/users` and `/users/{id}/roles` | ❌ | ❌ | ✅ |
 | `/planner/*` | ❌ | ✅ | ✅ |
 | `/planner-settings` | ✅ read only | ✅ read/write | ✅ read/write |
@@ -45,8 +46,8 @@ summary below is the product contract for the API.
 
 The grant model is intentionally simple:
 
-- `shift-viewer`: read access everywhere, plus writes only on `shift-wishes` for
-  the caller's own employee record.
+- `shift-viewer`: read access everywhere, plus writes only on `shift-wishes` and
+  `shift-swaps` for the caller's own employee record.
 - `shift-planner`: all write operations except the admin-only actions.
 - `shift-admin`: everything above, plus user-management and wish-window changes.
 
@@ -125,6 +126,61 @@ date — a soft reward for the optimizer, never a guarantee.
 only manage their own — the employee's e-mail must match the `email` or
 `preferred_username` claim of their token. The wish window below applies on top
 of that, to everyone.
+
+## Shift swaps
+
+An employee offers one of their confirmed shifts for one of a colleague's; the
+colleague accepts or declines, then a planner approves (the two roster rows are
+exchanged) or rejects.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` `POST` | `/shift-swaps` | List (`status`; planners also `employee_id`) / request |
+| `GET` | `/shift-swaps/pending-count` | How many await a planner (**planner/admin only**) |
+| `GET` | `/shift-swaps/{id}` | Read — for a planner on a `pending_planner` request, with rule `warnings` |
+| `POST` | `/shift-swaps/{id}/accept`, `/decline` | The colleague named in the request answers |
+| `POST` | `/shift-swaps/{id}/cancel` | The requester withdraws it while pending |
+| `POST` | `/shift-swaps/{id}/approve`, `/reject` | **`shift-planner` / `shift-admin`** decide |
+
+```text
+pending_colleague ─accept─▶ pending_planner ─approve─▶ approved
+        │ decline                  │ reject
+        ▼                          ▼
+     rejected                   rejected        (either pending: cancel → cancelled,
+                                                 earlier date passed → expired)
+```
+
+```bash
+curl -X POST http://localhost:8081/api/v1/shift-swaps \
+  -H "Content-Type: application/json" \
+  -d '{ "requester_id": "<own employee id>", "requester_date": "2026-10-12",
+        "colleague_id": "<colleague id>",    "colleague_date": "2026-10-13" }'
+```
+
+- **Who.** The requester must be the caller (matched by e-mail, as for wishes);
+  planners and admins may not request swaps, so none skips the colleague's
+  consent. Viewers see only requests they are part of; planners the tenant's.
+- **What is checked at request time.** Both shifts must exist in the confirmed
+  roster on those dates, today or later; on different dates each person must be
+  free (no row, or a free day) on the other's date. Nothing else — qualification
+  included.
+- **Rule warnings.** The planner's view of a `pending_planner` request asks the
+  agent (`POST /api/v1/roster/swap-check`, see [Agent](agent.md#shift-swap-check))
+  which rules the exchange breaks for each person: rest, recovery, streaks,
+  weekly cap, station maximum, personal limits, qualification. They come back as
+  `warnings`, or the reason they could not be had as `warnings_error`. They never
+  block approval; the ones present are written to the `shift_swap.approve` audit
+  entry.
+- **Approval** re-reads both roster rows in one transaction. Same day: each row
+  takes the other's shift. Different days: the shift rows change owner, and so do
+  the free-day rows they displace. If either shift was edited or removed since,
+  nothing changes, the request becomes `stale` and the answer is **409**.
+- **Expiry** is written on read: a pending request whose earlier date has passed
+  becomes `expired`.
+
+Every step leaves an audit entry (`shift_swap.create`, `.accept`, `.decline`,
+`.cancel`, `.reject`, `.approve`, `.stale`). Swaps touch only the confirmed
+roster; the optimizer sees them only as `history`.
 
 ### The wish window
 

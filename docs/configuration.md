@@ -104,6 +104,12 @@ source configured, every request is refused.
 |---|---|---|
 | `jwks_url` | `""` | JWKS endpoint. Empty: `<keycloak.url>/realms/<realm>/protocol/openid-connect/certs`. Env: `SHIFT_AUTH__JWKS_URL` |
 
+### `agent`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `url` | `""` | The agent's REST API, e.g. `http://agent:8899`. Asked for the rule warnings a planner sees on a shift swap, with the planner's own token. Empty: swaps are shown without warnings. Env: `SHIFT_AGENT__URL` |
+
 ### `holidays`
 
 Public holidays, fetched as JSON from an [api-feiertage.de](https://get.api-feiertage.de)

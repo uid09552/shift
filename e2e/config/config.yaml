@@ -35,3 +35,5 @@ USERS:
   viewer:
     username: viewer
     password: viewer
+    # The employee record the account is matched to (shift wishes, swaps).
+    email: anna.mueller1@klinik.de

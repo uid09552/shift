@@ -91,6 +91,103 @@ pub struct ShiftWish {
     pub wish_date: NaiveDate,
 }
 
+/// One side of a shift swap: whose shift, on which day, as it stood in the
+/// confirmed roster when the request was made.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct SwapSide {
+    pub employee_id: Uuid,
+    pub date: NaiveDate,
+    pub shift_id: Uuid,
+    pub workstation_id: Option<Uuid>,
+}
+
+/// Where a swap request stands. Only the two `pending_*` states move on.
+pub mod swap_status {
+    pub const PENDING_COLLEAGUE: &str = "pending_colleague";
+    pub const PENDING_PLANNER: &str = "pending_planner";
+    pub const APPROVED: &str = "approved";
+    pub const REJECTED: &str = "rejected";
+    pub const CANCELLED: &str = "cancelled";
+    pub const EXPIRED: &str = "expired";
+    pub const STALE: &str = "stale";
+    pub const PENDING: [&str; 2] = [PENDING_COLLEAGUE, PENDING_PLANNER];
+}
+
+/// A viewer's request to exchange their confirmed shift (`requester`) for a
+/// colleague's (`colleague`): the colleague consents, a planner decides.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ShiftSwapRequest {
+    pub id: Uuid,
+    pub requester: SwapSide,
+    pub colleague: SwapSide,
+    pub status: String,
+    pub decided_by: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+/// What approving a swap came to.
+#[derive(Debug)]
+pub enum SwapApproval {
+    /// The two roster rows were exchanged.
+    Approved(ShiftSwapRequest),
+    /// The roster no longer matches the request; it is now `stale`. The text says what changed.
+    Stale(ShiftSwapRequest, String),
+}
+
+impl ConfirmedShiftPlan {
+    /// A shift someone is down to work — not an absence or a day off.
+    pub fn is_working(&self) -> bool {
+        self.is_present && self.shift_id.is_some()
+    }
+
+    /// A planned day off ("Take as Plan" writes one for every day without a
+    /// shift), as opposed to sick leave, holiday or another absence.
+    pub fn is_free(&self) -> bool {
+        !self.is_working() && matches!(self.absence_type.as_deref(), None | Some("free"))
+    }
+}
+
+/// Why the roster no longer allows exchanging `requester` and `colleague`, or
+/// `None` when it does. `rows` are the confirmed rows of both people on both
+/// dates; anything else is ignored.
+///
+/// Each side's shift must still be in the roster exactly as requested. When the
+/// dates differ, each person must also be free on the other's date: the roster
+/// holds one row per person and day, so taking a shift there means giving up
+/// whatever was there.
+pub fn swap_roster_conflict(
+    requester: &SwapSide,
+    colleague: &SwapSide,
+    rows: &[ConfirmedShiftPlan],
+    names: impl Fn(Uuid) -> String,
+) -> Option<String> {
+    let row = |employee_id: Uuid, date: NaiveDate| {
+        rows.iter().find(|r| r.employee_id == employee_id && r.date == date)
+    };
+    for side in [requester, colleague] {
+        let current = row(side.employee_id, side.date);
+        let unchanged = current.is_some_and(|r| {
+            r.is_working() && r.shift_id == Some(side.shift_id) && r.workstation_id == side.workstation_id
+        });
+        if !unchanged {
+            return Some(format!(
+                "{}'s shift on {} has changed or been removed since the request was made",
+                names(side.employee_id),
+                side.date
+            ));
+        }
+    }
+    if requester.date != colleague.date {
+        for (who, date) in [(colleague.employee_id, requester.date), (requester.employee_id, colleague.date)] {
+            if row(who, date).is_some_and(|r| !r.is_free()) {
+                return Some(format!("{} is not free on {date}", names(who)));
+            }
+        }
+    }
+    None
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorkstationUnavailability {
     pub id: Uuid,
@@ -184,6 +281,23 @@ pub trait ShiftWishRepository {
     async fn list_shift_wishes(&self, tenant_id: &str) -> Result<Vec<ShiftWish>, AppError>;
     async fn get_shift_wishes_for_employee(&self, tenant_id: &str, employee_id: Uuid) -> Result<Vec<ShiftWish>, AppError>;
     async fn delete_shift_wish(&self, tenant_id: &str, id: Uuid) -> Result<(), AppError>;
+}
+
+#[async_trait]
+pub trait ShiftSwapRepository {
+    async fn create_swap(&self, tenant_id: &str, requester: SwapSide, colleague: SwapSide) -> Result<ShiftSwapRequest, AppError>;
+    async fn get_swap(&self, tenant_id: &str, id: Uuid) -> Result<Option<ShiftSwapRequest>, AppError>;
+    /// Newest first. With `employee_id`, only the requests they are requester or colleague in.
+    async fn list_swaps(&self, tenant_id: &str, employee_id: Option<Uuid>, status: Option<String>) -> Result<Vec<ShiftSwapRequest>, AppError>;
+    async fn count_swaps_with_status(&self, tenant_id: &str, status: &str) -> Result<i64, AppError>;
+    /// Moves the request to `to` if it is in one of `from`; `None` when it is not (or does not exist).
+    async fn transition_swap(&self, tenant_id: &str, id: Uuid, from: &[&str], to: &str, decided_by: Option<String>) -> Result<Option<ShiftSwapRequest>, AppError>;
+    /// Marks pending requests whose earlier date is before `today` as expired.
+    async fn expire_swaps(&self, tenant_id: &str, today: NaiveDate) -> Result<usize, AppError>;
+    /// In one transaction: checks the request awaits a planner, compares both
+    /// roster rows with the request, and either exchanges them (`Approved`) or
+    /// marks the request `stale` (`Stale`).
+    async fn approve_swap(&self, tenant_id: &str, id: Uuid, decided_by: Option<String>) -> Result<SwapApproval, AppError>;
 }
 
 #[async_trait]

@@ -93,6 +93,8 @@ count depends on the data in the environment under test.
 | `smoke` | the handful that prove the stack is alive; run these first |
 | `navigation` | follows a link to another page |
 | `rbac` | depends on the signed-in user's role |
+| `schedule` | touches the Schedule page |
+| `swaps` | the shift swap flow; brings its own data (a colleague account, shifts today) and removes it |
 
 ## Adding a suite
 

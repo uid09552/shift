@@ -17,6 +17,13 @@
         fill="currentColor"
       />
     </svg>
+    @if ((swaps.pending$ | async) || 0; as pending) {
+      <span
+        class="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-warning-500 px-1 text-[11px] font-semibold tabular-nums text-white"
+        data-testid="notifications-swap-badge"
+        [attr.aria-label]="'notifications.swapsPending' | t: { count: pending }"
+      >{{ pending }}</span>
+    }
   </button>
   <app-dropdown
     [isOpen]="isOpen"
@@ -47,6 +54,18 @@
         </svg>
       </button>
     </div>
+    @if ((swaps.pending$ | async) || 0; as pending) {
+      <a
+        routerLink="/kalender"
+        [queryParams]="{ swaps: 'open' }"
+        (click)="closeDropdown()"
+        data-testid="notifications-swaps"
+        class="mb-2 flex items-center justify-between gap-3 rounded-lg bg-warning-50 px-4 py-3 text-sm font-medium text-warning-700 hover:bg-warning-100 dark:bg-warning-500/10 dark:text-warning-400 dark:hover:bg-warning-500/15"
+      >
+        <span>{{ 'notifications.swapsPending' | t: { count: pending } }}</span>
+        <span aria-hidden="true">→</span>
+      </a>
+    }
     <ul class="flex flex-col h-auto overflow-y-auto custom-scrollbar">
       @if (loading) {
         <li class="px-4 py-6 text-center text-sm text-gray-400">{{ 'common.loading' | t }}</li>

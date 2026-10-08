@@ -21,6 +21,10 @@ Nothing here writes. The UI records the absence and the replacement through
 the ordinary confirmed-plan endpoints once the planner has chosen; a
 candidate's ``free_plan_id`` is their "free" row for that day, which has to
 give way to the new shift (one row per person and day).
+
+The same rules answer a shift swap (``check_exchange``): two people trade
+their confirmed shifts, and for each the planner sees every rule the trade
+would break — as warnings, never a refusal, because the planner decides.
 """
 
 from __future__ import annotations
@@ -78,7 +82,12 @@ def collect(
 ) -> tuple[dict, list[dict], dict[str, str]]:
     """The rules for the month of ``day`` (preparePlan), the confirmed roster
     around it, and capability names for readable reasons."""
-    month_start, month_end = _month(day)
+    return _collect(call_mcp, *_month(day))
+
+
+def _collect(
+    call_mcp: Callable[[str, dict], str], month_start: date, month_end: date
+) -> tuple[dict, list[dict], dict[str, str]]:
     rules = _call_json(
         call_mcp,
         PREPARE_TOOL,
@@ -86,7 +95,7 @@ def collect(
         "The rules for that month",
     )
     if not isinstance(rules, dict) or "employees" not in rules:
-        raise ValidationError("Could not load the current rules for that month.")
+        raise ValidationError("Could not load the current rules for that period.")
     roster = _load_roster(
         call_mcp,
         month_start - timedelta(days=_MARGIN_DAYS),
@@ -279,3 +288,74 @@ def _candidate(
 def search(call_mcp: Callable[[str, dict], str], employee_id: str, day: date) -> dict:
     rules, roster, capability_names = collect(call_mcp, day)
     return find_replacements(rules, roster, employee_id, day, capability_names)
+
+
+def check_exchange(
+    rules: dict,
+    roster: list[dict],
+    requester_id: str,
+    requester_day: date,
+    colleague_id: str,
+    colleague_day: date,
+    capability_names: dict[str, str] | None = None,
+) -> dict:
+    """What a swap would break: the requester takes the colleague's shift on
+    ``colleague_day``, the colleague the requester's on ``requester_day``.
+
+    For each of the two, every rule the new shift breaks given the rest of the
+    roster — the other's move included — from ``_Rules.blocking_reasons``.
+    Read-only. Raises ``RepairError`` when either has no shift on their date.
+    """
+    r = _Rules(rules, capability_names)
+    plan = _Plan()
+    for row in roster:
+        row_day = _parse_day(row.get("date"))
+        who = row.get("employee_id")
+        if row_day is None or not who or not row.get("is_present", True) or not row.get("shift_id"):
+            continue
+        if plan.get(who, row_day) is None:
+            plan.place(who, row_day, (row["shift_id"], row.get("workstation_id")))
+
+    cells = {}
+    for who, day in ((requester_id, requester_day), (colleague_id, colleague_day)):
+        cell = plan.get(who, day)
+        if cell is None:
+            raise RepairError(f"{r.employee_name(who)} has no shift on {day.isoformat()} to swap.")
+        cells[who] = cell
+    plan.clear(requester_id, requester_day)
+    plan.clear(colleague_id, colleague_day)
+
+    moves = [
+        (requester_id, colleague_day, cells[colleague_id]),
+        (colleague_id, requester_day, cells[requester_id]),
+    ]
+    for who, day, cell in moves:
+        plan.place(who, day, cell)
+
+    employees = []
+    for who, day, cell in moves:
+        # Asked as if placing it afresh, with everyone else where the swap leaves them.
+        plan.clear(who, day)
+        violations = list(dict.fromkeys(r.blocking_reasons(who, day, cell[0], cell[1], plan)))
+        plan.place(who, day, cell)
+        employees.append({
+            "employee_id": who,
+            "name": r.employee_name(who),
+            "date": day.isoformat(),
+            "takes": r.describe(cell),
+            "violations": violations,
+        })
+    return {"employees": employees}
+
+
+def check_swap(
+    call_mcp: Callable[[str, dict], str],
+    requester_id: str, requester_day: date, colleague_id: str, colleague_day: date,
+) -> dict:
+    """``check_exchange`` against the current rules and confirmed roster for
+    the months the two dates fall in."""
+    first, last = sorted((requester_day, colleague_day))
+    rules, roster, capability_names = _collect(call_mcp, _month(first)[0], _month(last)[1])
+    return check_exchange(
+        rules, roster, requester_id, requester_day, colleague_id, colleague_day, capability_names,
+    )

@@ -19,6 +19,17 @@ pub struct Config {
     pub holidays: HolidayConfig,
     #[serde(default)]
     pub auth: AuthConfig,
+    /// The agent, asked for rule warnings on shift swaps. Env: `SHIFT_AGENT__URL`.
+    #[serde(default)]
+    pub agent: AgentConfig,
+}
+
+/// Where the agent's REST API is (e.g. `http://agent:8899`). Empty: shift swaps
+/// are shown to the planner without rule warnings.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AgentConfig {
+    #[serde(default)]
+    pub url: String,
 }
 
 /// How access tokens are verified (signature, expiry, issue date). Env:
@@ -236,6 +247,7 @@ impl Default for Config {
             build: BuildConfig::default(),
             holidays: HolidayConfig::default(),
             auth: AuthConfig::default(),
+            agent: AgentConfig::default(),
         }
     }
 }

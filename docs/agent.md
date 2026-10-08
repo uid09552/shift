@@ -37,7 +37,7 @@ flowchart TB
 | `roster.py` | `previewRosterUpload`, `interpretRosterUpload`, `applyRosterUpload`, plus the per-session store the uploaded grid lives in. |
 | `validation.py` | `validateOptimizedPlan` and the `POST /api/v1/plan/validate` endpoint — checking a proposed plan against the rules it was solved under. See [Plan verification](#plan-verification). |
 | `repair.py` | `repairOptimizedPlan` and the `POST /api/v1/plan/fix` endpoint — putting right what the check found, and saving it. See [Plan repair](#plan-repair). |
-| `replacement.py` | The `POST /api/v1/roster/replacements` endpoint — who can take an absent person's shift in the confirmed roster. See [Short-notice replacement](#short-notice-replacement). |
+| `replacement.py` | The `POST /api/v1/roster/replacements` endpoint — who can take an absent person's shift in the confirmed roster — and `POST /api/v1/roster/swap-check`, what a shift swap would break. See [Short-notice replacement](#short-notice-replacement) and [Shift swap check](#shift-swap-check). |
 | `server.py` | The HTTP surface. Validates the caller's token against Keycloak's JWKS, then stores it in a contextvar for the duration of the agent call. |
 | `auth.py` | Keycloak verification plus the contextvar holding the token. |
 
@@ -294,6 +294,30 @@ with `min_employees` / `max_employees` says whether anyone is needed at all.
 Nothing is written. On the Schedule page, *Find replacement…* in a cell's menu
 opens the list; *Assign* marks the absent person (sick, vacation or absent) and
 puts the colleague on the shift through the ordinary confirmed-plan endpoints.
+
+## Shift swap check
+
+`POST /api/v1/roster/swap-check` answers *"if Anna and Ben trade these two
+shifts, what breaks?"* — the warnings a planner sees on a
+[shift swap request](api.md#shift-swaps). The backend asks it, forwarding the
+planner's own token, when the request is reviewed.
+
+```bash
+curl -X POST http://localhost:8899/api/v1/roster/swap-check \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"requester": {"employee_id": "<anna>", "date": "2026-10-12"},
+       "colleague": {"employee_id": "<ben>",  "date": "2026-10-13"}}'
+```
+
+It loads the rules and the roster as the replacement search does, but for the
+months both dates fall in, then moves both shifts and asks
+`_Rules.blocking_reasons` — every rule, not only the first — for each person in
+their new place, with the other's move already made. The answer lists, per
+employee, the shift they would take (`takes`) and its `violations`: not
+qualified, does not work that shift, away, recovery days, minimum rest, streak,
+weekly day cap, station maximum, a hard personal limit. An empty list means the
+swap breaks nothing for them. Nothing is written, and nothing is refused: the
+planner decides.
 
 ## Roster uploads
 

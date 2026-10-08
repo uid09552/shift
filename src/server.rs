@@ -26,6 +26,7 @@ use crate::services::{
     shift::ShiftService,
     shift_assignment::ShiftAssignmentService,
     shift_wish::ShiftWishService,
+    shift_swap::ShiftSwapService,
     tenant,
     unavailability::UnavailabilityService,
     user_management::UserManagementService,
@@ -146,6 +147,15 @@ pub fn create_router(state: AppState) -> Router {
             "/shift-wishes/:wish_id",
             get(ShiftWishService::get_shift_wish_by_id).delete(ShiftWishService::delete_shift_wish),
         )
+        // Shift swaps: requested by an employee, accepted by the colleague, decided by a planner
+        .route("/shift-swaps", get(ShiftSwapService::list_shift_swaps).post(ShiftSwapService::create_shift_swap))
+        .route("/shift-swaps/pending-count", get(ShiftSwapService::pending_count))
+        .route("/shift-swaps/:swap_id", get(ShiftSwapService::get_shift_swap))
+        .route("/shift-swaps/:swap_id/accept", post(ShiftSwapService::accept_shift_swap))
+        .route("/shift-swaps/:swap_id/decline", post(ShiftSwapService::decline_shift_swap))
+        .route("/shift-swaps/:swap_id/cancel", post(ShiftSwapService::cancel_shift_swap))
+        .route("/shift-swaps/:swap_id/approve", post(ShiftSwapService::approve_shift_swap))
+        .route("/shift-swaps/:swap_id/reject", post(ShiftSwapService::reject_shift_swap))
         // Shift wish window (readable by everyone, writable by shift-admin only)
         .route(
             "/wish-settings",

@@ -123,6 +123,25 @@ These rows back the calendars and the `/analysis/*` endpoints. Optimizer output
 becomes confirmed plan only when someone calls
 `POST /planner/optimized-shifts/{id}/take-as-plan`.
 
+## Shift swap request
+
+An employee's offer to exchange one of their confirmed shifts for a colleague's
+(`shift_swap_requests`). Both shifts are stored by value — date, shift,
+workstation — as they stood when the request was made.
+
+| Status | Meaning |
+|---|---|
+| `pending_colleague` | Waiting for the colleague to accept or decline |
+| `pending_planner` | The colleague agreed; a planner or admin decides |
+| `approved` | The two roster rows were exchanged |
+| `rejected` | Declined by the colleague or rejected by a planner |
+| `cancelled` | Withdrawn by the requester |
+| `expired` | The earlier date passed while it was pending |
+| `stale` | Approval found either shift changed since; nothing was exchanged |
+
+Rules (rest, recovery, streaks, limits, qualification) are warnings for the
+planner, never a refusal. See [API → Shift swaps](api.md#shift-swaps).
+
 ## Optimized shift result
 
 A raw solver result, stored as JSONB in `optimized_shift_results`. Kept

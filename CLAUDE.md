@@ -184,6 +184,10 @@ Base URL: `http://localhost:8080/api/v1`
 - `GET/POST /unavailability` - Employee unavailability
 - `GET/POST /shift-wishes` - Employee shift wishes
 - `GET/PUT /wish-settings` - Shift-wish window (PUT: `shift-admin` only)
+- `GET/POST /shift-swaps` - Shift swap requests: a viewer offers their confirmed
+  shift for a colleague's (`/accept` `/decline` by the colleague, `/cancel` by the
+  requester, `/approve` `/reject` by planner/admin; `/pending-count` for the bell).
+  Rule breaches are warnings from the agent's `/roster/swap-check`, never a refusal
 - `GET/PUT /employees/{id}/personal-limits` - An employee's personal limits: max
   nights / weekends per month, no nights, preferred weekdays off (all: `GET
   /personal-limits`)

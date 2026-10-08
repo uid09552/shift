@@ -2,6 +2,7 @@ pub mod domain;
 pub mod employeerepository;
 pub mod shiftrepository;
 pub mod shiftwishrepository;
+pub mod shiftswaprepository;
 pub mod shiftassignmentrepository;
 pub mod confirmedshiftplanrepository;
 pub mod optimizedshiftresultrepository;
@@ -27,6 +28,7 @@ use self::employeerepository::{
 };
 use self::shiftrepository::DieselShiftRepository;
 use self::shiftwishrepository::DieselShiftWishRepository;
+use self::shiftswaprepository::DieselShiftSwapRepository;
 use self::shiftassignmentrepository::DieselEmployeeShiftAssignmentRepository;
 use self::confirmedshiftplanrepository::DieselConfirmedShiftPlanRepository;
 use self::optimizedshiftresultrepository::DieselOptimizedShiftResultRepository;
@@ -48,6 +50,7 @@ pub struct AppState {
     pub workstation_repo: DieselWorkstationRepository,
     pub unavailability_repo: DieselUnavailabilityRepository,
     pub shift_wish_repo: DieselShiftWishRepository,
+    pub shift_swap_repo: DieselShiftSwapRepository,
     pub workstation_unavailability_repo: DieselWorkstationUnavailabilityRepository,
     pub shift_assignment_repo: DieselEmployeeShiftAssignmentRepository,
     pub confirmed_shift_plan_repo: DieselConfirmedShiftPlanRepository,
@@ -66,6 +69,9 @@ pub struct AppState {
     pub nats_client: Option<async_nats::Client>,
     pub jetstream_status: JetStreamStatus,
     pub optimizer_url: String,
+    /// The agent's base URL (e.g. `http://agent:5000`), asked for the rule
+    /// warnings on a shift swap. Empty: swaps are shown without warnings.
+    pub agent_url: String,
     pub dev_mode: bool,
     pub default_tenant_id: String,
     /// Keycloak admin connection backing the user-management endpoints. `None`
@@ -85,6 +91,7 @@ impl AppState {
             workstation_repo: DieselWorkstationRepository { pool: Arc::clone(&pool) },
             unavailability_repo: DieselUnavailabilityRepository { pool: Arc::clone(&pool) },
             shift_wish_repo: DieselShiftWishRepository { pool: Arc::clone(&pool) },
+            shift_swap_repo: DieselShiftSwapRepository { pool: Arc::clone(&pool) },
             workstation_unavailability_repo: DieselWorkstationUnavailabilityRepository { pool: Arc::clone(&pool) },
             shift_assignment_repo: DieselEmployeeShiftAssignmentRepository { pool: Arc::clone(&pool) },
             confirmed_shift_plan_repo: DieselConfirmedShiftPlanRepository { pool: Arc::clone(&pool) },
@@ -102,6 +109,7 @@ impl AppState {
             nats_client: None,
             jetstream_status: JetStreamStatus::Unavailable,
             optimizer_url: "http://localhost:8888".to_string(),
+            agent_url: String::new(),
             dev_mode: false,
             default_tenant_id: "0".to_string(),
             keycloak: None,
@@ -117,6 +125,7 @@ impl AppState {
             workstation_repo: DieselWorkstationRepository { pool: Arc::clone(&pool) },
             unavailability_repo: DieselUnavailabilityRepository { pool: Arc::clone(&pool) },
             shift_wish_repo: DieselShiftWishRepository { pool: Arc::clone(&pool) },
+            shift_swap_repo: DieselShiftSwapRepository { pool: Arc::clone(&pool) },
             workstation_unavailability_repo: DieselWorkstationUnavailabilityRepository { pool: Arc::clone(&pool) },
             shift_assignment_repo: DieselEmployeeShiftAssignmentRepository { pool: Arc::clone(&pool) },
             confirmed_shift_plan_repo: DieselConfirmedShiftPlanRepository { pool: Arc::clone(&pool) },
@@ -134,6 +143,7 @@ impl AppState {
             nats_client: Some(nats_client),
             jetstream_status,
             optimizer_url,
+            agent_url: String::new(),
             dev_mode: false,
             default_tenant_id: "0".to_string(),
             keycloak: None,

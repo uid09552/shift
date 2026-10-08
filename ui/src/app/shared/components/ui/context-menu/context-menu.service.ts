@@ -25,6 +25,8 @@ export interface ContextMenuItem {
   /** A non-clickable section title. */
   heading?: boolean;
   separator?: boolean;
+  /** `data-testid` of the item, for the e2e tests. */
+  testId?: string;
 }
 
 export interface ContextMenuState {

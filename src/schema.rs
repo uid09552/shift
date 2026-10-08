@@ -259,6 +259,25 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    shift_swap_requests (id) {
+        id -> Uuid,
+        tenant_id -> Varchar,
+        requester_id -> Uuid,
+        requester_date -> Date,
+        requester_shift_id -> Uuid,
+        requester_workstation_id -> Nullable<Uuid>,
+        colleague_id -> Uuid,
+        colleague_date -> Date,
+        colleague_shift_id -> Uuid,
+        colleague_workstation_id -> Nullable<Uuid>,
+        status -> Varchar,
+        decided_by -> Nullable<Varchar>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
 diesel::joinable!(planning_tasks -> optimized_shift_results (result_id));
 diesel::joinable!(employee_available_shifts -> employees (employee_id));
 diesel::joinable!(employee_available_shifts -> shifts (shift_id));
@@ -300,4 +319,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     wish_settings,
     rotation_patterns,
     employee_personal_limits,
+    shift_swap_requests,
 );

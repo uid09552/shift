@@ -79,6 +79,8 @@ One service per backend resource, in `ui/src/app/shared/services/`:
 | `planner.service.ts` | `/planner/*` — trigger, poll, results |
 | `planner-settings.service.ts` | `/planner-settings` |
 | `shift-wish.service.ts` | `/shift-wishes` |
+| `shift-swap.service.ts` | `/shift-swaps` — list, request, accept/decline/cancel/approve/reject, pending count |
+| `swap-notification.service.ts` | Polls `/shift-swaps/pending-count` every minute for the header bell — planners and admins only |
 | `wish-settings.service.ts` | `/wish-settings` — plus `wishAllowedOn()`, the client-side mirror of the window check |
 | `confirmed-shift-plan.service.ts` | `/confirmed-shift-plans` |
 | `rotation.service.ts` | `/rotation-patterns`, `/rotation-patterns/{id}/apply` |
@@ -87,7 +89,7 @@ One service per backend resource, in `ui/src/app/shared/services/`:
 | `plan-validation.service.ts` | the agent's `/agent/plan/validate` and `/agent/plan/fix` |
 | `organization-user.service.ts` | `/users`, `/users/{id}/roles` |
 | `info.service.ts` | `/info` — the version shown under the sidebar |
-| `user.service.ts` | `/self` — identity and `roles`, via `isAdmin()` / `isPlanner()` |
+| `user.service.ts` | `/self` — identity and `roles`, via `isAdmin()` / `canPlan()` |
 | `chat.service.ts` | the agent's `/api/v1/chat` |
 | `modal.service.ts`, `sidebar.service.ts`, `theme.service.ts`, `global-search.service.ts` | UI state |
 
@@ -127,6 +129,24 @@ the `tab` query parameter, so reloads and shared links keep it.
 - **Compare** puts two stored runs side by side, scored against the current
   setup.
 - **Runs** lists every stored proposal and the task queue behind them.
+
+## Shift swaps on the Schedule page
+
+Who you are decides what the swap tools do (`UserService.canPlan()`, and the
+employee matched to your e-mail):
+
+- **Employees** get *Request a swap…* in the menu of their own shift (today or
+  later). They then click the colleague's shift they would take instead —
+  the same pick-a-cell gesture as the planner's *Swap with…* — and confirm.
+  Nothing in the grid changes; a request is sent.
+- **Swap requests** in the toolbar opens `SwapRequestsDialogComponent`. An
+  employee sees what is asked of them (accept / decline) and their own requests
+  (withdraw while pending). A planner sees what both colleagues agreed to;
+  *Review* loads the request with the agent's rule warnings, and *Approve* /
+  *Reject* decide. Approval reloads the grid.
+- **The header bell** shows a count and an entry linking to
+  `/kalender?swaps=open` for planners and admins only, polled every minute by
+  `SwapNotificationService`.
 
 ## The day view
 

@@ -25,12 +25,18 @@ Log In As
     ...                waited for optionally rather than required.
     [Arguments]    ${role}
     ${user}=    Set Variable    ${USERS}[${role}]
+    Log In With    ${user}[username]    ${user}[password]
+
+Log In With
+    [Documentation]    Signs in with an explicit username and password — for an
+    ...                account a suite created itself rather than one in USERS.
+    [Arguments]    ${username}    ${password}
     New Page    ${BASE_URL}${APP_PATH}
     ${login_shown}=    Run Keyword And Return Status
     ...    Wait For Elements State    ${LOGIN_USERNAME}    visible    ${LOGIN_TIMEOUT}
     IF    ${login_shown}
-        Fill Text    ${LOGIN_USERNAME}    ${user}[username]
-        Fill Text    ${LOGIN_PASSWORD}    ${user}[password]
+        Fill Text    ${LOGIN_USERNAME}    ${username}
+        Fill Text    ${LOGIN_PASSWORD}    ${password}
         Click    ${LOGIN_SUBMIT}
     END
     Wait For Elements State    ${APP_ROOT}    visible    ${TIMEOUT}

@@ -16,6 +16,16 @@ Around the finished roster (the biggest gap: planning is strong, everything afte
    empty notification dropdown). [L]
 8) Shift swaps and open shifts — employee offers a shift, a qualified colleague takes
    it, planner confirms; the rule check from 5) decides whether it is allowed. [L]
+   DONE for swaps (open shifts / give-away still open). A shift-viewer requests to
+   trade a confirmed shift with a colleague's (Schedule → cell menu → "Request a
+   swap…"); the colleague accepts or declines, a planner or admin approves — the
+   two roster rows are exchanged in one transaction, refused as stale if either
+   changed — or rejects (table shift_swap_requests, migration 32; /shift-swaps).
+   Rules are warnings for the planner, never a refusal: the agent's
+   POST /roster/swap-check reuses the replacement rules (qualification not checked
+   at request time). Planner/admin-only count on the header bell. Tests:
+   tests/shift_swaps.rs, agent/tests/test_swap_check.py,
+   e2e/tests/schedule/swap_requests.robot.
 9) Qualification matrix and expiry — employee x capability grid (free, data exists),
    then valid_until on employee capabilities: expired ones are ignored by the
    optimizer, the dashboard warns 30 days ahead. [S -> M]

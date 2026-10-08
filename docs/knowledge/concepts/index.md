@@ -32,6 +32,7 @@ schema — see [Tenant](/concepts/tenant.md).
 * [Unavailability](/concepts/unavailability.md) - a day or shift someone cannot work; hard block or soft preference.
 * [Shift assignment](/concepts/shift-assignment.md) - a fixed pre-arranged commitment the solver must respect.
 * [Shift wish](/concepts/shift-wish.md) - a request to work a shift on a day; rewarded, never forced.
+* [Shift swap request](/concepts/shift-swap.md) - two people trade confirmed shifts: the colleague agrees, a planner decides; rules are warnings only.
 
 ## Plans and runs
 

@@ -27,6 +27,8 @@ tags:
     description: Employee shift wish management endpoints (requested shift + date, considered by the optimizer)
   - name: Wish Settings
     description: The tenant's shift-wish window — whether, and for which dates, employees may place wishes themselves (shift-admin only to change)
+  - name: Shift Swaps
+    description: Employee-initiated exchange of two confirmed shifts — the colleague consents, a planner approves or rejects
   - name: Planner
     description: Shift scheduling planner endpoints
   - name: Shift Assignments
@@ -1544,6 +1546,232 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+
+  /shift-swaps:
+    get:
+      tags:
+        - Shift Swaps
+      summary: List shift swap requests
+      description: >
+        Newest first. A `shift-planner` or `shift-admin` sees every request of the
+        tenant (optionally those of one `employee_id`); everyone else only the
+        requests they are requester or colleague in, matched by e-mail. Pending
+        requests whose earlier date has passed are marked `expired` first.
+      operationId: listShiftSwaps
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ShiftSwapStatus'
+        - name: employee_id
+          in: query
+          description: Planners and admins only — ignored for everyone else
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The visible swap requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ShiftSwapRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Shift Swaps
+      summary: Request a shift swap
+      description: >
+        Offers the caller's confirmed shift on `requester_date` for the colleague's
+        confirmed shift on `colleague_date`. The requester must be the caller
+        (matched by e-mail); planners and admins may not request swaps at all, so
+        no swap skips the colleague's consent. Both dates must be today or later
+        and both people must work a shift on them; when the dates differ, each
+        must be free (no row, or a free day) on the other's date. No other rule —
+        qualification included — is checked: the planner sees rule warnings when
+        deciding. The request starts as `pending_colleague`.
+      operationId: createShiftSwap
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateShiftSwapRequest'
+      responses:
+        '200':
+          description: Request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftSwapRequest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /shift-swaps/pending-count:
+    get:
+      tags:
+        - Shift Swaps
+      summary: Number of swap requests awaiting a planner
+      description: Drives the planner's notification. `shift-planner` / `shift-admin` only.
+      operationId: countPendingShiftSwaps
+      responses:
+        '200':
+          description: The count
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count]
+                properties:
+                  count:
+                    type: integer
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /shift-swaps/{swapId}:
+    get:
+      tags:
+        - Shift Swaps
+      summary: Get a shift swap request
+      description: >
+        Visible to planners, admins and the two people involved (404 for anyone
+        else). When a planner or admin looks at a `pending_planner` request, the
+        rule violations the exchange would cause are attached as `warnings`
+        (from the agent's swap check), or the reason they are missing as
+        `warnings_error`. Warnings never prevent approval.
+      operationId: getShiftSwap
+      parameters:
+        - $ref: '#/components/parameters/SwapId'
+      responses:
+        '200':
+          description: The request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftSwapDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /shift-swaps/{swapId}/accept:
+    post:
+      tags:
+        - Shift Swaps
+      summary: The colleague accepts
+      description: Only the colleague named in the request. `pending_colleague` → `pending_planner`.
+      operationId: acceptShiftSwap
+      parameters:
+        - $ref: '#/components/parameters/SwapId'
+      responses:
+        '200':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftSwapRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /shift-swaps/{swapId}/decline:
+    post:
+      tags:
+        - Shift Swaps
+      summary: The colleague declines
+      description: Only the colleague named in the request. `pending_colleague` → `rejected`; the roster is unchanged.
+      operationId: declineShiftSwap
+      parameters:
+        - $ref: '#/components/parameters/SwapId'
+      responses:
+        '200':
+          description: Declined
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftSwapRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /shift-swaps/{swapId}/cancel:
+    post:
+      tags:
+        - Shift Swaps
+      summary: The requester cancels
+      description: Only the requester, while the request is `pending_colleague` or `pending_planner`. → `cancelled`.
+      operationId: cancelShiftSwap
+      parameters:
+        - $ref: '#/components/parameters/SwapId'
+      responses:
+        '200':
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftSwapRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /shift-swaps/{swapId}/approve:
+    post:
+      tags:
+        - Shift Swaps
+      summary: A planner approves
+      description: >
+        `shift-planner` / `shift-admin` only, on a `pending_planner` request. In
+        one transaction both roster rows are compared with the request and
+        exchanged: on the same day each person takes the other's shift; on
+        different days the shift rows change owner, and so do the free-day rows
+        they displace. If either shift was edited or removed meanwhile, or a person
+        is no longer free on the other's date, nothing is exchanged, the request
+        becomes `stale` and the answer is 409. An audit entry
+        (`shift_swap.approve`) records the swap and the warnings present.
+      operationId: approveShiftSwap
+      parameters:
+        - $ref: '#/components/parameters/SwapId'
+      responses:
+        '200':
+          description: Approved; the roster rows are exchanged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftSwapRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /shift-swaps/{swapId}/reject:
+    post:
+      tags:
+        - Shift Swaps
+      summary: A planner rejects
+      description: "`shift-planner` / `shift-admin` only. `pending_planner` → `rejected`; the roster is unchanged."
+      operationId: rejectShiftSwap
+      parameters:
+        - $ref: '#/components/parameters/SwapId'
+      responses:
+        '200':
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftSwapRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
 
   /wish-settings:
     get:
@@ -4617,6 +4845,103 @@ components:
           enum: [soft, hard]
           description: Whether employees' max_nights_per_month / max_weekends_per_month are hard or soft
 
+    ShiftSwapStatus:
+      type: string
+      enum: [pending_colleague, pending_planner, approved, rejected, cancelled, expired, stale]
+
+    ShiftSwapSide:
+      type: object
+      description: One person's shift, as it stood in the confirmed roster when the request was made
+      required: [employee_id, date, shift_id]
+      properties:
+        employee_id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        shift_id:
+          type: string
+          format: uuid
+        workstation_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    ShiftSwapRequest:
+      type: object
+      required: [id, requester, colleague, status, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        requester:
+          $ref: '#/components/schemas/ShiftSwapSide'
+        colleague:
+          $ref: '#/components/schemas/ShiftSwapSide'
+        status:
+          $ref: '#/components/schemas/ShiftSwapStatus'
+        decided_by:
+          type: string
+          nullable: true
+          description: Who made the last decision
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ShiftSwapDetail:
+      allOf:
+        - $ref: '#/components/schemas/ShiftSwapRequest'
+        - type: object
+          properties:
+            warnings:
+              type: array
+              description: Per employee, the rules the exchange would break. Planner review of a `pending_planner` request only.
+              items:
+                type: object
+                properties:
+                  employee_id:
+                    type: string
+                    format: uuid
+                  name:
+                    type: string
+                  date:
+                    type: string
+                    format: date
+                  takes:
+                    type: string
+                    description: The shift they would take, e.g. "Late · ICU"
+                  violations:
+                    type: array
+                    items:
+                      type: string
+            warnings_error:
+              type: string
+              description: Why there are no warnings (agent not configured or unreachable)
+
+    CreateShiftSwapRequest:
+      type: object
+      required: [requester_id, requester_date, colleague_id, colleague_date]
+      properties:
+        requester_id:
+          type: string
+          format: uuid
+          description: The caller's own employee id
+        requester_date:
+          type: string
+          format: date
+          description: The date of the shift offered
+        colleague_id:
+          type: string
+          format: uuid
+        colleague_date:
+          type: string
+          format: date
+          description: The date of the colleague's shift asked for in return
+
     Error:
       type: object
       required:
@@ -5561,9 +5886,27 @@ components:
           description: Number of results skipped
           example: 0
 
+  parameters:
+    SwapId:
+      name: swapId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
   responses:
     BadRequest:
       description: Invalid request parameters or body
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: >
+        The request does not fit the current state — e.g. a shift swap no longer
+        awaiting that decision, or whose roster rows changed since it was made.
       content:
         application/json:
           schema:

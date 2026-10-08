@@ -34,6 +34,14 @@ export class UserService {
     );
   }
 
+  /** `shift-planner` or `shift-admin` — may edit the roster and decide on shift swaps. */
+  canPlan(): Observable<boolean> {
+    return this.getSelf().pipe(
+      map((info) => (info.roles ?? []).some((r) => r === 'shift-planner' || r === 'shift-admin')),
+      catchError(() => of(false)),
+    );
+  }
+
   /** `shift-admin` — the only role that may change the shift-wish window. */
   isAdmin(): Observable<boolean> {
     return this.hasRole('shift-admin');

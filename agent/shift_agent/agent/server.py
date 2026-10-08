@@ -31,6 +31,12 @@ Plan repair:
     period goes back to the CP-SAT solver instead, through the MCP server's
     optimizeSchedule tool.
 
+Shift swap check:
+  - POST /api/v1/roster/swap-check takes two confirmed shifts (person and
+    date each) and answers, for each person, every rule taking the other's
+    shift would break (replacement.py's check_exchange). The backend asks it
+    for the warnings a planner sees on a swap request; it never refuses one.
+
 File uploads:
   - POST /api/v1/chat/upload takes a roster document (PDF/CSV/XLSX) as
     multipart, parses it to a grid (documents.py), stages it for the session
@@ -493,6 +499,53 @@ def create_app(knowledge_path: str | None = None) -> Flask:
             "Replacement for %s on %s: %d candidate(s), %d unavailable",
             employee_id, day, len(answer["candidates"]), len(answer["unavailable"]),
         )
+        return jsonify(answer)
+
+    # ---- Shift swap rule check (auth-protected) ----
+    @app.route("/api/v1/roster/swap-check", methods=["POST"])
+    @require_auth
+    def check_swap():
+        """What a proposed swap of two confirmed shifts would break.
+
+        Body: { "requester": {"employee_id", "date"}, "colleague": {"employee_id", "date"} }
+        Response: { "employees": [{ employee_id, name, date, takes, violations: [str] }] }
+        — for each of the two, the shift they would take and every rule it
+        breaks. Warnings for the planner, never a refusal; nothing is written.
+        The backend asks this when a planner reviews a swap request.
+        """
+        if not request.is_json:
+            return jsonify({"error": "Content-Type must be application/json"}), 415
+        data = request.get_json(silent=True) or {}
+        sides = []
+        for key in ("requester", "colleague"):
+            side = data.get(key) if isinstance(data.get(key), dict) else {}
+            employee_id = side.get("employee_id")
+            day = replacement._parse_day(side.get("date"))
+            if not employee_id or not isinstance(employee_id, str) or day is None:
+                return jsonify({"error": f"Missing or invalid '{key}' (employee_id, date YYYY-MM-DD)"}), 400
+            sides.append((employee_id, day))
+        (requester_id, requester_day), (colleague_id, colleague_day) = sides
+
+        reset_token = set_forwarded_token(_request_token())
+        try:
+            with telemetry.span("agent.check_swap", **{"agent.date": requester_day.isoformat()}):
+                try:
+                    graph = _get_or_create_graph()
+                except Exception:
+                    logger.exception("Graph build / MCP connection failed")
+                    return jsonify({"error": "Agent backend unavailable"}), 503
+                try:
+                    answer = replacement.check_swap(
+                        graph.mcp_client.call_sync, requester_id, requester_day, colleague_id, colleague_day,
+                    )
+                except (validation.ValidationError, repair.RepairError) as exc:
+                    return jsonify({"error": str(exc)}), 404
+                except Exception:
+                    logger.exception("Swap check failed for %s / %s", requester_id, colleague_id)
+                    return jsonify({"error": "The swap check failed."}), 502
+        finally:
+            reset_forwarded_token(reset_token)
+
         return jsonify(answer)
 
     # ---- Roster file upload (auth-protected) ----

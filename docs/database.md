@@ -102,6 +102,7 @@ diesel migration redo                  # verify down.sql actually reverses it
 | `confirmed_shift_plans` | `employee_id`, `shift_id?`, `workstation_id?`, `date`, `is_present`, `absence_type?`, `creation_type` |
 | `optimized_shift_results` | `result` (JSONB), `creation_date` |
 | `planning_tasks` | `status`, `payload` (JSONB), `result_id?`, `error_message?` |
+| `shift_swap_requests` | `requester_id`, `requester_date`, `requester_shift_id`, `requester_workstation_id?`, the same four for `colleague_*`, `status`, `decided_by?` — roster rows referenced by value, so approval can tell when they changed |
 
 ### Operations
 

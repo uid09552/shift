@@ -34,6 +34,10 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
 import { ModalComponent } from '../../../shared/components/ui/modal/modal.component';
 import { ContextMenuItem, ContextMenuService } from '../../../shared/components/ui/context-menu/context-menu.service';
 import { ReplacementDialogComponent, ReplacementDone, ReplacementRequest } from './replacement-dialog.component';
+import { SwapRequestsDialogComponent } from './swap-requests-dialog.component';
+import { ShiftSwapService } from '../../../shared/services/shift-swap.service';
+import { SwapNotificationService } from '../../../shared/services/swap-notification.service';
+import { UserService } from '../../../shared/services/user.service';
 import { GroupedPlanViewComponent } from './grouped-plan-view.component';
 import { DayViewComponent } from '../day-view/day-view.component';
 import {
@@ -85,6 +89,8 @@ interface SwapPreview {
   targetDate: string;
   crossDay: boolean;
   rows: SwapRow[];
+  /** An employee's request to a colleague, not a planner's edit: nothing changes until approved. */
+  request: boolean;
 }
 
 interface WishCellData {
@@ -103,6 +109,7 @@ interface WishCellData {
     DayViewComponent,
     ModalComponent,
     ReplacementDialogComponent,
+    SwapRequestsDialogComponent,
     TranslatePipe,
   ],
   templateUrl: './kalender.component.html',
@@ -167,6 +174,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
 
   // Search subscription
   private searchSub!: Subscription;
+  private swapsParamSub?: Subscription;
 
   /** Workstation closures overlapping the visible period. */
   private closures: WorkstationUnavailability[] = [];
@@ -176,6 +184,15 @@ export class KalenderComponent implements OnInit, OnDestroy {
 
   /** Why the last edit in the grid was refused, until dismissed. */
   saveError: string | null = null;
+
+  /** What just went well (a swap request sent), until dismissed. */
+  notice: string | null = null;
+
+  /** Planners and admins edit the roster and decide on swaps; everyone else requests them. */
+  canPlan = false;
+  /** The employee the signed-in user is (matched by e-mail), if any. */
+  meId: string | null = null;
+  swapRequestsOpen = false;
 
   constructor(
     private employeeService: EmployeeService,
@@ -190,6 +207,9 @@ export class KalenderComponent implements OnInit, OnDestroy {
     private contextMenu: ContextMenuService,
     private router: Router,
     private route: ActivatedRoute,
+    private userService: UserService,
+    private shiftSwapService: ShiftSwapService,
+    readonly swapNotifications: SwapNotificationService,
   ) {}
 
   ngOnInit(): void {
@@ -201,6 +221,14 @@ export class KalenderComponent implements OnInit, OnDestroy {
     }
     this.computeDays();
     this.loadAll();
+    this.loadIdentity();
+    // `?swaps=open` — the header notification's link — opens the requests panel,
+    // also when the link is followed while the page is already open.
+    this.swapsParamSub = this.route.queryParamMap.subscribe((params) => {
+      if (params.get('swaps') === 'open') {
+        this.swapRequestsOpen = true;
+      }
+    });
 
     this.searchSub = this.globalSearchService.searchTerm.subscribe((term) => {
       this.filterEmployees(term);
@@ -209,6 +237,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.searchSub?.unsubscribe();
+    this.swapsParamSub?.unsubscribe();
   }
 
   filterEmployees(term: string): void {
@@ -865,6 +894,18 @@ export class KalenderComponent implements OnInit, OnDestroy {
       }
     };
 
+    if (this.canRequestSwap(employeeId, plan)) {
+      items.push(
+        {
+          label: t('swaps.request'),
+          icon: 'swap',
+          testId: 'cell-menu-request-swap',
+          action: () => this.startSwapRequest(employeeId, dateStr),
+        },
+        { label: '', separator: true },
+      );
+    }
+
     if (!plan) {
       shiftItems(t('schedule.assignShift'));
     } else if (plan.is_present) {
@@ -925,6 +966,50 @@ export class KalenderComponent implements OnInit, OnDestroy {
     this.openCellMenu(event, employeeId, day);
   }
 
+  // ── Shift swap requests ───────────────────────────────────────
+
+  /** Who is looking: a planner, or which employee — that decides what the swap tools do. */
+  private loadIdentity(): void {
+    this.userService.canPlan().subscribe((canPlan) => (this.canPlan = canPlan));
+    this.userService
+      .getSelf()
+      .pipe(
+        switchMap((user) => (user?.email ? this.employeeService.getEmployeeByEmail(user.email) : of(null))),
+        catchError(() => of(null)),
+      )
+      .subscribe((employee) => (this.meId = employee?.id ?? null));
+  }
+
+  /** An employee's own shift, today or later: one they may offer for a colleague's. */
+  canRequestSwap(employeeId: string, plan: ConfirmedShiftPlan | undefined): boolean {
+    return (
+      !this.canPlan &&
+      this.meId === employeeId &&
+      !!plan?.is_present &&
+      !!plan.shift_id &&
+      plan.date >= this.formatDate(this.normalizeDate(new Date()))
+    );
+  }
+
+  private startSwapRequest(employeeId: string, dateStr: string): void {
+    this.deletingCell = null;
+    this.saveError = null;
+    this.notice = null;
+    this.swapSource = { employeeId, dateStr, name: this.employeeName(employeeId), request: true };
+  }
+
+  closeSwapRequests(): void {
+    this.swapRequestsOpen = false;
+    if (this.route.snapshot.queryParamMap.has('swaps')) {
+      this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { swaps: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+    }
+  }
+
   // ── Short-notice replacement ──────────────────────────────────
 
   /** The absent person and day the replacement dialog is open for. */
@@ -950,7 +1035,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
   // ── Swap with a colleague ─────────────────────────────────────
 
   /** The shift picked with "swap with…", waiting for a target cell. */
-  swapSource: { employeeId: string; dateStr: string; name: string } | null = null;
+  swapSource: { employeeId: string; dateStr: string; name: string; request?: boolean } | null = null;
 
   /** The two shifts about to be swapped, shown for confirmation. */
   swapPending: SwapPreview | null = null;
@@ -994,6 +1079,10 @@ export class KalenderComponent implements OnInit, OnDestroy {
     const a = this.planMap.get(src.employeeId)?.get(src.dateStr);
     const b = this.planMap.get(employeeId)?.get(dateStr) ?? null;
     if (!a) return;
+    if (src.request) {
+      this.onSwapRequestTarget(a, employeeId, dateStr, b);
+      return;
+    }
 
     // A day without a shift is free; sick leave, vacation and the like are not.
     const targetIsFree = !b || (!b.shift_id && (b.is_present || !b.absence_type || b.absence_type === 'free'));
@@ -1037,6 +1126,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
       targetEmployeeId: employeeId,
       targetDate: dateStr,
       crossDay,
+      request: false,
       rows: [
         { name: this.employeeName(a.employee_id), from: side(a.date, a), to: side(target?.date ?? a.date, target) },
         {
@@ -1048,6 +1138,79 @@ export class KalenderComponent implements OnInit, OnDestroy {
     };
   }
 
+  /**
+   * An employee's request: only for a colleague's shift, today or later. On a
+   * different day each must be free on the other's day — the same rule the
+   * backend applies, checked here so the refusal comes before the dialog.
+   */
+  private onSwapRequestTarget(
+    a: ConfirmedShiftPlan,
+    employeeId: string,
+    dateStr: string,
+    b: ConfirmedShiftPlan | null,
+  ): void {
+    if (!b?.is_present || !b.shift_id) {
+      this.saveError = this.translations.t('swaps.pickAShift');
+      return;
+    }
+    if (dateStr < this.formatDate(this.normalizeDate(new Date()))) {
+      this.saveError = this.translations.t('swaps.inThePast');
+      return;
+    }
+    const isFree = (p: ConfirmedShiftPlan | undefined) =>
+      !p || (!p.shift_id && (!p.absence_type || p.absence_type === 'free'));
+    if (
+      a.date !== dateStr &&
+      (!isFree(this.planMap.get(a.employee_id)?.get(dateStr)) || !isFree(this.planMap.get(employeeId)?.get(a.date)))
+    ) {
+      this.saveError = this.translations.t('schedule.swapBlocked');
+      return;
+    }
+
+    this.swapSource = null;
+    this.saveError = null;
+    const side = (date: string, plan: ConfirmedShiftPlan): SwapSide => ({
+      date: new Date(`${date}T00:00:00`).toLocaleDateString(this.translations.locale, {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      }),
+      shift: this.shifts.find((s) => s.id === plan.shift_id) ?? null,
+      workstation: this.workstations.find((w) => w.id === plan.workstation_id) ?? null,
+      free: false,
+    });
+    this.swapPending = {
+      a,
+      b,
+      freeTarget: null,
+      targetEmployeeId: employeeId,
+      targetDate: dateStr,
+      crossDay: a.date !== dateStr,
+      request: true,
+      rows: [
+        { name: this.employeeName(a.employee_id), from: side(a.date, a), to: side(b.date, b) },
+        { name: this.employeeName(employeeId), from: side(b.date, b), to: side(a.date, a) },
+      ],
+    };
+  }
+
+  private sendSwapRequest(pending: SwapPreview): void {
+    if (!pending.b) return;
+    const colleague = this.employeeName(pending.targetEmployeeId);
+    this.shiftSwapService
+      .create({
+        requester_id: pending.a.employee_id,
+        requester_date: pending.a.date,
+        colleague_id: pending.targetEmployeeId,
+        colleague_date: pending.b.date,
+      })
+      .subscribe({
+        next: () => (this.notice = this.translations.t('swaps.sent', { name: colleague })),
+        error: (err) => this.showSaveError(err),
+      });
+  }
+
   cancelSwapConfirm(): void {
     this.swapPending = null;
   }
@@ -1056,6 +1219,10 @@ export class KalenderComponent implements OnInit, OnDestroy {
     const pending = this.swapPending;
     if (!pending) return;
     this.swapPending = null;
+    if (pending.request) {
+      this.sendSwapRequest(pending);
+      return;
+    }
     const { a, b, crossDay, freeTarget, targetEmployeeId, targetDate } = pending;
     this.processingCell = { employeeId: targetEmployeeId, dateStr: targetDate };
 

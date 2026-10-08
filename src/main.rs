@@ -215,6 +215,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             state.dev_mode = config.tenant.dev_mode;
             state.default_tenant_id = config.tenant.tenant_id.clone();
             state.holiday_config = config.holidays.clone();
+            state.agent_url = config.agent.url.trim().trim_end_matches('/').to_string();
             state.token_verifier = token_verifier(&config).map(Arc::new);
             if state.token_verifier.is_none() && !state.dev_mode {
                 eprintln!("WARNING: no JWKS URL (auth.jwks_url or keycloak.url) — every API request will be refused");

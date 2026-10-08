@@ -18,6 +18,7 @@ pub mod xlsx_io;
 pub mod planner_settings;
 pub mod rotation_pattern;
 pub mod shift_wish;
+pub mod shift_swap;
 pub mod wish_settings;
 pub mod wish_schedule;
 pub mod personal_limits;

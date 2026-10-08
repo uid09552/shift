@@ -46,7 +46,7 @@ import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 from langchain_core.tools import StructuredTool
 
@@ -496,22 +496,29 @@ class _Rules:
         The employee must have nothing else planned that day — the caller
         clears the cell first when it is re-placing one.
         """
+        return next(self.blocking_reasons(employee_id, day, shift_id, workstation_id, plan), None)
+
+    def blocking_reasons(
+        self, employee_id: str, day: date, shift_id: str, workstation_id: str | None, plan: _Plan
+    ) -> Iterator[str]:
+        """Every rule this assignment would break, most fundamental first — the
+        first is ``blocking_reason``. A shift swap reports them all as warnings."""
         reason = self.eligible(employee_id, day, shift_id, workstation_id)
         if reason:
-            return reason
+            yield reason
 
         if plan.get(employee_id, day) is not None:
-            return "already has a shift that day"
+            yield "already has a shift that day"
 
         # Staffing maximums — hard in the solver, both per shift and per station.
         weekday_time = self.weekday_time(shift_id, day)
         maximum = (weekday_time or {}).get("max_employees")
         if maximum is not None and plan.per_shift.get((day, shift_id), 0) + 1 > maximum:
-            return f"{self.shift_name(shift_id)} is already full on {day.isoformat()}"
+            yield f"{self.shift_name(shift_id)} is already full on {day.isoformat()}"
         if workstation_id:
             ws_max = (self.workstations.get(workstation_id) or {}).get("max_employees")
             if ws_max is not None and plan.per_ws.get((day, shift_id, workstation_id), 0) + 1 > ws_max:
-                return f"{self.workstation_name(workstation_id)} is already full on {day.isoformat()}"
+                yield f"{self.workstation_name(workstation_id)} is already full on {day.isoformat()}"
 
         worked = plan.days_by_employee.get(employee_id) or set()
 
@@ -519,12 +526,14 @@ class _Rules:
         # and what an earlier shift still owes on this day.
         for offset in range(1, self.recovery_days(shift_id, day) + 1):
             if (day + timedelta(days=offset)) in worked:
-                return f"owes {self.recovery_days(shift_id, day)} recovery day(s) afterwards"
+                yield f"owes {self.recovery_days(shift_id, day)} recovery day(s) afterwards"
+                break
         for offset in range(1, 8):
             earlier = day - timedelta(days=offset)
             cell = plan.get(employee_id, earlier)
             if cell and self.recovery_days(cell[0], earlier) >= offset:
-                return f"still recovering from the {self.shift_name(cell[0])} on {earlier.isoformat()}"
+                yield f"still recovering from the {self.shift_name(cell[0])} on {earlier.isoformat()}"
+                break
 
         # Minimum rest to the day before and the day after. Night shifts are
         # excluded on the earlier side, as in the solver — their recovery days
@@ -540,7 +549,7 @@ class _Rules:
                         + _minutes(weekday_time["start_time"])
                     ) / 60.0
                     if rest < min_rest:
-                        return f"only {rest:.1f} h rest after the previous day's shift"
+                        yield f"only {rest:.1f} h rest after the previous day's shift"
             following = plan.get(employee_id, day + timedelta(days=1))
             if following and not (self.shifts.get(shift_id) or {}).get("is_night_shift"):
                 later_time = self.weekday_time(following[0], day + timedelta(days=1))
@@ -550,7 +559,7 @@ class _Rules:
                         + _minutes(later_time["start_time"])
                     ) / 60.0
                     if rest < min_rest:
-                        return f"only {rest:.1f} h rest before the next day's shift"
+                        yield f"only {rest:.1f} h rest before the next day's shift"
 
         # Consecutive days: the streak this day would join, both sides.
         limit = self.cfg["max_consecutive_days"] or 0
@@ -565,13 +574,13 @@ class _Rules:
                 streak += 1
                 probe += timedelta(days=1)
             if streak > limit:
-                return f"would be {streak} working days in a row (limit {limit})"
+                yield f"would be {streak} working days in a row (limit {limit})"
 
         # Personal night / weekend caps per calendar month — hard only in
         # hard personal_limits_mode; in soft mode the solver may go over.
         reason = self._personal_limit_reason(employee_id, day, shift_id, plan)
         if reason:
-            return reason
+            yield reason
 
         # Working days per seven-day block, counted from the start of the
         # period exactly as the solver buckets them.
@@ -580,9 +589,7 @@ class _Rules:
             offset = (day - self.start).days // 7 * 7
             block = self.days[offset : offset + 7]
             if sum(1 for d in block if d in worked) + 1 > weekly:
-                return f"would be more than {weekly} working days in that week"
-
-        return None
+                yield f"would be more than {weekly} working days in that week"
 
 
     def _personal_limit_reason(

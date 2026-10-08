@@ -21,8 +21,9 @@ const ROLE_VIEWER: &str = "shift-viewer";
 
 /// Path segments whose mutations a `shift-viewer` may perform for their own records.
 /// The method check below lets those requests through; the handler is responsible for
-/// verifying ownership against the caller's identity (`UserContext`).
-const SELF_SERVICE_SEGMENTS: [&str; 1] = ["shift-wishes"];
+/// verifying ownership against the caller's identity (`UserContext`) — and, for
+/// shift swaps, that only a planner or admin approves or rejects.
+const SELF_SERVICE_SEGMENTS: [&str; 2] = ["shift-wishes", "shift-swaps"];
 
 /// The tenant a request is scoped to. Every repository call takes this so a request
 /// can never read or write another tenant's rows.
@@ -407,7 +408,12 @@ mod tests {
         let viewer = RoleContext(vec![Role::Viewer]);
         let none = RoleContext(vec![]);
 
-        for path in ["/api/v1/shift-wishes", "/api/v1/shift-wishes/3a9e23b8-4a00-478c-99b7-eb68df54bc40"] {
+        for path in [
+            "/api/v1/shift-wishes",
+            "/api/v1/shift-wishes/3a9e23b8-4a00-478c-99b7-eb68df54bc40",
+            "/api/v1/shift-swaps",
+            "/api/v1/shift-swaps/3a9e23b8-4a00-478c-99b7-eb68df54bc40/accept",
+        ] {
             assert!(viewer.allows(&Method::POST, path), "viewer should reach {path}");
             assert!(viewer.allows(&Method::DELETE, path), "viewer should reach {path}");
             assert!(!none.allows(&Method::POST, path), "roleless caller should not reach {path}");

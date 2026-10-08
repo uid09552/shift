@@ -81,6 +81,8 @@ services:
       SHIFT_KEYCLOAK__REALM: ${SHIFT_KEYCLOAK__REALM:-shift}
       SHIFT_KEYCLOAK__CLIENT_ID: ${SHIFT_KEYCLOAK__CLIENT_ID:-shift-gateway}
       SHIFT_KEYCLOAK__CLIENT_SECRET: ${MCP_OAUTH_CLIENT_SECRET:-shift-gateway-secret}
+      # The agent, asked for the rule warnings a planner sees on a shift swap.
+      SHIFT_AGENT__URL: ${SHIFT_AGENT__URL:-http://agent:8899}
     ports:
       - "8081:8080"
     depends_on:

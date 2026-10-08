@@ -1,5 +1,14 @@
 # Bundle Update Log
 
+## 2026-10-08
+
+* **Change**: Shift swaps. An employee requests to trade a confirmed shift with
+  a colleague's; the colleague accepts or declines, a planner or admin approves
+  (the roster rows are exchanged) or rejects. Rule breaches come from the agent's
+  new `POST /api/v1/roster/swap-check` and are warnings only. Planners see a count
+  on the header bell.
+* **New**: [Shift swap request](/concepts/shift-swap.md).
+
 ## 2026-09-19
 
 * **Change**: The project is mirrored to GitHub, with GitHub Actions

@@ -13,6 +13,11 @@ pub enum AppError {
     #[error("Not found")]
     NotFound,
 
+    /// 409 with why the request does not fit the current state — e.g. a shift
+    /// swap that is no longer awaiting that decision, or whose roster changed.
+    #[error("{0}")]
+    Conflict(String),
+
     /// 401 with the part of the token that was missing or unusable.
     #[error("{0}")]
     Unauthorized(String),
@@ -49,6 +54,7 @@ impl IntoResponse for AppError {
             AppError::Validation(msg) => (StatusCode::BAD_REQUEST, msg),
             AppError::Duplicate => (StatusCode::CONFLICT, self.to_string()),
             AppError::NotFound => (StatusCode::NOT_FOUND, self.to_string()),
+            AppError::Conflict(msg) => (StatusCode::CONFLICT, msg),
             AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
             AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg),
             AppError::Unavailable(msg) => (StatusCode::SERVICE_UNAVAILABLE, msg),

@@ -7,6 +7,7 @@ import { ModalComponent } from '../../ui/modal/modal.component';
 import { AuditLog, AuditLogService } from '../../../services/audit-log.service';
 import { TranslatePipe } from '../../../i18n/translate.pipe';
 import { TranslationService } from '../../../i18n/translation.service';
+import { SwapNotificationService } from '../../../services/swap-notification.service';
 
 const MAX_NOTIFICATIONS = 10;
 
@@ -29,13 +30,19 @@ export class NotificationDropdownComponent {
   constructor(
     private auditLogService: AuditLogService,
     private translations: TranslationService,
-  ) {}
+    readonly swaps: SwapNotificationService,
+  ) {
+    // Shift swaps awaiting a decision are the one thing polled: a planner should
+    // see them without opening the dropdown. A no-op for every other role.
+    swaps.start();
+  }
 
   /** Notifications are only fetched once the user opens the dropdown — no background polling. */
   toggleDropdown(): void {
     this.isOpen = !this.isOpen;
     if (this.isOpen) {
       this.loadLogs();
+      this.swaps.refresh();
     }
   }
 
