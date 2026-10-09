@@ -998,6 +998,29 @@ class _Validator:
 
     # -- statistics --------------------------------------------------------
 
+    def _changes_vs_published(self) -> int | None:
+        """Employee-days of the plan that differ from the published roster
+        (preparePlan's ``published_roster`` — what employees have been told),
+        counted as the solver counts them; None when the period has none."""
+        published = self.rules.get("published_roster") or []
+        if not published:
+            return None
+        changed = 0
+        for row in published:
+            employee_id = row.get("employee_id")
+            try:
+                day = _parse_date(row["date"])
+            except (KeyError, ValueError):
+                continue
+            if employee_id not in self.scope_ids or not (self.start <= day <= self.end):
+                continue
+            was = (row.get("shift_id"), row.get("workstation_id")) if row.get("shift_id") else None
+            planned = self.by_emp_day.get((employee_id, day), [])
+            now = (planned[0].shift_id, planned[0].workstation_id) if planned else None
+            if was != now:
+                changed += 1
+        return changed
+
     def stats(self) -> dict:
         wishes_total = 0
         wishes_met = 0
@@ -1018,6 +1041,7 @@ class _Validator:
 
         return {
             "days": len(self.days),
+            "changes_vs_published": self._changes_vs_published(),
             "employees_in_scope": len(self.scope_ids),
             "employees_scheduled": len({a.employee_id for a in self.assignments}),
             "assignments": len(self.assignments),
@@ -1065,6 +1089,9 @@ def headline(report: dict) -> str:
         f"{stats.get('assignments', 0)} assignments over {stats.get('days', 0)} day(s) "
         f"for {stats.get('employees_scheduled', 0)} of {stats.get('employees_in_scope', 0)} people"
     )
+    changes = stats.get("changes_vs_published")
+    if changes:
+        scope += f", {changes} change(s) to the published roster"
     if report["verdict"] == "valid":
         return f"No rule violations found — {scope}."
     parts = []

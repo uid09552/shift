@@ -35,6 +35,12 @@ tags:
     description: Fixed shift assignment management endpoints
   - name: Confirmed Shift Plans
     description: Confirmed shift plan management endpoints per employee
+  - name: Roster Lifecycle
+    description: >
+      Each month of the confirmed roster is draft, published or locked. Draft
+      months are hidden from shift-viewer; changes to published and locked months
+      need the rules of `X-Change-Reason` and become change notices for the
+      employees they affect.
   - name: Analysis
     description: Analysis and summary endpoints for shift planning data
   - name: Audit Logs
@@ -1349,6 +1355,8 @@ paths:
         - Unavailability
       summary: Create a new unavailability
       operationId: createUnavailability
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
       requestBody:
         required: true
         content:
@@ -1356,6 +1364,10 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateUnavailabilityRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '428':
+          $ref: '#/components/responses/ReasonRequired'
         '201':
           description: Unavailability created successfully
           content:
@@ -1400,6 +1412,7 @@ paths:
       summary: Delete an unavailability
       operationId: deleteUnavailability
       parameters:
+        - $ref: '#/components/parameters/ChangeReason'
         - name: unavailabilityId
           in: path
           required: true
@@ -1407,6 +1420,10 @@ paths:
             type: string
             format: uuid
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '428':
+          $ref: '#/components/responses/ReasonRequired'
         '204':
           description: Unavailability deleted successfully
         '404':
@@ -1593,7 +1610,8 @@ paths:
         and both people must work a shift on them; when the dates differ, each
         must be free (no row, or a free day) on the other's date. No other rule —
         qualification included — is checked: the planner sees rule warnings when
-        deciding. The request starts as `pending_colleague`.
+        deciding. Both dates must lie in published months (400 otherwise). The
+        request starts as `pending_colleague`.
       operationId: createShiftSwap
       requestBody:
         required: true
@@ -1736,11 +1754,18 @@ paths:
         they displace. If either shift was edited or removed meanwhile, or a person
         is no longer free on the other's date, nothing is exchanged, the request
         becomes `stale` and the answer is 409. An audit entry
-        (`shift_swap.approve`) records the swap and the warnings present.
+        (`shift_swap.approve`) records the swap and the warnings present. The
+        exchange follows the months' status like any roster change: 403 in a locked
+        month unless `shift-admin` with a reason, 428 inside the freeze window
+        without `X-Change-Reason` — the request then stays `pending_planner`. Both
+        employees get a change notice for each changed day.
       operationId: approveShiftSwap
       parameters:
+        - $ref: '#/components/parameters/ChangeReason'
         - $ref: '#/components/parameters/SwapId'
       responses:
+        '428':
+          $ref: '#/components/responses/ReasonRequired'
         '200':
           description: Approved; the roster rows are exchanged
           content:
@@ -2130,9 +2155,22 @@ paths:
       tags:
         - Planner
       summary: Take an optimized result as the confirmed shift plan
-      description: Overwrites the confirmed shift plans for this result's planning period with its assignments and free days, optionally scoped to a subset of employees. Runs entirely server-side in one transaction (delete existing plans in the period + bulk upsert the new ones) instead of requiring the client to issue a per-employee load, per-entry delete, and per-entry create sequence of calls. Refused with 400, writing nothing, when an assignment in the result falls on a workstation that is deactivated or closed that day (a result calculated before the closure) — the message lists them.
+      description: >
+        Overwrites the confirmed shift plans for this result's planning period with its
+        assignments and free days, optionally scoped to a subset of employees. Runs entirely
+        server-side in one transaction (delete existing plans in the period + bulk upsert
+        the new ones) instead of requiring the client to issue a per-employee load, per-
+        entry delete, and per-entry create sequence of calls. Refused with 400, writing
+        nothing, when an assignment in the result falls on a workstation that is deactivated
+        or closed that day (a result calculated before the closure) — the message lists
+        them. Follows the status of every month the period touches: refused (403) when one
+        is locked unless the caller is `shift-admin` with a reason; days of published months
+        that differ from the roster become change notices (`changes`), and those inside the
+        freeze window need `X-Change-Reason`. With `dry_run` nothing is written and
+        `changes` says how many notices taking it would write.
       operationId: takeOptimizedShiftAsPlan
       parameters:
+        - $ref: '#/components/parameters/ChangeReason'
         - name: resultId
           in: path
           required: true
@@ -2153,7 +2191,15 @@ paths:
                   items:
                     type: string
                     format: uuid
+                dry_run:
+                  type: boolean
+                  default: false
+                  description: Only count the changes against published months; write nothing.
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '428':
+          $ref: '#/components/responses/ReasonRequired'
         '200':
           description: Confirmed shift plans replaced successfully
           content:
@@ -2170,8 +2216,14 @@ paths:
                     example: 12
                   created:
                     type: integer
-                    description: Number of confirmed shift plan rows created/updated
+                    description: Number of confirmed shift plan rows created/updated (0 on a dry run)
                     example: 156
+                  changes:
+                    type: integer
+                    description: Employee-days in published or locked months that differ from the roster — the change notices written (or, on a dry run, that would be)
+                    example: 4
+                  dry_run:
+                    type: boolean
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -2566,7 +2618,7 @@ paths:
       tags:
         - Confirmed Shift Plans
       summary: List all confirmed shift plans
-      description: "Returns a paginated list of confirmed shift plans. Supports optional from_date/to_date query parameters for date range filtering, and limit/offset for pagination."
+      description: "Returns a paginated list of confirmed shift plans. Supports optional from_date/to_date query parameters for date range filtering, and limit/offset for pagination. A shift-viewer sees only published and locked months (in the list and in `total`)."
       operationId: listConfirmedShiftPlans
       parameters:
         - name: from_date
@@ -2608,7 +2660,7 @@ paths:
       tags:
         - Confirmed Shift Plans
       summary: Get a confirmed shift plan by ID
-      description: Returns a specific confirmed shift plan by its ID.
+      description: Returns a specific confirmed shift plan by its ID. An entry in a draft month is not found (404) for a shift-viewer.
       operationId: getConfirmedShiftPlanById
       parameters:
         - name: planId
@@ -2633,9 +2685,18 @@ paths:
       tags:
         - Confirmed Shift Plans
       summary: Update a confirmed shift plan
-      description: Updates a specific confirmed shift plan by its ID. Moving the entry to a workstation that is deactivated or closed on the entry's date is refused with 400; other edits of an entry already at such a workstation (marking it absent, say) are allowed.
+      description: >
+        Updates a specific confirmed shift plan by its ID. Moving the entry to a workstation
+        that is deactivated or closed on the entry's date is refused with 400; other edits
+        of an entry already at such a workstation (marking it absent, say) are allowed.
+        Follows the month's status: refused (403) in a locked month unless the caller is
+        `shift-admin` with a reason; in a published month a change to a day inside the
+        freeze window needs `X-Change-Reason` (428 without), and every change becomes a
+        change notice for the employee.
       operationId: updateConfirmedShiftPlan
       parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/ChangeSource'
         - name: planId
           in: path
           required: true
@@ -2649,6 +2710,10 @@ paths:
             schema:
               $ref: '#/components/schemas/UpdateConfirmedShiftPlanRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '428':
+          $ref: '#/components/responses/ReasonRequired'
         '200':
           description: Confirmed shift plan updated successfully
           content:
@@ -2666,9 +2731,15 @@ paths:
       tags:
         - Confirmed Shift Plans
       summary: Delete a confirmed shift plan
-      description: Removes a specific confirmed shift plan by its ID.
+      description: >
+        Removes a specific confirmed shift plan by its ID. Follows the month's status:
+        refused (403) in a locked month unless the caller is `shift-admin` with a reason; in
+        a published month a change to a day inside the freeze window needs `X-Change-Reason`
+        (428 without), and every change becomes a change notice for the employee.
       operationId: deleteConfirmedShiftPlan
       parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/ChangeSource'
         - name: planId
           in: path
           required: true
@@ -2676,6 +2747,10 @@ paths:
             type: string
             format: uuid
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '428':
+          $ref: '#/components/responses/ReasonRequired'
         '200':
           description: Confirmed shift plan deleted successfully
           content:
@@ -2738,6 +2813,8 @@ paths:
       description: Creates a new confirmed shift plan entry for an employee. Each employee can only have one confirmed shift plan per date. A workstation that is deactivated, or closed on that date, is refused with 400.
       operationId: createConfirmedShiftPlan
       parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/ChangeSource'
         - name: employeeId
           in: path
           required: true
@@ -2751,6 +2828,10 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateConfirmedShiftPlanRequest'
       responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '428':
+          $ref: '#/components/responses/ReasonRequired'
         '201':
           description: Confirmed shift plan created successfully
           content:
@@ -2954,6 +3035,239 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalServerError'
+
+  /roster-months:
+    get:
+      tags:
+        - Roster Lifecycle
+      summary: Month statuses and publish deadlines
+      description: >
+        Every month from `from` to `to` (at most 36) with its effective status: a
+        month nobody touched is `draft`, a `published` month whose last day has
+        passed reads as `locked` unless an admin unlocked it. `deadline` is `due`
+        for a draft month starting within `publish_lead_days`, `overdue` once it has
+        started (and is not over). Any role may read.
+      operationId: listRosterMonths
+      parameters:
+        - name: from
+          in: query
+          description: First month (YYYY-MM); defaults to the current month
+          schema:
+            type: string
+            example: '2026-10'
+        - name: to
+          in: query
+          description: Last month (YYYY-MM); defaults to two months after `from`
+          schema:
+            type: string
+            example: '2026-12'
+      responses:
+        '200':
+          description: One entry per month
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RosterMonth'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /roster-months/{month}/publish:
+    post:
+      tags:
+        - Roster Lifecycle
+      summary: Publish a draft month
+      description: >
+        `shift-planner` / `shift-admin`. The month becomes visible to every employee
+        and from now on every change to it is tracked as a change notice. 409 when
+        it is not draft. Audited as `roster_month.publish`.
+      operationId: publishRosterMonth
+      parameters:
+        - $ref: '#/components/parameters/Month'
+      responses:
+        '200':
+          description: Published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RosterMonth'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /roster-months/{month}/unpublish:
+    post:
+      tags:
+        - Roster Lifecycle
+      summary: Take a published month back to draft
+      description: >
+        `shift-admin` only, with a reason (`X-Change-Reason`, audited). 409 unless
+        the month is published.
+      operationId: unpublishRosterMonth
+      parameters:
+        - $ref: '#/components/parameters/Month'
+        - $ref: '#/components/parameters/ChangeReason'
+      responses:
+        '200':
+          description: Back to draft
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RosterMonth'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '428':
+          $ref: '#/components/responses/ReasonRequired'
+
+  /roster-months/{month}/unlock:
+    post:
+      tags:
+        - Roster Lifecycle
+      summary: Reopen a locked month
+      description: >
+        `shift-admin` only, with a reason (`X-Change-Reason`, audited). The month is
+        published again (`reopened`) and stays so after its last day until an admin
+        locks it. 409 unless the month is locked.
+      operationId: unlockRosterMonth
+      parameters:
+        - $ref: '#/components/parameters/Month'
+        - $ref: '#/components/parameters/ChangeReason'
+      responses:
+        '200':
+          description: Published again
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RosterMonth'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '428':
+          $ref: '#/components/responses/ReasonRequired'
+
+  /roster-months/{month}/lock:
+    post:
+      tags:
+        - Roster Lifecycle
+      summary: Lock a published month that has ended
+      description: >
+        `shift-admin` only. 409 when the month is not published or has not ended —
+        a month locks itself once over unless an admin reopened it.
+      operationId: lockRosterMonth
+      parameters:
+        - $ref: '#/components/parameters/Month'
+      responses:
+        '200':
+          description: Locked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RosterMonth'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /roster-change-notices:
+    get:
+      tags:
+        - Roster Lifecycle
+      summary: Changes to published rosters
+      description: >
+        Newest first. A `shift-viewer` gets the notices about themselves (matched by
+        e-mail); `employee_id` is ignored for them. Planners and admins get the
+        tenant's, filtered.
+      operationId: listRosterChangeNotices
+      parameters:
+        - name: employee_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: acknowledged
+          in: query
+          description: true = only acknowledged, false = only unacknowledged
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: The notices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RosterChangeNotice'
+
+  /roster-change-notices/unread-count:
+    get:
+      tags:
+        - Roster Lifecycle
+      summary: The caller's unacknowledged notices
+      description: Drives the header bell for every role. 0 for a caller who is no employee.
+      operationId: countUnreadRosterChangeNotices
+      responses:
+        '200':
+          description: The count
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count]
+                properties:
+                  count:
+                    type: integer
+
+  /roster-change-notices/acknowledge:
+    post:
+      tags:
+        - Roster Lifecycle
+      summary: Acknowledge own notices
+      description: >
+        The caller acknowledges notices about themselves — `ids`, or all their
+        unacknowledged ones when omitted. 403 when any of `ids` is about someone
+        else; nobody acknowledges on another's behalf.
+      operationId: acknowledgeRosterChangeNotices
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '200':
+          description: How many were acknowledged
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [acknowledged]
+                properties:
+                  acknowledged:
+                    type: integer
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /audit-logs:
     get:
@@ -3610,6 +3924,28 @@ components:
           maximum: 168
           description: Weekly hours of every employee without their own weekly_working_hours.
           example: 40.0
+        publish_lead_days:
+          type: integer
+          minimum: 0
+          maximum: 366
+          description: A draft month is due for publishing this many days before it starts (warning only).
+          example: 28
+        freeze_days:
+          type: integer
+          minimum: 0
+          maximum: 366
+          description: >
+            A change to a published month on a day from today to today + freeze_days − 1
+            needs a reason (`X-Change-Reason`). 0 switches the freeze window off.
+          example: 7
+        change_weight:
+          type: integer
+          minimum: 0
+          description: >
+            > 0: a re-solve changes as few employee-days of the published roster
+            (`published_roster`) as coverage needs, before balance, wishes or fatigue.
+            0 lets a re-solve ignore it.
+          example: 100000
         skill_downgrade_weight:
           type: integer
           minimum: 0
@@ -3730,6 +4066,20 @@ components:
           maximum: 168
           default: 40
           description: Weekly hours of every employee without their own value. Changing it re-targets all of them.
+        publish_lead_days:
+          type: integer
+          minimum: 0
+          maximum: 366
+          default: 28
+        freeze_days:
+          type: integer
+          minimum: 0
+          maximum: 366
+          default: 7
+        change_weight:
+          type: integer
+          minimum: 0
+          default: 100000
         skill_downgrade_weight:
           type: integer
           minimum: 0
@@ -4465,8 +4815,38 @@ components:
             Public holidays from 14 days before the period to its end. A holiday
             runs on its shifts' Sunday times and counts as a weekend day (weekend
             limits, plan check). Omitted when there is none.
+        published_roster:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublishedShiftTask'
+          description: >
+            The confirmed roster of the period's days in published or locked months —
+            what employees have been told. With constraints.change_weight > 0 the solver
+            minimises the employee-days it changes right after coverage, ahead of
+            balance, wishes and fatigue. Days without a roster row are not listed.
+            Omitted for a draft-only period.
         constraints:
           $ref: '#/components/schemas/ConstraintTask'
+
+    PublishedShiftTask:
+      type: object
+      required: [employee_id, date]
+      properties:
+        employee_id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        shift_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: null = not working that day (a day off or an absence)
+        workstation_id:
+          type: string
+          format: uuid
+          nullable: true
 
     HolidaysResponse:
       type: object
@@ -4880,6 +5260,10 @@ components:
           type: string
           enum: [soft, hard]
           description: Whether employees' max_nights_per_month / max_weekends_per_month are hard or soft
+        change_weight:
+          type: integer
+          minimum: 0
+          description: "> 0 minimises the employee-days that differ from published_roster right after coverage; 0 ignores it"
 
     ShiftSwapStatus:
       type: string
@@ -4977,6 +5361,112 @@ components:
           type: string
           format: date
           description: The date of the colleague's shift asked for in return
+
+    MonthStatus:
+      type: string
+      enum: [draft, published, locked]
+
+    RosterMonth:
+      type: object
+      required: [month, status, reopened, publish_by]
+      properties:
+        month:
+          type: string
+          example: '2026-11'
+        status:
+          $ref: '#/components/schemas/MonthStatus'
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        published_by:
+          type: string
+          nullable: true
+        locked_at:
+          type: string
+          format: date-time
+          nullable: true
+        locked_by:
+          type: string
+          nullable: true
+        reopened:
+          type: boolean
+          description: Unlocked by an admin; stays published after its last day
+        publish_by:
+          type: string
+          format: date
+          description: First day − publish_lead_days
+        deadline:
+          type: string
+          enum: [due, overdue]
+          nullable: true
+          description: Only for a draft month that is due or overdue
+
+    RosterEntryView:
+      type: object
+      properties:
+        shift_id:
+          type: string
+          format: uuid
+          nullable: true
+        shift_name:
+          type: string
+          nullable: true
+        workstation_id:
+          type: string
+          format: uuid
+          nullable: true
+        workstation_name:
+          type: string
+          nullable: true
+        absence_type:
+          type: string
+          nullable: true
+
+    RosterChangeNotice:
+      type: object
+      required: [id, employee_id, date, source, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        employee_id:
+          type: string
+          format: uuid
+        employee_name:
+          type: string
+          nullable: true
+        date:
+          type: string
+          format: date
+        before:
+          type: object
+          allOf:
+            - $ref: '#/components/schemas/RosterEntryView'
+          nullable: true
+          description: The entry before the change; null when there was none
+        after:
+          type: object
+          allOf:
+            - $ref: '#/components/schemas/RosterEntryView'
+          nullable: true
+          description: The entry after the change; null when it was removed
+        source:
+          type: string
+          enum: [manual, take_as_plan, absence, swap, replacement]
+        actor:
+          type: string
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        acknowledged_at:
+          type: string
+          format: date-time
+          nullable: true
 
     Error:
       type: object
@@ -5923,6 +6413,38 @@ components:
           example: 0
 
   parameters:
+    Month:
+      name: month
+      in: path
+      required: true
+      description: The month, YYYY-MM
+      schema:
+        type: string
+        example: '2026-11'
+
+    ChangeReason:
+      name: X-Change-Reason
+      in: header
+      required: false
+      description: >
+        Why the roster is changed, URL-encoded. Required for a change to a published
+        month inside the freeze window, and for an admin's change to a locked month;
+        stored on the change notice (and the audit entry for month status changes).
+      schema:
+        type: string
+        example: 'Krankmeldung%20M%C3%BCller'
+
+    ChangeSource:
+      name: X-Change-Source
+      in: header
+      required: false
+      description: >
+        `replacement` marks a manual roster edit as a short-notice replacement in its
+        change notices; anything else is ignored.
+      schema:
+        type: string
+        enum: [replacement]
+
     SwapId:
       name: swapId
       in: path
@@ -5989,6 +6511,23 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+
+    ReasonRequired:
+      description: >
+        The change touches a published month inside the freeze window, or a locked
+        month, and carries no `X-Change-Reason`. Send the same request again with
+        one.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error, code]
+            properties:
+              error:
+                type: string
+              code:
+                type: string
+                enum: [reason_required]
 
     InternalServerError:
       description: Internal server error

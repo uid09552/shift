@@ -1,0 +1,53 @@
+@if (state) {
+  <div class="fixed inset-0 z-99999 flex items-center justify-center bg-black/50 backdrop-blur-[2px]" (click)="cancel()">
+    <form
+      class="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-900"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reason-dialog-title"
+      data-testid="reason-dialog"
+      (click)="$event.stopPropagation()"
+      (ngSubmit)="submit()"
+    >
+      <h3 id="reason-dialog-title" class="text-base font-semibold text-gray-800 dark:text-white/90">
+        {{ 'reason.title' | t }}
+      </h3>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ state.message }}</p>
+
+      <label for="reason-dialog-field" class="mt-4 mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+        {{ 'reason.label' | t }}
+      </label>
+      <textarea
+        #field
+        id="reason-dialog-field"
+        name="reason"
+        rows="3"
+        maxlength="500"
+        [(ngModel)]="reason"
+        (keydown)="onKeydown($event)"
+        data-testid="reason-dialog-input"
+        [placeholder]="'reason.placeholder' | t"
+        class="w-full resize-none rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30"
+      ></textarea>
+      <p class="mt-1.5 text-xs text-gray-400">{{ 'reason.hint' | t }}</p>
+
+      <div class="mt-5 flex items-center justify-end gap-3">
+        <button
+          type="button"
+          (click)="cancel()"
+          class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
+        >
+          {{ 'common.cancel' | t }}
+        </button>
+        <button
+          type="submit"
+          [disabled]="!reason.trim()"
+          data-testid="reason-dialog-submit"
+          class="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {{ 'reason.submit' | t }}
+        </button>
+      </div>
+    </form>
+  </div>
+}

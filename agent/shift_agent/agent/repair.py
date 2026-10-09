@@ -1059,6 +1059,10 @@ def resolve_with_optimizer(
     rebuilt["status"] = answer.get("status")
     if answer.get("objective_value") is not None:
         rebuilt["objective_value"] = answer["objective_value"]
+    # Over a published month the solver keeps what employees were told and
+    # reports how many employee-days it still had to change.
+    if answer.get("changes_vs_published") is not None:
+        rebuilt["changes_vs_published"] = answer["changes_vs_published"]
     return rebuilt, answer.get("message")
 
 

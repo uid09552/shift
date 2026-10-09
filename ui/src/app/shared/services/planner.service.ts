@@ -151,6 +151,9 @@ export interface PlanningTasksResponse {
 export interface TakeAsPlanResponse {
   employee_count: number;
   created: number;
+  /** Employee-days of published or locked months that differ from the roster — the notices written. */
+  changes: number;
+  dry_run: boolean;
 }
 
 @Injectable({
@@ -251,10 +254,12 @@ export class PlannerService {
    * Overwrites the confirmed shift plans for the result's planning period (optionally scoped
    * to a subset of employees) with this result's assignments/free days. Runs entirely
    * server-side in one transaction — no per-employee/per-entry API calls needed from the UI.
+   * With `dryRun` nothing is written; `changes` says how many published days it would change.
    */
-  takeAsPlan(resultId: string, employeeIds?: string[]): Observable<TakeAsPlanResponse> {
-    const body: { employee_ids?: string[] } = {};
+  takeAsPlan(resultId: string, employeeIds?: string[], dryRun = false): Observable<TakeAsPlanResponse> {
+    const body: { employee_ids?: string[]; dry_run?: boolean } = {};
     if (employeeIds && employeeIds.length) body.employee_ids = employeeIds;
+    if (dryRun) body.dry_run = true;
     return this.http.post<TakeAsPlanResponse>(`${this.apiUrl}/optimized-shifts/${resultId}/take-as-plan`, body);
   }
 

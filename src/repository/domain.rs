@@ -2,6 +2,7 @@ use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::errors::AppError;
+use crate::services::roster_guard::{RosterChangeCtx, WriteMode};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Employee {
@@ -309,8 +310,10 @@ pub trait ShiftSwapRepository {
     async fn expire_swaps(&self, tenant_id: &str, today: NaiveDate) -> Result<usize, AppError>;
     /// In one transaction: checks the request awaits a planner, compares both
     /// roster rows with the request, and either exchanges them (`Approved`) or
-    /// marks the request `stale` (`Stale`).
-    async fn approve_swap(&self, tenant_id: &str, id: Uuid, decided_by: Option<String>) -> Result<SwapApproval, AppError>;
+    /// marks the request `stale` (`Stale`). The exchange follows the months'
+    /// status (`ctx`) and is tracked as change notices; a refusal leaves the
+    /// request awaiting a planner.
+    async fn approve_swap(&self, tenant_id: &str, id: Uuid, decided_by: Option<String>, ctx: &RosterChangeCtx) -> Result<SwapApproval, AppError>;
 }
 
 #[async_trait]
@@ -373,17 +376,22 @@ pub trait RotationPatternRepository {
 
 #[async_trait]
 pub trait ConfirmedShiftPlanRepository {
-    async fn create_confirmed_shift_plan(&self, tenant_id: &str, plan: ConfirmedShiftPlan) -> Result<ConfirmedShiftPlan, AppError>;
-    async fn get_confirmed_shift_plans_for_employee(&self, tenant_id: &str, employee_id: Uuid) -> Result<Vec<ConfirmedShiftPlan>, AppError>;
-    async fn get_confirmed_shift_plans_for_employee_in_range(&self, tenant_id: &str, employee_id: Uuid, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<ConfirmedShiftPlan>, AppError>;
-    async fn get_confirmed_shift_plan_by_id(&self, tenant_id: &str, id: Uuid) -> Result<Option<ConfirmedShiftPlan>, AppError>;
-    async fn update_confirmed_shift_plan(&self, tenant_id: &str, id: Uuid, shift_id: Option<Option<Uuid>>, workstation_id: Option<Option<Uuid>>, is_present: Option<bool>, absence_type: Option<String>, creation_type: Option<String>) -> Result<ConfirmedShiftPlan, AppError>;
-    async fn delete_confirmed_shift_plan(&self, tenant_id: &str, id: Uuid) -> Result<(), AppError>;
-    async fn delete_confirmed_shift_plans_for_employee_date_type(&self, tenant_id: &str, employee_id: Uuid, date: NaiveDate, absence_type: &str) -> Result<(), AppError>;
-    async fn list_confirmed_shift_plans(&self, tenant_id: &str, limit: Option<i64>, offset: Option<i64>) -> Result<Vec<ConfirmedShiftPlan>, AppError>;
-    async fn count_confirmed_shift_plans(&self, tenant_id: &str) -> Result<i64, AppError>;
-    async fn get_confirmed_shift_plans_for_date_range(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate, limit: Option<i64>, offset: Option<i64>) -> Result<Vec<ConfirmedShiftPlan>, AppError>;
-    async fn count_confirmed_shift_plans_for_date_range(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<i64, AppError>;
+    /// Every write takes the caller's `RosterChangeCtx`: it is refused when the
+    /// month status forbids it, and tracked as change notices in published and
+    /// locked months (see `rostertracking`).
+    async fn create_confirmed_shift_plan(&self, tenant_id: &str, plan: ConfirmedShiftPlan, ctx: &RosterChangeCtx) -> Result<ConfirmedShiftPlan, AppError>;
+    async fn get_confirmed_shift_plans_for_employee(&self, tenant_id: &str, employee_id: Uuid, published_only: bool) -> Result<Vec<ConfirmedShiftPlan>, AppError>;
+    async fn get_confirmed_shift_plans_for_employee_in_range(&self, tenant_id: &str, employee_id: Uuid, from_date: NaiveDate, to_date: NaiveDate, published_only: bool) -> Result<Vec<ConfirmedShiftPlan>, AppError>;
+    async fn get_confirmed_shift_plan_by_id(&self, tenant_id: &str, id: Uuid, published_only: bool) -> Result<Option<ConfirmedShiftPlan>, AppError>;
+    #[allow(clippy::too_many_arguments)]
+    async fn update_confirmed_shift_plan(&self, tenant_id: &str, id: Uuid, shift_id: Option<Option<Uuid>>, workstation_id: Option<Option<Uuid>>, is_present: Option<bool>, absence_type: Option<String>, creation_type: Option<String>, ctx: &RosterChangeCtx) -> Result<ConfirmedShiftPlan, AppError>;
+    async fn delete_confirmed_shift_plan(&self, tenant_id: &str, id: Uuid, ctx: &RosterChangeCtx) -> Result<(), AppError>;
+    async fn delete_confirmed_shift_plans_for_employee_date_type(&self, tenant_id: &str, employee_id: Uuid, date: NaiveDate, absence_type: &str, ctx: &RosterChangeCtx) -> Result<(), AppError>;
+    /// `published_only`: leave out months that are still draft — what a viewer sees.
+    async fn list_confirmed_shift_plans(&self, tenant_id: &str, limit: Option<i64>, offset: Option<i64>, published_only: bool) -> Result<Vec<ConfirmedShiftPlan>, AppError>;
+    async fn count_confirmed_shift_plans(&self, tenant_id: &str, published_only: bool) -> Result<i64, AppError>;
+    async fn get_confirmed_shift_plans_for_date_range(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate, limit: Option<i64>, offset: Option<i64>, published_only: bool) -> Result<Vec<ConfirmedShiftPlan>, AppError>;
+    async fn count_confirmed_shift_plans_for_date_range(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate, published_only: bool) -> Result<i64, AppError>;
     /// Atomically replaces all confirmed shift plans for the given employees within
     /// [from_date, to_date]: deletes anything currently there, then inserts `new_plans`
     /// (upserting on the (tenant_id, employee_id, date) unique key). Used by "Take as Plan"
@@ -395,7 +403,21 @@ pub trait ConfirmedShiftPlanRepository {
         from_date: NaiveDate,
         to_date: NaiveDate,
         new_plans: Vec<ConfirmedShiftPlan>,
+        ctx: &RosterChangeCtx,
     ) -> Result<Vec<ConfirmedShiftPlan>, AppError>;
+    /// What `replace_confirmed_shift_plans_for_period` would change in published
+    /// and locked months — the notices it would write — without writing anything.
+    async fn count_period_changes(
+        &self,
+        tenant_id: &str,
+        employee_ids: &[Uuid],
+        from_date: NaiveDate,
+        to_date: NaiveDate,
+        new_plans: &[ConfirmedShiftPlan],
+        today: NaiveDate,
+    ) -> Result<usize, AppError>;
+    /// Whether a write to these employee-days would be allowed, without writing.
+    async fn check_roster_write(&self, tenant_id: &str, ctx: &RosterChangeCtx, cells: &[(Uuid, NaiveDate)]) -> Result<WriteMode, AppError>;
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -607,6 +629,12 @@ pub struct PlannerSettingsDomain {
     pub personal_limits_mode: MinStaffingMode,
     /// Weekly hours of every employee without their own value.
     pub default_weekly_working_hours: f64,
+    /// Days before a month starts by which it is due to be published.
+    pub publish_lead_days: i16,
+    /// Days from today in which a change to a published month needs a reason.
+    pub freeze_days: i16,
+    /// > 0: a re-solve changes as few published employee-days as it must; 0: off.
+    pub change_weight: i32,
 }
 
 /// Whether `min_employees` (per shift/day and per workstation/shift/day) is a
@@ -689,7 +717,17 @@ pub struct UpdatePlannerSettings {
     pub personal_limits_mode: MinStaffingMode,
     #[serde(default = "default_weekly_working_hours")]
     pub default_weekly_working_hours: f64,
+    #[serde(default = "default_publish_lead_days")]
+    pub publish_lead_days: i16,
+    #[serde(default = "default_freeze_days")]
+    pub freeze_days: i16,
+    #[serde(default = "default_change_weight")]
+    pub change_weight: i32,
 }
+
+fn default_publish_lead_days() -> i16 { 28 }
+fn default_freeze_days() -> i16 { 7 }
+fn default_change_weight() -> i32 { 100000 }
 
 fn default_weekly_working_hours() -> f64 { 40.0 }
 fn default_weekly_hours_target_weight() -> i32 { 1000 }
@@ -995,4 +1033,256 @@ pub trait HolidayRepository {
     async fn count_holidays(&self, tenant_id: &str, from: NaiveDate, to: NaiveDate, state: &str) -> Result<i64, AppError>;
     /// Replaces everything stored in `from..=to` with `holidays`.
     async fn replace_holidays(&self, tenant_id: &str, from: NaiveDate, to: NaiveDate, holidays: Vec<HolidayDomain>) -> Result<(), AppError>;
+}
+
+// ---------------------------------------------------------------------------
+// Roster lifecycle: month status and change notices
+// ---------------------------------------------------------------------------
+
+/// The status of one calendar month of a tenant's confirmed roster.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MonthStatus {
+    /// Being planned; planners only, edits are not tracked.
+    Draft,
+    /// Visible to everyone; every change is tracked as a notice.
+    Published,
+    /// Over (or locked by an admin); only an admin with a reason may change it.
+    Locked,
+}
+
+impl MonthStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MonthStatus::Draft => "draft",
+            MonthStatus::Published => "published",
+            MonthStatus::Locked => "locked",
+        }
+    }
+
+    /// The stored column value; the CHECK constraint rules out anything else,
+    /// and an unknown value is treated as the least visible status.
+    pub fn from_db(value: &str) -> Self {
+        match value {
+            "published" => MonthStatus::Published,
+            "locked" => MonthStatus::Locked,
+            _ => MonthStatus::Draft,
+        }
+    }
+}
+
+/// The first day of the month `date` falls in.
+pub fn month_start(date: NaiveDate) -> NaiveDate {
+    date.with_day(1).expect("day 1 exists in every month")
+}
+
+/// The last day of the month starting at (or containing) `month`.
+pub fn month_end(month: NaiveDate) -> NaiveDate {
+    let first = month_start(month);
+    let next = if first.month() == 12 {
+        NaiveDate::from_ymd_opt(first.year() + 1, 1, 1)
+    } else {
+        NaiveDate::from_ymd_opt(first.year(), first.month() + 1, 1)
+    }
+    .expect("valid next month");
+    next - Duration::days(1)
+}
+
+/// Every month start from the month of `from` to the month of `to`, inclusive.
+pub fn months_between(from: NaiveDate, to: NaiveDate) -> Vec<NaiveDate> {
+    let mut months = Vec::new();
+    let mut m = month_start(from);
+    let last = month_start(to);
+    while m <= last {
+        months.push(m);
+        m = month_end(m) + Duration::days(1);
+    }
+    months
+}
+
+/// A month's stored status row. No row means the month was never touched: draft.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RosterMonth {
+    pub month: NaiveDate,
+    pub status: MonthStatus,
+    pub published_at: Option<NaiveDateTime>,
+    pub published_by: Option<String>,
+    pub locked_at: Option<NaiveDateTime>,
+    pub locked_by: Option<String>,
+    /// Unlocked by an admin: stays published after its last day.
+    pub reopened: bool,
+    pub updated_at: NaiveDateTime,
+}
+
+impl RosterMonth {
+    /// The status as everyone sees it on `today`: a published month whose last
+    /// day has passed reads as locked, unless an admin reopened it.
+    pub fn effective_status(&self, today: NaiveDate) -> MonthStatus {
+        effective_status(Some(self), self.month, today)
+    }
+}
+
+/// The effective status of `month` given its stored row (if any) on `today`.
+pub fn effective_status(row: Option<&RosterMonth>, month: NaiveDate, today: NaiveDate) -> MonthStatus {
+    match row.map(|r| (r.status, r.reopened)) {
+        None | Some((MonthStatus::Draft, _)) => MonthStatus::Draft,
+        Some((MonthStatus::Locked, _)) => MonthStatus::Locked,
+        Some((MonthStatus::Published, true)) => MonthStatus::Published,
+        Some((MonthStatus::Published, false)) if month_end(month) < today => MonthStatus::Locked,
+        Some((MonthStatus::Published, false)) => MonthStatus::Published,
+    }
+}
+
+/// What a month status change writes. `None` fields are left as they are.
+#[derive(Debug, Clone)]
+pub struct RosterMonthTransition {
+    pub month: NaiveDate,
+    /// Effective statuses the month must be in, or the change is refused.
+    pub from: Vec<MonthStatus>,
+    pub to: MonthStatus,
+    pub actor: Option<String>,
+    pub reopened: bool,
+}
+
+/// One employee's confirmed entry on one day, as a notice shows it.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct RosterEntry {
+    pub shift_id: Option<Uuid>,
+    pub workstation_id: Option<Uuid>,
+    pub absence_type: Option<String>,
+}
+
+/// Where a roster change came from.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ChangeSource {
+    Manual,
+    TakeAsPlan,
+    Absence,
+    Swap,
+    Replacement,
+}
+
+impl ChangeSource {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ChangeSource::Manual => "manual",
+            ChangeSource::TakeAsPlan => "take_as_plan",
+            ChangeSource::Absence => "absence",
+            ChangeSource::Swap => "swap",
+            ChangeSource::Replacement => "replacement",
+        }
+    }
+
+    pub fn from_db(value: &str) -> Self {
+        match value {
+            "take_as_plan" => ChangeSource::TakeAsPlan,
+            "absence" => ChangeSource::Absence,
+            "swap" => ChangeSource::Swap,
+            "replacement" => ChangeSource::Replacement,
+            _ => ChangeSource::Manual,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RosterChangeNotice {
+    pub id: Uuid,
+    pub employee_id: Uuid,
+    pub date: NaiveDate,
+    /// The entry before the change; `None` when there was none.
+    pub before: Option<RosterEntry>,
+    /// The entry after the change; `None` when it was removed.
+    pub after: Option<RosterEntry>,
+    pub source: ChangeSource,
+    pub actor: Option<String>,
+    pub reason: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub acknowledged_at: Option<NaiveDateTime>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct NoticeFilter {
+    pub employee_id: Option<Uuid>,
+    pub from_date: Option<NaiveDate>,
+    pub to_date: Option<NaiveDate>,
+    pub acknowledged: Option<bool>,
+}
+
+#[async_trait]
+pub trait RosterMonthRepository {
+    /// The stored rows for months from `from` to `to` (month starts, inclusive).
+    async fn list_roster_months(&self, tenant_id: &str, from: NaiveDate, to: NaiveDate) -> Result<Vec<RosterMonth>, AppError>;
+    /// Moves a month to `to` if its effective status on `today` is one of
+    /// `from`; `None` when it is not. Creates the row on first use.
+    async fn transition_roster_month(&self, tenant_id: &str, change: RosterMonthTransition, today: NaiveDate) -> Result<Option<RosterMonth>, AppError>;
+}
+
+#[async_trait]
+pub trait RosterChangeNoticeRepository {
+    /// Newest first.
+    async fn list_notices(&self, tenant_id: &str, filter: NoticeFilter) -> Result<Vec<RosterChangeNotice>, AppError>;
+    async fn count_unacknowledged(&self, tenant_id: &str, employee_id: Uuid) -> Result<i64, AppError>;
+    /// Acknowledges `ids` (all unacknowledged ones when `None`) of `employee_id`.
+    /// Refused (`Forbidden`) when any of `ids` is about someone else.
+    async fn acknowledge_notices(&self, tenant_id: &str, employee_id: Uuid, ids: Option<Vec<Uuid>>) -> Result<usize, AppError>;
+}
+
+#[cfg(test)]
+mod roster_month_tests {
+    use super::*;
+
+    fn d(y: i32, m: u32, day: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, day).unwrap()
+    }
+
+    fn row(month: NaiveDate, status: MonthStatus, reopened: bool) -> RosterMonth {
+        RosterMonth {
+            month,
+            status,
+            published_at: None,
+            published_by: None,
+            locked_at: None,
+            locked_by: None,
+            reopened,
+            updated_at: NaiveDateTime::default(),
+        }
+    }
+
+    #[test]
+    fn an_untouched_month_is_draft() {
+        assert_eq!(effective_status(None, d(2026, 11, 1), d(2026, 10, 9)), MonthStatus::Draft);
+    }
+
+    #[test]
+    fn a_published_month_locks_itself_once_its_last_day_has_passed() {
+        let oct = row(d(2026, 10, 1), MonthStatus::Published, false);
+        assert_eq!(oct.effective_status(d(2026, 10, 31)), MonthStatus::Published, "still its last day");
+        assert_eq!(oct.effective_status(d(2026, 11, 1)), MonthStatus::Locked);
+    }
+
+    #[test]
+    fn a_draft_month_never_locks_itself() {
+        let sep = row(d(2026, 9, 1), MonthStatus::Draft, false);
+        assert_eq!(sep.effective_status(d(2027, 1, 1)), MonthStatus::Draft);
+    }
+
+    #[test]
+    fn a_month_an_admin_unlocked_stays_published() {
+        let sep = row(d(2026, 9, 1), MonthStatus::Published, true);
+        assert_eq!(sep.effective_status(d(2026, 12, 1)), MonthStatus::Published);
+    }
+
+    #[test]
+    fn a_locked_month_stays_locked() {
+        let nov = row(d(2026, 11, 1), MonthStatus::Locked, false);
+        assert_eq!(nov.effective_status(d(2026, 10, 9)), MonthStatus::Locked, "an admin may lock early");
+    }
+
+    #[test]
+    fn month_arithmetic_handles_year_ends_and_leap_years() {
+        assert_eq!(month_end(d(2026, 12, 15)), d(2026, 12, 31));
+        assert_eq!(month_end(d(2028, 2, 1)), d(2028, 2, 29));
+        assert_eq!(months_between(d(2026, 11, 20), d(2027, 1, 3)), vec![d(2026, 11, 1), d(2026, 12, 1), d(2027, 1, 1)]);
+    }
 }

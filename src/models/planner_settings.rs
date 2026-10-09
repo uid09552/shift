@@ -37,6 +37,12 @@ pub struct PlannerSettings {
     pub personal_limits_mode: String,
     /// Weekly hours of every employee without their own value.
     pub default_weekly_working_hours: f64,
+    /// Days before a month starts by which it is due to be published.
+    pub publish_lead_days: i16,
+    /// Days from today in which a change to a published month needs a reason.
+    pub freeze_days: i16,
+    /// > 0: a re-solve changes as few published employee-days as it must; 0: off.
+    pub change_weight: i32,
 }
 
 #[derive(Insertable, AsChangeset, Debug, Clone)]
@@ -69,6 +75,12 @@ pub struct NewPlannerSettings {
     pub personal_limits_mode: String,
     /// Weekly hours of every employee without their own value.
     pub default_weekly_working_hours: f64,
+    /// Days before a month starts by which it is due to be published.
+    pub publish_lead_days: i16,
+    /// Days from today in which a change to a published month needs a reason.
+    pub freeze_days: i16,
+    /// Optimizer penalty per employee-day that differs from the published roster.
+    pub change_weight: i32,
 }
 
 impl NewPlannerSettings {
@@ -101,6 +113,9 @@ impl NewPlannerSettings {
             keep_fixed_assignments: true,
             personal_limits_mode: "hard".to_string(),
             default_weekly_working_hours: 40.0,
+            publish_lead_days: 28,
+            freeze_days: 7,
+            change_weight: 100000,
         }
     }
 }

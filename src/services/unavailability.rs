@@ -9,7 +9,8 @@ use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::repository::AppState;
-use crate::repository::domain::{ConfirmedShiftPlan, ConfirmedShiftPlanRepository, Unavailability, UnavailabilityRepository};
+use crate::repository::domain::{ChangeSource, ConfirmedShiftPlan, ConfirmedShiftPlanRepository, Unavailability, UnavailabilityRepository};
+use crate::services::roster_guard::RosterChange;
 use crate::services::tenant::TenantContext;
 use chrono::Utc;
 
@@ -63,6 +64,7 @@ impl UnavailabilityService {
 
     pub async fn create_unavailability(
         tenant: TenantContext,
+        change: RosterChange,
         State(state): State<AppState>,
         Json(body): Json<Value>,
     ) -> Result<Json<Value>, AppError> {
@@ -96,6 +98,16 @@ impl UnavailabilityService {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
+        // A hard unavailability is mirrored into the roster, which follows the
+        // month's status: ask first, so a refusal leaves both untouched.
+        let ctx = change.ctx(&state, &tenant.0, ChangeSource::Absence).await?;
+        if !is_soft_preference {
+            state
+                .confirmed_shift_plan_repo
+                .check_roster_write(&tenant.0, &ctx, &[(employee_id, unavailable_date)])
+                .await?;
+        }
+
         let unavailability = Unavailability {
             id: Uuid::new_v4(), // Will be replaced by DB-generated ID
             employee_id,
@@ -128,10 +140,16 @@ impl UnavailabilityService {
                 created_at: now,
                 updated_at: now,
             };
-            let _ = state
+            // Not best-effort any more: an unavailability without its roster
+            // entry would hide a change from the people it affects.
+            if let Err(e) = state
                 .confirmed_shift_plan_repo
-                .create_confirmed_shift_plan(&tenant.0, plan)
-                .await;  // best-effort; don't fail the main request if sync fails
+                .create_confirmed_shift_plan(&tenant.0, plan, &ctx)
+                .await
+            {
+                let _ = state.unavailability_repo.delete_unavailability(&tenant.0, created.id).await;
+                return Err(e);
+            }
         }
 
         Ok(Json(serde_json::to_value(created).unwrap()))
@@ -153,6 +171,7 @@ impl UnavailabilityService {
 
     pub async fn delete_unavailability(
         tenant: TenantContext,
+        change: RosterChange,
         Path(unavailability_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
@@ -164,22 +183,27 @@ impl UnavailabilityService {
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
 
+        // The mirrored roster entry goes too, under the month's rules. A soft
+        // preference was never mirrored.
+        if !unavailability.is_soft_preference {
+            let ctx = change.ctx(&state, &tenant.0, ChangeSource::Absence).await?;
+            state
+                .confirmed_shift_plan_repo
+                .delete_confirmed_shift_plans_for_employee_date_type(
+                    &tenant.0,
+                    unavailability.employee_id,
+                    unavailability.unavailable_date,
+                    "unavailable",
+                    &ctx,
+                )
+                .await?;
+        }
+
         state
             .unavailability_repo
             .delete_unavailability(&tenant.0, unavailability_id)
             .await
             .map_err(|_| AppError::Internal)?;
-
-        // Remove the mirrored confirmed shift plan (best-effort).
-        let _ = state
-            .confirmed_shift_plan_repo
-            .delete_confirmed_shift_plans_for_employee_date_type(
-                &tenant.0,
-                unavailability.employee_id,
-                unavailability.unavailable_date,
-                "unavailable",
-            )
-            .await;
 
         Ok(Json(serde_json::json!({ "message": "Unavailability deleted successfully" })))
     }

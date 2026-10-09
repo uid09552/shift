@@ -10,8 +10,9 @@ use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::repository::AppState;
-use crate::repository::domain::{ConfirmedShiftPlan, ConfirmedShiftPlanRepository};
-use crate::services::tenant::TenantContext;
+use crate::repository::domain::{ChangeSource, ConfirmedShiftPlan, ConfirmedShiftPlanRepository};
+use crate::services::roster_guard::RosterChange;
+use crate::services::tenant::{RoleContext, TenantContext};
 use crate::services::workstation_unavailability::WorkstationClosures;
 
 #[derive(Deserialize)]
@@ -52,11 +53,14 @@ pub struct ConfirmedShiftPlanService;
 impl ConfirmedShiftPlanService {
     /// GET /confirmed-shift-plans
     /// Lists all confirmed shift plans with pagination. Supports optional from_date/to_date query parameters for date range filtering.
+    /// A `shift-viewer` sees only published and locked months.
     pub async fn list_confirmed_shift_plans(
         tenant: TenantContext,
+        roles: RoleContext,
         Query(q): Query<ListConfirmedShiftPlansQuery>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
+        let published_only = !roles.can_write();
         let limit = q.limit.map(|l| l as i64);
         let offset = q.offset.map(|o| o as i64);
 
@@ -67,24 +71,24 @@ impl ConfirmedShiftPlanService {
                 .map_err(|_| AppError::Validation("Invalid to_date format, use YYYY-MM-DD".into()))?;
             let plans = state
                 .confirmed_shift_plan_repo
-                .get_confirmed_shift_plans_for_date_range(&tenant.0, from_date, to_date, limit, offset)
+                .get_confirmed_shift_plans_for_date_range(&tenant.0, from_date, to_date, limit, offset, published_only)
                 .await
                 .map_err(|_| AppError::Internal)?;
             let total = state
                 .confirmed_shift_plan_repo
-                .count_confirmed_shift_plans_for_date_range(&tenant.0, from_date, to_date)
+                .count_confirmed_shift_plans_for_date_range(&tenant.0, from_date, to_date, published_only)
                 .await
                 .map_err(|_| AppError::Internal)?;
             (plans, total)
         } else {
             let plans = state
                 .confirmed_shift_plan_repo
-                .list_confirmed_shift_plans(&tenant.0, limit, offset)
+                .list_confirmed_shift_plans(&tenant.0, limit, offset, published_only)
                 .await
                 .map_err(|_| AppError::Internal)?;
             let total = state
                 .confirmed_shift_plan_repo
-                .count_confirmed_shift_plans(&tenant.0)
+                .count_confirmed_shift_plans(&tenant.0, published_only)
                 .await
                 .map_err(|_| AppError::Internal)?;
             (plans, total)
@@ -102,8 +106,10 @@ impl ConfirmedShiftPlanService {
     /// GET /employees/:employee_id/confirmed-shift-plans
     /// Returns the confirmed shift plans for a specific employee.
     /// Supports optional from_date/to_date query parameters for date range filtering.
+    /// A `shift-viewer` sees only published and locked months.
     pub async fn get_employee_confirmed_shift_plans(
         tenant: TenantContext,
+        roles: RoleContext,
         Path(employee_id): Path<Uuid>,
         Query(q): Query<ListConfirmedShiftPlansQuery>,
         State(state): State<AppState>,
@@ -115,13 +121,13 @@ impl ConfirmedShiftPlanService {
                 .map_err(|_| AppError::Validation("Invalid to_date format, use YYYY-MM-DD".into()))?;
             state
                 .confirmed_shift_plan_repo
-                .get_confirmed_shift_plans_for_employee_in_range(&tenant.0, employee_id, from_date, to_date)
+                .get_confirmed_shift_plans_for_employee_in_range(&tenant.0, employee_id, from_date, to_date, !roles.can_write())
                 .await
                 .map_err(|_| AppError::Internal)?
         } else {
             state
                 .confirmed_shift_plan_repo
-                .get_confirmed_shift_plans_for_employee(&tenant.0, employee_id)
+                .get_confirmed_shift_plans_for_employee(&tenant.0, employee_id, !roles.can_write())
                 .await
                 .map_err(|_| AppError::Internal)?
         };
@@ -130,9 +136,12 @@ impl ConfirmedShiftPlanService {
     }
 
     /// POST /employees/:employee_id/confirmed-shift-plans
-    /// Creates a new confirmed shift plan entry for an employee.
+    /// Creates a new confirmed shift plan entry for an employee. Follows the
+    /// month's status (see `roster_guard`): refused in a locked month unless an
+    /// admin gives a reason, tracked as a notice in a published one.
     pub async fn create_confirmed_shift_plan(
         tenant: TenantContext,
+        change: RosterChange,
         Path(employee_id): Path<Uuid>,
         State(state): State<AppState>,
         Json(body): Json<Value>,
@@ -218,24 +227,27 @@ impl ConfirmedShiftPlanService {
             updated_at: now,
         };
 
+        let ctx = change.ctx(&state, &tenant.0, ChangeSource::Manual).await?;
         let created = state
             .confirmed_shift_plan_repo
-            .create_confirmed_shift_plan(&tenant.0, plan)
+            .create_confirmed_shift_plan(&tenant.0, plan, &ctx)
             .await?;
 
         Ok(Json(serde_json::to_value(created).unwrap()))
     }
 
     /// GET /confirmed-shift-plans/:plan_id
-    /// Gets a specific confirmed shift plan by ID.
+    /// Gets a specific confirmed shift plan by ID; a draft-month entry is not
+    /// found for a `shift-viewer`.
     pub async fn get_confirmed_shift_plan_by_id(
         tenant: TenantContext,
+        roles: RoleContext,
         Path(plan_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
         let plan = state
             .confirmed_shift_plan_repo
-            .get_confirmed_shift_plan_by_id(&tenant.0, plan_id)
+            .get_confirmed_shift_plan_by_id(&tenant.0, plan_id, !roles.can_write())
             .await
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
@@ -244,9 +256,10 @@ impl ConfirmedShiftPlanService {
     }
 
     /// PUT /confirmed-shift-plans/:plan_id
-    /// Updates a specific confirmed shift plan.
+    /// Updates a specific confirmed shift plan, following the month's status.
     pub async fn update_confirmed_shift_plan(
         tenant: TenantContext,
+        change: RosterChange,
         Path(plan_id): Path<Uuid>,
         State(state): State<AppState>,
         Json(body): Json<Value>,
@@ -321,7 +334,7 @@ impl ConfirmedShiftPlanService {
         if let Some(Some(ws)) = workstation_id {
             let existing = state
                 .confirmed_shift_plan_repo
-                .get_confirmed_shift_plan_by_id(&tenant.0, plan_id)
+                .get_confirmed_shift_plan_by_id(&tenant.0, plan_id, false)
                 .await
                 .map_err(|_| AppError::Internal)?
                 .ok_or(AppError::NotFound)?;
@@ -330,24 +343,27 @@ impl ConfirmedShiftPlanService {
             }
         }
 
+        let ctx = change.ctx(&state, &tenant.0, ChangeSource::Manual).await?;
         let updated = state
             .confirmed_shift_plan_repo
-            .update_confirmed_shift_plan(&tenant.0, plan_id, shift_id, workstation_id, is_present, absence_type, creation_type)
+            .update_confirmed_shift_plan(&tenant.0, plan_id, shift_id, workstation_id, is_present, absence_type, creation_type, &ctx)
             .await?;
 
         Ok(Json(serde_json::to_value(updated).unwrap()))
     }
 
     /// DELETE /confirmed-shift-plans/:plan_id
-    /// Deletes a specific confirmed shift plan.
+    /// Deletes a specific confirmed shift plan, following the month's status.
     pub async fn delete_confirmed_shift_plan(
         tenant: TenantContext,
+        change: RosterChange,
         Path(plan_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<Value>, AppError> {
+        let ctx = change.ctx(&state, &tenant.0, ChangeSource::Manual).await?;
         state
             .confirmed_shift_plan_repo
-            .delete_confirmed_shift_plan(&tenant.0, plan_id)
+            .delete_confirmed_shift_plan(&tenant.0, plan_id, &ctx)
             .await?;
 
         Ok(Json(serde_json::json!({ "deleted": true })))

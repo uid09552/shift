@@ -31,6 +31,12 @@ pub enum AppError {
     #[error("{0}")]
     Unavailable(String),
 
+    /// 428 — the change touches a frozen or locked part of a published roster
+    /// and needs a reason (`X-Change-Reason`). The body carries
+    /// `code: reason_required` so a client can ask for one and retry.
+    #[error("{0}")]
+    ReasonRequired(String),
+
     #[error("Database error")]
     DbError,
 
@@ -50,6 +56,13 @@ impl From<diesel::result::Error> for AppError {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
+        if let AppError::ReasonRequired(msg) = self {
+            return (
+                StatusCode::PRECONDITION_REQUIRED,
+                Json(json!({ "error": msg, "code": "reason_required" })),
+            )
+                .into_response();
+        }
         let (status, message) = match self {
             AppError::Validation(msg) => (StatusCode::BAD_REQUEST, msg),
             AppError::Duplicate => (StatusCode::CONFLICT, self.to_string()),
@@ -58,6 +71,7 @@ impl IntoResponse for AppError {
             AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
             AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg),
             AppError::Unavailable(msg) => (StatusCode::SERVICE_UNAVAILABLE, msg),
+            AppError::ReasonRequired(msg) => (StatusCode::PRECONDITION_REQUIRED, msg),
             AppError::DbError => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
             AppError::Internal => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
         };

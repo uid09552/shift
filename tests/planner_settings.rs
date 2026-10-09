@@ -3,24 +3,26 @@
 //! The mode decides whether the optimizer treats `min_employees` as a target it
 //! may miss or a requirement it may not, so it has to survive the whole round
 //! trip — request body, database column, response — unchanged. These drive the
-//! real router over real HTTP with a forged access token, the same path a
-//! request from the gateway takes.
+//! real router over real HTTP with a signed access token (see `common`), the
+//! same path a request from the gateway takes.
 //!
 //! Each test works in its own throwaway tenant and deletes its row afterwards.
 //! Needs PostgreSQL; point `DATABASE_URL` at it, or leave it unset to use the
 //! development default. When no database is reachable the tests print a notice
 //! and pass rather than failing, matching `wish_window.rs`.
 
+mod common;
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use base64::{engine::general_purpose, Engine as _};
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+use common::TestKeys;
 use shift::database::DbPool;
 use shift::repository::AppState;
 use shift::schema::planner_settings;
@@ -30,6 +32,7 @@ const DEFAULT_DATABASE_URL: &str = "postgresql://postgres:postgres@localhost:543
 struct TestApp {
     base_url: String,
     tenant: String,
+    keys: TestKeys,
     pool: DbPool,
 }
 
@@ -50,7 +53,9 @@ impl TestApp {
         };
         shift::database::run_migrations(&pool).expect("migrations");
 
-        let state = AppState::new(Arc::new(pool.clone()));
+        let keys = TestKeys::serve().await;
+        let mut state = AppState::new(Arc::new(pool.clone()));
+        state.token_verifier = Some(keys.verifier());
         let app = shift::server::create_router(state);
         let listener = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .await
@@ -63,23 +68,19 @@ impl TestApp {
         Some(Self {
             base_url: format!("http://{addr}/api/v1"),
             tenant: format!("test-planner-{}", Uuid::new_v4()),
+            keys,
             pool,
         })
     }
 
     fn token(&self) -> String {
-        let payload = json!({
+        self.keys.sign(json!({
+            "sub": "planner@test.invalid",
             "tenant": [self.tenant],
             "realm_access": { "roles": ["shift-planner"] },
             "email": "planner@test.invalid",
             "preferred_username": "planner@test.invalid",
-        });
-        let encode = |bytes: &[u8]| general_purpose::URL_SAFE_NO_PAD.encode(bytes);
-        format!(
-            "{}.{}.signature",
-            encode(br#"{"alg":"RS256","typ":"JWT"}"#),
-            encode(payload.to_string().as_bytes()),
-        )
+        }))
     }
 
     async fn get(&self) -> (u16, Value) {
@@ -213,6 +214,51 @@ async fn rotations_are_kept_until_switched_off() {
     // omitted setting: omitted means default.
     let (_, omitted) = app.put(settings_body(json!("soft"))).await;
     assert_eq!(omitted["keep_fixed_assignments"], true);
+
+    app.cleanup();
+}
+
+#[tokio::test]
+async fn the_roster_lifecycle_settings_round_trip_with_their_defaults() {
+    let Some(app) = TestApp::spawn().await else { return };
+
+    let (_, body) = app.get().await;
+    assert_eq!(body["publish_lead_days"], 28);
+    assert_eq!(body["freeze_days"], 7);
+    assert_eq!(body["change_weight"], 100000);
+
+    let mut changed = settings_body(json!("soft"));
+    changed["publish_lead_days"] = json!(21);
+    changed["freeze_days"] = json!(0);
+    changed["change_weight"] = json!(0);
+    let (status, body) = app.put(changed).await;
+    assert_eq!(status, 200, "body: {body}");
+    let (_, reread) = app.get().await;
+    assert_eq!(reread["publish_lead_days"], 21, "stored, not just echoed");
+    assert_eq!(reread["freeze_days"], 0, "0 switches the freeze window off");
+    assert_eq!(reread["change_weight"], 0, "0 lets a re-solve ignore the published roster");
+
+    // Omitted means default, as for every other setting.
+    let (_, omitted) = app.put(settings_body(json!("soft"))).await;
+    assert_eq!(omitted["publish_lead_days"], 28);
+    assert_eq!(omitted["freeze_days"], 7);
+    assert_eq!(omitted["change_weight"], 100000);
+
+    app.cleanup();
+}
+
+#[tokio::test]
+async fn negative_roster_lifecycle_settings_are_refused() {
+    let Some(app) = TestApp::spawn().await else { return };
+
+    for field in ["publish_lead_days", "freeze_days", "change_weight"] {
+        let mut body = settings_body(json!("soft"));
+        body[field] = json!(-1);
+        let (status, response) = app.put(body).await;
+        assert_eq!(status, 400, "{field} = -1 must be refused, got {status}: {response}");
+    }
+    let (_, body) = app.get().await;
+    assert_eq!(body["freeze_days"], 7, "the rejected writes changed nothing");
 
     app.cleanup();
 }

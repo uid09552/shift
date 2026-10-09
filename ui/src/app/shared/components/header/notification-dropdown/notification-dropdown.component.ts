@@ -8,6 +8,8 @@ import { AuditLog, AuditLogService } from '../../../services/audit-log.service';
 import { TranslatePipe } from '../../../i18n/translate.pipe';
 import { TranslationService } from '../../../i18n/translation.service';
 import { SwapNotificationService } from '../../../services/swap-notification.service';
+import { RosterNoticeNotificationService } from '../../../services/roster-notice-notification.service';
+import { Observable, combineLatest, map } from 'rxjs';
 
 const MAX_NOTIFICATIONS = 10;
 
@@ -20,6 +22,9 @@ const MAX_NOTIFICATIONS = 10;
 export class NotificationDropdownComponent {
   isOpen = false;
 
+  /** What the badge counts: swaps to decide plus unseen changes to one's own shifts. */
+  readonly attention$: Observable<number>;
+
   logs: AuditLog[] = [];
   loading = false;
   loaded = false;
@@ -31,10 +36,16 @@ export class NotificationDropdownComponent {
     private auditLogService: AuditLogService,
     private translations: TranslationService,
     readonly swaps: SwapNotificationService,
+    readonly changes: RosterNoticeNotificationService,
   ) {
-    // Shift swaps awaiting a decision are the one thing polled: a planner should
-    // see them without opening the dropdown. A no-op for every other role.
+    // Two things are polled, so they show without opening the dropdown: shift
+    // swaps awaiting a decision (planners only, a no-op for everyone else) and
+    // changes to the caller's own published shifts they have not seen yet.
     swaps.start();
+    changes.start();
+    this.attention$ = combineLatest([swaps.pending$, changes.unread$]).pipe(
+      map(([pending, unread]) => pending + unread),
+    );
   }
 
   /** Notifications are only fetched once the user opens the dropdown — no background polling. */
@@ -43,6 +54,7 @@ export class NotificationDropdownComponent {
     if (this.isOpen) {
       this.loadLogs();
       this.swaps.refresh();
+      this.changes.refresh();
     }
   }
 

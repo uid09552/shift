@@ -22,8 +22,9 @@ const ROLE_VIEWER: &str = "shift-viewer";
 /// Path segments whose mutations a `shift-viewer` may perform for their own records.
 /// The method check below lets those requests through; the handler is responsible for
 /// verifying ownership against the caller's identity (`UserContext`) — and, for
-/// shift swaps, that only a planner or admin approves or rejects.
-const SELF_SERVICE_SEGMENTS: [&str; 2] = ["shift-wishes", "shift-swaps"];
+/// shift swaps, that only a planner or admin approves or rejects. Roster change
+/// notices are acknowledged by the employee they are about.
+const SELF_SERVICE_SEGMENTS: [&str; 3] = ["shift-wishes", "shift-swaps", "roster-change-notices"];
 
 /// The tenant a request is scoped to. Every repository call takes this so a request
 /// can never read or write another tenant's rows.

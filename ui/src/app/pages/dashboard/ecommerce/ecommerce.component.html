@@ -1,4 +1,7 @@
 <div class="grid grid-cols-12 gap-4 md:gap-6" data-testid="overview-page">
+  <!-- Draft months due or overdue for publishing (planners; empty when on time) -->
+  <app-publish-deadline-banner class="col-span-12 empty:hidden" />
+
   <!-- My Day — the signed-in user's own plan, first because it is the one
        part of this page that is about them rather than the ward -->
   <div class="col-span-12" data-testid="overview-my-day">

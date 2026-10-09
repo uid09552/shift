@@ -16,6 +16,11 @@
 //! checked when a request is made or approved: the planner sees the rule
 //! warnings (from the agent, see `swap_warnings`) and decides. Requests whose
 //! earlier date has passed expire; that is written on the next read.
+//!
+//! Only shifts in published months can be offered (a draft month is not visible
+//! to employees yet), and approval follows the month's status like every other
+//! roster write (`roster_guard`): a reason inside the freeze window, an admin
+//! with a reason in a locked month, and a change notice for both employees.
 
 use axum::{
     extract::{Path, Query, State},
@@ -31,10 +36,12 @@ use uuid::Uuid;
 use crate::errors::AppError;
 use crate::repository::AppState;
 use crate::repository::domain::{
-    swap_roster_conflict, swap_status, ConfirmedShiftPlanRepository, Employee, EmployeeRepository,
-    ShiftSwapRepository, ShiftSwapRequest, SwapApproval, SwapSide,
+    effective_status, month_start, swap_roster_conflict, swap_status, ChangeSource, ConfirmedShiftPlanRepository,
+    Employee, EmployeeRepository, MonthStatus, RosterMonthRepository, ShiftSwapRepository, ShiftSwapRequest,
+    SwapApproval, SwapSide,
 };
 use crate::services::audit_log::{self, AuditActor};
+use crate::services::roster_guard::RosterChange;
 use crate::services::tenant::{RoleContext, TenantContext, UserContext};
 
 /// How long the planner's review waits for the agent's rule check.
@@ -73,7 +80,7 @@ fn actor_name(actor: &AuditActor, user: &UserContext) -> Option<String> {
 }
 
 /// The employee the caller is, matched by e-mail (either token claim).
-async fn caller_employee(
+pub(crate) async fn caller_employee(
     state: &AppState,
     tenant: &TenantContext,
     user: &UserContext,
@@ -117,7 +124,7 @@ async fn roster_rows(
         rows.extend(
             state
                 .confirmed_shift_plan_repo
-                .get_confirmed_shift_plans_for_employee_in_range(&tenant.0, employee_id, from, to)
+                .get_confirmed_shift_plans_for_employee_in_range(&tenant.0, employee_id, from, to, false)
                 .await?
                 .into_iter()
                 .filter(|r| dates.contains(&r.date)),
@@ -346,6 +353,14 @@ impl ShiftSwapService {
         }
 
         let dates = [body.requester_date, body.colleague_date];
+        let (first, last) = (dates[0].min(dates[1]), dates[0].max(dates[1]));
+        let months = state.roster_month_repo.list_roster_months(&tenant.0, first, last).await?;
+        for date in dates {
+            let month = month_start(date);
+            if effective_status(months.iter().find(|m| m.month == month), month, today) != MonthStatus::Published {
+                return Err(AppError::Validation(format!("{date} is not in a published roster")));
+            }
+        }
         let rows = roster_rows(&state, &tenant, [requester.id, colleague.id], dates).await?;
         let mine = side_from_roster(&requester, body.requester_date, &rows)?;
         let theirs = side_from_roster(&colleague, body.colleague_date, &rows)?;
@@ -437,6 +452,7 @@ impl ShiftSwapService {
         roles: RoleContext,
         user: UserContext,
         actor: AuditActor,
+        change: RosterChange,
         headers: HeaderMap,
         Path(id): Path<Uuid>,
         State(state): State<AppState>,
@@ -448,8 +464,9 @@ impl ShiftSwapService {
         }
         let warnings = swap_warnings(&state, &headers, &swap).await.unwrap_or_else(|reason| json!({ "unavailable": reason }));
         let decided_by = actor_name(&actor, &user);
+        let ctx = change.ctx(&state, &tenant.0, ChangeSource::Swap).await?;
 
-        match state.shift_swap_repo.approve_swap(&tenant.0, id, decided_by.clone()).await? {
+        match state.shift_swap_repo.approve_swap(&tenant.0, id, decided_by.clone(), &ctx).await? {
             SwapApproval::Approved(swap) => {
                 record(&state, &tenant, decided_by, "shift_swap.approve", &swap, Some(("warnings", warnings))).await;
                 Ok(Json(serde_json::to_value(swap).unwrap()))

@@ -35,6 +35,7 @@ import { ModalComponent } from '../../../shared/components/ui/modal/modal.compon
 import { ContextMenuItem, ContextMenuService } from '../../../shared/components/ui/context-menu/context-menu.service';
 import { ReplacementDialogComponent, ReplacementDone, ReplacementRequest } from './replacement-dialog.component';
 import { SwapRequestsDialogComponent } from './swap-requests-dialog.component';
+import { RosterMonthStatusComponent } from './roster-month-status.component';
 import { ShiftSwapService } from '../../../shared/services/shift-swap.service';
 import { SwapNotificationService } from '../../../shared/services/swap-notification.service';
 import { UserService } from '../../../shared/services/user.service';
@@ -110,6 +111,7 @@ interface WishCellData {
     ModalComponent,
     ReplacementDialogComponent,
     SwapRequestsDialogComponent,
+    RosterMonthStatusComponent,
     TranslatePipe,
   ],
   templateUrl: './kalender.component.html',
@@ -218,6 +220,12 @@ export class KalenderComponent implements OnInit, OnDestroy {
     const view = this.route.snapshot.queryParamMap.get('view');
     if (SCHEDULE_VIEWS.includes(view as ScheduleView)) {
       this.viewMode = view as ScheduleView;
+    }
+    // `?month=YYYY-MM` — the overview's publish-deadline link — opens that month.
+    const month = /^(\d{4})-(\d{2})$/.exec(this.route.snapshot.queryParamMap.get('month') ?? '');
+    if (month) {
+      this.viewMode = 'month';
+      this.anchorDate = new Date(Number(month[1]), Number(month[2]) - 1, 1);
     }
     this.computeDays();
     this.loadAll();
@@ -594,6 +602,59 @@ export class KalenderComponent implements OnInit, OnDestroy {
 
   getShiftShortName(shift: Shift | null): string {
     return shift?.short_name ?? '–';
+  }
+
+  // ── Week grid card details ──────────────────────────────────────
+
+  /** The card's tint: the shift colour at ~15%, readable on the dark surface. */
+  getShiftTint(shift: Shift | null): string {
+    return this.getShiftColor(shift) + '26';
+  }
+
+  /** "07:00 – 15:00" for the shift on that day; empty when it does not run then. */
+  shiftTime(shift: Shift | null, day: DayInfo): string {
+    return formatTimeRange(weekdayTimeFor(shift, day.date));
+  }
+
+  /** Which icon the card carries: from the start time, overnight counts as night. */
+  shiftKind(shift: Shift | null, day: DayInfo): 'day' | 'evening' | 'night' {
+    const wt = weekdayTimeFor(shift, day.date);
+    if (!wt) return 'day';
+    const start = wt.start_time.substring(0, 5);
+    const end = wt.end_time.substring(0, 5);
+    if (end <= start || start >= '20:00' || start < '05:00') return 'night';
+    return start >= '12:00' ? 'evening' : 'day';
+  }
+
+  initials(name: string): string {
+    const parts = name.trim().split(/\s+/);
+    return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+  }
+
+  /** The line under the name: what they are qualified for. */
+  employeeRole(employee: Employee): string {
+    return employee.capabilities.slice(0, 2).map((c) => c.name).join(' · ');
+  }
+
+  isWeekend(day: DayInfo): boolean {
+    const d = day.date.getDay();
+    return d === 0 || d === 6;
+  }
+
+  /** Hours of the shifts this employee works in the visible period. */
+  periodHours(employeeId: string): number {
+    let minutes = 0;
+    for (const day of this.days) {
+      const cell = this.getCell(employeeId, day);
+      const wt = cell.plan && cell.isPresent ? weekdayTimeFor(cell.shift, day.date) : null;
+      if (!wt) continue;
+      const [sh, sm] = wt.start_time.split(':').map(Number);
+      const [eh, em] = wt.end_time.split(':').map(Number);
+      let span = eh * 60 + em - (sh * 60 + sm);
+      if (span <= 0) span += 24 * 60;
+      minutes += span;
+    }
+    return Math.round(minutes / 6) / 10;
   }
 
   // Groups the various absence_type values into the three color treatments

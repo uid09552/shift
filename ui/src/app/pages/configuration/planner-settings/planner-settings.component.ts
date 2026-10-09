@@ -531,6 +531,74 @@ const DEFAULT_BAND: { min: number; max: number } = { min: 30, max: 45 };
           </div>
         </section>
 
+        <!-- Publishing: when a month is due, how close a change needs a reason, and
+             whether a re-plan keeps what employees have been told -->
+        <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+          <div class="px-5 py-4 sm:px-6">
+            <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'plannerSettings.publishingSection' | t }}</h3>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.publishingSectionSub' | t }}</p>
+          </div>
+          <div class="divide-y divide-gray-100 border-t border-gray-100 dark:divide-white/[0.05] dark:border-white/[0.05]">
+            <app-setting-row
+              controlId="publishLeadDays"
+              [label]="'plannerSettings.publishLeadDays.label' | t"
+              [description]="'plannerSettings.publishLeadDays.hint' | t"
+              [tooltip]="'plannerSettings.publishLeadDays.tooltip' | t"
+            >
+              <app-range-slider
+                id="publishLeadDays"
+                data-testid="planner-settings-publish-lead-days"
+                [min]="0" [max]="90" [step]="1"
+                [value]="form.publish_lead_days"
+                [valueLabel]="daysLabel(form.publish_lead_days)"
+                (valueChange)="form.publish_lead_days = $event"
+              />
+            </app-setting-row>
+
+            <app-setting-row
+              controlId="freezeDays"
+              [label]="'plannerSettings.freezeDays.label' | t"
+              [description]="'plannerSettings.freezeDays.hint' | t"
+              [tooltip]="'plannerSettings.freezeDays.tooltip' | t"
+            >
+              <app-range-slider
+                id="freezeDays"
+                data-testid="planner-settings-freeze-days"
+                [min]="0" [max]="31" [step]="1"
+                [value]="form.freeze_days"
+                [valueLabel]="daysLabel(form.freeze_days)"
+                (valueChange)="form.freeze_days = $event"
+              />
+            </app-setting-row>
+
+            <app-setting-row
+              [label]="'plannerSettings.keepPublished.label' | t"
+              [description]="'plannerSettings.keepPublished.hint' | t"
+              [tooltip]="'plannerSettings.keepPublished.tooltip' | t"
+            >
+              <button
+                type="button"
+                role="switch"
+                data-testid="keep-published-roster"
+                [attr.aria-checked]="form.change_weight > 0"
+                [attr.aria-label]="'plannerSettings.keepPublished.label' | t"
+                (click)="form.change_weight = form.change_weight > 0 ? 0 : 100000"
+                class="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+              >
+                <span
+                  class="relative block h-6 w-11 rounded-full transition-colors duration-150"
+                  [class]="form.change_weight > 0 ? 'bg-brand-500' : 'bg-gray-200 dark:bg-white/10'"
+                >
+                  <span
+                    class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-theme-xs transition-transform duration-150"
+                    [class]="form.change_weight > 0 ? 'translate-x-5' : 'translate-x-0'"
+                  ></span>
+                </span>
+              </button>
+            </app-setting-row>
+          </div>
+        </section>
+
         <!-- Solver performance -->
         <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <div class="px-5 py-4 sm:px-6">
@@ -641,6 +709,9 @@ export class PlannerSettingsComponent implements OnInit {
     keep_fixed_assignments: true,
     personal_limits_mode: 'hard',
     default_weekly_working_hours: 40,
+    publish_lead_days: 28,
+    freeze_days: 7,
+    change_weight: 100000,
   };
 
   ngOnInit(): void {

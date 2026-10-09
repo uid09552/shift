@@ -32,6 +32,8 @@ use crate::services::{
     user_management::UserManagementService,
     wish_settings::WishSettingsService,
     personal_limits::PersonalLimitsService,
+    roster_month::RosterMonthService,
+    roster_notice::RosterNoticeService,
     workstation::WorkstationService,
     workstation_unavailability::WorkstationUnavailabilityService,
 };
@@ -224,6 +226,16 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route("/analysis/fairness", get(AnalysisService::get_fairness))
         // Audit Logs
+        // Roster lifecycle: month status and publish deadline
+        .route("/roster-months", get(RosterMonthService::list_roster_months))
+        .route("/roster-months/:month/publish", post(RosterMonthService::publish))
+        .route("/roster-months/:month/unpublish", post(RosterMonthService::unpublish))
+        .route("/roster-months/:month/unlock", post(RosterMonthService::unlock))
+        .route("/roster-months/:month/lock", post(RosterMonthService::lock))
+        // What changed in a published roster, per employee (self-service: own)
+        .route("/roster-change-notices", get(RosterNoticeService::list_notices))
+        .route("/roster-change-notices/unread-count", get(RosterNoticeService::unread_count))
+        .route("/roster-change-notices/acknowledge", post(RosterNoticeService::acknowledge))
         .route("/audit-logs", get(AuditLogService::list_audit_logs))
         .route("/audit-logs/facets", get(AuditLogService::audit_facets))
         // What is running — version, commit, build date

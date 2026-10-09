@@ -1,6 +1,7 @@
 import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { ConfirmDialogComponent } from './shared/components/ui/confirm-dialog/confirm-dialog.component';
+import { ReasonDialogComponent } from './shared/components/ui/reason-dialog/reason-dialog.component';
 import { ContextMenuComponent } from './shared/components/ui/context-menu/context-menu.component';
 import { ChatWidgetComponent } from './shared/components/chat/chat-widget.component';
 
@@ -10,6 +11,7 @@ import { ChatWidgetComponent } from './shared/components/chat/chat-widget.compon
   imports: [
     RouterModule,
     ConfirmDialogComponent,
+    ReasonDialogComponent,
     ContextMenuComponent,
     ChatWidgetComponent,
   ],

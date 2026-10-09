@@ -14,6 +14,8 @@ pub mod wishsettingsrepository;
 pub mod rotationpatternrepository;
 pub mod personallimitsrepository;
 pub mod holidayrepository;
+pub mod rosterrepository;
+pub mod rostertracking;
 
 use std::sync::Arc;
 use crate::database::DbPool;
@@ -40,6 +42,7 @@ use self::wishsettingsrepository::DieselWishSettingsRepository;
 use self::rotationpatternrepository::DieselRotationPatternRepository;
 use self::personallimitsrepository::DieselPersonalLimitsRepository;
 use self::holidayrepository::DieselHolidayRepository;
+use self::rosterrepository::{DieselRosterChangeNoticeRepository, DieselRosterMonthRepository};
 use crate::config::HolidayConfig;
 
 #[derive(Clone)]
@@ -63,6 +66,8 @@ pub struct AppState {
     pub rotation_pattern_repo: DieselRotationPatternRepository,
     pub personal_limits_repo: DieselPersonalLimitsRepository,
     pub holiday_repo: DieselHolidayRepository,
+    pub roster_month_repo: DieselRosterMonthRepository,
+    pub roster_notice_repo: DieselRosterChangeNoticeRepository,
     /// Where and for which state holidays are fetched.
     pub holiday_config: HolidayConfig,
     pub pool: Arc<DbPool>,
@@ -104,6 +109,8 @@ impl AppState {
             rotation_pattern_repo: DieselRotationPatternRepository { pool: Arc::clone(&pool) },
             personal_limits_repo: DieselPersonalLimitsRepository { pool: Arc::clone(&pool) },
             holiday_repo: DieselHolidayRepository { pool: Arc::clone(&pool) },
+            roster_month_repo: DieselRosterMonthRepository { pool: Arc::clone(&pool) },
+            roster_notice_repo: DieselRosterChangeNoticeRepository { pool: Arc::clone(&pool) },
             holiday_config: HolidayConfig::default(),
             pool,
             nats_client: None,
@@ -138,6 +145,8 @@ impl AppState {
             rotation_pattern_repo: DieselRotationPatternRepository { pool: Arc::clone(&pool) },
             personal_limits_repo: DieselPersonalLimitsRepository { pool: Arc::clone(&pool) },
             holiday_repo: DieselHolidayRepository { pool: Arc::clone(&pool) },
+            roster_month_repo: DieselRosterMonthRepository { pool: Arc::clone(&pool) },
+            roster_notice_repo: DieselRosterChangeNoticeRepository { pool: Arc::clone(&pool) },
             holiday_config: HolidayConfig::default(),
             pool,
             nats_client: Some(nats_client),

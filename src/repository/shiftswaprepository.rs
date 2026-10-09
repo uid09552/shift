@@ -12,7 +12,9 @@ use crate::repository::domain::{
     SwapApproval, SwapSide,
 };
 use crate::models as models;
+use crate::repository::rostertracking;
 use crate::schema::{confirmed_shift_plans, employees, shift_swap_requests};
+use crate::services::roster_guard::RosterChangeCtx;
 
 fn to_domain(r: models::ShiftSwapRequest) -> ShiftSwapRequest {
     ShiftSwapRequest {
@@ -192,9 +194,10 @@ impl ShiftSwapRepository for DieselShiftSwapRepository {
         .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn approve_swap(&self, tenant_id: &str, id: Uuid, decided_by: Option<String>) -> Result<SwapApproval, AppError> {
+    async fn approve_swap(&self, tenant_id: &str, id: Uuid, decided_by: Option<String>, ctx: &RosterChangeCtx) -> Result<SwapApproval, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
+        let ctx = ctx.clone();
         telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             conn.transaction::<_, AppError, _>(|conn| {
@@ -252,7 +255,9 @@ impl ShiftSwapRepository for DieselShiftSwapRepository {
                 let row_a = row(a.employee_id, a.date).ok_or(AppError::Internal)?;
                 let row_b = row(b.employee_id, b.date).ok_or(AppError::Internal)?;
                 let now = Utc::now().naive_utc();
+                let cells = [(a.employee_id, a.date), (a.employee_id, b.date), (b.employee_id, a.date), (b.employee_id, b.date)];
 
+                rostertracking::guarded(conn, &tenant_id, &ctx, &cells, |conn| {
                 if a.date == b.date {
                     // Same day: each row keeps its owner and takes the other's shift.
                     for (target, side) in [(row_a, &b), (row_b, &a)] {
@@ -297,6 +302,8 @@ impl ShiftSwapRepository for DieselShiftSwapRepository {
                         diesel::insert_into(confirmed_shift_plans::table).values(&freed).execute(conn)?;
                     }
                 }
+                Ok(())
+                })?;
 
                 let approved = diesel::update(shift_swap_requests::table.filter(shift_swap_requests::id.eq(id)))
                     .set((

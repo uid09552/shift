@@ -129,6 +129,7 @@ _DEFAULT_CONSTRAINTS = {
     "min_staffing_mode": "soft",  # or "hard" — see ConstraintConfig
     "keep_fixed_assignments": True,  # False: plan as if employees had no fixed_shifts
     "personal_limits_mode": "hard",  # or "soft" — see ConstraintConfig
+    "change_weight": 100000,  # Penalty per employee-day changed against published_roster
     "solver_time_limit_seconds": 120.0,
     "solver_num_workers": 8,
 }
@@ -184,6 +185,7 @@ class ShiftPlanner:
         self._load_capability_catalog(data)
         self._build_lookups()
         self._load_history()
+        self._load_published_roster()
 
         self.model = cp_model.CpModel()
 
@@ -216,6 +218,10 @@ class ShiftPlanner:
         # Soft-mode nights/weekends over a personal limit, as (IntVar, upper
         # bound). Minimised right after coverage — see _solve.
         self.personal_excess: list = []
+        # One expression per published employee-day the result may change,
+        # each 1 when it does. Minimised right after the personal limits —
+        # see _track_changes_vs_published and _solve.
+        self.change_terms: list = []
 
     # ---- Input parsing -----------------------------------------------------
 
@@ -234,6 +240,7 @@ class ShiftPlanner:
         self.workstations = data["workstations"]
         self.locked_assignments = data.get("locked_assignments") or []
         self.history = data.get("history") or []
+        self.published_roster = data.get("published_roster") or []
         self.num_emp = len(self.employees)
         self.num_shifts = len(self.shifts)
         self.num_ws = len(self.workstations)
@@ -265,6 +272,7 @@ class ShiftPlanner:
         self.min_staffing_hard = cfg["min_staffing_mode"] == "hard"
         self.keep_fixed = cfg["keep_fixed_assignments"]
         self.personal_limits_hard = cfg["personal_limits_mode"] == "hard"
+        self.change_w = cfg["change_weight"]
         self.time_limit = cfg["solver_time_limit_seconds"]
         self.num_workers = cfg["solver_num_workers"]
         logger.info("Constraint config: %s", cfg)
@@ -329,6 +337,28 @@ class ShiftPlanner:
             for e_idx, emp in enumerate(employees)
             if emp.get("weekly_working_hours", 0.0) > 0
         }
+
+    def _load_published_roster(self) -> None:
+        """`published`: (e_idx, d_idx) -> (s_idx, w_idx), or (None, None) for a
+        day the employee is not working — what they have already been told.
+        Rows outside the period, for employees not being planned, or naming a
+        shift or workstation the input does not know are left out."""
+        self.published: dict = {}
+        if not self.published_roster:
+            return
+        emp_idx = {e["id"]: i for i, e in enumerate(self.employees)}
+        shift_idx = {s["id"]: i for i, s in enumerate(self.shifts)}
+        ws_idx = {w["id"]: i for i, w in enumerate(self.workstations)}
+        for row in self.published_roster:
+            e_idx = emp_idx.get(row["employee_id"])
+            d_idx = self.day_index.get(parse_date(row["date"]))
+            if e_idx is None or d_idx is None:
+                continue
+            sid, wid = row.get("shift_id"), row.get("workstation_id")
+            if sid is None:
+                self.published[(e_idx, d_idx)] = (None, None)
+            elif sid in shift_idx and wid in ws_idx:
+                self.published[(e_idx, d_idx)] = (shift_idx[sid], ws_idx[wid])
 
     def _load_history(self) -> None:
         """What the days before the period still demand of the first ones.
@@ -969,6 +999,44 @@ class ShiftPlanner:
         self._reward_wishes()
         self._penalize_fatigue()
         self._reward_shift_continuity()
+        self._track_changes_vs_published()
+
+    def _track_changes_vs_published(self) -> None:
+        """Stability: a re-solve over a published roster moves as few people
+        as it must. Each published employee-day becomes a 0/1 expression —
+        1 when the result differs from it — and _solve minimises their sum
+        right after coverage and the personal limits, before balance, wishes
+        or fatigue: those are priced per hour and would otherwise outbid a
+        per-day weight. change_weight 0 switches this off. The published plan
+        also seeds the solver's hint.
+
+        A published shift the model has no variable for (the employee is now
+        absent, the station closed) is a change no plan can avoid; it is
+        counted in the output but costs nothing here."""
+        if self.change_w <= 0 or not self.published:
+            return
+        for (e_idx, d_idx), (s_idx, w_idx) in self.published.items():
+            if s_idx is None:
+                day_vars = self.vars_by_emp_day.get((e_idx, d_idx), [])
+                if day_vars:
+                    self.change_terms.append(sum(day_vars))
+                continue
+            var = self.x.get((e_idx, d_idx, s_idx, w_idx))
+            if var is not None:
+                self.change_terms.append(1 - var)
+        for (e_idx, d_idx, s_idx, w_idx), var in self.x.items():
+            if (e_idx, d_idx) in self.published:
+                self.model.AddHint(var, int(self.published[(e_idx, d_idx)] == (s_idx, w_idx)))
+
+    def _changes_vs_published(self, assigned: dict) -> int | None:
+        """Employee-days whose result differs from the published roster."""
+        if not self.published:
+            return None
+        return sum(
+            1
+            for (e_idx, d_idx), was in self.published.items()
+            if assigned.get((e_idx, d_idx), (None, None)) != was
+        )
 
     def _penalize_staffing_shortfalls(self) -> None:
         """0) Staffing shortfall penalties (negated because we maximise).
@@ -1306,7 +1374,7 @@ class ShiftPlanner:
 
         1. Minimise broken fixed assignments, then the priority-weighted
            shortfall against every minimum, then the nights/weekends over a
-           soft personal limit.
+           soft personal limit, then the changes against a published roster.
         2. Pin that result (never more shortfall than phase 1 found) and hint
            its plan, then optimise balance, wishes, fatigue, continuity, …
 
@@ -1317,12 +1385,14 @@ class ShiftPlanner:
         fallback = None  # phase-1 plan, if phase 2 finds nothing in time
         coverage_proven = True
 
-        if self.shortfall_vars or self.fixed_terms or self.personal_excess:
-            # Fixed assignments first, then coverage, then personal limits:
-            # each tier's weight exceeds the largest total the tiers below it
-            # can reach, so the order is strict.
-            excess = sum(v for v, _ub in self.personal_excess)
-            coverage_weight = sum(ub for _v, ub in self.personal_excess) + 1
+        if self.shortfall_vars or self.fixed_terms or self.personal_excess or self.change_terms:
+            # Fixed assignments first, then coverage, then personal limits,
+            # then stability: each tier's weight exceeds the largest total the
+            # tiers below it can reach, so the order is strict.
+            changes = sum(self.change_terms)
+            excess_weight = len(self.change_terms) + 1
+            excess = excess_weight * sum(v for v, _ub in self.personal_excess) + changes
+            coverage_weight = excess_weight * (sum(ub for _v, ub in self.personal_excess) + 1)
             shortfall = sum(w * v for v, w, _ub in self.shortfall_vars)
             fixed_weight = coverage_weight * (
                 sum(w * ub for _v, w, ub in self.shortfall_vars) + 1
@@ -1346,6 +1416,9 @@ class ShiftPlanner:
                 # coverage bound, which on a busy month it may not manage.
                 solution = solver.ResponseProto().solution
                 self.model.Add(weighted <= best)
+                # Replaces the published-roster hint (if any): a hint lists
+                # each variable once.
+                self.model.ClearHints()
                 for index, value in enumerate(solution):
                     self.model.AddHint(self.model.get_int_var_from_proto_index(index), value)
             else:
@@ -1562,6 +1635,7 @@ class ShiftPlanner:
             schedule=self._build_schedule(assigned),
             employee_plans=self._build_employee_plans(assigned),
             message=" ".join(p for p in parts if p) or None,
+            changes_vs_published=self._changes_vs_published(assigned),
         )
 
     # ---- Entry point -------------------------------------------------------

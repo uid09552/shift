@@ -190,6 +190,9 @@ diesel::table! {
         keep_fixed_assignments -> Bool,
         personal_limits_mode -> Varchar,
         default_weekly_working_hours -> Float8,
+        publish_lead_days -> Int2,
+        freeze_days -> Int2,
+        change_weight -> Int4,
     }
 }
 
@@ -279,6 +282,36 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    roster_months (tenant_id, month) {
+        tenant_id -> Varchar,
+        month -> Date,
+        status -> Varchar,
+        published_at -> Nullable<Timestamptz>,
+        published_by -> Nullable<Varchar>,
+        locked_at -> Nullable<Timestamptz>,
+        locked_by -> Nullable<Varchar>,
+        reopened -> Bool,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    roster_change_notices (id) {
+        id -> Uuid,
+        tenant_id -> Varchar,
+        employee_id -> Uuid,
+        date -> Date,
+        before -> Nullable<Jsonb>,
+        after -> Nullable<Jsonb>,
+        source -> Varchar,
+        actor -> Nullable<Varchar>,
+        reason -> Nullable<Text>,
+        created_at -> Timestamptz,
+        acknowledged_at -> Nullable<Timestamptz>,
+    }
+}
+
 diesel::joinable!(planning_tasks -> optimized_shift_results (result_id));
 diesel::joinable!(employee_available_shifts -> employees (employee_id));
 diesel::joinable!(employee_available_shifts -> shifts (shift_id));
@@ -298,6 +331,7 @@ diesel::joinable!(confirmed_shift_plans -> employees (employee_id));
 diesel::joinable!(confirmed_shift_plans -> shifts (shift_id));
 diesel::joinable!(confirmed_shift_plans -> workstations (workstation_id));
 diesel::joinable!(employee_personal_limits -> employees (employee_id));
+diesel::joinable!(roster_change_notices -> employees (employee_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     capabilities,
@@ -321,4 +355,6 @@ diesel::allow_tables_to_appear_in_same_query!(
     rotation_patterns,
     employee_personal_limits,
     shift_swap_requests,
+    roster_months,
+    roster_change_notices,
 );

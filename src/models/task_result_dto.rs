@@ -13,6 +13,10 @@ pub struct TaskResultDto {
     #[serde(default)]
     pub employee_plans: Vec<EmployeeDailyPlan>,
     pub message: Option<String>,
+    /// Employee-days that differ from the published roster the solve was given
+    /// (`TaskDTO::published_roster`); absent without one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub changes_vs_published: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

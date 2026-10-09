@@ -42,6 +42,9 @@ fn to_domain(s: PlannerSettings) -> PlannerSettingsDomain {
         keep_fixed_assignments: s.keep_fixed_assignments,
         personal_limits_mode: MinStaffingMode::from_db_or(&s.personal_limits_mode, MinStaffingMode::Hard),
         default_weekly_working_hours: s.default_weekly_working_hours,
+        publish_lead_days: s.publish_lead_days,
+        freeze_days: s.freeze_days,
+        change_weight: s.change_weight,
     }
 }
 
@@ -106,6 +109,9 @@ impl PlannerSettingsRepository for DieselPlannerSettingsRepository {
                 keep_fixed_assignments: settings.keep_fixed_assignments,
                 personal_limits_mode: settings.personal_limits_mode.as_str().to_string(),
                 default_weekly_working_hours: settings.default_weekly_working_hours,
+                publish_lead_days: settings.publish_lead_days,
+                freeze_days: settings.freeze_days,
+                change_weight: settings.change_weight,
             };
             let updated: PlannerSettings = diesel::insert_into(planner_settings::table)
                 .values(&new_settings)

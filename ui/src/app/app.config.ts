@@ -2,10 +2,11 @@ import { ApplicationConfig, LOCALE_ID, provideZoneChangeDetection } from '@angul
 import { registerLocaleData } from '@angular/common';
 import localeDe from '@angular/common/locales/de';
 import { provideRouter, TitleStrategy } from '@angular/router';
-import { provideHttpClient, withXhr } from '@angular/common/http';
+import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 
 import { routes } from './app.routes';
+import { reasonRequiredInterceptor } from './shared/http/reason-required.interceptor';
 import { TranslatedTitleStrategy } from './shared/i18n/translated-title.strategy';
 import { TranslationService } from './shared/i18n/translation.service';
 
@@ -17,7 +18,8 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
-    provideHttpClient(withXhr()),
+    // A change to a published roster that needs a reason asks for one and retries.
+    provideHttpClient(withXhr(), withInterceptors([reasonRequiredInterceptor])),
     provideAnimationsAsync(),
     // Route titles are translation keys; this strategy resolves them and keeps the
     // browser tab in sync when the language changes.
