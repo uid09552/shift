@@ -176,7 +176,7 @@ OPTIMIZER_CONSTRAINT_KEYS = {
     "weekly_hours_target_weight", "preference_weight", "wish_weight",
     "skill_downgrade_weight", "fatigue_weight", "night_shift_fatigue_multiplier",
     "min_staffing_mode", "keep_fixed_assignments", "personal_limits_mode",
-    "solver_time_limit_seconds",
+    "change_weight", "solver_time_limit_seconds",
     "solver_num_workers",
 }
 
@@ -240,6 +240,9 @@ def _register_optimizer(mcp: FastMCP) -> None:
                 e.g. {"min_rest_hours": 10, "solver_time_limit_seconds": 30}.
                 {"keep_fixed_assignments": false} plans as if there were no
                 rotations — "what would the month look like without them?"
+                Over a published month the solver keeps what employees have
+                been told and changes as few days as coverage needs;
+                {"change_weight": 0} re-plans it freely.
             locked_assignments: Rows the solver must keep, each
                 {"employee_id", "date", "shift_id", "workstation_id"}. The
                 solver plans around them; any that are impossible are reported
@@ -298,6 +301,9 @@ def _register_optimizer(mcp: FastMCP) -> None:
             "objective_value": result.get("objective_value"),
             "planning_period": result.get("planning_period"),
             "message": result.get("message"),
+            # Employee-days that differ from the published roster (prepare's
+            # `published_roster`, passed through as it came); null without one.
+            "changes_vs_published": result.get("changes_vs_published"),
             "summary": _plan_summary(result),
         }
         if include_plan:

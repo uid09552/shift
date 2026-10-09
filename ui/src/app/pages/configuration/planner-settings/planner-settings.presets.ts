@@ -106,6 +106,9 @@ export type PresetValues = Omit<
   | 'keep_fixed_assignments'
   | 'personal_limits_mode'
   | 'default_weekly_working_hours'
+  | 'publish_lead_days'
+  | 'freeze_days'
+  | 'change_weight'
 >;
 
 export interface UseCaseTemplate {

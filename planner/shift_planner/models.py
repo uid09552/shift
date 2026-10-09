@@ -187,6 +187,22 @@ class LockedAssignment(BaseModel):
     workstation_id: str = Field(..., min_length=1)
 
 
+class PublishedShift(BaseModel):
+    """One employee-day of the roster employees have already been told.
+
+    A re-solve over a published month should move as few people as it must:
+    with ``constraints.change_weight`` > 0 the employee-days whose result
+    differs from this one are minimised right after coverage. Coverage still
+    comes first — a change is made when it is the only way to fill a slot. ``shift_id`` null means the
+    employee is not working that day (a day off or an absence).
+    """
+
+    employee_id: str = Field(..., min_length=1)
+    date: date
+    shift_id: Optional[str] = None
+    workstation_id: Optional[str] = None
+
+
 class HistoryShift(BaseModel):
     """A shift someone already worked in the days before the period.
 
@@ -312,6 +328,12 @@ class ConstraintConfig(BaseModel):
     # every other goal — and named in `message`.
     personal_limits_mode: Literal["soft", "hard"] = "hard"
 
+    # > 0: the employee-days that differ from `published_roster` are minimised
+    # right after coverage and personal limits — before balance, wishes and
+    # fatigue, which are priced per hour and would outbid any per-day weight.
+    # 0 ignores the roster. The value itself only switches it on.
+    change_weight: int = Field(default=100000, ge=0)
+
     # Solver time limit in seconds
     solver_time_limit_seconds: float = Field(default=120.0, gt=0)
 
@@ -335,6 +357,8 @@ class SchedulingInput(BaseModel):
     # Public holidays in and just before the period. Each runs on its shift's
     # Sunday times and counts as a weekend day.
     holidays: List[date] = Field(default_factory=list)
+    # The published roster of the period's days — see PublishedShift.
+    published_roster: List[PublishedShift] = Field(default_factory=list)
     constraints: ConstraintConfig = Field(default_factory=ConstraintConfig)
 
     @field_validator("shifts", "workstations", "employees")
@@ -405,6 +429,8 @@ class SchedulingOutput(BaseModel):
     schedule: List[DaySchedule] = Field(default_factory=list)
     employee_plans: List[EmployeeDailyPlan] = Field(default_factory=list)
     message: Optional[str] = None
+    # Employee-days that differ from `published_roster`; None without one.
+    changes_vs_published: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------

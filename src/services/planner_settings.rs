@@ -43,6 +43,13 @@ pub struct PlannerSettingsResponse {
     pub personal_limits_mode: MinStaffingMode,
     /// Weekly hours of every employee without their own value (40 unless changed).
     pub default_weekly_working_hours: f64,
+    /// A draft month is due for publishing this many days before it starts (28).
+    pub publish_lead_days: i16,
+    /// A change to a published month within this many days from today needs a reason (7, 0 = off).
+    pub freeze_days: i16,
+    /// A re-solve keeps the published roster, changing as few employee-days as
+    /// coverage needs, when > 0; 0 ignores it.
+    pub change_weight: i32,
 }
 
 impl From<PlannerSettingsDomain> for PlannerSettingsResponse {
@@ -76,6 +83,9 @@ impl From<PlannerSettingsDomain> for PlannerSettingsResponse {
             keep_fixed_assignments: s.keep_fixed_assignments,
             personal_limits_mode: s.personal_limits_mode,
             default_weekly_working_hours: s.default_weekly_working_hours,
+            publish_lead_days: s.publish_lead_days,
+            freeze_days: s.freeze_days,
+            change_weight: s.change_weight,
         }
     }
 }
@@ -119,7 +129,17 @@ pub struct UpdatePlannerSettingsRequest {
     pub personal_limits_mode: MinStaffingMode,
     #[serde(default = "default_weekly_working_hours")]
     pub default_weekly_working_hours: f64,
+    #[serde(default = "default_publish_lead_days")]
+    pub publish_lead_days: i16,
+    #[serde(default = "default_freeze_days")]
+    pub freeze_days: i16,
+    #[serde(default = "default_change_weight")]
+    pub change_weight: i32,
 }
+
+fn default_publish_lead_days() -> i16 { 28 }
+fn default_freeze_days() -> i16 { 7 }
+fn default_change_weight() -> i32 { 100000 }
 
 fn default_weekly_working_hours() -> f64 { 40.0 }
 fn default_weekly_hours_target_weight() -> i32 { 1000 }
@@ -179,6 +199,9 @@ impl PlannerSettingsService {
             keep_fixed_assignments: body.keep_fixed_assignments,
             personal_limits_mode: body.personal_limits_mode,
             default_weekly_working_hours: body.default_weekly_working_hours,
+            publish_lead_days: body.publish_lead_days,
+            freeze_days: body.freeze_days,
+            change_weight: body.change_weight,
         };
 
         let settings = state.planner_settings_repo.update_planner_settings(&tenant.0, update).await?;
@@ -253,6 +276,15 @@ fn validate(body: &UpdatePlannerSettingsRequest) -> Result<(), AppError> {
     }
     if body.wish_weight < 0 {
         return Err(AppError::Validation("wish_weight must be >= 0".into()));
+    }
+    if !(0..=366).contains(&body.publish_lead_days) {
+        return Err(AppError::Validation("publish_lead_days must be between 0 and 366".into()));
+    }
+    if !(0..=366).contains(&body.freeze_days) {
+        return Err(AppError::Validation("freeze_days must be between 0 and 366".into()));
+    }
+    if body.change_weight < 0 {
+        return Err(AppError::Validation("change_weight must be >= 0".into()));
     }
     Ok(())
 }

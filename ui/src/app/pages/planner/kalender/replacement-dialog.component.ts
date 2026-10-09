@@ -253,6 +253,8 @@ export class ReplacementDialogComponent implements OnChanges {
   choose(c: ReplacementCandidate): void {
     if (!this.answer || this.saving) return;
     const slot = this.answer.slot;
+    // The change notices both people get say "replacement", not "manual".
+    const replacement = { source: 'replacement' as const };
     this.saving = true;
     this.saveError = null;
     this.plans
@@ -261,18 +263,18 @@ export class ReplacementDialogComponent implements OnChanges {
         absence_type: this.reason,
         shift_id: null,
         workstation_id: null,
-      })
+      }, replacement)
       .pipe(
         switchMap((absent) =>
           // A planned day off is a row of its own; it gives way to the shift.
-          (c.free_plan_id ? this.plans.deleteConfirmedShiftPlan(c.free_plan_id) : (of(null) as Observable<unknown>))
+          (c.free_plan_id ? this.plans.deleteConfirmedShiftPlan(c.free_plan_id, replacement) : (of(null) as Observable<unknown>))
             .pipe(switchMap(() => this.plans.createConfirmedShiftPlan(c.employee_id, {
               shift_id: slot.shift_id,
               workstation_id: slot.workstation_id,
               date: slot.date,
               is_present: true,
               creation_type: 'manual',
-            })))
+            }, replacement)))
             .pipe(map((replacement) => ({ absent, replacement }))),
         ),
       )

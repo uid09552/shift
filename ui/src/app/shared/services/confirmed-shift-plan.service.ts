@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 export interface ConfirmedShiftPlan {
@@ -38,6 +38,18 @@ export interface CreateConfirmedShiftPlanRequest {
   is_present?: boolean;
   absence_type?: string;
   creation_type?: string;
+}
+
+/**
+ * Marks a write as part of a short-notice replacement, so the change notices
+ * the employees get say so (`X-Change-Source`). Every other write is "manual".
+ */
+export interface RosterWriteOptions {
+  source?: 'replacement';
+}
+
+function sourceHeaders(options?: RosterWriteOptions): { headers?: HttpHeaders } {
+  return options?.source ? { headers: new HttpHeaders({ 'X-Change-Source': options.source }) } : {};
 }
 
 @Injectable({
@@ -82,26 +94,31 @@ export class ConfirmedShiftPlanService {
   createConfirmedShiftPlan(
     employeeId: string,
     request: CreateConfirmedShiftPlanRequest,
+    options?: RosterWriteOptions,
   ): Observable<ConfirmedShiftPlan> {
     return this.http.post<ConfirmedShiftPlan>(
       `${this.apiUrl}/employees/${employeeId}/confirmed-shift-plans`,
       request,
+      sourceHeaders(options),
     );
   }
 
   updateConfirmedShiftPlan(
     planId: string,
     request: UpdateConfirmedShiftPlanRequest,
+    options?: RosterWriteOptions,
   ): Observable<ConfirmedShiftPlan> {
     return this.http.put<ConfirmedShiftPlan>(
       `${this.apiUrl}/confirmed-shift-plans/${planId}`,
       request,
+      sourceHeaders(options),
     );
   }
 
-  deleteConfirmedShiftPlan(planId: string): Observable<{ deleted: boolean }> {
+  deleteConfirmedShiftPlan(planId: string, options?: RosterWriteOptions): Observable<{ deleted: boolean }> {
     return this.http.delete<{ deleted: boolean }>(
       `${this.apiUrl}/confirmed-shift-plans/${planId}`,
+      sourceHeaders(options),
     );
   }
 }

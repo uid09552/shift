@@ -50,6 +50,10 @@ pub struct ConstraintTask {
     /// "soft" | "hard": employees' max_nights_per_month / max_weekends_per_month.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub personal_limits_mode: Option<String>,
+    /// > 0: minimise the employee-days that differ from `published_roster`
+    /// right after coverage; 0: ignore it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub change_weight: Option<i32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -74,8 +78,24 @@ pub struct TaskDTO {
     // end. A holiday runs on its shifts' Sunday times and counts as a weekend day.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub holidays: Vec<String>,
+    // The confirmed roster of the period's days that lie in published or
+    // locked months — what employees have already been told. The optimizer
+    // minimises the employee-days it changes right after coverage
+    // (constraints.change_weight > 0), so a re-solve moves as few people as it
+    // must. Days without a roster row are not included and are free to plan.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub published_roster: Vec<PublishedShiftTask>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub constraints: Option<ConstraintTask>,
+}
+
+/// One employee-day of the published roster; `shift_id` null = not working.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct PublishedShiftTask {
+    pub employee_id: String,
+    pub date: String,
+    pub shift_id: Option<String>,
+    pub workstation_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -8,9 +8,10 @@ use axum::{
 use chrono::{Local, NaiveDate, Utc};
 use crate::broker::JetStreamStatus;
 use crate::errors::AppError;
-use crate::models::{ConstraintTask, PlanningPeriod, ShiftTask, ShiftWeekdayTimeTask, TaskDTO, TaskResultDto, EmployeeTask, WorkstationTask, WorkstationUnavailabilityRange, CapabilityTask, PreferredOffTask, ShiftWishTask, FixedShiftTask, HistoryShiftTask};
+use crate::models::{ConstraintTask, PlanningPeriod, ShiftTask, ShiftWeekdayTimeTask, TaskDTO, TaskResultDto, EmployeeTask, WorkstationTask, WorkstationUnavailabilityRange, CapabilityTask, PreferredOffTask, ShiftWishTask, FixedShiftTask, HistoryShiftTask, PublishedShiftTask};
 use crate::repository::{AppState, domain::*};
 use crate::services::audit_log::{self, AuditActor};
+use crate::services::roster_guard::RosterChange;
 use crate::services::tenant::TenantContext;
 use crate::services::workstation_unavailability::WorkstationClosures;
 use serde::{Deserialize, Serialize};
@@ -117,6 +118,32 @@ fn check_period(start: chrono::NaiveDate, end: chrono::NaiveDate) -> Result<(), 
 }
 
 // ── OptimizerService ─────────────────────────────────────────────────────────
+
+/// The roster rows of `planned` employees on days whose month is published or
+/// locked, as the optimizer's `published_roster`. A row without a shift (a free
+/// day, an absence) is a day the employee is not working.
+fn published_roster(
+    rows: &[ConfirmedShiftPlan],
+    statuses: &[(NaiveDate, MonthStatus)],
+    planned: &std::collections::HashSet<Uuid>,
+) -> Vec<PublishedShiftTask> {
+    let published = |date: NaiveDate| {
+        let month = month_start(date);
+        statuses.iter().any(|(m, s)| *m == month && *s != MonthStatus::Draft)
+    };
+    rows.iter()
+        .filter(|r| planned.contains(&r.employee_id) && published(r.date))
+        .map(|r| {
+            let working = r.is_working();
+            PublishedShiftTask {
+                employee_id: r.employee_id.to_string(),
+                date: r.date.to_string(),
+                shift_id: r.shift_id.filter(|_| working).map(|id| id.to_string()),
+                workstation_id: r.workstation_id.filter(|_| working).map(|id| id.to_string()),
+            }
+        })
+        .collect()
+}
 
 /// Days before the period whose confirmed roster goes to the optimizer as
 /// `history`. Covers the longest rule that reaches back: `max_consecutive_days`
@@ -242,7 +269,7 @@ impl OptimizerService {
         let history_end = period_start - chrono::Duration::days(1);
         let history: Vec<HistoryShiftTask> = state
             .confirmed_shift_plan_repo
-            .get_confirmed_shift_plans_for_date_range(tenant_id, history_start, history_end, None, None)
+            .get_confirmed_shift_plans_for_date_range(tenant_id, history_start, history_end, None, None, false)
             .await?
             .into_iter()
             .filter(|p| p.is_present)
@@ -254,6 +281,25 @@ impl OptimizerService {
                 })
             })
             .collect();
+
+        // What employees have already been told for days of this period that lie
+        // in published or locked months (see TaskDTO::published_roster).
+        let months = state.roster_month_repo.list_roster_months(tenant_id, period_start, period_end).await?;
+        let today = crate::services::roster_guard::today();
+        let statuses: Vec<(NaiveDate, MonthStatus)> = months_between(period_start, period_end)
+            .into_iter()
+            .map(|m| (m, effective_status(months.iter().find(|r| r.month == m), m, today)))
+            .collect();
+        let published_rows = if statuses.iter().any(|(_, s)| *s != MonthStatus::Draft) {
+            state
+                .confirmed_shift_plan_repo
+                .get_confirmed_shift_plans_for_date_range(tenant_id, period_start, period_end, None, None, false)
+                .await?
+        } else {
+            Vec::new()
+        };
+        let planned: std::collections::HashSet<Uuid> = employees.iter().map(|e| e.id).collect();
+        let published_roster = published_roster(&published_rows, &statuses, &planned);
 
         let holidays: Vec<String> = crate::services::holiday::dates_in_range(state, tenant_id, history_start, period_end)
             .await?
@@ -331,6 +377,7 @@ impl OptimizerService {
             capabilities: capability_tasks,
             history,
             holidays,
+            published_roster,
             constraints,
         })
     }
@@ -566,6 +613,7 @@ async fn build_constraints(
                 min_staffing_mode: Some(s.min_staffing_mode.as_str().to_string()),
                 keep_fixed_assignments: Some(s.keep_fixed_assignments),
                 personal_limits_mode: Some(s.personal_limits_mode.as_str().to_string()),
+                change_weight: Some(s.change_weight),
             }
         }
         Err(e) => {
@@ -729,12 +777,19 @@ pub async fn update_optimized_shift(
 #[derive(Deserialize)]
 pub struct TakeAsPlanRequest {
     pub employee_ids: Option<Vec<Uuid>>,
+    /// Only count what would change in published months; write nothing.
+    #[serde(default)]
+    pub dry_run: bool,
 }
 
 #[derive(Serialize)]
 pub struct TakeAsPlanResponse {
     pub employee_count: usize,
     pub created: usize,
+    /// Employee-days that differ from the published roster — the notices
+    /// taking this plan writes (or, on a dry run, would write).
+    pub changes: usize,
+    pub dry_run: bool,
 }
 
 /// POST /planner/optimized-shifts/:result_id/take-as-plan
@@ -745,6 +800,7 @@ pub struct TakeAsPlanResponse {
 pub async fn take_as_plan(
     tenant: TenantContext,
     actor: AuditActor,
+    change: RosterChange,
     Path(result_id): Path<Uuid>,
     State(state): State<AppState>,
     Json(request): Json<TakeAsPlanRequest>,
@@ -835,11 +891,19 @@ pub async fn take_as_plan(
         )));
     }
 
+    let ctx = change.ctx(&state, &tenant.0, ChangeSource::TakeAsPlan).await?;
+    let changes = state.confirmed_shift_plan_repo
+        .count_period_changes(&tenant.0, &employee_ids, from_date, to_date, &new_plans, ctx.today)
+        .await?;
+    if request.dry_run {
+        return Ok(Json(TakeAsPlanResponse { employee_count: employee_ids.len(), created: 0, changes, dry_run: true }));
+    }
+
     let created = state.confirmed_shift_plan_repo
-        .replace_confirmed_shift_plans_for_period(&tenant.0, &employee_ids, from_date, to_date, new_plans)
+        .replace_confirmed_shift_plans_for_period(&tenant.0, &employee_ids, from_date, to_date, new_plans, &ctx)
         .await?;
 
-    let response = TakeAsPlanResponse { employee_count: employee_ids.len(), created: created.len() };
+    let response = TakeAsPlanResponse { employee_count: employee_ids.len(), created: created.len(), changes, dry_run: false };
     let changes = serde_json::to_string(&response).unwrap_or_default();
     audit_log::record(&state, &tenant.0, actor.0, "planner.take_as_plan", "confirmed_shift_plan", Some(result_id.to_string()), Some(changes)).await;
 
@@ -884,6 +948,49 @@ mod tests {
 
     fn day(s: &str) -> chrono::NaiveDate {
         chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
+    }
+
+    fn roster_row(employee_id: Uuid, date: &str, shift_id: Option<Uuid>) -> ConfirmedShiftPlan {
+        ConfirmedShiftPlan {
+            id: Uuid::new_v4(),
+            employee_id,
+            shift_id,
+            workstation_id: None,
+            date: day(date),
+            is_present: shift_id.is_some(),
+            absence_type: if shift_id.is_some() { None } else { Some("free".into()) },
+            creation_type: "automated".into(),
+            created_at: Default::default(),
+            updated_at: Default::default(),
+        }
+    }
+
+    #[test]
+    fn a_draft_only_period_sends_no_published_roster() {
+        let anna = Uuid::new_v4();
+        let rows = vec![roster_row(anna, "2026-11-03", Some(Uuid::new_v4()))];
+        let statuses = vec![(day("2026-11-01"), MonthStatus::Draft)];
+        let planned = [anna].into_iter().collect();
+        assert!(published_roster(&rows, &statuses, &planned).is_empty());
+    }
+
+    #[test]
+    fn the_published_roster_covers_published_days_of_planned_employees_only() {
+        let (anna, ben, early) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let rows = vec![
+            roster_row(anna, "2026-10-30", Some(early)), // published
+            roster_row(anna, "2026-10-31", None),        // published, a day off
+            roster_row(anna, "2026-11-02", Some(early)), // draft month
+            roster_row(ben, "2026-10-30", Some(early)),  // not being planned
+        ];
+        let statuses = vec![(day("2026-10-01"), MonthStatus::Published), (day("2026-11-01"), MonthStatus::Draft)];
+        let planned = [anna].into_iter().collect();
+
+        let published = published_roster(&rows, &statuses, &planned);
+        assert_eq!(published.len(), 2);
+        assert_eq!(published[0].shift_id, Some(early.to_string()));
+        assert_eq!(published[1].shift_id, None, "a free day: not working");
+        assert!(published.iter().all(|p| p.employee_id == anna.to_string()));
     }
 
     #[test]

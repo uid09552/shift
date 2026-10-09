@@ -17,6 +17,7 @@ import { PlannerSettingsComponent } from './pages/configuration/planner-settings
 import { WishSettingsComponent } from './pages/configuration/wish-settings/wish-settings.component';
 import { AuditLogComponent } from './pages/configuration/audit-log/audit-log.component';
 import { UsersComponent } from './pages/configuration/users/users.component';
+import { ChangesComponent } from './pages/planner/changes/changes.component';
 
 export const routes: Routes = [
   {
@@ -50,6 +51,13 @@ export const routes: Routes = [
         path:'scheduler',
         component:SchedulerComponent,
         title:'title.scheduleOptimizer'
+      },
+      {
+        // Changes to published rosters: everyone's own, and for planners the
+        // ward's changes nobody has acknowledged yet.
+        path:'changes',
+        component:ChangesComponent,
+        title:'title.changes'
       },
       {
         path:'rotations',

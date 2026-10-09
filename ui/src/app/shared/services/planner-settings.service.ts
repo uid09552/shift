@@ -43,6 +43,12 @@ export interface PlannerSettings {
   personal_limits_mode: MinStaffingMode;
   /** Weekly hours of every employee without their own value (40 unless changed). */
   default_weekly_working_hours: number;
+  /** A draft month is due for publishing this many days before it starts (28). */
+  publish_lead_days: number;
+  /** A change to a published month within this many days from today needs a reason (7, 0 = off). */
+  freeze_days: number;
+  /** > 0: a re-plan keeps the published roster, changing as few days as it must; 0: off. */
+  change_weight: number;
 }
 
 export type UpdatePlannerSettingsRequest = Omit<PlannerSettings, 'updated_at'>;

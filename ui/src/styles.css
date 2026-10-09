@@ -8,6 +8,8 @@
 @theme {
   --font-*: initial;
   --font-outfit: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Labels, dates, times and hours in the schedule; the system's own monospace. */
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
 
   --breakpoint-*: initial;
   --breakpoint-2xsm: 375px;

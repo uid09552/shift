@@ -22,5 +22,8 @@ pub mod shift_swap;
 pub mod wish_settings;
 pub mod wish_schedule;
 pub mod personal_limits;
+pub mod roster_guard;
+pub mod roster_month;
+pub mod roster_notice;
 pub mod holiday;
 pub mod token_verifier;

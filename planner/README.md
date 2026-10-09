@@ -15,6 +15,7 @@ Given a JSON input describing employees, workstations, shifts, skills, unavailab
 - **Night shift recovery** — employees get 2 days off after a night shift
 - **Fixed assignments** — `employees[].fixed_shifts` (`{date, shift_id}`, `shift_id: null` for a day off; rotation patterns write them) are kept ahead of coverage and every other goal; any a rule forbids is listed in `message`, never a reason for `infeasible`. `constraints.keep_fixed_assignments: false` ignores them
 - **Coverage first** — minimum staffing is solved for before any other goal; balance, wishes and fatigue are optimised afterwards without un-filling a slot. Slots still short are listed in `message`
+- **Stable re-planning** — `published_roster` (`{employee_id, date, shift_id, workstation_id}`, `shift_id: null` for a day not working) is what employees have been told. Right after coverage and soft personal limits, the solver minimises the employee-days that differ from it, ahead of balance, wishes and fatigue, so a re-solve over a published month moves only the people it must. The result reports `changes_vs_published`. `constraints.change_weight: 0` ignores the roster (default 100000 = on)
 - **Workstation priority** — high-priority workstations are staffed first
 - **Workload balancing** — penalises uneven shift distribution across employees
 - **Max 5 shifts/week** — prevents over-scheduling
@@ -48,6 +49,7 @@ See [`input.json`](input.json) for a full example. Key sections:
 | `shifts` | Shift definitions with id, name, start/end time, valid weekdays, `is_night_shift` flag |
 | `workstations` | Workstation definitions with required skills, priority (`high`/`medium`/`low`), and operating shifts |
 | `employees` | Employee definitions with skills, available shifts, and unavailability dates |
+| `published_roster` | Optional. The published roster of the period's days: kept unless coverage needs a change (see *Stable re-planning*) |
 
 ## Output Format
 
@@ -59,6 +61,7 @@ See [`output.json`](output.json) (generated). Key sections:
 | `objective_value` | Solver objective score |
 | `schedule` | Per-day list of assignments (employee → shift → workstation) |
 | `employee_summary` | Per-employee totals (shifts, night shifts, assigned dates) |
+| `changes_vs_published` | Employee-days that differ from `published_roster`; `null` without one |
 
 ## Installation
 

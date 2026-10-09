@@ -1,107 +1,61 @@
+Feature ideas: shift / roster planning (no Zeitkonto / time accounts)
+=====================================================================
+Already exists (not repeated below): optimizer with coverage first, rotations,
+wishes and the wish window, swaps, short-notice replacement, personal limits,
+public holidays, fairness page, skill levels, weekly hours, plan check and fix,
+audit log.
 
+HIGH VALUE
+----------
+[ ] Roster lifecycle: draft -> published -> locked per month/workstation.
+    - Publish deadline (e.g. 4 weeks ahead), freeze window
+    - After publish: every change is tracked and shown to the people affected
+    - Re-solve after publish penalises changes against the published roster
+      (keep things stable, change as few people as possible)
+[ ] Leave / vacation requests with approval (planner/admin)
+    - Max people absent at once per workstation/capability, blackout periods
+    - Approved leave becomes unavailability; the optimizer sees pending leave as soft
+    - Annual leave planning view (whole year, per team)
+[ ] Open shifts / shift bidding
+    - Short slots (from message / staffing gaps) posted as open shifts
+    - Qualified, rule-compliant employees volunteer; planner assigns
+    - Reuses the agent's replacement ranking
+[ ] Skill-mix rules per shift/workstation
+    - "at least 1 x level >= 3 per shift", "max 2 trainees"
+    - Trainee must be paired with a mentor (same shift + workstation)
+    - Must / must-not work together (pairing constraints)
+[ ] Labor-law rule set (ArbZG) as a selectable profile
+    - Max 10 h/day, 48 h/week average over N weeks, breaks
+    - Special groups: minors (JArbSchG), pregnancy (MuSchG: no nights/Sundays)
+    - Plan check reports legal violations separately from soft goals
+[ ] Notifications: email / push for roster published, changes to my shifts,
+    swap/leave status, open shift offered
 
-Around the finished roster (the biggest gap: planning is strong, everything after it is thin)
-1) make week hours of employee, instead of monthly workhours. adjust ui, backend, docs. okf file.
-   DONE. employees.weekly_working_hours (optional; NULL follows
-   planner_settings.default_weekly_working_hours, 40 h; 0 = no target), migration
-   33 converts monthly × 12 / 52 (rounded to 0.5), 0 → default. Responses add
-   effective_weekly_working_hours; monthly_working_hours is refused with 400.
-   Every period target is weekly × days / 7 (optimizer, plan check, replacement,
-   Fairness, Employee calendar). Employee form: empty = default, "Use default";
-   Planner Settings: "Default weekly hours". Tests: tests/weekly_hours.rs,
-   planner/tests/test_weekly_hours.py, agent/tests/test_weekly_hours.py.
-4) Hours account (Zeitkonto) — per employee, contract hours vs worked hours, carried
-   month to month. One analysis endpoint over confirmed_shift_plans + monthly target;
-   a column on Fairness and Employee Calendar. [S]
-5) Compliance check over the confirmed roster — /agent/plan/validate works on a
-   proposal only; run the same rules over a date range of the roster actually worked
-   (after hand edits and swaps). [M]
-6) Absence requests and approval — shift-viewer requests leave, planner approves or
-   rejects. Status + approver on unavailabilities, leave entitlement per year, only
-   approved absences reach the optimizer. [L]
-7) Publish and notify — plan versions (draft/published), a diff between versions and a
-   notification to everyone whose shift moved (e-mail first; the header already has an
-   empty notification dropdown). [L]
-8) Shift swaps and open shifts — employee offers a shift, a qualified colleague takes
-   it, planner confirms; the rule check from 5) decides whether it is allowed. [L]
-   DONE for swaps (open shifts / give-away still open). A shift-viewer requests to
-   trade a confirmed shift with a colleague's (Schedule → cell menu → "Request a
-   swap…"); the colleague accepts or declines, a planner or admin approves — the
-   two roster rows are exchanged in one transaction, refused as stale if either
-   changed — or rejects (table shift_swap_requests, migration 32; /shift-swaps).
-   Rules are warnings for the planner, never a refusal: the agent's
-   POST /roster/swap-check reuses the replacement rules (qualification not checked
-   at request time). Planner/admin-only count on the header bell. Tests:
-   tests/shift_swaps.rs, agent/tests/test_swap_check.py,
-   e2e/tests/schedule/swap_requests.robot.
-9) Qualification matrix and expiry — employee x capability grid (free, data exists),
-   then valid_until on employee capabilities: expired ones are ignored by the
-   optimizer, the dashboard warns 30 days ahead. [S -> M]
-10) Personal calendar feed — signed, revocable ICS URL per employee, so shifts show up
-    in the phone calendar. [M]
+PLANNING QUALITY
+----------------
+[ ] Long-horizon fairness: carry night/weekend/holiday counts across months
+    (history beyond 14 days), alternate Christmas / New Year fairly
+[ ] Recurring availability (not just wishes): "only early shifts", "never Wednesdays",
+    part-time on fixed days; hard or soft per employee
+[ ] Time-of-day demand: staffing curve per hour instead of per shift;
+    optimizer chooses shift types / split and overlap shifts to cover it
+[ ] Float / pool staff: employees shared across workstations or departments,
+    with a "home" station preference and lending between teams
+[ ] On-call / standby duties (Bereitschaft, Rufdienst) as their own duty type
+    with own limits and rest rules
+[ ] Scenario planning: what-if (sick wave, closed ward, +2 hires) without
+    touching the real proposal; capacity forecast months ahead (staffing gaps
+    from leave + contracts)
+[ ] Plan-quality KPIs per run: coverage %, wishes met %, rule breaks, fairness
+    spread, changes vs published; trend over months
 
-Planner / optimizer
+CERTIFICATIONS
+--------------
+[ ] Capabilities with expiry dates (e.g. resuscitation training); warn in advance,
+    the optimizer stops using an expired capability
 
-11) Period boundaries — the solver sees only the planning period, so a night on the
-    31st doesn't block the 1st and rest/consecutive-day limits restart every month.
-    Send the last N days of the confirmed roster as read-only history. [M]
-    DONE. The backend sends the confirmed roster of the 14 days before the period
-    as `history` (TaskDTO, /planner/prepare and /planner/plan). The solver carries
-    recovery days, minimum rest and running streaks (max_consecutive_days) across
-    the start; blocked slots get no variable, so locks/rotations on them are
-    named in `message`, never infeasible. The agent's plan check follows the same
-    history. Not carried: the weekly day cap (7-day blocks from the period start).
-    Tests: planner/tests/test_history.py.
-12) Public holidays per region — holiday calendar (tenant setting, e.g. Bavaria),
-    counted like weekends in fairness, optional own staffing minimum; today "holiday"
-    exists only as an absence type. [M]
-    DONE (state and URL from config `holidays`, not a tenant setting; no own
-    staffing minimum). Fetched from api-feiertage.de JSON, stored per tenant
-    (table public_holidays, migration 31; GET /holidays, POST /holidays/sync).
-    A holiday runs on its shifts' Sunday times and counts as a weekend day in the
-    solver, the agent's plan check/repair and Fairness; shown in the Schedule
-    and Employee calendar. Tests: planner/tests/test_holidays.py.
-13) Skill mix per shift — "at least one senior / one with Intensive Care on every
-    night", not just capability per workstation. New rule type in planner + check. [M]
-14) Personal limits — per employee max nights per month, max weekends, no nights
-    (e.g. pregnancy, age), preferred days off. Soft or hard, like min_staffing_mode. [M]
-    DONE. Employees → edit → "Personal limits": max night shifts and max weekends
-    per calendar month, "no night shifts", preferred weekdays off (table
-    employee_personal_limits, migration 29; GET/PUT /employees/{id}/personal-limits).
-    Planner settings → "Personal limits": rule (hard, default) or target (soft —
-    exceeded only to fill a shift that would stay short, as little as possible,
-    and named in the result). No night shifts is always hard; preferred days off
-    cost preference_weight like one-off preferred days. The assistant's plan check
-    flags all four. Tests: planner/tests/test_personal_limits.py,
-    tests/personal_limits.rs.
-15) What-if scenarios — solve the same period under two settings (e.g. rotations on/off,
-    hard vs soft staffing) and show both in Compare; the assistant already asks this. [S]
-16) Short-notice replacement — "Anna is sick tomorrow": rank qualified, rested, under-
-    hours colleagues for that slot, using the repair logic for one slot only. [M]
-    DONE. Schedule page → a shift's menu → "Find replacement…": everyone the rules
-    allow (repair's blocking_reason — skills, rest, recovery, streaks, weekly cap,
-    station maximum, hard personal limits) ranked by wish, preferred day off,
-    hours below the month's target, then rest; everyone else with the reason.
-    Shows how many are left on the shift against its minimum. "Assign" marks the
-    absent person sick / vacation / absent and puts the colleague on the shift.
-    Agent endpoint POST /agent/roster/replacements (read-only). The repair now
-    also respects personal limits. Tests: agent/tests/test_replacement.py
-    (make test in agent/).
-
-Organisation / data
-
-17) Departments / wards as a level above workstations — planners see and plan only
-    their department; today a tenant is one flat pool. [L]
-18) Personnel cost — hourly rate and night/weekend/holiday surcharges; cost per plan
-    in Compare and as an optional optimizer goal. [M]
-19) Roster export for payroll — confirmed month as CSV/DATEV-style file with surcharge
-    hours (builds on 12 and 18). [M]
-
-Quality / operations
-
-20) Handler tests — list_tasks, list_users, list_shifts and other route handlers have no
-    covering test; add HTTP-level tests next to tests/*.rs, run in CI. [M]
-21) E2E beyond Overview — Robot suites for Scheduler (calculate -> take as plan),
-    Rotations and Wish window, the flows most likely to regress. [M]
-22) Backup/restore runbook and a scheduled pg_dump in deploy/, tested restore. [S]
-23) build docker as same as in gitlab-ci but as github action and push to gitlab ci
+OUTPUT / SELF-SERVICE
+---------------------
+[ ] iCal feed per employee (subscribe in phone calendar)
+[ ] PDF / Excel export of the roster (per ward, wall print layout)
+[ ] Mobile-friendly "my shifts" view: next shifts, open shifts, swaps, leave

@@ -8,6 +8,10 @@
 //! it created. Needs PostgreSQL (`DATABASE_URL`, or the development default);
 //! without one the tests print a notice and pass. No agent is configured, so
 //! the planner's review reports why warnings are missing rather than warnings.
+//!
+//! Swaps need a published roster: `roster` publishes the month of every row it
+//! writes, and the tenant starts without a freeze window, so the tests below
+//! the roster-lifecycle section need no reason to approve.
 
 mod common;
 
@@ -23,11 +27,11 @@ use uuid::Uuid;
 
 use common::TestKeys;
 use shift::database::DbPool;
-use shift::models::{NewConfirmedShiftPlan, NewEmployee, NewShift, NewShiftSwapRequest};
+use shift::models::{NewConfirmedShiftPlan, NewEmployee, NewPlannerSettings, NewShift, NewShiftSwapRequest};
 use shift::repository::AppState;
 use shift::schema::{
-    audit_logs, capabilities, confirmed_shift_plans, employees, shift_swap_requests, shifts,
-    workstation_required_capabilities, workstations,
+    audit_logs, capabilities, confirmed_shift_plans, employees, planner_settings, roster_change_notices,
+    roster_months, shift_swap_requests, shifts, workstation_required_capabilities, workstations,
 };
 
 const DEFAULT_DATABASE_URL: &str = "postgresql://postgres:postgres@localhost:5432/shift";
@@ -97,6 +101,9 @@ impl TestApp {
                 .expect("insert shift")
         };
         let (early, late) = (shift("Early", 1), shift("Late", 2));
+        let mut settings = NewPlannerSettings::defaults(&tenant);
+        settings.freeze_days = 0;
+        diesel::insert_into(planner_settings::table).values(&settings).execute(&mut conn).expect("insert settings");
         drop(conn);
 
         let keys = TestKeys::serve().await;
@@ -186,6 +193,7 @@ impl TestApp {
     }
 
     fn roster(&self, employee: Uuid, date: NaiveDate, shift: Option<Uuid>) {
+        self.set_month(date, "published");
         let mut conn = self.pool.get().expect("connection");
         diesel::insert_into(confirmed_shift_plans::table)
             .values(NewConfirmedShiftPlan {
@@ -216,6 +224,53 @@ impl TestApp {
             .expect("read roster")
     }
 
+    /// Stores `status` for the month containing `date`.
+    fn set_month(&self, date: NaiveDate, status: &str) {
+        let mut conn = self.pool.get().expect("connection");
+        diesel::insert_into(roster_months::table)
+            .values((
+                roster_months::tenant_id.eq(&self.tenant),
+                roster_months::month.eq(chrono::Datelike::with_day(&date, 1).unwrap()),
+                roster_months::status.eq(status),
+            ))
+            .on_conflict((roster_months::tenant_id, roster_months::month))
+            .do_update()
+            .set(roster_months::status.eq(status))
+            .execute(&mut conn)
+            .expect("set month status");
+    }
+
+    fn set_freeze_days(&self, days: i16) {
+        let mut conn = self.pool.get().expect("connection");
+        diesel::update(planner_settings::table.filter(planner_settings::tenant_id.eq(&self.tenant)))
+            .set(planner_settings::freeze_days.eq(days))
+            .execute(&mut conn)
+            .expect("set freeze days");
+    }
+
+    /// Approves `id` as a planner, with `reason` as `X-Change-Reason`.
+    async fn approve(&self, id: &str, reason: Option<&str>) -> (u16, Value) {
+        let mut request = reqwest::Client::new()
+            .post(format!("{}/shift-swaps/{id}/approve", self.base_url))
+            .header("x-access-token", self.planner());
+        if let Some(reason) = reason {
+            request = request.header("x-change-reason", reason);
+        }
+        let response = request.send().await.expect("request");
+        let status = response.status().as_u16();
+        (status, response.json().await.unwrap_or(Value::Null))
+    }
+
+    /// `(employee, date, source)` of every change notice.
+    fn notices(&self) -> Vec<(Uuid, NaiveDate, String)> {
+        let mut conn = self.pool.get().expect("connection");
+        roster_change_notices::table
+            .filter(roster_change_notices::tenant_id.eq(&self.tenant))
+            .select((roster_change_notices::employee_id, roster_change_notices::date, roster_change_notices::source))
+            .load(&mut conn)
+            .expect("read notices")
+    }
+
     fn status_of(&self, id: &str) -> String {
         let mut conn = self.pool.get().expect("connection");
         shift_swap_requests::table
@@ -228,6 +283,9 @@ impl TestApp {
     fn cleanup(&self) {
         let mut conn = self.pool.get().expect("connection");
         for tenant in [&self.tenant, &self.other_tenant] {
+            let _ = diesel::delete(roster_change_notices::table.filter(roster_change_notices::tenant_id.eq(tenant))).execute(&mut conn);
+            let _ = diesel::delete(roster_months::table.filter(roster_months::tenant_id.eq(tenant))).execute(&mut conn);
+            let _ = diesel::delete(planner_settings::table.filter(planner_settings::tenant_id.eq(tenant))).execute(&mut conn);
             let _ = diesel::delete(shift_swap_requests::table.filter(shift_swap_requests::tenant_id.eq(tenant))).execute(&mut conn);
             let _ = diesel::delete(confirmed_shift_plans::table.filter(confirmed_shift_plans::tenant_id.eq(tenant))).execute(&mut conn);
             let _ = diesel::delete(workstation_required_capabilities::table.filter(workstation_required_capabilities::tenant_id.eq(tenant))).execute(&mut conn);
@@ -602,6 +660,72 @@ async fn the_planner_sees_the_agents_warnings_and_may_still_approve() {
     let (_, logs) = app.get("/audit-logs?action=shift_swap.approve", &app.planner()).await;
     let changes: Value = serde_json::from_str(logs["data"][0]["changes"].as_str().unwrap()).unwrap();
     assert_eq!(changes["warnings"][0]["violations"][0], "only 8.0 h rest after the previous day's shift");
+
+    app.cleanup();
+}
+
+// ---------------------------------------------------------------------------
+// Roster lifecycle: swaps only in published months, approval under its rules
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn a_shift_in_a_draft_month_cannot_be_offered() {
+    let app = app!();
+    let (d1, d2) = (day(10), day(11));
+    app.roster(app.anna.id, d1, Some(app.early));
+    app.roster(app.ben.id, d2, Some(app.late));
+    app.set_month(d1, "draft");
+    app.set_month(d2, "draft");
+
+    let (status, body) = app.request(&app.viewer(&app.anna), app.anna.id, d1, d2).await;
+    assert_eq!(status, 400, "{body}");
+    assert!(body["error"].as_str().unwrap().contains("not in a published roster"), "{body}");
+
+    app.cleanup();
+}
+
+#[tokio::test]
+async fn approving_inside_the_freeze_window_needs_a_reason_and_notifies_both() {
+    let app = app!();
+    app.set_freeze_days(7);
+    let d = day(2);
+    app.roster(app.anna.id, d, Some(app.early));
+    app.roster(app.ben.id, d, Some(app.late));
+    let id = app.accepted_request(d, d).await;
+
+    let (status, body) = app.approve(&id, None).await;
+    assert_eq!(status, 428, "{body}");
+    assert_eq!(body["code"], "reason_required");
+    assert_eq!(app.status_of(&id), "pending_planner", "still awaiting a planner");
+    assert_eq!(app.roster_cell(app.anna.id, d), Some(Some(app.early)));
+
+    let (status, body) = app.approve(&id, Some("agreed")).await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(app.roster_cell(app.anna.id, d), Some(Some(app.late)));
+    let mut notices = app.notices();
+    notices.sort();
+    let mut expected = vec![(app.anna.id, d, "swap".to_string()), (app.ben.id, d, "swap".to_string())];
+    expected.sort();
+    assert_eq!(notices, expected, "one notice each, no duplicates for a same-day swap");
+
+    app.cleanup();
+}
+
+#[tokio::test]
+async fn approving_in_a_month_locked_meanwhile_is_refused() {
+    let app = app!();
+    let (d1, d2) = (day(10), day(11));
+    app.roster(app.anna.id, d1, Some(app.early));
+    app.roster(app.ben.id, d2, Some(app.late));
+    let id = app.accepted_request(d1, d2).await;
+    app.set_month(d1, "locked");
+    app.set_month(d2, "locked");
+
+    let (status, body) = app.approve(&id, Some("please")).await;
+    assert_eq!(status, 403, "{body}");
+    assert_eq!(app.status_of(&id), "pending_planner");
+    assert_eq!(app.roster_cell(app.anna.id, d1), Some(Some(app.early)));
+    assert!(app.notices().is_empty());
 
     app.cleanup();
 }

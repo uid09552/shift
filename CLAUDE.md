@@ -145,6 +145,22 @@ backend/
 - Monthly confirmed schedules per employee
 - Store the final approved shift assignments
 
+### Roster lifecycle
+- Each calendar month of a tenant's confirmed roster is `draft` → `published`
+  → `locked` (`roster_months`; no row = draft). Planners publish; a published
+  month locks itself once its last day has passed. `shift-admin` alone
+  unpublishes or unlocks (with a reason), and locks a reopened month again
+- `shift-viewer` sees confirmed entries of published and locked months only
+- Every roster write — manual edit, *Take as Plan*, absence, swap approval,
+  replacement — goes through `repository::rostertracking::guarded`, which asks
+  `services::roster_guard`: locked → admin with a reason; published day inside
+  the freeze window (`freeze_days`, 7) → a reason; published or locked → each
+  changed employee-day becomes a **change notice** (`roster_change_notices`) in
+  the same transaction. The reason is the `X-Change-Reason` header
+  (URL-encoded); without one the answer is 428 `reason_required`
+- A draft month is *due* `publish_lead_days` (28) before it starts — a
+  warning, nothing is blocked
+
 ### Shift Wishes
 - An employee's request for a specific shift on a specific date
 - A soft reward for the optimizer (`wish_weight`), never a guarantee
@@ -213,7 +229,13 @@ Base URL: `http://localhost:8080/api/v1`
   assignments in a period (per employee: `/employees/{id}/shift-assignments`)
 - `GET/POST /rotation-patterns`, `POST /rotation-patterns/{id}/apply` - Rotation
   patterns; apply writes fixed assignments (`dry_run` = preview)
-- `GET/POST /confirmed-shift-plans` - Confirmed monthly plans
+- `GET/POST /confirmed-shift-plans` - Confirmed monthly plans (viewers: published
+  and locked months only; writes follow the month status, see *Roster lifecycle*)
+- `GET /roster-months` - Month statuses and publish deadlines;
+  `POST /roster-months/{YYYY-MM}/publish` (planner), `/unpublish` `/unlock`
+  (admin, reason), `/lock` (admin, ended months)
+- `GET /roster-change-notices` - What changed in a published roster (viewers:
+  their own), `/unread-count` for the bell, `POST …/acknowledge` (own only)
 - `GET /analysis/*` - Analysis and summary endpoints (`/analysis/fairness`: per
   employee nights, weekends, hours vs target, wishes — the Fairness page)
 - `GET /audit-logs` - Who changed what: filter by `actor` (any part, case-insensitive),
@@ -329,6 +351,10 @@ The system integrates with a Python-based optimization service for shift schedul
 **Features**:
 - **Fixed assignments first** — `fixed_shifts` (rotations) are kept before
   coverage; any a rule forbids is listed in `message`
+- **Stable re-planning** — over a published month the backend sends the
+  confirmed roster as `published_roster`; right after coverage the solver
+  minimises the employee-days it changes (ahead of balance, wishes, fatigue)
+  and reports `changes_vs_published`. `change_weight: 0` switches it off
 - **Coverage first** — minimum staffing is solved for before anything else;
   balance, wishes and fatigue are optimised afterwards without un-filling a slot.
   Slots still short are listed in the output `message` (tests: `planner/tests/`)
@@ -399,6 +425,8 @@ tool posts to it and waits, which a queue cannot offer. In
   caps, or exceeded only to fill a slot that would stay short (named in
   `message`). `no_night_shifts` is always hard; `preferred_days_off` costs
   `preference_weight`. Set per employee on the Employees page
+- `change_weight`: int (default 100000, 0=off) — > 0 keeps a `published_roster`:
+  changed employee-days are minimised right after coverage. A planner setting
 - `solver_time_limit_seconds`: float (default 120.0)
 - `solver_num_workers`: int (default 8)
 
@@ -406,6 +434,11 @@ Alongside `constraints`, the input carries `locked_assignments` —
 `{employee_id, date, shift_id, workstation_id}` rows the solver must keep. They
 turn a re-solve into a repair: the model plans around them instead of
 re-deciding them. Impossible locks are dropped and reported in `message`.
+
+And `published_roster` — `{employee_id, date, shift_id, workstation_id}` rows of
+the confirmed roster on the period's days in published or locked months
+(`shift_id` null = not working). What employees have been told: a re-solve keeps
+it unless coverage needs a change (see *Stable re-planning*).
 
 It also carries `history` — `{employee_id, date, shift_id}` rows of the confirmed
 roster in the 14 days before the period (filled by the backend). Read-only: they

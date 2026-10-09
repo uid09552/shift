@@ -28,6 +28,7 @@ export interface WorkstationCoverage {
   understaffed: boolean;
 }
 
+import { PublishDeadlineBannerComponent } from '../../../shared/components/roster/publish-deadline-banner.component';
 @Component({
   selector: 'app-ecommerce',
   standalone: true,
@@ -35,7 +36,7 @@ export interface WorkstationCoverage {
     CommonModule,
     RouterLink,
     NgApexchartsModule,
-    MyDayComponent, TranslatePipe],
+    MyDayComponent, PublishDeadlineBannerComponent, TranslatePipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './ecommerce.component.html',
 })

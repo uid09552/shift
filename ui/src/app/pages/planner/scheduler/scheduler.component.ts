@@ -1009,25 +1009,54 @@ export class SchedulerComponent implements OnInit, OnDestroy {
    * Takes the (optionally edited) result as the confirmed plan. Pass employeeIds to scope
    * to a single user or a mass selection. The actual reassignment (deleting existing plans
    * for the period and creating the new ones) happens server-side in one call/transaction.
+   *
+   * A published month is what employees have already been told: a dry run first
+   * counts the days this would change there, and the planner confirms before
+   * anyone gets a change notice.
    */
   takeAsPlan(filterEmployeeIds?: string[]): void {
     if (!this.selectedResult) return;
+    const resultId = this.selectedResult.id;
 
     this.takingAsPlan = true;
     this.takePlanError = null;
     this.takePlanSuccess = false;
 
-    this.plannerService.takeAsPlan(this.selectedResult.id, filterEmployeeIds).subscribe({
+    this.plannerService.takeAsPlan(resultId, filterEmployeeIds, true).subscribe({
+      next: async (preview) => {
+        if (preview.changes > 0) {
+          const ok = await this.confirmDialogService.confirm({
+            title: this.translations.t('scheduler.takeIntoPublished.title'),
+            message: this.translations.t('scheduler.takeIntoPublished.message', { count: preview.changes }),
+            confirmLabel: this.translations.t('scheduler.takeIntoPublished.confirm'),
+          });
+          if (!ok) {
+            this.takingAsPlan = false;
+            return;
+          }
+        }
+        this.commitTakeAsPlan(resultId, filterEmployeeIds);
+      },
+      error: (err) => this.takeAsPlanFailed(err),
+    });
+  }
+
+  private commitTakeAsPlan(resultId: string, filterEmployeeIds?: string[]): void {
+    this.plannerService.takeAsPlan(resultId, filterEmployeeIds).subscribe({
       next: () => {
         this.takingAsPlan = false;
         this.takePlanSuccess = true;
         setTimeout(() => { this.takePlanSuccess = false; }, 3000);
       },
-      error: (err) => {
-        this.takingAsPlan = false;
-        this.takePlanError = err?.error?.error ?? 'Failed to take this result as the confirmed plan.';
-      },
+      error: (err) => this.takeAsPlanFailed(err),
     });
+  }
+
+  private takeAsPlanFailed(err: { status?: number; error?: { error?: string } }): void {
+    this.takingAsPlan = false;
+    // A reason prompt the planner cancelled comes back as the 428 itself.
+    if (err?.status === 428) return;
+    this.takePlanError = err?.error?.error ?? 'Failed to take this result as the confirmed plan.';
   }
 
   // ── Verification (assistant) ─────────────────────────────────────
