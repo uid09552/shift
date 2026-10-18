@@ -38,6 +38,8 @@ from typing import Any, Callable
 
 from langchain_core.tools import StructuredTool
 
+from shift_agent.agent import legal
+
 logger = logging.getLogger(__name__)
 
 # Backend operations this module drives, exposed by the MCP server from
@@ -61,6 +63,8 @@ _DEFAULT_CONSTRAINTS = {
     "max_working_days_per_week": 5,
     "keep_fixed_assignments": True,
     "personal_limits_mode": "hard",
+    "labor_law_profile": "none",
+    "labor_law_averaging_weeks": 24,
 }
 
 SEVERITY_ERROR = "error"
@@ -90,6 +94,8 @@ class Finding:
     detail: str
     count: int = 0
     examples: list[str] = field(default_factory=list)
+    # The law a legal finding rests on, e.g. "ArbZG §3"; None for the ward's own rules.
+    statute: str | None = None
 
     def add(self, example: str) -> None:
         self.count += 1
@@ -105,6 +111,8 @@ class Finding:
             "count": self.count,
             "examples": self.examples,
         }
+        if self.statute:
+            payload["statute"] = self.statute
         if self.count > len(self.examples):
             payload["more"] = self.count - len(self.examples)
         return payload
@@ -116,10 +124,13 @@ class _Findings:
     def __init__(self) -> None:
         self._by_rule: dict[str, Finding] = {}
 
-    def add(self, rule: str, severity: str, title: str, detail: str, example: str) -> None:
+    def add(
+        self, rule: str, severity: str, title: str, detail: str, example: str,
+        statute: str | None = None,
+    ) -> None:
         finding = self._by_rule.get(rule)
         if finding is None:
-            finding = Finding(rule=rule, severity=severity, title=title, detail=detail)
+            finding = Finding(rule=rule, severity=severity, title=title, detail=detail, statute=statute)
             self._by_rule[rule] = finding
         finding.add(example)
 
@@ -408,6 +419,9 @@ class _Validator:
             if key in cfg and value is not None:
                 cfg[key] = value
         self.cfg = cfg
+        # Labor law (legal.py), reported apart from the ward's own rules.
+        self.legal = legal.rules_for(cfg["labor_law_profile"], cfg["labor_law_averaging_weeks"])
+        self.legal_findings = _Findings()
 
         self.employees = {e["id"]: e for e in rules.get("employees") or []}
         self.shifts = {s["id"]: s for s in rules.get("shifts") or []}
@@ -501,6 +515,7 @@ class _Validator:
         self._check_preferences()
         self._check_fixed_assignments()
         self._check_hours()
+        self._check_legal()
         return self.findings.all()
 
     # -- the rules ---------------------------------------------------------
@@ -809,7 +824,7 @@ class _Validator:
                     if second_time is None:
                         continue
                     rest = (24 * 60 - end + _minutes(second_time["start_time"])) / 60.0
-                    if rest < min_rest:
+                    if rest < min_rest and not self._legal_rest_breach(employee_id, following, rest):
                         self.findings.add(
                             "min_rest", SEVERITY_ERROR,
                             "Too little rest between two shifts",
@@ -996,6 +1011,189 @@ class _Validator:
                     f"{target:.1f} h ({deviation:+.1f} h)",
                 )
 
+    # -- labor law (legal.py) ----------------------------------------------
+
+    def _person(self, employee_id: str, day: date):
+        return legal.person_rules(self.legal, self.employees.get(employee_id) or {}, day)
+
+    def _net_hours(self, shift_id: str, day: date) -> float | None:
+        weekday_time = self.shift_wt.get((shift_id, _weekday(day, self.holidays)))
+        if weekday_time is None:
+            return None
+        return legal.net_hours(_duration_hours(weekday_time), (self.shifts.get(shift_id) or {}).get("break_minutes"))
+
+    def _legal_rest_breach(self, employee_id: str, day: date, rest: float) -> bool:
+        """Whether a rest gap before `day` is too short by law — then the legal
+        section reports it and the ward's rest rule stays quiet."""
+        return bool(self.legal) and rest < self._person(employee_id, day).min_rest_hours
+
+    def _legal(self, rule: str, title: str, detail: str, example: str, statute: str) -> None:
+        self.legal_findings.add(rule, SEVERITY_ERROR, title, detail, example, statute)
+
+    def _check_legal(self) -> None:
+        """Hard by law, as the solver holds them: day hours, protected groups'
+        nights and Sundays, rest, the weekly average and the protected groups'
+        weekly limits, and breaks in the shift definitions. Hours are net of
+        the shift's break. A protected group is named by its law only."""
+        if not self.legal:
+            return
+        self._check_legal_breaks()
+        for a in self.assignments:
+            if a.employee_id not in self.employees or a.shift_id not in self.shifts:
+                continue
+            person = self._person(a.employee_id, a.day)
+            hours = self._net_hours(a.shift_id, a.day)
+            if hours is not None and hours > person.max_day_hours + 1e-9:
+                self._legal(
+                    f"legal_day_hours_{person.day_statute}", f"More than {person.max_day_hours:g} hours in a day",
+                    f"At most {person.max_day_hours:g} working hours a day (net of breaks).",
+                    f"{self._where(a)} — {hours:g} h", person.day_statute,
+                )
+            if person.group is None:
+                continue
+            weekday_time = self.shift_wt.get((a.shift_id, _weekday(a.day, self.holidays)))
+            if weekday_time and legal.touches_protected_night(weekday_time["start_time"], weekday_time["end_time"]):
+                self._legal(
+                    f"legal_protected_night_{person.night_statute}", "Protected-group rule: work between 20:00 and 06:00",
+                    "This person may not work between 20:00 and 06:00.",
+                    self._where(a), person.night_statute,
+                )
+            if legal.is_sunday_or_holiday(a.day, self.holidays):
+                self._legal(
+                    f"legal_protected_sunday_{person.sunday_statute}", "Protected-group rule: Sunday or public holiday",
+                    "This person may not work on Sundays or public holidays.",
+                    self._where(a), person.sunday_statute,
+                )
+        self._check_legal_rest()
+        self._check_legal_hour_windows()
+
+    def _check_legal_breaks(self) -> None:
+        """Once per shift the plan uses: its break is shorter than its length needs."""
+        used = {a.shift_id for a in self.assignments}
+        for shift_id, shift in self.shifts.items():
+            if shift_id not in used:
+                continue
+            worst = None
+            for wt in shift.get("weekday_times") or []:
+                gross = _duration_hours(wt)
+                need = legal.required_break_minutes(self.legal, gross)
+                if need > (shift.get("break_minutes") or 0) and (worst is None or gross > worst[0]):
+                    worst = (gross, need)
+            if worst:
+                self._legal(
+                    "legal_break", "Shift break shorter than the law asks",
+                    "30 minutes above 6 hours, 45 above 9 — set the shift's break on the Shifts page.",
+                    f"{self._shift_name(shift_id)} — {worst[0]:g} h with {shift.get('break_minutes') or 0} min, "
+                    f"needs {worst[1]} min",
+                    legal.ARBZG_BREAK,
+                )
+
+    def _check_legal_rest(self) -> None:
+        for (employee_id, day), rows in [*self.history_by_emp_day.items(), *self.by_emp_day.items()]:
+            following = day + timedelta(days=1)
+            for first in rows:
+                first_time = self.shift_wt.get((first.shift_id, _weekday(day, self.holidays)))
+                if first_time is None:
+                    continue
+                start1 = _minutes(first_time["start_time"])
+                end1 = _minutes(first_time["end_time"])
+                if end1 <= start1:
+                    end1 += 24 * 60
+                for second in self.by_emp_day.get((employee_id, following), []):
+                    second_time = self.shift_wt.get((second.shift_id, _weekday(following, self.holidays)))
+                    if second_time is None:
+                        continue
+                    rest = (24 * 60 + _minutes(second_time["start_time"]) - end1) / 60.0
+                    person = self._person(employee_id, following)
+                    if rest < person.min_rest_hours:
+                        self._legal(
+                            f"legal_rest_{person.rest_statute}", f"Less than {person.min_rest_hours:g} hours of rest",
+                            f"At least {person.min_rest_hours:g} hours between the end of one shift and the next.",
+                            f"{self._emp_name(employee_id)} — {self._shift_name(first.shift_id)} on "
+                            f"{day.isoformat()} to {self._shift_name(second.shift_id)} on "
+                            f"{following.isoformat()}: {rest:.1f} h",
+                            person.rest_statute,
+                        )
+
+    def _check_legal_hour_windows(self) -> None:
+        """The 48 h weekly average over the reference period (with history),
+        a minor's 40 h / 5 days a calendar week, maternity's 90 h in 14 days.
+        One finding per person and rule: the worst window."""
+        hours: dict[str, dict[date, float]] = defaultdict(dict)
+        for a in [*self.history, *self.assignments]:
+            h = self._net_hours(a.shift_id, a.day) if a.shift_id in self.shifts else None
+            if h is not None:
+                hours[a.employee_id][a.day] = hours[a.employee_id].get(a.day, 0.0) + h
+
+        def total(employee_id: str, first: date, last: date) -> float:
+            return sum(h for d, h in hours[employee_id].items() if first <= d <= last)
+
+        window = self.legal.averaging_weeks * 7
+        cap = self.legal.average_week_hours * self.legal.averaging_weeks
+        for employee_id in sorted(hours):
+            if employee_id not in self.employees:
+                continue
+            name = self._emp_name(employee_id)
+            worst = max(
+                ((total(employee_id, last - timedelta(days=window - 1), last), last) for last in self.days),
+                default=(0.0, None),
+            )
+            if worst[0] > cap + 1e-9:
+                self._legal(
+                    "legal_average", f"Over {self.legal.average_week_hours:g} hours a week on average",
+                    f"On average at most {self.legal.average_week_hours:g} h a week over "
+                    f"{self.legal.averaging_weeks} week(s), counting the confirmed roster before the period.",
+                    f"{name} — {worst[0]:g} h in the {self.legal.averaging_weeks} week(s) to "
+                    f"{worst[1].isoformat()} (max {cap:g} h)",
+                    legal.ARBZG_AVERAGE,
+                )
+            for day in self.days:
+                person = self._person(employee_id, day)
+                if person.max_double_week_hours:
+                    worked = total(employee_id, day - timedelta(days=13), day)
+                    if worked > person.max_double_week_hours + 1e-9:
+                        self._legal(
+                            "legal_double_week", "Protected-group rule: hours in two weeks",
+                            f"At most {person.max_double_week_hours:g} h in any two weeks.",
+                            f"{name} — {worked:g} h in the 14 days to {day.isoformat()}",
+                            legal.MUSCHG_HOURS,
+                        )
+                        break
+            for monday in sorted({d - timedelta(days=d.weekday()) for d in self.days}):
+                person = self._person(employee_id, max(monday, self.start))
+                sunday = monday + timedelta(days=6)
+                if person.max_week_hours:
+                    worked = total(employee_id, monday, sunday)
+                    if worked > person.max_week_hours + 1e-9:
+                        self._legal(
+                            "legal_week_hours", "Protected-group rule: hours in a week",
+                            f"At most {person.max_week_hours:g} h a calendar week.",
+                            f"{name} — {worked:g} h in the week of {monday.isoformat()}",
+                            legal.JARBSCHG_HOURS,
+                        )
+                if person.max_week_days:
+                    days = sum(1 for d in hours[employee_id] if monday <= d <= sunday)
+                    if days > person.max_week_days:
+                        self._legal(
+                            "legal_week_days", "Protected-group rule: days in a week",
+                            f"At most {person.max_week_days} working days a calendar week.",
+                            f"{name} — {days} days in the week of {monday.isoformat()}",
+                            legal.JARBSCHG_WEEK,
+                        )
+
+    def legal_report(self) -> dict:
+        if not self.legal:
+            return {"profile": "none", "compliant": None, "error_count": 0, "findings": []}
+        findings = self.legal_findings.all()
+        errors = sum(f.count for f in findings)
+        return {
+            "profile": self.legal.profile,
+            "averaging_weeks": self.legal.averaging_weeks,
+            "compliant": errors == 0,
+            "error_count": errors,
+            "findings": [f.as_dict() for f in findings],
+        }
+
     # -- statistics --------------------------------------------------------
 
     def _changes_vs_published(self) -> int | None:
@@ -1060,7 +1258,8 @@ def validate(
 
     errors = sum(f.count for f in findings if f.severity == SEVERITY_ERROR)
     warnings = sum(f.count for f in findings if f.severity == SEVERITY_WARNING)
-    verdict = "invalid" if errors else ("issues" if warnings else "valid")
+    legal_section = validator.legal_report()
+    verdict = "invalid" if errors or legal_section["error_count"] else ("issues" if warnings else "valid")
 
     return {
         "verdict": verdict,
@@ -1075,6 +1274,9 @@ def validate(
         "error_count": errors,
         "warning_count": warnings,
         "findings": [f.as_dict() for f in findings],
+        # Labor law, apart from the ward's own rules: a breach here is never
+        # also listed above.
+        "legal": legal_section,
     }
 
 
@@ -1095,6 +1297,9 @@ def headline(report: dict) -> str:
     if report["verdict"] == "valid":
         return f"No rule violations found — {scope}."
     parts = []
+    legal_errors = (report.get("legal") or {}).get("error_count") or 0
+    if legal_errors:
+        parts.append(f"{legal_errors} labor-law violation(s)")
     if report["error_count"]:
         parts.append(f"{report['error_count']} hard rule violation(s)")
     if report["warning_count"]:
@@ -1120,6 +1325,10 @@ can do about it (move someone, relax a setting, accept it). Name the people and 
 dates from the examples where it helps.
 - Errors are breaches of hard rules and must be fixed before confirming. Warnings \
 are soft objectives the solver traded away — worth seeing, not blocking.
+- `labor_law` lists breaches of the law (each with its statute) apart from the \
+ward's own rules. When it has findings, give them their own short section first: \
+the plan must not be confirmed while they stand. A "protected-group rule" applies \
+to that person by law — never guess or state why.
 - If nothing was found, say so in one or two sentences and stop.
 
 Be concrete and brief. No preamble, no headings above level 3, no raw JSON."""
@@ -1142,6 +1351,7 @@ def narrate(report: dict, llm: Any) -> str:
         "settings_applied": report.get("constraints"),
         "statistics": report.get("stats"),
         "findings": report.get("findings"),
+        "labor_law": report.get("legal"),
     }
     try:
         from langchain_core.messages import HumanMessage, SystemMessage

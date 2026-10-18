@@ -42,6 +42,7 @@ diesel::table! {
         color -> Varchar,
         order -> Int4,
         tenant_id -> Varchar,
+        break_minutes -> Int2,
     }
 }
 
@@ -193,6 +194,8 @@ diesel::table! {
         publish_lead_days -> Int2,
         freeze_days -> Int2,
         change_weight -> Int4,
+        labor_law_profile -> Varchar,
+        labor_law_averaging_weeks -> Int2,
     }
 }
 
@@ -206,6 +209,8 @@ diesel::table! {
         preferred_days_off -> Array<Int2>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
+        date_of_birth -> Nullable<Date>,
+        maternity_protection -> Bool,
     }
 }
 

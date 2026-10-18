@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, forkJoin, map } from 'rxjs';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
+import { Observable, catchError, forkJoin, map, of, throwError } from 'rxjs';
 
 export interface Employee {
   id: string;
@@ -67,6 +67,10 @@ export interface PersonalLimits {
   max_weekends_per_month: number | null;
   no_night_shifts: boolean;
   preferred_days_off: number[];
+  /** YYYY-MM-DD; the labor-law profile applies JArbSchG while under 18. Planners and admins only. */
+  date_of_birth?: string | null;
+  /** MuSchG applies under the labor-law profile. Health-related: planners and admins only. */
+  maternity_protection?: boolean;
 }
 
 export interface ImportResult {
@@ -88,17 +92,11 @@ export class EmployeeService {
     return this.http.get<PaginatedEmployeeResponse>(`${this.apiUrl}/employees`, { params });
   }
 
-  /**
-   * The employee record behind a sign-in address, or null when none matches.
-   *
-   * The endpoint answers 200 with an `{ error }` body rather than 404 when the
-   * address is unknown, so the caller cannot rely on the HTTP status alone —
-   * hence the mapping to null here, once, instead of at every call site.
-   */
+  /** The employee record behind a sign-in address, or null when none matches (404). */
   getEmployeeByEmail(email: string): Observable<Employee | null> {
     return this.http
-      .get<Employee | { error: string }>(`${this.apiUrl}/employees/email/${encodeURIComponent(email)}`)
-      .pipe(map((res) => ('id' in res ? (res as Employee) : null)));
+      .get<Employee>(`${this.apiUrl}/employees/email/${encodeURIComponent(email)}`)
+      .pipe(catchError((err: HttpErrorResponse) => (err.status === 404 ? of(null) : throwError(() => err))));
   }
 
   getEmployeeDetail(id: string): Observable<EmployeeProfile> {

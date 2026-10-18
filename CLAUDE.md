@@ -94,6 +94,9 @@ backend/
 │       │       ├── capabilities/
 │       │       ├── audit-log/       # Who changed what, with a diff per entry
 │       │       └── users/           # Organization users & role assignment
+│       │   # Add/edit forms are pages of their own (`<list>/new`, `<list>/:id/edit`):
+│       │   # `*-form.component.ts` next to each list, on `shared/components/form/form-page`
+│       │   # with `unsavedChangesGuard` and `writerGuard`/`adminGuard` (shared/guards)
 │       └── shared/
 │           ├── services/    # HTTP services for API calls
 │           └── components/  # Reusable UI components
@@ -160,6 +163,15 @@ backend/
   (URL-encoded); without one the answer is 428 `reason_required`
 - A draft month is *due* `publish_lead_days` (28) before it starts — a
   warning, nothing is blocked
+
+### Labor law
+- A planner setting (`labor_law_profile`), not a per-ward rule: `arbzg_de`
+  makes ArbZG/JArbSchG/MuSchG hard for the solver and the repair; a planner's
+  note cannot switch it off for one run
+- Protected-group data (`date_of_birth`, `maternity_protection`) sits in an
+  employee's personal limits; `shift-viewer` never reads it, audit entries say
+  only "changed", and findings name the law, never the reason
+- Take as Plan asks before taking a proposal with legal findings
 
 ### Shift Wishes
 - An employee's request for a specific shift on a specific date
@@ -427,6 +439,16 @@ tool posts to it and waits, which a queue cannot offer. In
   `preference_weight`. Set per employee on the Employees page
 - `change_weight`: int (default 100000, 0=off) — > 0 keeps a `published_roster`:
   changed employee-days are minimised right after coverage. A planner setting
+- `labor_law_profile`: "none" | "arbzg_de" (default "none") — a legal rule set
+  the solver holds as hard rules, stricter-of with the settings above:
+  ArbZG (10 h/day net of `break_minutes`, 48 h/week average over
+  `labor_law_averaging_weeks` (24) incl. `history`, 11 h rest), JArbSchG for
+  employees under 18 (`date_of_birth`) and MuSchG for `maternity_protection`
+  (no 20:00–06:00, Sundays or holidays). Rules live in
+  `planner/shift_planner/legal.py`, copied byte-for-byte to
+  `agent/shift_agent/agent/legal.py` (a test fails on drift). The plan check
+  reports breaches in a separate `legal` section with the statute. A modelled
+  subset of the law, not legal advice
 - `solver_time_limit_seconds`: float (default 120.0)
 - `solver_num_workers`: int (default 8)
 

@@ -12,6 +12,21 @@ export interface ValidationFinding {
   examples: string[];
   /** Breaches beyond the listed examples. */
   more?: number;
+  /** The law a labor-law finding rests on, e.g. "ArbZG §3". */
+  statute?: string;
+}
+
+/**
+ * Breaches of the labor-law profile, kept apart from the ward's own rules —
+ * a breach here is never listed among `findings` too. `compliant` is null
+ * when no profile is selected.
+ */
+export interface LegalSection {
+  profile: 'none' | 'arbzg_de';
+  averaging_weeks?: number;
+  compliant: boolean | null;
+  error_count: number;
+  findings: ValidationFinding[];
 }
 
 export interface ValidationStats {
@@ -36,6 +51,8 @@ export interface PlanValidationReport {
   error_count: number;
   warning_count: number;
   findings: ValidationFinding[];
+  /** Labor law, apart from the findings above (absent from older agents). */
+  legal?: LegalSection;
   /** The verdict in one sentence, written without the model. */
   headline: string;
   /** The assistant's written review of the findings (markdown). */

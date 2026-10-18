@@ -3,19 +3,21 @@
 //! hands them to the optimizer together with `personal_limits_mode`.
 //!
 //! Each test works in its own throwaway tenant and deletes what it created.
-//! Needs PostgreSQL (see `rotation_patterns.rs`, whose harness this mirrors);
+//! Requests carry a signed access token (see `common`). Needs PostgreSQL;
 //! without one the tests print a notice and pass.
+
+mod common;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use base64::{engine::general_purpose, Engine as _};
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+use common::TestKeys;
 use shift::database::DbPool;
 use shift::repository::AppState;
 use shift::schema::{audit_logs, employee_shift_assignments, employees, rotation_patterns, shifts, workstations};
@@ -25,6 +27,7 @@ const DEFAULT_DATABASE_URL: &str = "postgresql://postgres:postgres@localhost:543
 struct TestApp {
     base_url: String,
     tenant: String,
+    keys: TestKeys,
     pool: DbPool,
 }
 
@@ -44,7 +47,10 @@ impl TestApp {
         };
         shift::database::run_migrations(&pool).expect("migrations");
 
-        let app = shift::server::create_router(AppState::new(Arc::new(pool.clone())));
+        let keys = TestKeys::serve().await;
+        let mut state = AppState::new(Arc::new(pool.clone()));
+        state.token_verifier = Some(keys.verifier());
+        let app = shift::server::create_router(state);
         let listener = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .await
             .expect("bind");
@@ -56,28 +62,33 @@ impl TestApp {
         Some(Self {
             base_url: format!("http://{addr}/api/v1"),
             tenant: format!("test-personal-limits-{}", Uuid::new_v4()),
+            keys,
             pool,
         })
     }
 
     fn token(&self) -> String {
-        let payload = json!({
+        self.token_with("shift-planner")
+    }
+
+    fn token_with(&self, role: &str) -> String {
+        self.keys.sign(json!({
+            "sub": "planner@test.invalid",
             "tenant": [self.tenant],
-            "realm_access": { "roles": ["shift-planner"] },
+            "realm_access": { "roles": [role] },
             "email": "planner@test.invalid",
-        });
-        let encode = |bytes: &[u8]| general_purpose::URL_SAFE_NO_PAD.encode(bytes);
-        format!(
-            "{}.{}.signature",
-            encode(br#"{"alg":"RS256","typ":"JWT"}"#),
-            encode(payload.to_string().as_bytes()),
-        )
+            "preferred_username": "planner@test.invalid",
+        }))
     }
 
     async fn call(&self, method: reqwest::Method, path: &str, body: Option<Value>) -> (u16, Value) {
+        self.call_as("shift-planner", method, path, body).await
+    }
+
+    async fn call_as(&self, role: &str, method: reqwest::Method, path: &str, body: Option<Value>) -> (u16, Value) {
         let mut request = reqwest::Client::new()
             .request(method, format!("{}{}", self.base_url, path))
-            .header("x-access-token", self.token());
+            .header("x-access-token", self.token_with(role));
         if let Some(body) = body {
             request = request.json(&body);
         }
@@ -195,6 +206,80 @@ async fn impossible_limits_and_unknown_employees_are_refused() {
     assert_eq!(status, 404);
     let (status, _) = app.call(reqwest::Method::PUT, &unknown, Some(json!({ "no_night_shifts": true }))).await;
     assert_eq!(status, 404);
+
+    app.cleanup();
+}
+
+#[tokio::test]
+async fn protected_group_data_is_hidden_from_viewers_and_kept_out_of_the_audit_log() {
+    let Some(app) = TestApp::spawn().await else { return };
+    let early = app
+        .create("/shifts", json!({ "name": "Early", "short_name": "E", "color": "#22C55E", "break_minutes": 30 }))
+        .await;
+    app.create("/workstations", json!({ "name": "Ward", "available": true, "active_shift_ids": [early] })).await;
+    let email = format!("clara-{}@test.invalid", Uuid::new_v4());
+    let clara = app.create("/employees", json!({ "name": "Clara", "email": email, "weekly_working_hours": 40 })).await;
+    let path = format!("/employees/{clara}/personal-limits");
+
+    let (status, saved) = app
+        .call(
+            reqwest::Method::PUT,
+            &path,
+            Some(json!({ "date_of_birth": "2009-05-01", "maternity_protection": true })),
+        )
+        .await;
+    assert_eq!(status, 200, "{saved}");
+    assert_eq!(saved["date_of_birth"], "2009-05-01");
+    assert_eq!(saved["maternity_protection"], true);
+
+    // A viewer reads the limits, but neither the birth date nor the flag.
+    for read in [path.clone(), "/personal-limits".to_string()] {
+        let (status, body) = app.call_as("shift-viewer", reqwest::Method::GET, &read, None).await;
+        assert_eq!(status, 200, "{read}: {body}");
+        let text = body.to_string();
+        assert!(!text.contains("maternity_protection"), "{read} leaks the flag: {text}");
+        assert!(!text.contains("date_of_birth"), "{read} leaks the birth date: {text}");
+    }
+
+    // The audit entry says what changed, never to what.
+    let changes: Vec<Option<String>> = {
+        let mut conn = app.pool.get().expect("connection");
+        audit_logs::table
+            .filter(audit_logs::tenant_id.eq(&app.tenant))
+            .filter(audit_logs::action.eq("employee.personal_limits.update"))
+            .select(audit_logs::changes)
+            .load(&mut conn)
+            .expect("audit entries")
+    };
+    let entry = changes.last().cloned().flatten().expect("an audit entry");
+    let entry: Value = serde_json::from_str(&entry).expect("json");
+    assert_eq!(entry["maternity_protection"], "changed", "{entry}");
+    assert_eq!(entry["date_of_birth"], "changed", "{entry}");
+
+    // The optimizer gets both, and the shift's break.
+    let (status, prepared) = app
+        .call(
+            reqwest::Method::POST,
+            "/planner/prepare",
+            Some(json!({ "start_date": "2026-10-01", "end_date": "2026-10-31" })),
+        )
+        .await;
+    assert_eq!(status, 200, "{prepared}");
+    let employee = prepared["employees"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["id"] == clara.as_str())
+        .expect("Clara in the payload")
+        .clone();
+    assert_eq!(employee["date_of_birth"], "2009-05-01");
+    assert_eq!(employee["maternity_protection"], true);
+    let shift = prepared["shifts"].as_array().unwrap().iter().find(|s| s["id"] == early.as_str()).expect("shift").clone();
+    assert_eq!(shift["break_minutes"], 30);
+    assert_eq!(prepared["constraints"]["labor_law_profile"], "none");
+
+    let (status, _) = app.call(reqwest::Method::PUT, &path, Some(json!({ "date_of_birth": "2999-01-01" }))).await;
+    assert_eq!(status, 400, "a birth date in the future is refused");
 
     app.cleanup();
 }

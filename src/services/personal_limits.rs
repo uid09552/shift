@@ -10,7 +10,7 @@ use crate::repository::domain::{
 };
 use crate::repository::AppState;
 use crate::services::audit_log::{self, AuditActor};
-use crate::services::tenant::TenantContext;
+use crate::services::tenant::{RoleContext, TenantContext};
 
 /// Per-employee limits the optimizer respects on top of the ward's rules: max
 /// nights and weekends per month (hard or soft by the planner setting
@@ -22,18 +22,22 @@ impl PersonalLimitsService {
     /// Every employee that has limits saved; employees without a row have none.
     pub async fn list_personal_limits(
         tenant: TenantContext,
+        roles: RoleContext,
         State(state): State<AppState>,
     ) -> Result<Json<Vec<PersonalLimitsDomain>>, AppError> {
-        Ok(Json(state.personal_limits_repo.list_personal_limits(&tenant.0).await?))
+        let rows = state.personal_limits_repo.list_personal_limits(&tenant.0).await?;
+        Ok(Json(rows.into_iter().map(|l| visible_to(&roles, l)).collect()))
     }
 
     pub async fn get_personal_limits(
         tenant: TenantContext,
+        roles: RoleContext,
         Path(employee_id): Path<Uuid>,
         State(state): State<AppState>,
     ) -> Result<Json<PersonalLimitsDomain>, AppError> {
         ensure_employee(&state, &tenant.0, employee_id).await?;
-        Ok(Json(state.personal_limits_repo.get_personal_limits(&tenant.0, employee_id).await?))
+        let limits = state.personal_limits_repo.get_personal_limits(&tenant.0, employee_id).await?;
+        Ok(Json(visible_to(&roles, limits)))
     }
 
     /// Replaces the employee's limits as a whole; an empty body clears them.
@@ -46,16 +50,37 @@ impl PersonalLimitsService {
     ) -> Result<Json<PersonalLimitsDomain>, AppError> {
         ensure_employee(&state, &tenant.0, employee_id).await?;
         validate(&mut body)?;
+        let before = state.personal_limits_repo.get_personal_limits(&tenant.0, employee_id).await?;
         let saved = state
             .personal_limits_repo
             .update_personal_limits(&tenant.0, employee_id, body)
             .await?;
 
-        let changes = serde_json::to_string(&saved).unwrap_or_default();
+        let changes = audit_changes(&before, &saved);
         audit_log::record(&state, &tenant.0, actor.0, "employee.personal_limits.update", "employee", Some(employee_id.to_string()), Some(changes)).await;
 
         Ok(Json(saved))
     }
+}
+
+/// Birth date and protection flag are shown to planners and admins only.
+fn visible_to(roles: &RoleContext, limits: PersonalLimitsDomain) -> PersonalLimitsDomain {
+    if roles.can_write() { limits } else { limits.redacted() }
+}
+
+/// The audit entry for a save: the limits without the sensitive fields, which
+/// are noted as `changed` when they differ and otherwise left out.
+fn audit_changes(before: &PersonalLimitsDomain, saved: &PersonalLimitsDomain) -> String {
+    let mut value = serde_json::to_value(saved.clone().redacted()).unwrap_or_default();
+    if let Some(map) = value.as_object_mut() {
+        if before.date_of_birth != saved.date_of_birth {
+            map.insert("date_of_birth".into(), "changed".into());
+        }
+        if before.maternity_protection != saved.maternity_protection {
+            map.insert("maternity_protection".into(), "changed".into());
+        }
+    }
+    value.to_string()
 }
 
 async fn ensure_employee(state: &AppState, tenant_id: &str, employee_id: Uuid) -> Result<(), AppError> {
@@ -79,6 +104,9 @@ fn validate(body: &mut UpdatePersonalLimits) -> Result<(), AppError> {
             "preferred_days_off holds weekdays 0 (Monday) to 6 (Sunday)".into(),
         ));
     }
+    if body.date_of_birth.is_some_and(|d| d > chrono::Utc::now().date_naive() || d.format("%Y").to_string().parse::<i32>().unwrap_or(0) < 1900) {
+        return Err(AppError::Validation("date_of_birth must be a past date after 1900".into()));
+    }
     body.preferred_days_off.sort_unstable();
     body.preferred_days_off.dedup();
     Ok(())
@@ -94,6 +122,8 @@ mod tests {
             max_weekends_per_month: weekends,
             no_night_shifts: false,
             preferred_days_off: days.to_vec(),
+            date_of_birth: None,
+            maternity_protection: false,
         }
     }
 

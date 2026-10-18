@@ -19,8 +19,9 @@ type NavItem = {
 };
 
 /** The URL without query string or fragment: `/scheduler?tab=runs` is still the scheduler's entry. */
+/** The menu path a URL belongs to; a form page (`…/new`, `…/:id/edit`) counts as its list. */
 function routePath(url: string): string {
-  return url.split(/[?#]/)[0];
+  return url.split(/[?#]/)[0].replace(/\/(new|[^/]+\/edit)$/, '');
 }
 
 @Component({

@@ -158,10 +158,17 @@ impl EmployeeService {
     }
 
     pub async fn get_employee_by_id(
-        Path(_employee_id): Path<Uuid>,
-        State(_state): State<AppState>,
-    ) -> Json<Value> {
-        todo!()
+        tenant: TenantContext,
+        Path(employee_id): Path<Uuid>,
+        State(state): State<AppState>,
+    ) -> Result<Json<Value>, AppError> {
+        let employee = state
+            .employee_repo
+            .get_employee(&tenant.0, employee_id)
+            .await?
+            .ok_or(AppError::NotFound)?;
+        let default_weekly = default_weekly_hours(&state, &tenant).await?;
+        Ok(Json(employee_json(&employee, default_weekly)))
     }
 
     pub async fn update_employee(
@@ -209,7 +216,7 @@ impl EmployeeService {
                 let default_weekly = default_weekly_hours(&state, &tenant).await?;
                 Ok(Json(employee_json(&employee, default_weekly)))
             }
-            None => Ok(Json(serde_json::json!({ "error": "Employee not found" }))),
+            None => Err(AppError::NotFound),
         }
     }
 
@@ -229,7 +236,7 @@ impl EmployeeService {
                 let default_weekly = default_weekly_hours(&state, &tenant).await?;
                 Ok(Json(employee_json(&employee, default_weekly)))
             }
-            None => Ok(Json(serde_json::json!({ "error": "Employee not found" }))),
+            None => Err(AppError::NotFound),
         }
     }
 

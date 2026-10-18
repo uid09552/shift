@@ -262,3 +262,36 @@ async fn negative_roster_lifecycle_settings_are_refused() {
 
     app.cleanup();
 }
+
+#[tokio::test]
+async fn the_labor_law_profile_round_trips_and_is_checked() {
+    let Some(app) = TestApp::spawn().await else { return };
+
+    let (_, body) = app.get().await;
+    assert_eq!(body["labor_law_profile"], "none", "no legal rules until a planner picks a profile");
+    assert_eq!(body["labor_law_averaging_weeks"], 24);
+
+    let mut changed = settings_body(json!("soft"));
+    changed["labor_law_profile"] = json!("arbzg_de");
+    changed["labor_law_averaging_weeks"] = json!(16);
+    let (status, body) = app.put(changed).await;
+    assert_eq!(status, 200, "body: {body}");
+    let (_, reread) = app.get().await;
+    assert_eq!(reread["labor_law_profile"], "arbzg_de", "stored, not just echoed");
+    assert_eq!(reread["labor_law_averaging_weeks"], 16);
+
+    for (field, value) in [
+        ("labor_law_profile", json!("arbzg_at")),
+        ("labor_law_averaging_weeks", json!(0)),
+        ("labor_law_averaging_weeks", json!(53)),
+    ] {
+        let mut body = settings_body(json!("soft"));
+        body[field] = value.clone();
+        let (status, response) = app.put(body).await;
+        assert_eq!(status, 400, "{field} = {value} must be refused, got {status}: {response}");
+    }
+    let (_, body) = app.get().await;
+    assert_eq!(body["labor_law_profile"], "arbzg_de", "the rejected writes changed nothing");
+
+    app.cleanup();
+}

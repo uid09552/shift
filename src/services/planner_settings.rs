@@ -50,6 +50,10 @@ pub struct PlannerSettingsResponse {
     /// A re-solve keeps the published roster, changing as few employee-days as
     /// coverage needs, when > 0; 0 ignores it.
     pub change_weight: i32,
+    /// `none` (default) or `arbzg_de`: the legal rule set enforced as hard rules.
+    pub labor_law_profile: String,
+    /// Reference period of the 48 h weekly average, in weeks (24).
+    pub labor_law_averaging_weeks: i16,
 }
 
 impl From<PlannerSettingsDomain> for PlannerSettingsResponse {
@@ -86,6 +90,8 @@ impl From<PlannerSettingsDomain> for PlannerSettingsResponse {
             publish_lead_days: s.publish_lead_days,
             freeze_days: s.freeze_days,
             change_weight: s.change_weight,
+            labor_law_profile: s.labor_law_profile,
+            labor_law_averaging_weeks: s.labor_law_averaging_weeks,
         }
     }
 }
@@ -135,7 +141,14 @@ pub struct UpdatePlannerSettingsRequest {
     pub freeze_days: i16,
     #[serde(default = "default_change_weight")]
     pub change_weight: i32,
+    #[serde(default = "default_labor_law_profile")]
+    pub labor_law_profile: String,
+    #[serde(default = "default_labor_law_averaging_weeks")]
+    pub labor_law_averaging_weeks: i16,
 }
+
+fn default_labor_law_profile() -> String { "none".to_string() }
+fn default_labor_law_averaging_weeks() -> i16 { 24 }
 
 fn default_publish_lead_days() -> i16 { 28 }
 fn default_freeze_days() -> i16 { 7 }
@@ -202,6 +215,8 @@ impl PlannerSettingsService {
             publish_lead_days: body.publish_lead_days,
             freeze_days: body.freeze_days,
             change_weight: body.change_weight,
+            labor_law_profile: body.labor_law_profile,
+            labor_law_averaging_weeks: body.labor_law_averaging_weeks,
         };
 
         let settings = state.planner_settings_repo.update_planner_settings(&tenant.0, update).await?;
@@ -285,6 +300,12 @@ fn validate(body: &UpdatePlannerSettingsRequest) -> Result<(), AppError> {
     }
     if body.change_weight < 0 {
         return Err(AppError::Validation("change_weight must be >= 0".into()));
+    }
+    if !matches!(body.labor_law_profile.as_str(), "none" | "arbzg_de") {
+        return Err(AppError::Validation("labor_law_profile must be 'none' or 'arbzg_de'".into()));
+    }
+    if !(1..=52).contains(&body.labor_law_averaging_weeks) {
+        return Err(AppError::Validation("labor_law_averaging_weeks must be between 1 and 52".into()));
     }
     Ok(())
 }

@@ -150,6 +150,16 @@ fn published_roster(
 /// is at most 14, recovery days at most 7.
 const HISTORY_DAYS: i64 = 14;
 
+/// With a labor-law profile the 48 h average reaches back its whole reference
+/// period, so the history grows to cover it.
+fn history_days(settings: &crate::repository::domain::PlannerSettingsDomain) -> i64 {
+    if settings.labor_law_profile == "none" {
+        HISTORY_DAYS
+    } else {
+        HISTORY_DAYS.max(i64::from(settings.labor_law_averaging_weeks) * 7)
+    }
+}
+
 pub struct OptimizerService {
     state: AppState,
 }
@@ -265,7 +275,11 @@ impl OptimizerService {
 
         // What was actually worked just before the period: its rest rules
         // still bind the first days (see TaskDTO::history).
-        let history_start = period_start - chrono::Duration::days(HISTORY_DAYS);
+        let planner_settings = state
+            .planner_settings_repo
+            .get_or_create_planner_settings(tenant_id)
+            .await?;
+        let history_start = period_start - chrono::Duration::days(history_days(&planner_settings));
         let history_end = period_start - chrono::Duration::days(1);
         let history: Vec<HistoryShiftTask> = state
             .confirmed_shift_plan_repo
@@ -344,6 +358,8 @@ impl OptimizerService {
                     max_nights_per_month: limits.max_nights_per_month,
                     max_weekends_per_month: limits.max_weekends_per_month,
                     no_night_shifts: limits.no_night_shifts,
+                    date_of_birth: limits.date_of_birth.map(|d| d.to_string()),
+                    maternity_protection: limits.maternity_protection.unwrap_or(false),
                     preferred_days_off: limits.preferred_days_off.iter().map(|d| d.to_string()).collect(),
                 }
             }).collect();
@@ -406,6 +422,7 @@ impl OptimizerService {
                 id: shift.id.to_string(),
                 name: shift.name,
                 is_night_shift,
+                break_minutes: shift.break_minutes,
                 weekday_times,
             }
         }).collect()
@@ -614,6 +631,8 @@ async fn build_constraints(
                 keep_fixed_assignments: Some(s.keep_fixed_assignments),
                 personal_limits_mode: Some(s.personal_limits_mode.as_str().to_string()),
                 change_weight: Some(s.change_weight),
+                labor_law_profile: Some(s.labor_law_profile.clone()),
+                labor_law_averaging_weeks: Some(s.labor_law_averaging_weeks),
             }
         }
         Err(e) => {
@@ -1015,6 +1034,7 @@ mod tests {
             short_name: "T".into(),
             color: "#000000".into(),
             order: 0,
+            break_minutes: 0,
             weekday_times: times
                 .iter()
                 .enumerate()

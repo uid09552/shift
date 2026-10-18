@@ -176,7 +176,8 @@ OPTIMIZER_CONSTRAINT_KEYS = {
     "weekly_hours_target_weight", "preference_weight", "wish_weight",
     "skill_downgrade_weight", "fatigue_weight", "night_shift_fatigue_multiplier",
     "min_staffing_mode", "keep_fixed_assignments", "personal_limits_mode",
-    "change_weight", "solver_time_limit_seconds",
+    "change_weight", "labor_law_profile", "labor_law_averaging_weeks",
+    "solver_time_limit_seconds",
     "solver_num_workers",
 }
 

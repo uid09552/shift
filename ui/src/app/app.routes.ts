@@ -1,4 +1,10 @@
 import { Routes } from '@angular/router';
+import { adminGuard, unsavedChangesGuard, writerGuard } from './shared/guards/form.guards';
+import { ShiftFormComponent } from './pages/configuration/shifts/shift-form.component';
+import { WorkstationFormComponent } from './pages/configuration/workstations/workstation-form.component';
+import { EmployeeFormComponent } from './pages/planner/user-profiles/employee-form.component';
+import { UserFormComponent } from './pages/configuration/users/user-form.component';
+import { CapabilityFormComponent } from './pages/configuration/capabilities/capability-form.component';
 import { EcommerceComponent } from './pages/dashboard/ecommerce/ecommerce.component';
 import { NotFoundComponent } from './pages/other-page/not-found/not-found.component';
 import { AppLayoutComponent } from './shared/layout/app-layout/app-layout.component';
@@ -75,9 +81,41 @@ export const routes: Routes = [
         title:'title.userProfiles'
       },
       {
+        path:'user-profiles/new',
+        component:EmployeeFormComponent,
+        title:'title.userProfiles',
+        canActivate:[writerGuard],
+        canDeactivate:[unsavedChangesGuard],
+        data:{ listPath:'/user-profiles' }
+      },
+      {
+        path:'user-profiles/:id/edit',
+        component:EmployeeFormComponent,
+        title:'title.userProfiles',
+        canActivate:[writerGuard],
+        canDeactivate:[unsavedChangesGuard],
+        data:{ listPath:'/user-profiles' }
+      },
+      {
         path:'shifts',
         component:ShiftsComponent,
         title:'title.shifts'
+      },
+      {
+        path:'shifts/new',
+        component:ShiftFormComponent,
+        title:'title.shifts',
+        canActivate:[writerGuard],
+        canDeactivate:[unsavedChangesGuard],
+        data:{ listPath:'/shifts' }
+      },
+      {
+        path:'shifts/:id/edit',
+        component:ShiftFormComponent,
+        title:'title.shifts',
+        canActivate:[writerGuard],
+        canDeactivate:[unsavedChangesGuard],
+        data:{ listPath:'/shifts' }
       },
       {
         path:'workstations',
@@ -85,9 +123,41 @@ export const routes: Routes = [
         title:'title.workstations'
       },
       {
+        path:'workstations/new',
+        component:WorkstationFormComponent,
+        title:'title.workstations',
+        canActivate:[writerGuard],
+        canDeactivate:[unsavedChangesGuard],
+        data:{ listPath:'/workstations' }
+      },
+      {
+        path:'workstations/:id/edit',
+        component:WorkstationFormComponent,
+        title:'title.workstations',
+        canActivate:[writerGuard],
+        canDeactivate:[unsavedChangesGuard],
+        data:{ listPath:'/workstations' }
+      },
+      {
         path:'capabilities',
         component:CapabilitiesComponent,
         title:'title.capabilities'
+      },
+      {
+        path:'capabilities/new',
+        component:CapabilityFormComponent,
+        title:'title.capabilities',
+        canActivate:[writerGuard],
+        canDeactivate:[unsavedChangesGuard],
+        data:{ listPath:'/capabilities' }
+      },
+      {
+        path:'capabilities/:id/edit',
+        component:CapabilityFormComponent,
+        title:'title.capabilities',
+        canActivate:[writerGuard],
+        canDeactivate:[unsavedChangesGuard],
+        data:{ listPath:'/capabilities' }
       },
       {
         // The standalone workstation calendar was a read-only week of what the
@@ -112,6 +182,14 @@ export const routes: Routes = [
         path:'users',
         component:UsersComponent,
         title:'title.users'
+      },
+      {
+        path:'users/new',
+        component:UserFormComponent,
+        title:'title.users',
+        canActivate:[adminGuard],
+        canDeactivate:[unsavedChangesGuard],
+        data:{ listPath:'/users' }
       },
       {
         path:'audit-log',

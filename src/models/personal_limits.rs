@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{NaiveDate, NaiveDateTime};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -17,6 +17,8 @@ pub struct PersonalLimits {
     pub preferred_days_off: Vec<i16>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    pub date_of_birth: Option<NaiveDate>,
+    pub maternity_protection: bool,
 }
 
 /// `treat_none_as_null` so removing a limit actually removes it (see
@@ -30,4 +32,6 @@ pub struct NewPersonalLimits {
     pub max_weekends_per_month: Option<i16>,
     pub no_night_shifts: bool,
     pub preferred_days_off: Vec<i16>,
+    pub date_of_birth: Option<NaiveDate>,
+    pub maternity_protection: bool,
 }

@@ -61,6 +61,7 @@ impl TestApp {
                 color: "#6366F1",
                 order: 1,
                 tenant_id: &tenant,
+                break_minutes: 0,
             })
             .returning(shifts::id)
             .get_result(&mut conn)

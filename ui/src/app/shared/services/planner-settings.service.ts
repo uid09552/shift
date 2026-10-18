@@ -49,7 +49,13 @@ export interface PlannerSettings {
   freeze_days: number;
   /** > 0: a re-plan keeps the published roster, changing as few days as it must; 0: off. */
   change_weight: number;
+  /** Legal rule set held as hard rules: none, or ArbZG with JArbSchG and MuSchG. */
+  labor_law_profile: LaborLawProfile;
+  /** Reference period of the 48 h weekly average, in weeks (24). */
+  labor_law_averaging_weeks: number;
 }
+
+export type LaborLawProfile = 'none' | 'arbzg_de';
 
 export type UpdatePlannerSettingsRequest = Omit<PlannerSettings, 'updated_at'>;
 

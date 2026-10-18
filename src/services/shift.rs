@@ -72,10 +72,11 @@ impl ShiftService {
             .get("order")
             .and_then(|v| v.as_i64())
             .unwrap_or(0) as i32;
+        let break_minutes = parse_break_minutes(body.get("break_minutes"))?.unwrap_or(0);
 
         let shift = state
             .shift_repo
-            .create_shift(&tenant.0, name, short_name, color, order)
+            .create_shift(&tenant.0, name, short_name, color, order, break_minutes)
             .await?;
 
         audit_log::record(&state, &tenant.0, actor.0, "shift.create", "shift", Some(shift.id.to_string()), Some(body.to_string())).await;
@@ -108,6 +109,7 @@ impl ShiftService {
         let short_name = body.get("short_name").and_then(|v| v.as_str()).map(|s| s.to_string());
         let color = body.get("color").and_then(|v| v.as_str()).map(|s| s.to_string());
         let order = body.get("order").and_then(|v| v.as_i64()).map(|o| o as i32);
+        let break_minutes = parse_break_minutes(body.get("break_minutes"))?;
 
         // Validate hex color format if color is provided
         if let Some(ref c) = color {
@@ -118,7 +120,7 @@ impl ShiftService {
 
         let shift = state
             .shift_repo
-            .update_shift(&tenant.0, shift_id, name, short_name, color, order)
+            .update_shift(&tenant.0, shift_id, name, short_name, color, order, break_minutes)
             .await?;
 
         audit_log::record(&state, &tenant.0, actor.0, "shift.update", "shift", Some(shift_id.to_string()), Some(body.to_string())).await;
@@ -265,7 +267,7 @@ impl ShiftService {
                 }
             };
 
-            match state.shift_repo.create_shift(&tenant.0, name, short_name, color, order).await {
+            match state.shift_repo.create_shift(&tenant.0, name, short_name, color, order, 0).await {
                 Ok(_) => result.created += 1,
                 Err(AppError::Duplicate) => {
                     result.push_error(row_num, format!("Shift '{name}' already exists"));
@@ -288,5 +290,18 @@ impl ShiftService {
         .await;
 
         Ok(Json(serde_json::to_value(result).unwrap()))
+    }
+}
+
+/// `break_minutes` from a request body: `None` when the key is absent, a whole
+/// number of minutes from 0 to 240 otherwise.
+fn parse_break_minutes(value: Option<&Value>) -> Result<Option<i16>, AppError> {
+    match value {
+        None | Some(Value::Null) => Ok(None),
+        Some(v) => v
+            .as_i64()
+            .filter(|m| (0..=240).contains(m))
+            .map(|m| Some(m as i16))
+            .ok_or_else(|| AppError::Validation("'break_minutes' must be a whole number between 0 and 240".into())),
     }
 }

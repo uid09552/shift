@@ -45,6 +45,8 @@ fn to_domain(s: PlannerSettings) -> PlannerSettingsDomain {
         publish_lead_days: s.publish_lead_days,
         freeze_days: s.freeze_days,
         change_weight: s.change_weight,
+        labor_law_profile: s.labor_law_profile,
+        labor_law_averaging_weeks: s.labor_law_averaging_weeks,
     }
 }
 
@@ -112,6 +114,8 @@ impl PlannerSettingsRepository for DieselPlannerSettingsRepository {
                 publish_lead_days: settings.publish_lead_days,
                 freeze_days: settings.freeze_days,
                 change_weight: settings.change_weight,
+                labor_law_profile: settings.labor_law_profile,
+                labor_law_averaging_weeks: settings.labor_law_averaging_weeks,
             };
             let updated: PlannerSettings = diesel::insert_into(planner_settings::table)
                 .values(&new_settings)

@@ -95,7 +95,7 @@ impl TestApp {
         let (anna, ben, carl) = (person("Anna"), person("Ben"), person("Carl"));
         let mut shift = |name: &str, order: i32| -> Uuid {
             diesel::insert_into(shifts::table)
-                .values(NewShift { name, short_name: &name[..1], color: "#22C55E", order, tenant_id: &tenant })
+                .values(NewShift { name, short_name: &name[..1], color: "#22C55E", order, tenant_id: &tenant, break_minutes: 0 })
                 .returning(shifts::id)
                 .get_result(&mut conn)
                 .expect("insert shift")

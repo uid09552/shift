@@ -43,6 +43,9 @@ pub struct PlannerSettings {
     pub freeze_days: i16,
     /// > 0: a re-solve changes as few published employee-days as it must; 0: off.
     pub change_weight: i32,
+    /// `none` or `arbzg_de`; see `planner/shift_planner/legal.py`.
+    pub labor_law_profile: String,
+    pub labor_law_averaging_weeks: i16,
 }
 
 #[derive(Insertable, AsChangeset, Debug, Clone)]
@@ -81,6 +84,8 @@ pub struct NewPlannerSettings {
     pub freeze_days: i16,
     /// Optimizer penalty per employee-day that differs from the published roster.
     pub change_weight: i32,
+    pub labor_law_profile: String,
+    pub labor_law_averaging_weeks: i16,
 }
 
 impl NewPlannerSettings {
@@ -116,6 +121,8 @@ impl NewPlannerSettings {
             publish_lead_days: 28,
             freeze_days: 7,
             change_weight: 100000,
+            labor_law_profile: "none".to_string(),
+            labor_law_averaging_weeks: 24,
         }
     }
 }

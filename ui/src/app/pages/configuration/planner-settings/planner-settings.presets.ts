@@ -109,6 +109,8 @@ export type PresetValues = Omit<
   | 'publish_lead_days'
   | 'freeze_days'
   | 'change_weight'
+  | 'labor_law_profile'
+  | 'labor_law_averaging_weeks'
 >;
 
 export interface UseCaseTemplate {

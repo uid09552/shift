@@ -1,9 +1,8 @@
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 
 import {
-  CreateUserRequest,
   OrganizationUser,
   OrganizationUserService,
   SHIFT_ROLES,
@@ -11,29 +10,20 @@ import {
 } from '../../../shared/services/organization-user.service';
 import { UserService } from '../../../shared/services/user.service';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
-import { InputFieldComponent } from '../../../shared/components/form/input/input-field.component';
-import { LabelComponent } from '../../../shared/components/form/label/label.component';
+import { SavedNoticeComponent } from '../../../shared/components/form/form-page/saved-notice.component';
 import { ButtonComponent } from '../../../shared/components/ui/button/button.component';
 import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
-
-/** The roles as they are offered, each with the sentence explaining what it buys. */
-const ROLE_OPTIONS: { value: ShiftRole; label: string; hint: string }[] = [
-  { value: 'shift-admin', label: 'users.role.admin', hint: 'users.role.adminHint' },
-  { value: 'shift-planner', label: 'users.role.planner', hint: 'users.role.plannerHint' },
-  { value: 'shift-viewer', label: 'users.role.viewer', hint: 'users.role.viewerHint' },
-];
+import { ROLE_OPTIONS } from './user-roles';
 
 @Component({
   selector: 'app-users',
   standalone: true,
   imports: [
     CommonModule,
-    FormsModule,
     PageBreadcrumbComponent,
-    InputFieldComponent,
-    LabelComponent,
+    SavedNoticeComponent,
     ButtonComponent,
     TranslatePipe,
   ],
@@ -72,121 +62,7 @@ const ROLE_OPTIONS: { value: ShiftRole; label: string; hint: string }[] = [
       </div>
     } @else {
 
-      <!-- Add form -->
-      @if (showForm) {
-        <div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]" data-testid="users-form">
-          <div class="px-5 py-4 sm:px-6">
-            <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'users.newTitle' | t }}</h3>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ 'users.newSubtitle' | t }}</p>
-          </div>
-
-          <div class="px-5 pb-5 sm:px-6">
-            <div class="mb-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
-              <div>
-                <app-label for="userUsername" className="mb-1.5">{{ 'users.usernameLabel' | t }}</app-label>
-                <app-input-field
-                  id="userUsername"
-                  name="userUsername"
-                  type="text"
-                  [placeholder]="'users.usernamePlaceholder' | t"
-                  [value]="form.username"
-                  (valueChange)="form.username = asText($event)"
-                />
-                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'users.usernameHint' | t }}</p>
-              </div>
-              <div>
-                <app-label for="userEmail" className="mb-1.5">{{ 'users.emailLabel' | t }}</app-label>
-                <app-input-field
-                  id="userEmail"
-                  name="userEmail"
-                  type="email"
-                  [placeholder]="'users.emailPlaceholder' | t"
-                  [value]="form.email"
-                  (valueChange)="form.email = asText($event)"
-                />
-                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'users.emailHint' | t }}</p>
-              </div>
-              <div>
-                <app-label for="userFirstName" className="mb-1.5">{{ 'users.firstNameLabel' | t }}</app-label>
-                <app-input-field
-                  id="userFirstName"
-                  name="userFirstName"
-                  type="text"
-                  [value]="form.firstName"
-                  (valueChange)="form.firstName = asText($event)"
-                />
-              </div>
-              <div>
-                <app-label for="userLastName" className="mb-1.5">{{ 'users.lastNameLabel' | t }}</app-label>
-                <app-input-field
-                  id="userLastName"
-                  name="userLastName"
-                  type="text"
-                  [value]="form.lastName"
-                  (valueChange)="form.lastName = asText($event)"
-                />
-              </div>
-              <div>
-                <app-label for="userPassword" className="mb-1.5">{{ 'users.passwordLabel' | t }}</app-label>
-                <app-input-field
-                  id="userPassword"
-                  name="userPassword"
-                  type="password"
-                  [value]="form.password"
-                  (valueChange)="form.password = asText($event)"
-                />
-                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'users.passwordHint' | t }}</p>
-              </div>
-              <div class="flex items-end">
-                <label class="flex cursor-pointer items-center gap-2.5 pb-2.5 text-sm text-gray-700 dark:text-gray-300">
-                  <input
-                    type="checkbox"
-                    [(ngModel)]="form.temporaryPassword"
-                    name="userTemporaryPassword"
-                    class="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500/20 dark:border-gray-600 dark:bg-gray-900"
-                  />
-                  {{ 'users.temporaryPasswordLabel' | t }}
-                </label>
-              </div>
-            </div>
-
-            <div class="mb-5">
-              <app-label className="mb-1.5">{{ 'users.rolesLabel' | t }}</app-label>
-              <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                @for (option of roleOptions; track option.value) {
-                  <label
-                    class="flex cursor-pointer gap-3 rounded-xl border p-4 transition-colors"
-                    [class]="form.roles.includes(option.value)
-                      ? 'border-brand-400 bg-brand-50/60 dark:border-brand-500/60 dark:bg-brand-500/10'
-                      : 'border-gray-200 hover:border-gray-300 dark:border-gray-800 dark:hover:border-gray-700'"
-                  >
-                    <input
-                      type="checkbox"
-                      class="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-brand-500 focus:ring-brand-500/20 dark:border-gray-600 dark:bg-gray-900"
-                      [attr.data-testid]="'users-form-role-' + option.value"
-                      [checked]="form.roles.includes(option.value)"
-                      (change)="toggleFormRole(option.value)"
-                    />
-                    <span class="min-w-0">
-                      <span class="block text-sm font-medium text-gray-800 dark:text-white/90">{{ option.label | t }}</span>
-                      <span class="mt-0.5 block text-xs leading-relaxed text-gray-500 dark:text-gray-400">{{ option.hint | t }}</span>
-                    </span>
-                  </label>
-                }
-              </div>
-            </div>
-
-            <div class="flex items-center gap-3" data-testid="users-form-actions">
-              <app-button size="sm" variant="primary" [disabled]="saving" (btnClick)="createUser()">
-                {{ (saving ? 'users.creating' : 'users.create') | t }}
-              </app-button>
-              <app-button size="sm" variant="outline" (btnClick)="cancelForm()">
-                {{ 'common.cancel' | t }}
-              </app-button>
-            </div>
-          </div>
-        </div>
-      }
+      <app-saved-notice />
 
       <!-- Members -->
       <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
@@ -285,10 +161,8 @@ export class UsersComponent implements OnInit {
 
   users: OrganizationUser[] = [];
   loading = true;
-  saving = false;
   /** `shift-admin` only; everyone else gets the locked notice instead. */
   canManage = false;
-  showForm = false;
   message: string | null = null;
   messageKind: 'success' | 'error' = 'success';
 
@@ -297,16 +171,6 @@ export class UsersComponent implements OnInit {
   /** Rows with a request in flight, so a double click cannot race itself. */
   private busy = new Set<string>();
 
-  form = {
-    username: '',
-    email: '',
-    firstName: '',
-    lastName: '',
-    password: '',
-    temporaryPassword: true,
-    roles: ['shift-viewer'] as ShiftRole[],
-  };
-
   plusIcon = `<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.25C12.4142 3.25 12.75 3.58579 12.75 4V11.25H20C20.4142 11.25 20.75 11.5858 20.75 12C20.75 12.4142 20.4142 12.75 20 12.75H12.75V20C12.75 20.4142 12.4142 20.75 12 20.75C11.5858 20.75 11.25 20.4142 11.25 20V12.75H4C3.58579 12.75 3.25 12.4142 3.25 12C3.25 11.5858 3.58579 11.25 4 11.25H11.25V4C11.25 3.58579 11.5858 3.25 12 3.25Z" fill="currentColor"></path></svg>`;
 
   constructor(
@@ -314,6 +178,7 @@ export class UsersComponent implements OnInit {
     private userService: UserService,
     private confirmDialog: ConfirmDialogService,
     private translations: TranslationService,
+    private router: Router,
   ) {}
 
   ngOnInit(): void {
@@ -367,60 +232,7 @@ export class UsersComponent implements OnInit {
   }
 
   openAddForm(): void {
-    this.form = {
-      username: '',
-      email: '',
-      firstName: '',
-      lastName: '',
-      password: '',
-      temporaryPassword: true,
-      roles: ['shift-viewer'],
-    };
-    this.message = null;
-    this.showForm = true;
-  }
-
-  cancelForm(): void {
-    this.showForm = false;
-  }
-
-  toggleFormRole(role: ShiftRole): void {
-    this.form.roles = this.form.roles.includes(role)
-      ? this.form.roles.filter((r) => r !== role)
-      : [...this.form.roles, role];
-  }
-
-  createUser(): void {
-    const username = this.form.username.trim();
-    if (!username) {
-      this.show('users.usernameRequired', 'error');
-      return;
-    }
-
-    const request: CreateUserRequest = {
-      username,
-      email: this.form.email.trim() || null,
-      first_name: this.form.firstName.trim() || null,
-      last_name: this.form.lastName.trim() || null,
-      password: this.form.password || null,
-      temporary_password: this.form.temporaryPassword,
-      // Sorted so the request reads the same way the table does.
-      roles: SHIFT_ROLES.filter((r) => this.form.roles.includes(r)),
-    };
-
-    this.saving = true;
-    this.organizationUserService.createUser(request).subscribe({
-      next: () => {
-        this.saving = false;
-        this.showForm = false;
-        this.show('users.created', 'success');
-        this.loadUsers();
-      },
-      error: (err) => {
-        this.saving = false;
-        this.fail(err, err?.status === 409 ? 'users.alreadyMember' : 'users.createFailed');
-      },
-    });
+    this.router.navigate(['/users/new']);
   }
 
   /**

@@ -55,6 +55,9 @@ class Shift(BaseModel):
     id: str = Field(..., min_length=1)
     name: str = Field(..., min_length=1)
     is_night_shift: bool = False
+    # Unpaid break inside the start-end span; the labor-law profile counts a
+    # shift's hours net of it and checks it against ArbZG §4.
+    break_minutes: int = Field(default=0, ge=0, le=240)
     weekday_times: List[ShiftWeekdayTime] = Field(..., min_length=1)
 
     @field_validator("weekday_times")
@@ -168,6 +171,11 @@ class Employee(BaseModel):
     max_weekends_per_month: Optional[int] = Field(default=None, ge=0, le=5)
     no_night_shifts: bool = False
     preferred_days_off: List[str] = Field(default_factory=list)
+    # Protected groups under the labor-law profile (see legal.py): under 18 on
+    # the day (JArbSchG), and maternity protection (MuSchG). Ignored with
+    # labor_law_profile "none".
+    date_of_birth: Optional[date] = None
+    maternity_protection: bool = False
 
 
 class LockedAssignment(BaseModel):
@@ -333,6 +341,13 @@ class ConstraintConfig(BaseModel):
     # fatigue, which are priced per hour and would outbid any per-day weight.
     # 0 ignores the roster. The value itself only switches it on.
     change_weight: int = Field(default=100000, ge=0)
+
+    # Legal rule set held as hard rules (see legal.py): "none" leaves every
+    # rule to the settings above; "arbzg_de" adds ArbZG, JArbSchG and MuSchG.
+    # Where a setting above and the law differ, the stricter one applies.
+    labor_law_profile: Literal["none", "arbzg_de"] = "none"
+    # Reference period of the 48 h weekly average, in weeks (ArbZG §3).
+    labor_law_averaging_weeks: int = Field(default=24, ge=1, le=52)
 
     # Solver time limit in seconds
     solver_time_limit_seconds: float = Field(default=120.0, gt=0)

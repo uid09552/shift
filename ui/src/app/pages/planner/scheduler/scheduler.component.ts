@@ -53,6 +53,7 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
 import { TabItem, TabsComponent } from '../../../shared/components/ui/tabs/tabs.component';
 import { DateRange, DateRangePickerComponent } from '../../../shared/components/ui/date-range-picker/date-range-picker.component';
 import { ActivatedRoute, Router } from '@angular/router';
+import { PlannerSettingsService } from '../../../shared/services/planner-settings.service';
 
 interface DayInfo {
   date: Date;
@@ -216,6 +217,8 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   /** The result the report below belongs to — a report never outlives a switch of result. */
   private validatedResultId: string | null = null;
   validationReport: PlanValidationReport | null = null;
+  /** A labor-law profile is selected in the planner settings. */
+  laborLawActive = false;
   /** The assistant's markdown review, rendered for [innerHTML]. */
   validationSummaryHtml = '';
   validationError: string | null = null;
@@ -260,6 +263,7 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     private translations: TranslationService,
     private route: ActivatedRoute,
     private router: Router,
+    private plannerSettingsService: PlannerSettingsService,
   ) {}
 
   ngOnInit(): void {
@@ -269,6 +273,11 @@ export class SchedulerComponent implements OnInit, OnDestroy {
       this.setTab(tab, false);
     }
     this.computeDays();
+    // Whether Take as Plan has to check the law first; on failure it does not.
+    this.plannerSettingsService.getPlannerSettings().subscribe({
+      next: (s) => (this.laborLawActive = s.labor_law_profile !== 'none'),
+      error: () => {},
+    });
     this.loadLatestResult();
     this.loadEmployees();
     this.loadShiftsAndWorkstations();
@@ -297,7 +306,7 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   get tabItems(): TabItem[] {
     const t = (key: string) => this.translations.t(key);
     const report = this.validationReport;
-    const open = report ? report.error_count + report.warning_count : 0;
+    const open = report ? report.error_count + report.warning_count + (report.legal?.error_count ?? 0) : 0;
     const running = this.planningTasks.filter((task) => task.status === 'scheduled').length;
     return [
       { id: 'calculate', label: t('scheduler.tab.calculate') },
@@ -1022,6 +1031,42 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     this.takePlanError = null;
     this.takePlanSuccess = false;
 
+    // Under a labor-law profile a plan that breaks the law is taken only after
+    // the planner has seen what it breaks. The check of this very result is
+    // reused; without one it is run now (and stays in Check & fix).
+    const current = this.validatedResultId === resultId ? this.validationReport : null;
+    const legal$ = !this.laborLawActive
+      ? of(null)
+      : current
+        ? of(current)
+        : this.planValidationService.validatePlan(resultId).pipe(catchError(() => of(null)));
+    legal$.subscribe(async (report) => {
+      if (report && !current) {
+        this.validatedResultId = resultId;
+        this.validationReport = report;
+        this.validationSummaryHtml = report.summary
+          ? (markdown.parse(report.summary, { async: false }) as string)
+          : '';
+      }
+      const breaches = report?.legal?.error_count ?? 0;
+      if (breaches > 0) {
+        const ok = await this.confirmDialogService.confirm({
+          title: this.translations.t('scheduler.legal.takeTitle'),
+          message: this.translations.t('scheduler.legal.takeMessage', { count: breaches }),
+          confirmLabel: this.translations.t('scheduler.legal.takeConfirm'),
+          danger: true,
+        });
+        if (!ok) {
+          this.takingAsPlan = false;
+          this.setTab('check');
+          return;
+        }
+      }
+      this.previewTakeAsPlan(resultId, filterEmployeeIds);
+    });
+  }
+
+  private previewTakeAsPlan(resultId: string, filterEmployeeIds?: string[]): void {
     this.plannerService.takeAsPlan(resultId, filterEmployeeIds, true).subscribe({
       next: async (preview) => {
         if (preview.changes > 0) {

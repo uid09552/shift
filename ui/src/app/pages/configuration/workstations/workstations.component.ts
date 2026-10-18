@@ -1,10 +1,10 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, TitleCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { Observable, forkJoin, Subscription } from 'rxjs';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
-import { InputFieldComponent } from '../../../shared/components/form/input/input-field.component';
-import { LabelComponent } from '../../../shared/components/form/label/label.component';
+import { SavedNoticeComponent } from '../../../shared/components/form/form-page/saved-notice.component';
 import { ButtonComponent } from '../../../shared/components/ui/button/button.component';
 import {
   WorkstationService,
@@ -29,6 +29,7 @@ import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dial
 import { ContextMenuService } from '../../../shared/components/ui/context-menu/context-menu.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
+import { datesBetween, formatDay, formatRange, isoDate } from './closure-dates';
 
 /**
  * Where a workstation stands today: planned as usual, inside a closure period,
@@ -51,8 +52,7 @@ type DeactivateMode = 'complete' | 'period';
     FormsModule,
     TitleCasePipe,
     PageBreadcrumbComponent,
-    InputFieldComponent,
-    LabelComponent,
+    SavedNoticeComponent,
     ButtonComponent,
     DateRangePickerComponent,
     ModalComponent,
@@ -61,183 +61,7 @@ type DeactivateMode = 'complete' | 'period';
   template: `
     <app-page-breadcrumb pageTitle="nav.workstations" />
 
-    <!-- Add / Edit Form Mask -->
-    @if (showForm) {
-      <div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-        <div class="px-5 py-4 sm:px-6">
-          <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
-            {{ (editingWorkstation ? 'workstations.editTitle' : 'workstations.newTitle') | t }}
-          </h3>
-          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {{ (editingWorkstation ? 'workstations.editSubtitle' : 'workstations.newSubtitle') | t }}
-          </p>
-        </div>
-
-        <div class="px-5 pb-5 sm:px-6">
-          <!-- Name -->
-          <div class="mb-5">
-            <app-label for="wsName" className="mb-1.5">{{ 'common.name' | t }}</app-label>
-            <app-input-field
-              id="wsName"
-              name="wsName"
-              type="text"
-              [placeholder]="'workstations.namePlaceholder' | t"
-              [value]="formName"
-              (valueChange)="onNameChange($event)"
-            />
-          </div>
-
-          <!-- Available -->
-          <div class="mb-5">
-            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-              <input
-                type="checkbox"
-                [checked]="formAvailable"
-                (change)="formAvailable = !formAvailable"
-                class="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-700"
-              />
-              {{ 'workstations.available' | t }}
-            </label>
-          </div>
-
-          <!-- Priority -->
-          <div class="mb-5">
-            <app-label for="wsPriority" className="mb-1.5">{{ 'workstations.priority' | t }}</app-label>
-            <select
-              id="wsPriority"
-              [(ngModel)]="formPriority"
-              class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-            >
-              <option value="high">{{ 'workstations.priorityHigh' | t }}</option>
-              <option value="medium">{{ 'workstations.priorityMedium' | t }}</option>
-              <option value="low">{{ 'workstations.priorityLow' | t }}</option>
-            </select>
-          </div>
-
-          <!-- Staffing limits -->
-          <div class="mb-5">
-            <app-label className="mb-1.5">{{ 'workstations.staffingPerShift' | t }}</app-label>
-            <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-              <span class="whitespace-nowrap">{{ 'shifts.min' | t }}</span>
-              <input
-                type="number"
-                min="0"
-                [value]="formMinEmployees"
-                (input)="onMinEmployeesChange($event)"
-                class="w-20 h-9 rounded border border-gray-300 px-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-              />
-              <span class="whitespace-nowrap">{{ 'shifts.max' | t }}</span>
-              <input
-                type="number"
-                min="0"
-                [value]="formMaxEmployees ?? ''"
-                placeholder="∞"
-                (input)="onMaxEmployeesChange($event)"
-                class="w-20 h-9 rounded border border-gray-300 px-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-              />
-            </div>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ 'workstations.staffingHint' | t }}</p>
-          </div>
-
-          <!-- Active Shifts (edit mode) -->
-          @if (editingWorkstation) {
-            <div class="mb-5">
-              <app-label className="mb-2">{{ 'workstations.activeShifts' | t }}</app-label>
-              <div class="space-y-2">
-                @for (shift of allShifts; track shift.id) {
-                  <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      [checked]="formActiveShiftIds.includes(shift.id)"
-                      (change)="toggleShift(shift.id)"
-                      class="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-700"
-                    />
-                    {{ shift.name }}
-                  </label>
-                }
-              </div>
-            </div>
-
-            <!-- Required Capabilities -->
-            <div class="mb-5">
-              <app-label className="mb-2">{{ 'workstations.requiredCapabilities' | t }}</app-label>
-              <div class="space-y-2">
-                @for (cap of allCapabilities; track cap.id) {
-                  <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      [checked]="formRequiredCapabilityIds.includes(cap.id)"
-                      (change)="toggleCapability(cap.id)"
-                      class="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-700"
-                    />
-                    {{ cap.name }}
-                  </label>
-                }
-              </div>
-            </div>
-
-            <!-- Unavailability periods -->
-            <div class="mb-5">
-              <app-label className="mb-2">{{ 'workstations.unavailabilityPeriods' | t }}</app-label>
-              <div class="flex flex-col gap-4 sm:flex-row sm:items-start">
-                <div class="w-full max-w-[280px]">
-                  <app-date-range-picker
-                    [markedDays]="unavailMarkedDays"
-                    [resetKey]="pickerResetKey"
-                    (rangeChange)="pickerRange = $event"
-                  />
-                  <app-button
-                    size="sm"
-                    variant="outline"
-                    [disabled]="!pickerRange"
-                    (btnClick)="addUnavailability()"
-                    className="mt-2 w-full"
-                  >
-                    {{ 'workstations.markPeriodUnavailable' | t }}
-                  </app-button>
-                </div>
-                <div class="flex-1 space-y-2">
-                  @if (workstationUnavailabilities.length === 0) {
-                    <p class="text-sm text-gray-400 dark:text-gray-500">{{ 'workstations.noUnavailability' | t }}</p>
-                  } @else {
-                    @for (u of workstationUnavailabilities; track u.id) {
-                      <div class="flex items-center justify-between gap-2 rounded border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
-                        <span class="text-gray-700 dark:text-gray-300">{{ formatRange(u) }}</span>
-                        <button
-                          type="button"
-                          (click)="deleteUnavailability(u)"
-                          class="text-error-600 hover:text-error-700 text-xs font-medium dark:text-error-400"
-                        >
-                          {{ 'workstations.remove' | t }}
-                        </button>
-                      </div>
-                    }
-                  }
-                </div>
-              </div>
-            </div>
-          }
-
-          <!-- Actions -->
-          <div class="flex items-center gap-3">
-            <app-button
-              size="sm"
-              variant="primary"
-              (btnClick)="saveWorkstation()"
-            >
-              {{ (editingWorkstation ? 'config.saveChanges' : 'workstations.create') | t }}
-            </app-button>
-            <app-button
-              size="sm"
-              variant="outline"
-              (btnClick)="cancelForm()"
-            >
-              {{ 'common.cancel' | t }}
-            </app-button>
-          </div>
-        </div>
-      </div>
-    }
+    <app-saved-notice />
 
     <!-- Workstations Table -->
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
@@ -548,26 +372,12 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
   allCapabilities: Capability[] = [];
   workstationCapabilities: Map<string, Capability[]> = new Map();
   loading = true;
-  showForm = false;
-  editingWorkstation: Workstation | null = null;
 
   // Search
   private searchQuery = '';
   private searchSub!: Subscription;
 
   togglingId: string | null = null;
-
-  formName = '';
-  formAvailable = true;
-  formPriority = 'medium';
-  formActiveShiftIds: string[] = [];
-  formRequiredCapabilityIds: string[] = [];
-  formMinEmployees = 1;
-  formMaxEmployees: number | null = null;
-
-  workstationUnavailabilities: WorkstationUnavailability[] = [];
-  pickerRange: DateRange | null = null;
-  pickerResetKey = 0;
 
   /** Every station's closures that have not ended yet, for the status column. */
   private closures: WorkstationUnavailability[] = [];
@@ -597,6 +407,7 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
     private confirmDialog: ConfirmDialogService,
     private contextMenu: ContextMenuService,
     private translations: TranslationService,
+    private router: Router,
   ) {}
 
   ngOnInit(): void {
@@ -727,99 +538,11 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
   }
 
   openAddForm(): void {
-    this.editingWorkstation = null;
-    this.formName = '';
-    this.formAvailable = true;
-    this.formPriority = 'medium';
-    this.formActiveShiftIds = [];
-    this.formRequiredCapabilityIds = [];
-    this.formMinEmployees = 1;
-    this.formMaxEmployees = null;
-    this.workstationUnavailabilities = [];
-    this.pickerRange = null;
-    this.pickerResetKey++;
-    this.showForm = true;
+    this.router.navigate(['/workstations/new']);
   }
 
   openEditForm(ws: Workstation): void {
-    this.editingWorkstation = ws;
-    this.formName = ws.name;
-    this.formAvailable = ws.available;
-    this.formPriority = ws.priority || 'medium';
-    this.formActiveShiftIds = [...ws.active_shift_ids];
-    this.formRequiredCapabilityIds = (this.workstationCapabilities.get(ws.id) || []).map((c) => c.id);
-    this.formMinEmployees = ws.min_employees ?? 1;
-    this.formMaxEmployees = ws.max_employees ?? null;
-    this.workstationUnavailabilities = [];
-    this.pickerRange = null;
-    this.pickerResetKey++;
-    this.loadUnavailabilities(ws.id);
-    this.showForm = true;
-  }
-
-  cancelForm(): void {
-    this.showForm = false;
-    this.editingWorkstation = null;
-  }
-
-  loadUnavailabilities(workstationId: string): void {
-    this.workstationUnavailabilityService.getUnavailabilities(workstationId).subscribe({
-      next: (unavailabilities) => {
-        this.workstationUnavailabilities = unavailabilities;
-      },
-      error: (err: any) => console.error('Failed to load workstation unavailabilities', err),
-    });
-  }
-
-  onMinEmployeesChange(event: Event): void {
-    const val = (event.target as HTMLInputElement).value;
-    this.formMinEmployees = val === '' ? 1 : Math.max(0, parseInt(val, 10) || 0);
-  }
-
-  onMaxEmployeesChange(event: Event): void {
-    const val = (event.target as HTMLInputElement).value;
-    this.formMaxEmployees = val === '' ? null : Math.max(0, parseInt(val, 10) || 0);
-  }
-
-  get unavailMarkedDays(): MarkedDay[] {
-    const marked: MarkedDay[] = [];
-    for (const u of this.workstationUnavailabilities) {
-      for (const date of this.datesBetween(u.unavailable_from, u.unavailable_to)) {
-        marked.push({ date, type: 'unavailable' });
-      }
-    }
-    return marked;
-  }
-
-  addUnavailability(): void {
-    if (!this.editingWorkstation || !this.pickerRange) {
-      return;
-    }
-    this.workstationUnavailabilityService
-      .createUnavailability(this.editingWorkstation.id, {
-        unavailable_from: this.pickerRange.start,
-        unavailable_to: this.pickerRange.end,
-      })
-      .subscribe({
-        next: () => {
-          this.pickerRange = null;
-          this.pickerResetKey++;
-          this.loadUnavailabilities(this.editingWorkstation!.id);
-          this.loadClosures();
-        },
-        error: (err: any) => console.error('Failed to add workstation unavailability', err),
-      });
-  }
-
-  deleteUnavailability(u: WorkstationUnavailability): void {
-    if (!this.editingWorkstation) return;
-    this.workstationUnavailabilityService.deleteUnavailability(this.editingWorkstation.id, u.id).subscribe({
-      next: () => {
-        this.loadUnavailabilities(this.editingWorkstation!.id);
-        this.loadClosures();
-      },
-      error: (err: any) => console.error('Failed to delete workstation unavailability', err),
-    });
+    this.router.navigate(['/workstations', ws.id, 'edit']);
   }
 
   // ── Status & deactivation ────────────────────────────────────────
@@ -956,129 +679,20 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
     this.applySearch();
   }
 
-  /** "3 Oct" — with the year only when it is not this year's. */
   formatDay(date: string): string {
-    const d = new Date(date + 'T00:00:00');
-    return d.toLocaleDateString(this.translations.locale, {
-      day: 'numeric',
-      month: 'short',
-      ...(d.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}),
-    });
+    return formatDay(date, this.translations.locale);
   }
 
   formatRange(c: { unavailable_from: string; unavailable_to: string }): string {
-    return c.unavailable_from === c.unavailable_to
-      ? this.formatDay(c.unavailable_from)
-      : `${this.formatDay(c.unavailable_from)} – ${this.formatDay(c.unavailable_to)}`;
+    return formatRange(c, this.translations.locale);
   }
 
   private today(): string {
-    return this.isoDate(new Date());
-  }
-
-  /** Local calendar date as YYYY-MM-DD. */
-  private isoDate(d: Date): string {
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${d.getFullYear()}-${m}-${day}`;
+    return isoDate(new Date());
   }
 
   private datesBetween(start: string, end: string): string[] {
-    const dates: string[] = [];
-    const cur = new Date(start + 'T00:00:00');
-    const endDate = new Date(end + 'T00:00:00');
-    while (cur <= endDate) {
-      dates.push(this.isoDate(cur));
-      cur.setDate(cur.getDate() + 1);
-    }
-    return dates;
-  }
-
-  onNameChange(value: string | number): void {
-    this.formName = String(value);
-  }
-
-  toggleShift(shiftId: string): void {
-    const idx = this.formActiveShiftIds.indexOf(shiftId);
-    if (idx >= 0) {
-      this.formActiveShiftIds.splice(idx, 1);
-    } else {
-      this.formActiveShiftIds.push(shiftId);
-    }
-  }
-
-  toggleCapability(capId: string): void {
-    const idx = this.formRequiredCapabilityIds.indexOf(capId);
-    if (idx >= 0) {
-      this.formRequiredCapabilityIds.splice(idx, 1);
-    } else {
-      this.formRequiredCapabilityIds.push(capId);
-    }
-  }
-
-  saveWorkstation(): void {
-    if (!this.formName || !this.formName.trim()) {
-      return;
-    }
-
-    if (this.editingWorkstation) {
-      // Update existing workstation
-      const requests: Observable<any>[] = [];
-
-      // Update basic info
-      requests.push(
-        this.workstationService.updateWorkstation(this.editingWorkstation!.id, {
-          name: this.formName.trim(),
-          available: this.formAvailable,
-          active_shift_ids: this.formActiveShiftIds,
-          priority: this.formPriority,
-          min_employees: this.formMinEmployees,
-          max_employees: this.formMaxEmployees,
-        }),
-      );
-
-      // Update required capabilities: remove old ones not in form, add new ones not in existing
-      const existingCapIds = (this.workstationCapabilities.get(this.editingWorkstation!.id) || []).map((c) => c.id);
-      const toAdd = this.formRequiredCapabilityIds.filter((id) => !existingCapIds.includes(id));
-      const toRemove = existingCapIds.filter((id) => !this.formRequiredCapabilityIds.includes(id));
-
-      for (const capId of toAdd) {
-        requests.push(
-          this.workstationService.addRequiredCapability(this.editingWorkstation!.id, capId),
-        );
-      }
-      for (const capId of toRemove) {
-        requests.push(
-          this.workstationService.removeRequiredCapability(this.editingWorkstation!.id, capId),
-        );
-      }
-
-      forkJoin(requests).subscribe({
-        next: () => {
-          this.loadData();
-          this.cancelForm();
-        },
-        error: (err: any) => console.error('Failed to update workstation', err),
-      });
-    } else {
-      // Create new workstation
-      this.workstationService
-        .createWorkstation({
-          name: this.formName.trim(),
-          available: this.formAvailable,
-          active_shift_ids: this.formActiveShiftIds,
-          priority: this.formPriority,
-          min_employees: this.formMinEmployees,
-          max_employees: this.formMaxEmployees,
-        })
-        .subscribe({
-          next: (newWs) => {
-            this.workstations = [...this.workstations, newWs];
-            this.openEditForm(newWs);
-          },
-          error: (err: any) => console.error('Failed to create workstation', err),
-        });
-    }
+    return datesBetween(start, end);
   }
 
   onRowContextMenu(event: MouseEvent, ws: Workstation): void {

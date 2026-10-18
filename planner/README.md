@@ -188,3 +188,18 @@ uv run python -m shift_planner api --port 8080
 6. **Shift availability** — employee must be available for the shift
 7. **Date availability** — employee must not be marked unavailable on the date
 8. **Weekday match** — shift must operate on the given weekday
+9. **Labor law** (`constraints.labor_law_profile: "arbzg_de"`, off by default) —
+   hard, and stricter-of with the settings above. Hours are net of the shift's
+   `break_minutes`:
+   - ArbZG: at most 10 h a day; on average 48 h a week over
+     `labor_law_averaging_weeks` (24), counting `history`; 11 h rest
+   - employees under 18 on the day (`date_of_birth`, JArbSchG): 8 h a day,
+     40 h and 5 days a calendar week, 12 h rest, nothing 20:00–06:00, no
+     Sundays or public holidays
+   - `maternity_protection` (MuSchG): 8.5 h a day, 90 h in any 14 days,
+     nothing 20:00–06:00, no Sundays or public holidays
+
+   A slot only legally barred people could take stays short, named in
+   `message` with the statute. The rules are in `shift_planner/legal.py`; the
+   agent's plan check carries an identical copy. This models a subset of the
+   law and is not legal advice.

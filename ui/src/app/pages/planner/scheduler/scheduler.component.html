@@ -613,6 +613,55 @@
             </div>
           }
 
+          <!-- Labor law: its own section, ahead of the ward's rules -->
+          @if (validationReport.legal && validationReport.legal.profile !== 'none') {
+            <div
+              class="mb-5 rounded-lg border px-4 py-3"
+              [class]="validationReport.legal.compliant
+                ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-500/10'
+                : 'border-red-200 bg-red-50/60 dark:border-red-800 dark:bg-red-500/10'"
+              data-testid="plan-check-legal"
+            >
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="text-xs font-semibold uppercase tracking-wide"
+                  [class]="validationReport.legal.compliant ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'"
+                >{{ 'scheduler.legal.title' | t }}</span>
+                <span class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ 'scheduler.legal.profile' | t: { weeks: validationReport.legal.averaging_weeks ?? 24 } }}
+                </span>
+              </div>
+              @if (validationReport.legal.compliant) {
+                <p class="mt-1 text-sm text-green-700 dark:text-green-400">{{ 'scheduler.legal.compliant' | t }}</p>
+              } @else {
+                <div class="mt-2 space-y-3">
+                  @for (finding of validationReport.legal.findings; track finding.rule) {
+                    <div class="rounded-md border border-red-200 bg-white px-3 py-2 dark:border-red-900 dark:bg-gray-900">
+                      <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span class="text-sm font-semibold text-gray-800 dark:text-white/90">{{ finding.title }}</span>
+                        <span class="flex items-center gap-2">
+                          @if (finding.statute) {
+                            <span class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-600 dark:bg-white/[0.08] dark:text-gray-300">{{ finding.statute }}</span>
+                          }
+                          <span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">{{ finding.count }}×</span>
+                        </span>
+                      </div>
+                      <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ finding.detail }}</p>
+                      <ul class="mt-2 space-y-1">
+                        @for (example of finding.examples; track example) {
+                          <li class="text-xs text-gray-600 dark:text-gray-300">· {{ example }}</li>
+                        }
+                        @if (finding.more) {
+                          <li class="text-xs italic text-gray-400 dark:text-gray-500">{{ 'scheduler.verifyMore' | t: { count: finding.more } }}</li>
+                        }
+                      </ul>
+                    </div>
+                  }
+                </div>
+              }
+              <p class="mt-2 text-[11px] text-gray-400 dark:text-gray-500">{{ 'scheduler.legal.disclaimer' | t }}</p>
+            </div>
+          }
+
           <!-- Findings -->
           @if (validationReport.findings.length === 0) {
             <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-800 dark:bg-green-500/10 dark:text-green-400">

@@ -44,7 +44,7 @@ fn load_weekday_times_for_shifts(
 
 #[async_trait]
 impl ShiftRepository for DieselShiftRepository {
-    async fn create_shift(&self, tenant_id: &str, name: &str, short_name: &str, color: &str, order: i32) -> Result<Shift, AppError> {
+    async fn create_shift(&self, tenant_id: &str, name: &str, short_name: &str, color: &str, order: i32, break_minutes: i16) -> Result<Shift, AppError> {
         let tenant_id = tenant_id.to_string();
         let name = name.to_string();
         let short_name = short_name.to_string();
@@ -52,7 +52,7 @@ impl ShiftRepository for DieselShiftRepository {
         let pool = Arc::clone(&self.pool);
         telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
-            let new_shift = NewShift { name: &name, short_name: &short_name, color: &color, order, tenant_id: &tenant_id };
+            let new_shift = NewShift { name: &name, short_name: &short_name, color: &color, order, break_minutes, tenant_id: &tenant_id };
             let shift = diesel::insert_into(shifts::table)
                 .values(&new_shift)
                 .get_result::<models::Shift>(&mut conn)
@@ -69,6 +69,7 @@ impl ShiftRepository for DieselShiftRepository {
                 short_name: shift.short_name,
                 color: shift.color,
                 order: shift.order,
+                break_minutes: shift.break_minutes,
                 weekday_times: vec![],
             })
         })
@@ -96,6 +97,7 @@ impl ShiftRepository for DieselShiftRepository {
                         short_name: shift.short_name,
                         color: shift.color,
                         order: shift.order,
+                        break_minutes: shift.break_minutes,
                         weekday_times: wt_map.get(&shift.id).cloned().unwrap_or_default(),
                     }))
                 }
@@ -105,7 +107,7 @@ impl ShiftRepository for DieselShiftRepository {
         .await.map_err(|_| AppError::Internal)?
     }
 
-    async fn update_shift(&self, tenant_id: &str, id: Uuid, name_opt: Option<String>, short_name_opt: Option<String>, color_opt: Option<String>, order_opt: Option<i32>) -> Result<Shift, AppError> {
+    async fn update_shift(&self, tenant_id: &str, id: Uuid, name_opt: Option<String>, short_name_opt: Option<String>, color_opt: Option<String>, order_opt: Option<i32>, break_opt: Option<i16>) -> Result<Shift, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
         telemetry::db_blocking(move || {
@@ -130,6 +132,7 @@ impl ShiftRepository for DieselShiftRepository {
             let final_short_name = short_name_opt.unwrap_or(shift.short_name);
             let final_color = color_opt.unwrap_or(shift.color);
             let final_order = order_opt.unwrap_or(shift.order);
+            let final_break = break_opt.unwrap_or(shift.break_minutes);
 
             let updated_shift = diesel::update(
                 shifts::table
@@ -141,6 +144,7 @@ impl ShiftRepository for DieselShiftRepository {
                     shifts::short_name.eq(&final_short_name),
                     shifts::color.eq(&final_color),
                     shifts::order.eq(&final_order),
+                    shifts::break_minutes.eq(&final_break),
                 ))
                 .get_result::<models::Shift>(&mut conn)
                 .map_err(|e| match e {
@@ -157,6 +161,7 @@ impl ShiftRepository for DieselShiftRepository {
                 short_name: updated_shift.short_name,
                 color: updated_shift.color,
                 order: updated_shift.order,
+                break_minutes: updated_shift.break_minutes,
                 weekday_times: vec![],
             })
         })
@@ -183,6 +188,7 @@ impl ShiftRepository for DieselShiftRepository {
                 short_name: s.short_name,
                 color: s.color,
                 order: s.order,
+                break_minutes: s.break_minutes,
                 weekday_times: wt_map.get(&s.id).cloned().unwrap_or_default(),
             }).collect();
 

@@ -44,6 +44,9 @@ pub struct Shift {
     pub short_name: String,
     pub color: String,
     pub order: i32,
+    /// Unpaid break inside the shift's span, in minutes; counted off its hours.
+    #[serde(default)]
+    pub break_minutes: i16,
     pub weekday_times: Vec<WeekdayTime>,
 }
 
@@ -263,10 +266,10 @@ use async_trait::async_trait;
 
 #[async_trait]
     pub trait ShiftRepository {
-        async fn create_shift(&self, tenant_id: &str, name: &str, short_name: &str, color: &str, order: i32) -> Result<Shift, AppError>;
+        async fn create_shift(&self, tenant_id: &str, name: &str, short_name: &str, color: &str, order: i32, break_minutes: i16) -> Result<Shift, AppError>;
     async fn get_shift(&self, tenant_id: &str, id: Uuid) -> Result<Option<Shift>, AppError>;
     async fn list_shifts(&self, tenant_id: &str) -> Result<Vec<Shift>, AppError>;
-    async fn update_shift(&self, tenant_id: &str, id: Uuid, name: Option<String>, short_name: Option<String>, color: Option<String>, order: Option<i32>) -> Result<Shift, AppError>;
+    async fn update_shift(&self, tenant_id: &str, id: Uuid, name: Option<String>, short_name: Option<String>, color: Option<String>, order: Option<i32>, break_minutes: Option<i16>) -> Result<Shift, AppError>;
     async fn delete_shift(&self, tenant_id: &str, id: Uuid) -> Result<(), AppError>;
 }
 
@@ -635,6 +638,10 @@ pub struct PlannerSettingsDomain {
     pub freeze_days: i16,
     /// > 0: a re-solve changes as few published employee-days as it must; 0: off.
     pub change_weight: i32,
+    /// `none` or `arbzg_de`: the legal rule set applied as hard rules.
+    pub labor_law_profile: String,
+    /// Reference period, in weeks, of the 48 h average.
+    pub labor_law_averaging_weeks: i16,
 }
 
 /// Whether `min_employees` (per shift/day and per workstation/shift/day) is a
@@ -723,7 +730,14 @@ pub struct UpdatePlannerSettings {
     pub freeze_days: i16,
     #[serde(default = "default_change_weight")]
     pub change_weight: i32,
+    #[serde(default = "default_labor_law_profile")]
+    pub labor_law_profile: String,
+    #[serde(default = "default_labor_law_averaging_weeks")]
+    pub labor_law_averaging_weeks: i16,
 }
+
+fn default_labor_law_profile() -> String { "none".to_string() }
+fn default_labor_law_averaging_weeks() -> i16 { 24 }
 
 fn default_publish_lead_days() -> i16 { 28 }
 fn default_freeze_days() -> i16 { 7 }
@@ -975,6 +989,14 @@ pub struct PersonalLimitsDomain {
     pub no_night_shifts: bool,
     /// Weekdays they would rather have off, 0 = Monday … 6 = Sunday. Soft.
     pub preferred_days_off: Vec<i16>,
+    /// Basis of the JArbSchG rules (a minor is under 18 on the day). Personal
+    /// data: left out of what a `shift-viewer` reads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub date_of_birth: Option<chrono::NaiveDate>,
+    /// MuSchG protection applies. Health-related: `Some` for planners and admins
+    /// only (`None` = not shown), never written to the audit log or any finding.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub maternity_protection: Option<bool>,
     /// None until the limits are first saved.
     pub updated_at: Option<chrono::NaiveDateTime>,
 }
@@ -987,6 +1009,8 @@ impl PersonalLimitsDomain {
             max_weekends_per_month: None,
             no_night_shifts: false,
             preferred_days_off: Vec::new(),
+            date_of_birth: None,
+            maternity_protection: Some(false),
             updated_at: None,
         }
     }
@@ -996,6 +1020,15 @@ impl PersonalLimitsDomain {
             && self.max_weekends_per_month.is_none()
             && !self.no_night_shifts
             && self.preferred_days_off.is_empty()
+            && self.date_of_birth.is_none()
+            && self.maternity_protection != Some(true)
+    }
+
+    /// What a caller without write access may see: no birth date, no protection flag.
+    pub fn redacted(mut self) -> Self {
+        self.date_of_birth = None;
+        self.maternity_protection = None;
+        self
     }
 }
 
@@ -1009,6 +1042,10 @@ pub struct UpdatePersonalLimits {
     pub no_night_shifts: bool,
     #[serde(default)]
     pub preferred_days_off: Vec<i16>,
+    #[serde(default)]
+    pub date_of_birth: Option<chrono::NaiveDate>,
+    #[serde(default)]
+    pub maternity_protection: bool,
 }
 
 #[async_trait]

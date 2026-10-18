@@ -18,6 +18,8 @@ export interface Shift {
   short_name: string;
   color: string;
   order: number;
+  /** Unpaid break inside the shift, in minutes; its hours are counted net of it. */
+  break_minutes?: number;
   weekday_times: WeekdayTime[];
 }
 
@@ -26,6 +28,7 @@ export interface CreateShiftRequest {
   short_name: string;
   color: string;
   order?: number;
+  break_minutes?: number;
 }
 
 export interface UpdateShiftRequest {
@@ -33,6 +36,7 @@ export interface UpdateShiftRequest {
   short_name?: string;
   color?: string;
   order?: number;
+  break_minutes?: number;
 }
 
 export interface SetWeekdayTimeRequest {

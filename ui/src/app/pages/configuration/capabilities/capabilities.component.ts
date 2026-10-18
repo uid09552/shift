@@ -1,10 +1,9 @@
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { CapabilityService, Capability, ImportResult } from '../../../shared/services/capability.service';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
-import { InputFieldComponent } from '../../../shared/components/form/input/input-field.component';
-import { LabelComponent } from '../../../shared/components/form/label/label.component';
+import { SavedNoticeComponent } from '../../../shared/components/form/form-page/saved-notice.component';
 import { ButtonComponent } from '../../../shared/components/ui/button/button.component';
 import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
 import { ContextMenuService } from '../../../shared/components/ui/context-menu/context-menu.service';
@@ -16,92 +15,15 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
   standalone: true,
   imports: [
     CommonModule,
-    FormsModule,
     PageBreadcrumbComponent,
-    InputFieldComponent,
-    LabelComponent,
+    SavedNoticeComponent,
     ButtonComponent,
     TranslatePipe,
   ],
   template: `
     <app-page-breadcrumb pageTitle="nav.capabilities" />
 
-    <!-- Add / Edit Form Mask -->
-    @if (showForm) {
-      <div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-        <div class="px-5 py-4 sm:px-6">
-          <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
-            {{ (editingCapability ? 'capabilities.editTitle' : 'capabilities.newTitle') | t }}
-          </h3>
-          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {{ (editingCapability ? 'capabilities.editSubtitle' : 'capabilities.newSubtitle') | t }}
-          </p>
-        </div>
-
-        <div class="px-5 pb-5 sm:px-6">
-          <!-- Capability Name -->
-          <div class="mb-5">
-            <app-label for="capabilityName" className="mb-1.5">{{ 'capabilities.nameLabel' | t }}</app-label>
-            <app-input-field
-              id="capabilityName"
-              name="capabilityName"
-              type="text"
-              [placeholder]="'capabilities.namePlaceholder' | t"
-              [value]="formName"
-              (valueChange)="onNameChange($event)"
-            />
-          </div>
-
-          <!-- Skill level & group (optional, for the optimizer's skill-downgrade objective) -->
-          <div class="mb-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <div>
-              <app-label for="capabilitySkillGroup" className="mb-1.5">{{ 'capabilities.skillGroupLabel' | t }}</app-label>
-              <app-input-field
-                id="capabilitySkillGroup"
-                name="capabilitySkillGroup"
-                type="text"
-                [placeholder]="'capabilities.skillGroupPlaceholder' | t"
-                [value]="formSkillGroup"
-                (valueChange)="onSkillGroupChange($event)"
-              />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                {{ 'capabilities.skillGroupHint' | t }}
-              </p>
-            </div>
-            <div>
-              <app-label for="capabilityLevel" className="mb-1.5">{{ 'capabilities.levelLabel' | t }}</app-label>
-              <app-input-field
-                id="capabilityLevel"
-                name="capabilityLevel"
-                type="number"
-                min="1"
-                [value]="formLevel"
-                (valueChange)="onLevelChange($event)"
-              />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'capabilities.levelHint' | t }}</p>
-            </div>
-          </div>
-
-          <!-- Actions -->
-          <div class="flex items-center gap-3">
-            <app-button
-              size="sm"
-              variant="primary"
-              (btnClick)="saveCapability()"
-            >
-              {{ (editingCapability ? 'config.saveChanges' : 'capabilities.create') | t }}
-            </app-button>
-            <app-button
-              size="sm"
-              variant="outline"
-              (btnClick)="cancelForm()"
-            >
-              {{ 'common.cancel' | t }}
-            </app-button>
-          </div>
-        </div>
-      </div>
-    }
+    <app-saved-notice />
 
     <!-- Capabilities Table -->
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
@@ -249,12 +171,6 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
 export class CapabilitiesComponent implements OnInit {
   capabilities: Capability[] = [];
   loading = true;
-  showForm = false;
-  editingCapability: Capability | null = null;
-  formName = '';
-  formSkillGroup = '';
-  formLevel = 1;
-
   plusIcon = `<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.25C12.4142 3.25 12.75 3.58579 12.75 4V11.25H20C20.4142 11.25 20.75 11.5858 20.75 12C20.75 12.4142 20.4142 12.75 20 12.75H12.75V20C12.75 20.4142 12.4142 20.75 12 20.75C11.5858 20.75 11.25 20.4142 11.25 20V12.75H4C3.58579 12.75 3.25 12.4142 3.25 12C3.25 11.5858 3.58579 11.25 4 11.25H11.25V4C11.25 3.58579 11.5858 3.25 12 3.25Z" fill="currentColor"></path></svg>`;
 
   importing = false;
@@ -265,6 +181,7 @@ export class CapabilitiesComponent implements OnInit {
     private confirmDialog: ConfirmDialogService,
     private contextMenu: ContextMenuService,
     private translations: TranslationService,
+    private router: Router,
   ) {}
 
   ngOnInit(): void {
@@ -286,27 +203,11 @@ export class CapabilitiesComponent implements OnInit {
   }
 
   openAddForm(): void {
-    this.editingCapability = null;
-    this.formName = '';
-    this.formSkillGroup = '';
-    this.formLevel = 1;
-    this.showForm = true;
+    this.router.navigate(['/capabilities/new']);
   }
 
   openEditForm(capability: Capability): void {
-    this.editingCapability = capability;
-    this.formName = capability.name;
-    this.formSkillGroup = capability.skill_group ?? '';
-    this.formLevel = capability.level ?? 1;
-    this.showForm = true;
-  }
-
-  cancelForm(): void {
-    this.showForm = false;
-    this.editingCapability = null;
-    this.formName = '';
-    this.formSkillGroup = '';
-    this.formLevel = 1;
+    this.router.navigate(['/capabilities', capability.id, 'edit']);
   }
 
   downloadTemplate(): void {
@@ -349,48 +250,6 @@ export class CapabilitiesComponent implements OnInit {
       { label: this.translations.t('common.edit'), action: () => this.openEditForm(capability) },
       { label: this.translations.t('common.delete'), danger: true, action: () => this.deleteCapability(capability) },
     ]);
-  }
-
-  onNameChange(value: string | number): void {
-    this.formName = String(value);
-  }
-
-  onSkillGroupChange(value: string | number): void {
-    this.formSkillGroup = String(value);
-  }
-
-  onLevelChange(value: string | number): void {
-    this.formLevel = Number(value) || 1;
-  }
-
-  saveCapability(): void {
-    if (!this.formName || !this.formName.trim()) {
-      return;
-    }
-
-    const request = {
-      name: this.formName.trim(),
-      level: this.formLevel,
-      skill_group: this.formSkillGroup.trim() || null,
-    };
-
-    if (this.editingCapability) {
-      this.capabilityService.updateCapability(this.editingCapability.id, request).subscribe({
-        next: () => {
-          this.loadCapabilities();
-          this.cancelForm();
-        },
-        error: (err) => console.error('Failed to update capability', err),
-      });
-    } else {
-      this.capabilityService.createCapability(request).subscribe({
-        next: (newCapability) => {
-          this.capabilities = [...this.capabilities, newCapability];
-          this.cancelForm();
-        },
-        error: (err) => console.error('Failed to create capability', err),
-      });
-    }
   }
 
   async deleteCapability(capability: Capability): Promise<void> {

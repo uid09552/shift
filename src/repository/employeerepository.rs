@@ -98,7 +98,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
 
                     let available_shifts = available_shifts
                         .into_iter()
-                        .map(|s| Shift { id: s.id, name: s.name, short_name: s.short_name, color: s.color, order: s.order, weekday_times: vec![] })
+                        .map(|s| Shift { id: s.id, name: s.name, short_name: s.short_name, color: s.color, order: s.order, break_minutes: s.break_minutes, weekday_times: vec![] })
                         .collect();
 
                     // Load capabilities
@@ -156,7 +156,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
 
                     let available_shifts = available_shifts
                         .into_iter()
-                        .map(|s| Shift { id: s.id, name: s.name, short_name: s.short_name, color: s.color, order: s.order, weekday_times: vec![] })
+                        .map(|s| Shift { id: s.id, name: s.name, short_name: s.short_name, color: s.color, order: s.order, break_minutes: s.break_minutes, weekday_times: vec![] })
                         .collect();
 
                     // Load capabilities
@@ -219,7 +219,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
 
                 let available_shifts = available_shifts
                     .into_iter()
-                    .map(|s| Shift { id: s.id, name: s.name, short_name: s.short_name, color: s.color, order: s.order, weekday_times: vec![] })
+                    .map(|s| Shift { id: s.id, name: s.name, short_name: s.short_name, color: s.color, order: s.order, break_minutes: s.break_minutes, weekday_times: vec![] })
                     .collect();
 
                 let capabilities = employee_capabilities::table
@@ -275,7 +275,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
 
                 let available_shifts = available_shifts
                     .into_iter()
-                    .map(|s| Shift { id: s.id, name: s.name, short_name: s.short_name, color: s.color, order: s.order, weekday_times: vec![] })
+                    .map(|s| Shift { id: s.id, name: s.name, short_name: s.short_name, color: s.color, order: s.order, break_minutes: s.break_minutes, weekday_times: vec![] })
                     .collect();
 
                 // Load capabilities
@@ -418,7 +418,7 @@ impl EmployeeRepository for DieselEmployeeRepository {
 
             let available_shifts = available_shifts
                 .into_iter()
-                .map(|s| Shift { id: s.id, name: s.name, short_name: s.short_name, color: s.color, order: s.order, weekday_times: vec![] })
+                .map(|s| Shift { id: s.id, name: s.name, short_name: s.short_name, color: s.color, order: s.order, break_minutes: s.break_minutes, weekday_times: vec![] })
                 .collect();
 
             Ok(available_shifts)

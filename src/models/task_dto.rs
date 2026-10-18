@@ -54,6 +54,11 @@ pub struct ConstraintTask {
     /// right after coverage; 0: ignore it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub change_weight: Option<i32>,
+    /// "none" | "arbzg_de": the legal rule set the solver holds as hard rules.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub labor_law_profile: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub labor_law_averaging_weeks: Option<i16>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -134,6 +139,9 @@ pub struct ShiftTask {
     pub id: String,
     pub name: String,
     pub is_night_shift: bool,
+    /// Unpaid break inside the shift's span; counted off its hours.
+    #[serde(default)]
+    pub break_minutes: i16,
     pub weekday_times: Vec<ShiftWeekdayTimeTask>,
 }
 
@@ -205,6 +213,11 @@ pub struct EmployeeTask {
     pub no_night_shifts: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub preferred_days_off: Vec<String>,
+    // Protected-group data for the labor-law profile (JArbSchG / MuSchG).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub date_of_birth: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub maternity_protection: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -477,6 +477,33 @@ const DEFAULT_BAND: { min: number; max: number } = { min: 30, max: 45 };
             </app-setting-row>
 
             <app-setting-row
+              controlId="laborLawProfile"
+              [label]="'plannerSettings.laborLaw.label' | t"
+              [description]="'plannerSettings.laborLaw.hint' | t"
+              [tooltip]="'plannerSettings.laborLaw.tooltip' | t"
+            >
+              <app-level-select
+                id="laborLawProfile"
+                data-testid="planner-settings-labor-law-profile"
+                [options]="laborLawOptions"
+                [value]="form.labor_law_profile"
+                [meterFilled]="form.labor_law_profile === 'arbzg_de' ? 5 : 1"
+                (valueChange)="onLaborLawProfileChange($event)"
+              />
+              @if (form.labor_law_profile !== 'none') {
+                <label class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  {{ 'plannerSettings.laborLaw.averagingWeeks' | t }}
+                  <app-compact-number
+                    data-testid="planner-settings-labor-law-weeks"
+                    [value]="form.labor_law_averaging_weeks" [min]="1" [max]="52" [widthRem]="4"
+                    [ariaLabel]="'plannerSettings.laborLaw.averagingWeeks' | t"
+                    (valueChange)="form.labor_law_averaging_weeks = $event"
+                  />
+                </label>
+              }
+            </app-setting-row>
+
+            <app-setting-row
               controlId="priorityWeights"
               [label]="'plannerSettings.priorityWeights' | t"
               [description]="'plannerSettings.priorityHint' | t"
@@ -638,7 +665,7 @@ const DEFAULT_BAND: { min: number; max: number } = { min: 30, max: 45 };
         </section>
 
         <div class="flex items-center gap-3">
-          <app-button size="sm" variant="primary" [disabled]="saving" (btnClick)="save()">
+          <app-button size="sm" variant="primary" [disabled]="saving" (btnClick)="save()" data-testid="planner-settings-save">
             {{ (saving ? 'plannerSettings.saving' : 'config.saveChanges') | t }}
           </app-button>
           @if (form.updated_at) {
@@ -712,6 +739,8 @@ export class PlannerSettingsComponent implements OnInit {
     publish_lead_days: 28,
     freeze_days: 7,
     change_weight: 100000,
+    labor_law_profile: 'none',
+    labor_law_averaging_weeks: 24,
   };
 
   ngOnInit(): void {
@@ -917,6 +946,19 @@ export class PlannerSettingsComponent implements OnInit {
 
   onPersonalLimitsModeChange(value: string): void {
     this.form.personal_limits_mode = value === 'soft' ? 'soft' : 'hard';
+  }
+
+  // ── Labor-law profile ─────────────────────────────────────────
+
+  get laborLawOptions(): LevelOption[] {
+    return [
+      { value: 'none', label: this.translations.t('plannerSettings.laborLaw.none') },
+      { value: 'arbzg_de', label: this.translations.t('plannerSettings.laborLaw.arbzg') },
+    ];
+  }
+
+  onLaborLawProfileChange(value: string): void {
+    this.form.labor_law_profile = value === 'arbzg_de' ? 'arbzg_de' : 'none';
   }
 
   // ── Workstation priority ──────────────────────────────────────

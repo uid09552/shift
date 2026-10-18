@@ -50,6 +50,7 @@ from typing import Any, Callable, Iterator
 
 from langchain_core.tools import StructuredTool
 
+from shift_agent.agent import legal
 from shift_agent.agent.validation import (
     ValidationError,
     _assignments,
@@ -242,7 +243,11 @@ def parse_instruction(instruction: str, rules: dict, llm: Any) -> Directives:
 
     constraints = payload.get("constraints")
     if isinstance(constraints, dict):
-        directives.constraints = {k: v for k, v in constraints.items() if v is not None}
+        # The law is not a setting a note may relax for one run.
+        directives.constraints = {
+            k: v for k, v in constraints.items()
+            if v is not None and not k.startswith("labor_law_")
+        }
 
     return directives
 
@@ -379,11 +384,24 @@ class _Rules:
             "max_consecutive_days": 6,
             "max_working_days_per_week": 5,
             "personal_limits_mode": "hard",
+            "labor_law_profile": "none",
+            "labor_law_averaging_weeks": 24,
         }
         for key, value in (rules.get("constraints") or {}).items():
             if key in cfg and value is not None:
                 cfg[key] = value
         self.cfg = cfg
+        # Labor law (legal.py): hard, like every rule here. Net hours worked
+        # before the period, per employee and day, for the hour windows.
+        self.legal = legal.rules_for(cfg["labor_law_profile"], cfg["labor_law_averaging_weeks"])
+        self.history_hours: dict[str, dict[date, float]] = defaultdict(dict)
+        for row in rules.get("history") or []:
+            try:
+                day = _parse_date(row["date"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if day < self.start and row.get("employee_id") in self.employees and row.get("shift_id") in self.shifts:
+                self.history_hours[row["employee_id"]][day] = self.net_hours(row["shift_id"], day)
 
         self.unavailable = {
             eid: {d for d in (e.get("unavailability") or [])}
@@ -447,6 +465,18 @@ class _Rules:
         weekday_time = self.weekday_time(shift_id, day)
         return _duration_hours(weekday_time) if weekday_time else 0.0
 
+    def net_hours(self, shift_id: str, day: date) -> float:
+        return legal.net_hours(self.hours(shift_id, day), (self.shifts.get(shift_id) or {}).get("break_minutes"))
+
+    def person(self, employee_id: str, day: date):
+        return legal.person_rules(self.legal, self.employees.get(employee_id) or {}, day) if self.legal else None
+
+    def min_rest_before(self, employee_id: str, day: date) -> float:
+        """Rest owed before a shift on `day`: the setting, or the law's when stricter."""
+        setting = self.cfg["min_rest_hours"] or 0
+        person = self.person(employee_id, day)
+        return max(setting, person.min_rest_hours) if person else setting
+
     def workstation_open(self, workstation_id: str, day: date) -> bool:
         return not workstation_closed(self.workstations.get(workstation_id) or {}, day)
 
@@ -470,6 +500,9 @@ class _Rules:
             and (self.shifts.get(shift_id) or {}).get("is_night_shift")
         ):
             return "does not work night shifts (personal limit)"
+        reason = self._legal_day_reason(employee_id, day, shift_id)
+        if reason:
+            return reason
         if workstation_id is None:
             return None
         workstation = self.workstations.get(workstation_id)
@@ -486,6 +519,62 @@ class _Rules:
                 if c not in set((self.employees.get(employee_id) or {}).get("skills") or [])
             )
             return f"lacks {', '.join(missing) or 'a required qualification'}"
+        return None
+
+    def _legal_day_reason(self, employee_id: str, day: date, shift_id: str) -> str | None:
+        """The law's day-level limits, as the solver applies them at variable
+        creation. A protected group is named by its law, never its reason."""
+        person = self.person(employee_id, day)
+        weekday_time = self.weekday_time(shift_id, day)
+        if person is None or weekday_time is None:
+            return None
+        if self.net_hours(shift_id, day) > person.max_day_hours + 1e-9:
+            return f"labor law: more than {person.max_day_hours:g} h a day ({person.day_statute})"
+        if person.no_protected_night and legal.touches_protected_night(
+            weekday_time["start_time"], weekday_time["end_time"]
+        ):
+            return f"labor law: {legal.group_label(person)}, no work 20:00–06:00 ({person.night_statute})"
+        if person.no_sunday_or_holiday and legal.is_sunday_or_holiday(day, self.holidays):
+            return f"labor law: {legal.group_label(person)}, no Sundays or holidays ({person.sunday_statute})"
+        return None
+
+    def _legal_window_reason(self, employee_id: str, day: date, shift_id: str, plan: _Plan) -> str | None:
+        """The law's limits over several days, with this shift added."""
+        person = self.person(employee_id, day)
+        if person is None:
+            return None
+        added = self.net_hours(shift_id, day)
+
+        def worked(first: date, last: date) -> float:
+            total = sum(h for d, h in self.history_hours.get(employee_id, {}).items() if first <= d <= last)
+            for d in plan.days_by_employee.get(employee_id) or set():
+                cell = plan.get(employee_id, d)
+                if cell and first <= d <= last and d != day:
+                    total += self.net_hours(cell[0], d)
+            return total + added
+
+        window = self.legal.averaging_weeks * 7
+        cap = self.legal.average_week_hours * self.legal.averaging_weeks
+        for last in self.days:
+            if last < day or last > day + timedelta(days=window - 1):
+                continue
+            if worked(last - timedelta(days=window - 1), last) > cap + 1e-9:
+                return f"labor law: over {self.legal.average_week_hours:g} h a week on average ({legal.ARBZG_AVERAGE})"
+        if person.max_double_week_hours:
+            for last in self.days:
+                if day <= last <= day + timedelta(days=13) and (
+                    worked(last - timedelta(days=13), last) > person.max_double_week_hours + 1e-9
+                ):
+                    return f"labor law: {legal.group_label(person)}, hours in two weeks ({legal.MUSCHG_HOURS})"
+        monday = day - timedelta(days=day.weekday())
+        sunday = monday + timedelta(days=6)
+        if person.max_week_hours and worked(monday, sunday) > person.max_week_hours + 1e-9:
+            return f"labor law: {legal.group_label(person)}, hours in a week ({legal.JARBSCHG_HOURS})"
+        if person.max_week_days:
+            days = {d for d in plan.days_by_employee.get(employee_id) or set() if monday <= d <= sunday}
+            days |= {d for d in self.history_hours.get(employee_id, {}) if monday <= d <= sunday}
+            if len(days | {day}) > person.max_week_days:
+                return f"labor law: {legal.group_label(person)}, days in a week ({legal.JARBSCHG_WEEK})"
         return None
 
     def blocking_reason(
@@ -538,8 +627,9 @@ class _Rules:
         # Minimum rest to the day before and the day after. Night shifts are
         # excluded on the earlier side, as in the solver — their recovery days
         # already keep the following day clear.
-        min_rest = self.cfg["min_rest_hours"] or 0
-        if min_rest > 0 and weekday_time is not None:
+        min_rest = self.min_rest_before(employee_id, day)
+        rest_after = self.min_rest_before(employee_id, day + timedelta(days=1))
+        if max(min_rest, rest_after) > 0 and weekday_time is not None:
             previous = plan.get(employee_id, day - timedelta(days=1))
             if previous and not (self.shifts.get(previous[0]) or {}).get("is_night_shift"):
                 earlier_time = self.weekday_time(previous[0], day - timedelta(days=1))
@@ -558,7 +648,7 @@ class _Rules:
                         24 * 60 - _minutes(weekday_time["end_time"])
                         + _minutes(later_time["start_time"])
                     ) / 60.0
-                    if rest < min_rest:
+                    if rest < rest_after:
                         yield f"only {rest:.1f} h rest before the next day's shift"
 
         # Consecutive days: the streak this day would join, both sides.
@@ -579,6 +669,10 @@ class _Rules:
         # Personal night / weekend caps per calendar month — hard only in
         # hard personal_limits_mode; in soft mode the solver may go over.
         reason = self._personal_limit_reason(employee_id, day, shift_id, plan)
+        if reason:
+            yield reason
+
+        reason = self._legal_window_reason(employee_id, day, shift_id, plan)
         if reason:
             yield reason
 
@@ -977,6 +1071,7 @@ def _priority_rank(workstation: dict) -> int:
 # Blocking reasons, mapped back onto the finding they answer, so the change log
 # and the validation report speak about the same rules.
 _RULE_PATTERNS = [
+    ("labor law", "labor_law"),
     ("away that day", "employee_unavailable"),
     ("does not work the", "shift_not_available"),
     ("does not run on that weekday", "shift_not_operating"),
@@ -1171,6 +1266,7 @@ def _verdict(report: dict) -> dict:
         "error_count": report["error_count"],
         "warning_count": report["warning_count"],
         "findings": report.get("findings"),
+        "legal": report.get("legal"),
         "stats": report.get("stats"),
     }
 

@@ -15,6 +15,7 @@ pub struct Shift {
     pub color: String,
     pub order: i32,
     pub tenant_id: String,
+    pub break_minutes: i16,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
@@ -25,6 +26,7 @@ pub struct NewShift<'a> {
     pub color: &'a str,
     pub order: i32,
     pub tenant_id: &'a str,
+    pub break_minutes: i16,
 }
 
 #[derive(Queryable, Identifiable, Serialize, Deserialize, Debug)]

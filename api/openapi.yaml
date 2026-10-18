@@ -3946,6 +3946,21 @@ components:
             (`published_roster`) as coverage needs, before balance, wishes or fatigue.
             0 lets a re-solve ignore it.
           example: 100000
+        labor_law_profile:
+          type: string
+          enum: [none, arbzg_de]
+          description: >
+            Legal rule set held as hard rules by the optimizer and reported apart from
+            soft goals by the plan check. none (default) leaves every rule to the
+            settings above; arbzg_de adds ArbZG (10 h/day, 48 h/week average, 11 h rest,
+            breaks), JArbSchG for minors and MuSchG for maternity protection.
+          example: none
+        labor_law_averaging_weeks:
+          type: integer
+          minimum: 1
+          maximum: 52
+          description: Reference period, in weeks, of the 48 h weekly average (ArbZG §3).
+          example: 24
         skill_downgrade_weight:
           type: integer
           minimum: 0
@@ -4080,6 +4095,15 @@ components:
           type: integer
           minimum: 0
           default: 100000
+        labor_law_profile:
+          type: string
+          enum: [none, arbzg_de]
+          default: none
+        labor_law_averaging_weeks:
+          type: integer
+          minimum: 1
+          maximum: 52
+          default: 24
         skill_downgrade_weight:
           type: integer
           minimum: 0
@@ -4222,6 +4246,12 @@ components:
           description: Display order for the shift (lower values appear first)
           default: 0
           example: 1
+        break_minutes:
+          type: integer
+          minimum: 0
+          maximum: 240
+          default: 0
+          description: Unpaid break inside the shift's start–end span, in minutes; counted off its hours. ArbZG asks 30 above 6 h and 45 above 9 h
         weekday_times:
           type: array
           description: Start/end times per weekday for this shift
@@ -4343,6 +4373,12 @@ components:
           description: Display order for the shift (lower values appear first)
           default: 0
           example: 1
+        break_minutes:
+          type: integer
+          minimum: 0
+          maximum: 240
+          default: 0
+          description: Unpaid break inside the shift's start–end span, in minutes; counted off its hours. ArbZG asks 30 above 6 h and 45 above 9 h
 
     Capability:
       type: object
@@ -4936,6 +4972,9 @@ components:
           type: boolean
           description: Whether this is a night shift
           example: false
+        break_minutes:
+          type: integer
+          description: Unpaid break inside the shift; its hours are counted net of it
         weekday_times:
           type: array
           items:
@@ -5093,6 +5132,13 @@ components:
             type: string
             enum: ["0", "1", "2", "3", "4", "5", "6"]
           description: Weekdays (0 = Monday) the employee would rather have off; soft, preference_weight per day worked
+        date_of_birth:
+          type: string
+          format: date
+          description: Basis of the JArbSchG rules (minor = under 18 on the day). Omitted when unknown
+        maternity_protection:
+          type: boolean
+          description: MuSchG rules apply (no nights, Sundays or holidays; 8.5 h/day). Omitted when false
 
     PersonalLimits:
       type: object
@@ -5123,6 +5169,19 @@ components:
             minimum: 0
             maximum: 6
           description: Weekdays they would rather have off, 0 = Monday … 6 = Sunday (soft)
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+          description: >
+            Basis of the JArbSchG rules under the labor-law profile (a minor is under 18
+            on the day). Personal data — returned to shift-planner and shift-admin only.
+        maternity_protection:
+          type: boolean
+          description: >
+            MuSchG rules apply under the labor-law profile. Health-related — returned to
+            shift-planner and shift-admin only, and recorded in the audit log as
+            "changed", never with its value.
         updated_at:
           type: string
           format: date-time
@@ -5151,6 +5210,19 @@ components:
             type: integer
             minimum: 0
             maximum: 6
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+          description: >
+            Basis of the JArbSchG rules under the labor-law profile (a minor is under 18
+            on the day). Personal data — returned to shift-planner and shift-admin only.
+        maternity_protection:
+          type: boolean
+          description: >
+            MuSchG rules apply under the labor-law profile. Health-related — returned to
+            shift-planner and shift-admin only, and recorded in the audit log as
+            "changed", never with its value.
 
     ShiftWishTask:
       type: object
@@ -5264,6 +5336,15 @@ components:
           type: integer
           minimum: 0
           description: "> 0 minimises the employee-days that differ from published_roster right after coverage; 0 ignores it"
+        labor_law_profile:
+          type: string
+          enum: [none, arbzg_de]
+          description: Legal rule set the solver holds as hard rules (see planner/shift_planner/legal.py)
+        labor_law_averaging_weeks:
+          type: integer
+          minimum: 1
+          maximum: 52
+          description: Reference period of the 48 h weekly average; history reaches back this far
 
     ShiftSwapStatus:
       type: string

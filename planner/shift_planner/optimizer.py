@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 
 from ortools.sat.python import cp_model
 
-from shift_planner import telemetry
+from shift_planner import legal, telemetry
 from shift_planner.models import (
     DailyPlanEntry,
     DaySchedule,
@@ -130,6 +130,8 @@ _DEFAULT_CONSTRAINTS = {
     "keep_fixed_assignments": True,  # False: plan as if employees had no fixed_shifts
     "personal_limits_mode": "hard",  # or "soft" — see ConstraintConfig
     "change_weight": 100000,  # Penalty per employee-day changed against published_roster
+    "labor_law_profile": "none",  # or "arbzg_de" — see legal.py
+    "labor_law_averaging_weeks": 24,
     "solver_time_limit_seconds": 120.0,
     "solver_num_workers": 8,
 }
@@ -273,6 +275,12 @@ class ShiftPlanner:
         self.keep_fixed = cfg["keep_fixed_assignments"]
         self.personal_limits_hard = cfg["personal_limits_mode"] == "hard"
         self.change_w = cfg["change_weight"]
+        # Labor law (legal.py): None = no legal rule. Where the tenant's own
+        # setting and the law differ, the stricter one holds — a rest setting
+        # of 0 ("off") still gets the legal 11 h.
+        self.legal = legal.rules_for(cfg["labor_law_profile"], cfg["labor_law_averaging_weeks"])
+        if self.legal:
+            self.min_rest = max(self.min_rest, self.legal.min_rest_hours)
         self.time_limit = cfg["solver_time_limit_seconds"]
         self.num_workers = cfg["solver_num_workers"]
         logger.info("Constraint config: %s", cfg)
@@ -329,6 +337,22 @@ class ShiftPlanner:
             if (s["id"], wd) in self.shift_wt
         }
         self.dur_tenths = {key: int(dur * 10) for key, dur in self.dur_hours.items()}
+        # Net of the shift's break, for the legal hour limits.
+        self.net_tenths = {
+            (s_idx, d_idx): round(legal.net_hours(dur, shifts[s_idx].get("break_minutes")) * 10)
+            for (s_idx, d_idx), dur in self.dur_hours.items()
+        }
+
+        # The legal rules per employee and day (legal.PersonRules), where a
+        # profile is selected.
+        self.person = {}
+        if self.legal:
+            for e_idx, emp in enumerate(employees):
+                for d_idx, day in enumerate(self.days):
+                    self.person[e_idx, d_idx] = legal.person_rules(self.legal, emp, day)
+        # (d_idx, s_idx) -> reasons the law kept someone off that slot, for
+        # the shortfall report.
+        self.legal_blocked: dict = {}
 
         # Contract-hours targets: weekly hours prorated to the planning period
         # (× days / 7), in tenths of hours.
@@ -382,6 +406,9 @@ class ShiftPlanner:
         self.history_blocked_days: dict = {}
         self.history_blocked_shifts: dict = {}
         self.history_worked: dict = {}
+        # e_idx -> {days before the period: net hours in tenths}, for the
+        # legal hour windows that reach back before the period.
+        self.history_tenths: dict = {}
         if not self.history:
             return
 
@@ -402,6 +429,7 @@ class ShiftPlanner:
             if sid not in shift_names:
                 continue  # a shift since deleted: it still counts as a worked day
             wday = weekday_num(day, self.holidays)
+            self.history_tenths.setdefault(e_idx, {})[days_before] = self._history_net_tenths(sid, wday)
             label = f"{shift_names[sid]} on {day}"
             if (sid, wday) in self.shift_wt:
                 recovery = self._shift_recovery_days(sid, wday)
@@ -418,7 +446,7 @@ class ShiftPlanner:
                     if (sid2, self.day_wd[0]) not in self.shift_wt:
                         continue
                     rest = self._rest_hours(sid, wday, sid2, self.day_wd[0])
-                    if rest < self.min_rest or rest < 0:
+                    if rest < self._rest_for(e_idx, 0) or rest < 0:
                         self.history_blocked_shifts.setdefault(
                             (eid, 0, sid2), f"too little rest after {label}",
                         )
@@ -429,6 +457,38 @@ class ShiftPlanner:
             used, len(self.history), self.start,
             len(self.history_blocked_days), len(self.history_blocked_shifts),
         )
+
+    def _history_net_tenths(self, sid: str, wday: str) -> int:
+        """Net hours (tenths) of a shift worked before the period. A weekday
+        the shift no longer runs on counts its longest configured day."""
+        shift = next(s for s in self.shifts if s["id"] == sid)
+        times = [self.shift_wt[(sid, wday)]] if (sid, wday) in self.shift_wt else shift["weekday_times"]
+        gross = max(_shift_duration_hours(wt) for wt in times)
+        return round(legal.net_hours(gross, shift.get("break_minutes")) * 10)
+
+    def _rest_for(self, e_idx: int, d_idx: int) -> float:
+        """Minimum rest before a shift on d_idx: the setting, or the law's
+        when stricter (12 h for a minor)."""
+        person = self.person.get((e_idx, d_idx))
+        return max(self.min_rest, person.min_rest_hours) if person else self.min_rest
+
+    def _legal_block(self, e_idx: int, d_idx: int, s_idx: int) -> str | None:
+        """Why the law rules this employee out of this shift that day, or
+        None. A protected group is named by its law, never by its reason."""
+        person = self.person.get((e_idx, d_idx))
+        if person is None or (s_idx, d_idx) not in self.net_tenths:
+            return None
+        if self.net_tenths[s_idx, d_idx] > round(person.max_day_hours * 10):
+            return f"more than {person.max_day_hours:g} h a day ({person.day_statute})"
+        if person.group is None:
+            return None
+        day = self.days[d_idx]
+        wt = self.shift_wt[(self.shifts[s_idx]["id"], self.day_wd[d_idx])]
+        if person.no_protected_night and legal.touches_protected_night(wt["start_time"], wt["end_time"]):
+            return f"{legal.group_label(person)}: no work 20:00–06:00 ({person.night_statute})"
+        if person.no_sunday_or_holiday and legal.is_sunday_or_holiday(day, self.holidays):
+            return f"{legal.group_label(person)}: no Sundays or public holidays ({person.sunday_statute})"
+        return None
 
     def _history_block(self, eid: str, d_idx: int, sid: str) -> str | None:
         """Why history rules this slot out, or None."""
@@ -564,6 +624,10 @@ class ShiftPlanner:
                         continue
                     if eid in self.emp_no_nights and self.shift_is_night[sid]:
                         continue
+                    barred = self._legal_block(e_idx, d_idx, s_idx)
+                    if barred:
+                        self.legal_blocked.setdefault((d_idx, s_idx), set()).add(barred)
+                        continue
                     for w_idx, ws in enumerate(self.workstations):
                         wid = ws["id"]
                         if sid not in self.ws_op_shifts[wid]:
@@ -602,6 +666,7 @@ class ShiftPlanner:
         self._limit_min_rest()
         self._limit_consecutive_days()
         self._limit_personal_nights_and_weekends()
+        self._add_legal_hour_limits()
 
     def _pin_locked_assignments(self) -> None:
         """0) Assignments the caller fixed: solve around them, don't re-decide them.
@@ -712,6 +777,10 @@ class ShiftPlanner:
             return history
         if emp["id"] in self.emp_no_nights and self.shift_is_night.get(sid):
             return "they do not work night shifts"
+        s_idx = next((i for i, s in enumerate(self.shifts) if s["id"] == sid), None)
+        barred = self._legal_block(self.employees.index(emp), d_idx, s_idx) if s_idx is not None else None
+        if barred:
+            return f"labor law: {barred}"
         if self.day_wd[d_idx] not in self.shift_weekdays[sid]:
             return "the shift does not run on that weekday"
         if not self._shift_open_somewhere(sid, day):
@@ -850,8 +919,8 @@ class ShiftPlanner:
         # computed once globally.
         forbidden_cache: dict = {}
 
-        def _forbidden_transitions(wd1: str, wd2: str):
-            key = (wd1, wd2)
+        def _forbidden_transitions(wd1: str, wd2: str, min_rest: float):
+            key = (wd1, wd2, min_rest)
             if key in forbidden_cache:
                 return forbidden_cache[key]
             pairs = []
@@ -870,7 +939,7 @@ class ShiftPlanner:
                     if (sid2, wd2) not in self.shift_wt:
                         continue
                     rest_hours = self._rest_hours(sid1, wd1, sid2, wd2)
-                    if rest_hours < self.min_rest or rest_hours < 0:
+                    if rest_hours < min_rest or rest_hours < 0:
                         pairs.append((s1_idx, s2_idx))
             forbidden_cache[key] = pairs
             return pairs
@@ -880,7 +949,7 @@ class ShiftPlanner:
             for d_idx in range(self.num_days - 1):
                 wd1 = self.day_wd[d_idx]
                 wd2 = self.day_wd[d_idx + 1]
-                for s1_idx, s2_idx in _forbidden_transitions(wd1, wd2):
+                for s1_idx, s2_idx in _forbidden_transitions(wd1, wd2, self._rest_for(e_idx, d_idx + 1)):
                     late_vars = self.vars_by_emp_day_shift.get((e_idx, d_idx, s1_idx))
                     early_vars = self.vars_by_emp_day_shift.get((e_idx, d_idx + 1, s2_idx))
                     if not late_vars or not early_vars:
@@ -983,6 +1052,65 @@ class ShiftPlanner:
         excess = self.model.NewIntVar(0, len(terms), f"excess_{name}")
         self.model.Add(sum(terms) - excess <= limit)
         self.personal_excess.append((excess, len(terms)))
+
+    def _add_legal_hour_limits(self) -> None:
+        """9) Labor law over more than one day (legal.py), net hours:
+
+        - the 48 h weekly average over `labor_law_averaging_weeks`, as a cap
+          on every window of that many weeks ending inside the period;
+        - a minor: 40 h and 5 days per calendar week (Monday–Sunday);
+        - maternity protection: 90 h in any 14 days.
+
+        Days before the period count with what `history` says was worked
+        there; days before the history are taken as free. Day caps, nights
+        and Sundays are ruled out at variable creation (_legal_block).
+        """
+        if not self.legal:
+            return
+        window = self.legal.averaging_weeks * 7
+        cap = round(self.legal.average_week_hours * self.legal.averaging_weeks * 10)
+        # (e_idx, d_idx) -> net-hour terms, and the longest shift they could work.
+        hour_terms: dict = {}
+        longest: dict = {}
+        for (e_idx, d_idx, s_idx), shift_vars in self.vars_by_emp_day_shift.items():
+            tenths = self.net_tenths[s_idx, d_idx]
+            hour_terms.setdefault((e_idx, d_idx), []).extend(tenths * v for v in shift_vars)
+            longest[e_idx, d_idx] = max(longest.get((e_idx, d_idx), 0), tenths)
+
+        for e_idx in range(self.num_emp):
+            before = self.history_tenths.get(e_idx, {})
+
+            def _cap(first: int, last: int, limit: int) -> None:
+                """sum over days first..last (period indices; < 0 = history) <= limit."""
+                worked_before = sum(before.get(-d, 0) for d in range(first, min(0, last + 1)))
+                days = range(max(first, 0), min(last, self.num_days - 1) + 1)
+                if worked_before + sum(longest.get((e_idx, d), 0) for d in days) <= limit:
+                    return  # cannot be exceeded
+                terms = [t for d in days for t in hour_terms.get((e_idx, d), [])]
+                self.model.Add(sum(terms) <= max(0, limit - worked_before))
+
+            for last in range(self.num_days):
+                _cap(last - window + 1, last, cap)
+
+            groups = {d_idx: self.person[e_idx, d_idx] for d_idx in range(self.num_days)}
+            if any(p.max_double_week_hours for p in groups.values()):
+                for last in range(self.num_days):
+                    person = groups[last]
+                    if person.max_double_week_hours:
+                        _cap(last - 13, last, round(person.max_double_week_hours * 10))
+
+            for monday in sorted({d_idx - self.days[d_idx].weekday() for d_idx in range(self.num_days)}):
+                person = groups[max(monday, 0)]
+                if person.max_week_hours:
+                    _cap(monday, monday + 6, round(person.max_week_hours * 10))
+                if person.max_week_days:
+                    already = sum(1 for d in range(monday, 0) if -d in self.history_worked.get(e_idx, set()))
+                    day_terms = [
+                        v for d in range(max(monday, 0), min(monday + 6, self.num_days - 1) + 1)
+                        for v in self.vars_by_emp_day.get((e_idx, d), [])
+                    ]
+                    if day_terms:
+                        self.model.Add(sum(day_terms) <= max(0, person.max_week_days - already))
 
     # ---- Objective (soft constraints) --------------------------------------
 
@@ -1502,10 +1630,13 @@ class ShiftPlanner:
                     need = self.ws_min_emp.get(wid, 1)
                     have = per_slot.get((d_idx, s_idx, w_idx), 0)
                     if have < need:
-                        why = (
-                            "not enough staff left" if (d_idx, s_idx, w_idx) in self.vars_by_day_shift_ws
-                            else "nobody qualified and available"
-                        )
+                        if (d_idx, s_idx, w_idx) in self.vars_by_day_shift_ws:
+                            why = "not enough staff left"
+                        elif (d_idx, s_idx) in self.legal_blocked:
+                            why = "labor law: " + "; ".join(sorted(self.legal_blocked[d_idx, s_idx]))
+                        else:
+                            why = "nobody qualified and available"
+
                         gaps.append(f"{day} {shift['name']} @ {ws['name']} {have}/{need} ({why})")
                 need = self._shift_min_emp(sid, wday)
                 have = per_shift.get((d_idx, s_idx), 0)
@@ -1642,6 +1773,10 @@ class ShiftPlanner:
 
     def solve(self) -> SchedulingOutput:
         self._create_variables()
+        if not self.x and self.legal_blocked:
+            # Nobody may legally take any slot: an empty plan whose message
+            # names every slot and the law that keeps it empty.
+            return self._build_output({}, 0.0, True)
         if not self.x:
             logger.error(
                 "No feasible assignment variables created – "
