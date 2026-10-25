@@ -24,7 +24,7 @@ sources:
 
 | Image | Dockerfile | Contents |
 |---|---|---|
-| `backend` | `deploy/Dockerfile.backend` | Rust binary — `rust:1.88-bookworm` builder, `debian:bookworm-slim` runtime |
+| `backend` | `deploy/Dockerfile.backend` | Rust binary — `rust:1.99-trixie` builder, `debian:trixie-slim` runtime |
 | `planner` | `deploy/Dockerfile.planner` | Python optimizer with OR-Tools |
 | `ui` | `deploy/Dockerfile.ui` | Angular build served by nginx (`deploy/nginx.conf`) |
 | `agent` | `deploy/Dockerfile.agent` | Chat agent **and** MCP server |

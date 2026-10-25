@@ -20,7 +20,7 @@ RUN npm run build -- \
       --define "BUILD_DATE='${BUILD_DATE}'"
 
 # Stage 2: Serve with nginx
-FROM nginx:alpine
+FROM nginx:1.30.6-alpine
 
 # Check for Alpine security fixes on every image build, not only when nginx's
 # base image changes. BUILD_DATE is passed by both CI pipelines.

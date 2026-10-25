@@ -1,5 +1,5 @@
 # ---- Builder Stage ----
-FROM python:3.14-slim-bookworm AS builder
+FROM python:3.14-slim-trixie AS builder
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ ENV UV_PYTHON_DOWNLOADS=never
 RUN uv sync --frozen --no-dev --python /usr/local/bin/python3
 
 # ---- Runtime Stage ----
-FROM python:3.14-slim-bookworm
+FROM python:3.14-slim-trixie
 
 WORKDIR /app
 

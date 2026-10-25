@@ -16,7 +16,7 @@ This is a **Hospital Shift Management System** - a full-stack application for ma
 ### Frontend (Angular)
 - **Framework**: Angular 21 with TypeScript
 - **UI Library**: Tailwind CSS with TailAdmin template
-- **Charts**: ApexCharts, AMCharts 5
+- **Charts**: ApexCharts
 - **Calendar**: FullCalendar
 - **UI Components**: Angular Material
 
@@ -359,7 +359,6 @@ Connection URL: `postgresql://shift_user:shift_password@localhost:5432/shift`
 - `tailwindcss` 4 - Utility-first CSS
 - `@fullcalendar/angular` - Calendar component
 - `apexcharts` / `ng-apexcharts` - Charts
-- `@amcharts/amcharts5` - Advanced charts
 - `rxjs` - Reactive programming
 
 ### Optimizer Dependencies (Python)

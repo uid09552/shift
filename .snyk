@@ -1,0 +1,10 @@
+# Snyk policy — read by the Snyk CLI and by Snyk's GitHub import.
+version: v1.25.0
+ignore: {}
+patch: {}
+exclude:
+  code:
+    # Developer CLI (`make seed`): it sends requests to the API URL its
+    # operator passes on the command line — that is its job, not a
+    # Server-Side Request Forgery. Snyk Code reports every helper call as one.
+    - seed_data_v2.py

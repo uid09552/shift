@@ -11,8 +11,6 @@
   "private": true,
   "license": "Apache-2.0",
   "dependencies": {
-    "@amcharts/amcharts5": "^5.13.5",
-    "@amcharts/amcharts5-geodata": "^5.1.4",
     "@angular/animations": "22.2.3",
     "@angular/cdk": "^22.0.0",
     "@angular/common": "22.2.3",
