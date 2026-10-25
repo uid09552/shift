@@ -134,6 +134,40 @@
   scrollbar-width: none;
 }
 
+/* Framed (the Schedule page sets the class and gives the host its height): the
+   chart takes what is left and scrolls both ways inside it, under its sticky
+   hour ruler. Its bottom edge is then on screen, so it shows its own scrollbars
+   and the rail is not needed. */
+:host(.framed) .day-view-body {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+}
+
+:host(.framed) .day-gantt {
+  flex: 1 1 0;
+  min-height: 24rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+/* A phone: the Schedule page scrolls as a whole there, so the chart keeps a
+   height of its own, as the grid does, to keep its scrollbar in view. */
+@media (max-width: 639px) {
+  :host(.framed) .day-gantt {
+    flex: none;
+    height: max(24rem, 70dvh);
+  }
+}
+
+:host(.framed) .day-gantt::-webkit-scrollbar {
+  height: auto;
+}
+
+:host(.framed) .gantt-rail {
+  display: none;
+}
+
 .day-gantt::-webkit-scrollbar {
   height: 0;
 }

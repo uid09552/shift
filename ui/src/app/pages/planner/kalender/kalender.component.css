@@ -1,5 +1,43 @@
 /* Kalender component styles */
 
+/* The page frame: exactly the window below the app header, less the shell's
+   padding (p-4 md:p-6), so the page itself never scrolls and the grid takes
+   what is left. The card cannot shrink below its toolbar plus the grid's
+   minimum (the grid's flex basis is 0, so only its min-height counts): on a
+   very short window the card overflows the frame and the page scrolls instead
+   of squeezing the grid. */
+:host {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--app-header-height, 4.5rem) - 2rem);
+}
+
+@media (min-width: 768px) {
+  :host {
+    height: calc(100dvh - var(--app-header-height, 4.5rem) - 3rem);
+  }
+}
+
+/* A basis of 0px, not Tailwind's flex-1 (0%): a percentage basis counts as the
+   table's full height when the card's minimum is worked out, and the card would
+   never shrink. */
+.schedule-scroll {
+  flex: 1 1 0px;
+}
+
+/* A phone: the toolbar wraps onto many lines, so the page scrolls normally and
+   the grid keeps a height of its own to scroll in. */
+@media (max-width: 639px) {
+  :host {
+    height: auto;
+  }
+
+  .schedule-scroll {
+    flex: none;
+    height: max(24rem, 70dvh);
+  }
+}
+
 .kalender-table {
   border-collapse: separate;
   border-spacing: 0;
@@ -80,6 +118,12 @@
   z-index: 10;
 }
 
+/* The corner sticks both ways and must stay above the sticky names scrolling
+   under it. */
+.kalender-table thead th.employee-col.sticky {
+  z-index: 20;
+}
+
 /* Empty cell styling */
 .empty-cell {
   min-width: 56px;
@@ -139,30 +183,37 @@
   z-index: 20;
 }
 
-/* Scrollbar styling for the overflow container */
-.overflow-x-auto {
+/* Scrollbar styling for the overflow containers, the grid's both ways */
+.overflow-x-auto,
+.schedule-scroll {
   scrollbar-width: thin;
   scrollbar-color: #d1d5db transparent;
 }
 
-.overflow-x-auto::-webkit-scrollbar {
+.overflow-x-auto::-webkit-scrollbar,
+.schedule-scroll::-webkit-scrollbar {
+  width: 6px;
   height: 6px;
 }
 
-.overflow-x-auto::-webkit-scrollbar-track {
+.overflow-x-auto::-webkit-scrollbar-track,
+.schedule-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.overflow-x-auto::-webkit-scrollbar-thumb {
+.overflow-x-auto::-webkit-scrollbar-thumb,
+.schedule-scroll::-webkit-scrollbar-thumb {
   background-color: #d1d5db;
   border-radius: 3px;
 }
 
-.dark .overflow-x-auto {
+:host-context(.dark) .overflow-x-auto,
+:host-context(.dark) .schedule-scroll {
   scrollbar-color: #374151 transparent;
 }
 
-.dark .overflow-x-auto::-webkit-scrollbar-thumb {
+:host-context(.dark) .overflow-x-auto::-webkit-scrollbar-thumb,
+:host-context(.dark) .schedule-scroll::-webkit-scrollbar-thumb {
   background-color: #374151;
 }
 

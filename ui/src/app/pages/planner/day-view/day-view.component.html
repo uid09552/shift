@@ -1,4 +1,4 @@
-<div data-testid="day-view">
+<div class="day-view-body" data-testid="day-view">
   <!-- Who is on, and the chart's own controls. The date is the Schedule page's. -->
   <div class="border-b border-gray-100 px-5 py-3 dark:border-white/[0.05] sm:px-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
@@ -92,7 +92,7 @@
     <div #chartScroll class="day-gantt" (scroll)="onChartScroll()">
       <div class="min-w-max">
         <!-- Hour ruler -->
-        <div class="gantt-head flex border-b border-gray-100 dark:border-white/[0.05]">
+        <div class="gantt-head sticky top-0 z-30 flex border-b border-gray-100 bg-white dark:border-white/[0.05] dark:bg-gray-900">
           <div class="gantt-label sticky left-0 z-20 flex items-center bg-white px-5 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:bg-gray-900 dark:text-gray-400 sm:px-6" [style.width.px]="labelWidth">
             {{ 'common.employee' | t }}
           </div>

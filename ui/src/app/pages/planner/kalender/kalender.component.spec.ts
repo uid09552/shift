@@ -62,6 +62,42 @@ describe('KalenderComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Anna Berg');
   });
 
+  it('gives the grid the height the page frame leaves, with no guessed limit', () => {
+    open();
+    answerRoster([]);
+    fixture.detectChanges();
+    const scroll = query('[data-testid="schedule-scroll"]') as HTMLElement;
+    expect(getComputedStyle(scroll).flexGrow).toBe('1');
+    expect(getComputedStyle(scroll).flexBasis).toBe('0px');
+    expect(scroll.className).toContain('overflow-auto');
+    expect(scroll.className).toContain('min-h-[24rem]');
+    expect(scroll.className).not.toContain('max-h');
+    expect(query('[data-testid="schedule-card"]')?.className).toContain('flex-1');
+    expect(getComputedStyle(fixture.nativeElement).flexDirection).toBe('column'); // the frame
+    expect(scroll.querySelector('table')).not.toBeNull();
+  });
+
+  it('renders the grouped grid inside the same scroll area, with no box of its own', () => {
+    open();
+    answerRoster([]);
+    fixture.componentInstance.groupMode = 'workstation';
+    fixture.detectChanges();
+    const grouped = query('[data-testid="schedule-scroll"] app-grouped-plan-view') as HTMLElement;
+    expect(grouped).not.toBeNull();
+    expect(grouped.querySelector('[class*="overflow"]')).toBeNull();
+  });
+
+  it('lets the Day view fill the frame in place of the grid', () => {
+    open();
+    answerRoster([]);
+    fixture.componentInstance.viewMode = 'day';
+    fixture.detectChanges();
+    const day = query('[data-testid="schedule-card"] > app-day-view') as HTMLElement;
+    expect(day.classList).toContain('framed');
+    expect(day.classList).toContain('flex-1');
+    expect(query('[data-testid="schedule-scroll"]')).toBeNull();
+  });
+
   it("keeps the assignment and shows the server's reason when a delete is refused", () => {
     open();
     answerRoster([]);

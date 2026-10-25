@@ -32,6 +32,10 @@ export class AppHeaderComponent {
   readonly shortcutHint = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ K' : 'Ctrl K';
 
   @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('header') header!: ElementRef<HTMLElement>;
+
+  /** Keeps `--app-header-height` true as the header wraps, so pages need not guess it. */
+  private resizeObserver?: ResizeObserver;
 
   constructor(
     public sidebarService: SidebarService,
@@ -54,10 +58,19 @@ export class AppHeaderComponent {
 
   ngAfterViewInit() {
     document.addEventListener('keydown', this.handleKeyDown);
+    const header = this.header.nativeElement;
+    this.publishHeight(header);
+    this.resizeObserver = new ResizeObserver(() => this.publishHeight(header));
+    this.resizeObserver.observe(header);
   }
 
   ngOnDestroy() {
     document.removeEventListener('keydown', this.handleKeyDown);
+    this.resizeObserver?.disconnect();
+  }
+
+  private publishHeight(header: HTMLElement) {
+    document.documentElement.style.setProperty('--app-header-height', `${header.offsetHeight}px`);
   }
 
   onSearch(term: string): void {

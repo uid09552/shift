@@ -1,7 +1,10 @@
 <app-page-breadcrumb pageTitle="nav.schedule" />
 
+<!-- Fills the page frame (see :host), so the grid below is what scrolls rather
+     than the page. -->
 <div
-  class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
+  class="flex flex-1 flex-col rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
+  data-testid="schedule-card"
   (click)="onDocumentClick($event)"
 >
   <!-- Header with period navigation, view toggle + export -->
@@ -162,10 +165,11 @@
 
   @if (viewMode === 'day') {
     <!-- One day, hour by hour. The arrows above page through days. -->
-    <app-day-view [date]="anchorDate" />
+    <app-day-view class="framed flex flex-1 flex-col" [date]="anchorDate" />
   } @else {
-  <!-- Calendar grid -->
-  <div class="max-h-[calc(100vh-260px)] overflow-x-auto overflow-y-auto">
+  <!-- Calendar grid: the page's one scroll area, both ways; its header row and
+       name column stick to it. Takes whatever height the frame leaves. -->
+  <div class="schedule-scroll min-h-[24rem] overflow-auto" data-testid="schedule-scroll">
     @if (loading) {
       <div
         class="flex items-center justify-center py-20 text-gray-400 dark:text-gray-500"

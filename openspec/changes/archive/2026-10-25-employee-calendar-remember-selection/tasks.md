@@ -20,7 +20,7 @@
 ## 4. Integration
 
 - [x] 4.1 Run `cd ui && npx ng test --watch=false` and `npm run build`; both pass
-- [ ] 4.2 In the running stack: log in, pick an employee, reload (choice kept), switch to Hours (no absence button), check the list is collapsed, log out and in again (own employee selected)
+- [x] 4.2 In the running stack: log in, pick an employee, reload (choice kept), switch to Hours (no absence button), check the list is collapsed, log out and in again (own employee selected) — skipped at the user's decision (2026-10-25): no stack was running; covered by unit tests and the e2e dry run only
 
 ## Workflow follow-up
 

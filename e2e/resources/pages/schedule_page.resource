@@ -19,11 +19,30 @@ ${SWAP_OPEN_REVIEW}             [data-testid="swap-open-review"]
 ${SWAP_REVIEW}                  [data-testid="swap-review"]
 ${SWAP_APPROVE}                 [data-testid="swap-approve"]
 ${BELL_SWAP_BADGE}              [data-testid="notifications-swap-badge"]
+${SCHEDULE_SCROLL}              [data-testid="schedule-scroll"]
+${DAY_VIEW}                     [data-testid="day-view"]
 
 
 *** Keywords ***
 Open Schedule Page
     Open Page    ${APP_PATH}kalender
+
+Show Schedule View
+    [Documentation]    `week`, `month` or `day`, from the view toggle.
+    [Arguments]    ${view}
+    Click    [data-testid="schedule-view-${view}"]
+    IF    '${view}' == 'day'
+        Element Should Be Visible    ${DAY_VIEW}
+    ELSE
+        Element Should Be Visible    ${SCHEDULE_SCROLL}
+    END
+
+Page Should Not Scroll
+    [Documentation]    The document is no taller than the window: whatever scrolls,
+    ...                scrolls inside the page (the grid), not the page itself.
+    ${fits}=    Evaluate JavaScript    ${None}
+    ...    () => document.documentElement.scrollHeight <= document.documentElement.clientHeight
+    Should Be True    ${fits}    The Schedule page scrolls as a whole
 
 Cell
     [Documentation]    The week grid's cell of one employee on one day (YYYY-MM-DD).
