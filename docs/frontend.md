@@ -110,6 +110,18 @@ you need it reachable from outside the machine.
 
 From the repository root, `make ui-serve` does the same.
 
+### The `vite` override
+
+`ui/package.json` pins `vite` to 8.3.3 through npm `overrides`. `@angular/build`
+22.2.4 depends on exactly `vite@8.3.0`, which has dev-server vulnerabilities
+fixed in 8.3.3 (Dependabot alerts #70–72 and #122–124: files outside
+`server.fs.allow`, the `?vite-wasm-instance` leak, and three launch-editor issues
+on Windows). Production is unaffected either way, since it ships static files.
+
+**Remove the override** once an `@angular/build` release depends on
+`vite` ≥ 8.3.3. Until then, `npm ls vite` shows `vite@8.3.3 overridden`. Left in
+place after that, it would hold `vite` back.
+
 ## The scheduler page
 
 `/scheduler` is where the optimizer is driven, in five tabs: **Calculate**,
