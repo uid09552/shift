@@ -74,6 +74,15 @@ export const routes: Routes = [
         title:'title.fairness'
       },
       {
+        // Lazy: the only page that needs d3. Viewers are sent to the overview.
+        path:'relationships',
+        loadComponent: () =>
+          import('./pages/reports/relationships/relationships.component').then((m) => m.RelationshipsComponent),
+        canActivate: [writerGuard],
+        data: { listPath: '/' },
+        title:'title.relationships'
+      },
+      {
         path:'user-profiles',
         component:UserProfilesComponent,
         title:'title.userProfiles'

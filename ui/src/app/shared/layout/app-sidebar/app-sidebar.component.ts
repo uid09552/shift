@@ -14,8 +14,12 @@ type NavItem = {
   icon: string;
   path?: string;
   new?: boolean;
-  /** `adminOnly` entries are dropped for anyone without the `shift-admin` role. */
-  subItems?: { name: string; path: string; pro?: boolean; new?: boolean; adminOnly?: boolean }[];
+  /**
+   * `adminOnly` entries are dropped for anyone without the `shift-admin` role,
+   * `plannerOnly` ones for anyone who cannot plan (`shift-viewer`). A group
+   * left without entries is dropped too.
+   */
+  subItems?: { name: string; path: string; pro?: boolean; new?: boolean; adminOnly?: boolean; plannerOnly?: boolean }[];
 };
 
 /** The URL without query string or fragment: `/scheduler?tab=runs` is still the scheduler's entry. */
@@ -73,6 +77,13 @@ export class AppSidebarComponent {
         { name: "nav.fairness", path: "/fairness", pro: false }
       ],
     },
+    {
+      name: "nav.reports",
+      icon: `<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="6" r="2.25"/><circle cx="18" cy="8" r="2.25"/><circle cx="9" cy="18" r="2.25"/><path d="M8.1 6.4 15.8 7.6M7 8.1l1.4 7.7M16.4 9.7l-5.6 6.6"/></g></svg>`,
+      subItems: [
+        { name: "nav.relationships", path: "/relationships", pro: false, plannerOnly: true }
+      ],
+    },
   ];
   openSubmenu: string | null | number = null;
   subMenuHeights: { [key: string]: number } = {};
@@ -128,7 +139,16 @@ export class AppSidebarComponent {
     this.subscription.add(
       this.userService.isAdmin().subscribe(isAdmin => {
         if (!isAdmin) {
-          this.hideAdminOnlyItems();
+          this.hideItems(subItem => !!subItem.adminOnly);
+          this.cdr.detectChanges();
+        }
+      })
+    );
+    // Planner-only entries (reports over everyone's data) the same way.
+    this.subscription.add(
+      this.userService.canPlan().subscribe(canPlan => {
+        if (!canPlan) {
+          this.hideItems(subItem => !!subItem.plannerOnly);
           this.cdr.detectChanges();
         }
       })
@@ -143,12 +163,13 @@ export class AppSidebarComponent {
     this.subscription.unsubscribe();
   }
 
-  private hideAdminOnlyItems() {
+  private hideItems(hidden: (subItem: NonNullable<NavItem['subItems']>[number]) => boolean) {
     for (const nav of this.navItems) {
       if (nav.subItems) {
-        nav.subItems = nav.subItems.filter(subItem => !subItem.adminOnly);
+        nav.subItems = nav.subItems.filter(subItem => !hidden(subItem));
       }
     }
+    this.navItems = this.navItems.filter(nav => !nav.subItems || nav.subItems.length > 0);
   }
 
   isActive(path: string): boolean {

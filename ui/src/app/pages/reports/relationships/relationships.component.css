@@ -1,0 +1,277 @@
+/* The page frame: the window below the app header, less the shell's padding,
+   like the Schedule page — the graph takes what the toolbar leaves. */
+.rel {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--app-header-height, 4.5rem) - 2rem);
+}
+
+@media (min-width: 768px) {
+  .rel {
+    height: calc(100dvh - var(--app-header-height, 4.5rem) - 3rem);
+  }
+}
+
+.rel .relationships-card {
+  display: flex;
+  flex: 1 1 0px;
+  min-height: 0;
+  flex-direction: column;
+}
+
+/* Canvas left, details right; the legend floats over the canvas's corner. */
+.rel .relationships-body {
+  position: relative;
+  display: flex;
+  flex: 1 1 0px;
+  min-height: 24rem;
+}
+
+.rel .relationships-canvas {
+  flex: 1 1 0px;
+  min-width: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+
+.rel .relationships-panel {
+  width: 17rem;
+  flex: none;
+  overflow-y: auto;
+  border-left: 1px solid var(--color-gray-100);
+  padding: 1rem 1.25rem;
+}
+
+.rel .relationships-legend {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 0.75rem;
+  display: flex;
+  max-width: calc(100% - 19rem);
+  flex-wrap: wrap;
+  gap: 0.25rem 0.875rem;
+  border-radius: 0.5rem;
+  background: rgb(255 255 255 / 0.85);
+  padding: 0.375rem 0.625rem;
+  font-size: 0.75rem;
+  color: var(--color-gray-500);
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
+
+/* A phone: the panel goes below the canvas and the page scrolls. */
+@media (max-width: 639px) {
+  .rel {
+    height: auto;
+  }
+
+  .rel .relationships-body {
+    flex-direction: column;
+  }
+
+  .rel .relationships-canvas {
+    flex: none;
+    height: max(24rem, 65dvh);
+  }
+
+  .rel .relationships-panel {
+    width: auto;
+    border-left: 0;
+    border-top: 1px solid var(--color-gray-100);
+  }
+
+  .rel .relationships-legend {
+    position: static;
+    max-width: none;
+    margin: 0.5rem 0.75rem 0;
+    background: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Unencapsulated (d3 draws the graph): every rule is scoped to the host class .rel. */
+
+.rel .relationships-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Shape tells the type; colour only helps. One accent: employees. */
+.rel .swatch-employee,
+.rel .node-employee .shape {
+  fill: var(--color-brand-500);
+}
+
+.rel .swatch-capability,
+.rel .node-capability .shape {
+  fill: var(--color-gray-700);
+}
+
+.rel .swatch-workstation,
+.rel .node-workstation .shape {
+  fill: var(--color-blue-light-500);
+}
+
+.rel .swatch-shift,
+.rel .node-shift .shape {
+  fill: var(--color-gray-400);
+}
+
+.rel .node .shape {
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+.rel .node {
+  cursor: pointer;
+  outline: none;
+  transition: opacity 120ms ease-out;
+}
+
+.rel .node:focus-visible .shape,
+.rel .node.selected .shape {
+  stroke: var(--color-gray-800);
+  stroke-width: 2.5;
+}
+
+.rel .node.closed .shape {
+  fill: #fff;
+  stroke: var(--color-blue-light-500);
+  stroke-width: 2;
+  stroke-dasharray: 3 2;
+}
+
+.rel .node.pinned .shape {
+  stroke: var(--color-gray-800);
+}
+
+.rel .node .spof-ring {
+  display: none;
+  fill: none;
+  stroke: var(--color-warning-500);
+  stroke-width: 2;
+}
+
+.rel .node.spof .spof-ring {
+  display: inline;
+}
+
+.rel .node-label {
+  font-size: 11px;
+  fill: var(--color-gray-700);
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+  user-select: none;
+}
+
+.rel .link,
+.rel .legend-link {
+  stroke: var(--color-gray-300);
+  transition: opacity 120ms ease-out;
+}
+
+.rel .link-assigned,
+.rel .legend-link.assigned {
+  stroke: var(--color-brand-500);
+  stroke-opacity: 0.55;
+  stroke-dasharray: 5 3;
+}
+
+.rel .legend-link.assigned {
+  stroke-width: 2;
+}
+
+.rel .link.uncovered,
+.rel .legend-link.uncovered {
+  stroke: var(--color-warning-500);
+  stroke-opacity: 0.9;
+}
+
+.rel .legend-spof {
+  fill: none;
+  stroke: var(--color-warning-500);
+  stroke-width: 2;
+}
+
+.rel .link-label {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  fill: var(--color-brand-500);
+  text-anchor: middle;
+  dominant-baseline: central;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 3px;
+  pointer-events: none;
+}
+
+.rel .link-label.uncovered {
+  fill: var(--color-warning-700);
+}
+
+.rel .dim {
+  opacity: 0.12;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rel .node,
+  .rel .link {
+    transition: none;
+  }
+}
+
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+
+.dark .rel .relationships-panel {
+  border-color: rgb(255 255 255 / 0.05);
+}
+
+.dark .rel .relationships-legend {
+  background: rgb(16 24 40 / 0.85);
+  color: var(--color-gray-400);
+}
+
+.dark .rel .swatch-capability,
+.dark .rel .node-capability .shape {
+  fill: var(--color-gray-300);
+}
+
+.dark .rel .node .shape,
+.dark .rel .node-label,
+.dark .rel .link-label {
+  stroke: #101828;
+}
+
+.dark .rel .node.closed .shape {
+  fill: #101828;
+}
+
+.dark .rel .node-label {
+  fill: var(--color-gray-300);
+}
+
+.dark .rel .node:focus-visible .shape,
+.dark .rel .node.selected .shape,
+.dark .rel .node.pinned .shape {
+  stroke: #fff;
+}
+
+.dark .rel .link,
+.dark .rel .legend-link {
+  stroke: var(--color-gray-700);
+}
+
+.dark .rel .link-assigned,
+.dark .rel .legend-link.assigned {
+  stroke: var(--color-brand-400, #7592ff);
+}
+
+.dark .rel .link.uncovered,
+.dark .rel .legend-link.uncovered {
+  stroke: var(--color-warning-400, #fdb022);
+}
