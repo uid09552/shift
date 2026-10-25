@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { UserService, UserInfo } from '../../../services/user.service';
 import { TranslatePipe } from '../../../i18n/translate.pipe';
+import { clearSelection } from '../../../../pages/planner/employee-calendar/remembered-selection';
 
 @Component({
   selector: 'app-user-dropdown',
@@ -41,6 +42,13 @@ export class UserDropdownComponent implements OnInit {
   }
 
   signOut() {
-    window.location.href = '/logout';
+    // The next login opens the employee calendar on the user's own employee.
+    clearSelection();
+    this.leaveTo('/logout');
+  }
+
+  /** A full-page navigation: the gateway ends the session there. */
+  leaveTo(url: string) {
+    window.location.href = url;
   }
 }

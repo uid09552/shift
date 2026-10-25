@@ -11,6 +11,7 @@ ${ABSENCE_MODE_BUTTON}      [data-testid="absence-mode-button"]
 ${ABSENCE_PANEL}            [data-testid="absence-panel"]
 ${ABSENCE_ADD}              [data-testid="absence-add"]
 ${ABSENCE_LIST}             [data-testid="absence-list"]
+${ABSENCE_LIST_TOGGLE}      [data-testid="absence-list-toggle"]
 ${NEXT_MONTH}               [data-testid="calendar-nav-next"]
 
 
@@ -47,7 +48,10 @@ Add The Absence
     Wait For Elements State    ${ABSENCE_PANEL}    detached    ${TIMEOUT}
 
 Absence Should Be Listed
+    [Documentation]    Opens the list first: it is collapsed by default.
     [Arguments]    ${first_day}    ${type}
+    ${open}=    Get Property    ${ABSENCE_LIST}    open
+    IF    not ${open}    Click    ${ABSENCE_LIST_TOGGLE}
     Element Should Be Visible    ${ABSENCE_LIST} >> [data-testid="absence-row"][data-start="${first_day}"][data-type="${type}"]
 
 Add Absence Should Not Be Offered

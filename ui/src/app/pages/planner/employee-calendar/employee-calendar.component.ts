@@ -44,9 +44,10 @@ import { ThemeService } from '../../../shared/services/theme.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
 import { HolidayService } from '../../../shared/services/holiday.service';
-import { UserService } from '../../../shared/services/user.service';
+import { UserInfo, UserService } from '../../../shared/services/user.service';
 import { ToggleBoxesComponent, ToggleBoxOption } from '../../../shared/components/ui/toggle-boxes/toggle-boxes.component';
 import { NO_SELECTION, Selection, click as selectDay, daysOf, inSelection, isComplete } from './absence-selection';
+import { clearSelection, readSelection, writeSelection } from './remembered-selection';
 import { LoadErrorComponent } from '../../../shared/components/ui/load-error/load-error.component';
 import { ErrorNoticeComponent } from '../../../shared/components/ui/error-notice/error-notice.component';
 import { apiErrorMessage } from '../../../shared/http/api-error';
@@ -189,6 +190,15 @@ export class EmployeeCalendarComponent implements OnInit {
   weeks: CalendarWeek[] = [];
   monthLabel: string = '';
 
+  // ── Which employee the page opens with ───────────────────────────
+  /** Who is logged in; undefined until `/self` answered (an error counts as nobody). */
+  private self?: UserInfo;
+  private employeesLoaded = false;
+  /** The opening employee is settled: from the URL, remembered, own, or none. */
+  private initialResolved = false;
+  /** Someone used the picker, so nothing chosen for them may override it. */
+  private userChose = false;
+
   /** The visible section. Mirrored in the URL so a link opens where it left off. */
   activeTab: Section = 'calendar';
 
@@ -307,6 +317,13 @@ export class EmployeeCalendarComponent implements OnInit {
     this.loadInitialData();
     this.loadWishSettings();
     this.userService.canPlan().subscribe((can) => (this.canRecordAbsence = can));
+    this.userService
+      .getSelf()
+      .pipe(catchError(() => of({} as UserInfo)))
+      .subscribe((self) => {
+        this.self = self;
+        this.resolveInitialEmployee();
+      });
 
     this.route.queryParams.subscribe((params) => {
       const tab = params['tab'];
@@ -317,6 +334,7 @@ export class EmployeeCalendarComponent implements OnInit {
       const employeeId = params['employeeId'];
       if (employeeId && !this.selectedEmployeeId) {
         this.selectedEmployeeId = employeeId;
+        this.remember();
         if (!this.loading) {
           this.loadPlansForMonth();
           this.loadLeaveEntries();
@@ -364,6 +382,8 @@ export class EmployeeCalendarComponent implements OnInit {
 
   setTab(tab: string): void {
     if (!SECTIONS.includes(tab as Section)) return;
+    // The selection lives on the grid; it does not wait unseen behind another section.
+    if (tab !== 'calendar') this.leaveAbsenceMode();
     this.activeTab = tab as Section;
     this.editingCell = null;
     this.deletingCell = null;
@@ -409,11 +429,13 @@ export class EmployeeCalendarComponent implements OnInit {
         this.workstations.forEach((w) => this.workstationMap.set(w.id, w));
 
         this.loading = false;
+        this.employeesLoaded = true;
         this.buildCalendar();
         if (this.selectedEmployeeId) {
           this.loadPlansForMonth();
           this.loadLeaveEntries();
         }
+        this.resolveInitialEmployee();
       },
       error: (err) => {
         this.error = 'schedule.loadFailed';
@@ -424,6 +446,52 @@ export class EmployeeCalendarComponent implements OnInit {
   }
 
   onEmployeeChange(): void {
+    this.userChose = true;
+    this.employeeChanged();
+  }
+
+  /**
+   * The employee to open with, once employees and identity are known: the URL's,
+   * else the one this account chose last, else after a new login (no entry, or
+   * another account's) the user's own employee, else none.
+   */
+  private resolveInitialEmployee(): void {
+    if (this.initialResolved || !this.self || !this.employeesLoaded) return;
+    this.initialResolved = true;
+    if (this.selectedEmployeeId || this.userChose) {
+      this.remember();
+      return;
+    }
+
+    const remembered = readSelection();
+    if (remembered?.sub === (this.self.sub ?? null) && this.employees.some((e) => e.id === remembered.employeeId)) {
+      this.openEmployee(remembered.employeeId);
+      return;
+    }
+    clearSelection();
+    if (!this.self.email) return;
+    this.employeeService
+      .getEmployeeByEmail(this.self.email)
+      .pipe(catchError(() => of(null)))
+      .subscribe((own) => {
+        if (own && !this.userChose && !this.selectedEmployeeId) this.openEmployee(own.id);
+      });
+  }
+
+  private openEmployee(id: string): void {
+    this.selectedEmployeeId = id;
+    this.employeeChanged();
+  }
+
+  /** Stores the current choice for this account; waits until the account is known. */
+  private remember(): void {
+    if (!this.self) return;
+    if (this.selectedEmployeeId) writeSelection(this.self.sub ?? null, this.selectedEmployeeId);
+    else clearSelection();
+  }
+
+  private employeeChanged(): void {
+    this.remember();
     this.leaveAbsenceMode();
     this.syncUrl();
     this.leaveEntries = [];

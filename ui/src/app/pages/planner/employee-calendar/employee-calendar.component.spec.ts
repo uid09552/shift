@@ -31,6 +31,7 @@ describe('EmployeeCalendarComponent', () => {
   }
 
   beforeEach(() => spyOn(console, 'error')); // the page logs each failure for developers
+  beforeEach(() => localStorage.removeItem('employeeCalendar.selection')); // no choice carried between tests
 
   it('offers a retry when the base data fails to load', () => {
     TestBed.configureTestingModule({
@@ -73,6 +74,102 @@ describe('EmployeeCalendarComponent', () => {
     pending((u) => u.endsWith('/wish-settings')).forEach((r) => r.flush(null, { status: 0, statusText: '' }));
     fixture.detectChanges();
     expect(query('[data-testid="error-notice"]')?.textContent).toContain('could not be reached');
+  });
+
+  // ── Which employee the page opens with ───────────────────────────────────
+
+  const STORED = 'employeeCalendar.selection';
+  const stored = () => JSON.parse(localStorage.getItem(STORED) ?? 'null');
+  const people = [{ id: 'e1', name: 'Anna' }, { id: 'e2', name: 'Ben' }, { id: 'e3', name: 'Carl' }];
+  const ownLookup = () => pending((u) => u.includes('/employees/email/'));
+
+  /** The page with employees and identity answered; `url` is the address's employeeId. */
+  function openWith(self: object, url?: string) {
+    const providers: unknown[] = [provideRouter([]), provideHttpClient(), provideHttpClientTesting()];
+    if (url) {
+      providers.push({ provide: ActivatedRoute, useValue: { queryParams: of({ employeeId: url }), snapshot: { paramMap: new Map() } } });
+    }
+    TestBed.configureTestingModule({ providers: providers as never[] });
+    http = TestBed.inject(HttpTestingController);
+    fixture = TestBed.createComponent(EmployeeCalendarComponent);
+    fixture.detectChanges();
+    pending((u) => u.endsWith('/employees')).forEach((r) => r.flush({ data: people, total: people.length }));
+    pending((u) => u.endsWith('/shifts') || u.endsWith('/workstations') || u.endsWith('/workstation-unavailabilities'))
+      .forEach((r) => r.flush([]));
+    pending((u) => u.endsWith('/self')).forEach((r) => r.flush(self));
+    fixture.detectChanges();
+  }
+
+  it('opens with the employee this account chose last, without looking up its own', () => {
+    localStorage.setItem(STORED, JSON.stringify({ sub: 'u1', employeeId: 'e1' }));
+    openWith({ sub: 'u1', email: 'ben@example.org' });
+    expect(fixture.componentInstance.selectedEmployeeId).toBe('e1');
+    expect(ownLookup().length).toBe(0);
+    expect(pending((u) => u.endsWith('/employees/e1/confirmed-shift-plans')).length).toBeGreaterThan(0);
+  });
+
+  it("opens with the user's own employee after a new login, and remembers it", () => {
+    openWith({ sub: 'u2', email: 'ben@example.org' });
+    const [lookup] = ownLookup();
+    expect(lookup.request.url).toContain(encodeURIComponent('ben@example.org'));
+    lookup.flush({ id: 'e2', name: 'Ben' });
+    expect(fixture.componentInstance.selectedEmployeeId).toBe('e2');
+    expect(stored()).toEqual({ sub: 'u2', employeeId: 'e2' });
+  });
+
+  it("replaces another account's choice with the user's own employee", () => {
+    localStorage.setItem(STORED, JSON.stringify({ sub: 'u1', employeeId: 'e1' }));
+    openWith({ sub: 'u3', email: 'carl@example.org' });
+    ownLookup().forEach((r) => r.flush({ id: 'e3', name: 'Carl' }));
+    expect(fixture.componentInstance.selectedEmployeeId).toBe('e3');
+    expect(stored()).toEqual({ sub: 'u3', employeeId: 'e3' });
+  });
+
+  it('opens with no one when the user has no employee record', () => {
+    openWith({ sub: 'u4', email: 'nobody@example.org' });
+    ownLookup().forEach((r) => r.flush(null, { status: 404, statusText: 'Not Found' }));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.selectedEmployeeId).toBe('');
+    expect(fixture.nativeElement.textContent).toContain('Select an employee');
+    expect(stored()).toBeNull();
+  });
+
+  it('ignores a remembered employee who no longer exists', () => {
+    localStorage.setItem(STORED, JSON.stringify({ sub: 'u1', employeeId: 'gone' }));
+    openWith({ sub: 'u1', email: 'anna@example.org' });
+    expect(stored()).toBeNull();
+    ownLookup().forEach((r) => r.flush({ id: 'e1', name: 'Anna' }));
+    expect(fixture.componentInstance.selectedEmployeeId).toBe('e1');
+  });
+
+  it('does not override a choice made while its own employee was being looked up', () => {
+    openWith({ sub: 'u2', email: 'ben@example.org' });
+    const component = fixture.componentInstance;
+    component.selectedEmployeeId = 'e3';
+    component.onEmployeeChange();
+    ownLookup().forEach((r) => r.flush({ id: 'e2', name: 'Ben' }));
+    expect(component.selectedEmployeeId).toBe('e3');
+    expect(stored()).toEqual({ sub: 'u2', employeeId: 'e3' });
+  });
+
+  it('remembers each choice, and forgets it for the empty option', () => {
+    localStorage.setItem(STORED, JSON.stringify({ sub: 'u1', employeeId: 'e1' }));
+    openWith({ sub: 'u1' });
+    const component = fixture.componentInstance;
+    component.selectedEmployeeId = 'e2';
+    component.onEmployeeChange();
+    expect(stored()).toEqual({ sub: 'u1', employeeId: 'e2' });
+    component.selectedEmployeeId = '';
+    component.onEmployeeChange();
+    expect(stored()).toBeNull();
+  });
+
+  it('opens with the employee in the address over the remembered one, and remembers it', () => {
+    localStorage.setItem(STORED, JSON.stringify({ sub: 'u1', employeeId: 'e1' }));
+    openWith({ sub: 'u1', email: 'anna@example.org' }, 'e3');
+    expect(fixture.componentInstance.selectedEmployeeId).toBe('e3');
+    expect(ownLookup().length).toBe(0);
+    expect(stored()).toEqual({ sub: 'u1', employeeId: 'e3' });
   });
 
   // ── Recording absences on the grid ───────────────────────────────────────
@@ -131,6 +228,29 @@ describe('EmployeeCalendarComponent', () => {
     expect(query('[data-testid="absence-mode-button"]')).toBeNull();
     fixture.componentInstance.startAbsenceMode();
     expect(fixture.componentInstance.absenceMode).toBeFalse();
+  });
+
+  it('offers the add-absence button on the Calendar only', async () => {
+    await openAs(['shift-planner']);
+    fixture.componentInstance.setTab('hours');
+    fixture.detectChanges();
+    expect(query('[data-testid="absence-mode-button"]')).toBeNull();
+    fixture.componentInstance.setTab('calendar');
+    fixture.detectChanges();
+    expect(query('[data-testid="absence-mode-button"]')).not.toBeNull();
+  });
+
+  it('ends absence mode when switching to Hours, keeping no selection and saving nothing', async () => {
+    await openAs(['shift-planner']);
+    click('absence-mode-button');
+    click(day(12));
+    fixture.componentInstance.setTab('hours');
+    fixture.componentInstance.setTab('calendar');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.absenceMode).toBeFalse();
+    expect(fixture.componentInstance.selection).toEqual({ start: null, end: null });
+    expect(query('[data-testid="absence-panel"]')).toBeNull();
+    expect(http.match((r) => r.method === 'POST').length).toBe(0);
   });
 
   it('selects the days between two clicks and opens no menu while picking', async () => {
@@ -326,7 +446,7 @@ describe('EmployeeCalendarComponent', () => {
     expect(pending((u) => u.endsWith('/unavailabilities')).length).toBe(1); // reloaded, to show what was saved
   });
 
-  it('lists absences as upcoming and past ranges, independent of the month shown, and deletes one', async () => {
+  it('lists absences, collapsed by default, as upcoming and past ranges independent of the month shown, and deletes one', async () => {
     const future = ymd(1, 2);
     const past = ymd(1, -3);
     await openAs(['shift-planner'], {
@@ -336,6 +456,13 @@ describe('EmployeeCalendarComponent', () => {
       ],
     });
     const rows = (area: string) => [...fixture.nativeElement.querySelectorAll(`[data-testid="${area}"] [data-testid="absence-row"]`)];
+    const list = query('[data-testid="absence-list"]') as HTMLDetailsElement;
+    expect(list.open).toBeFalse(); // collapsed until asked for
+    expect(query('[data-testid="absence-list-toggle"]')?.textContent).toContain('Absences (2)');
+    expect((rows('absences-upcoming')[0] as HTMLElement).checkVisibility()).toBeFalse(); // in the DOM, not shown
+    click('absence-list-toggle');
+    expect(list.open).toBeTrue();
+    expect((rows('absences-upcoming')[0] as HTMLElement).checkVisibility()).toBeTrue();
     expect(rows('absences-upcoming').map((r) => (r as HTMLElement).dataset['start'])).toEqual([future]);
     expect(rows('absences-past').map((r) => (r as HTMLElement).dataset['start'])).toEqual([past]);
     expect(query('[data-testid="absence-list"]')?.textContent).toContain('Absences (2)');

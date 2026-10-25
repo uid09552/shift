@@ -52,7 +52,7 @@
         {{ 'common.exportExcel' | t }}
       </button>
     }
-    @if (selectedEmployeeId && canRecordAbsence) {
+    @if (selectedEmployeeId && canRecordAbsence && activeTab === 'calendar') {
       <button
         type="button"
         (click)="absenceMode ? leaveAbsenceMode() : startAbsenceMode()"
@@ -632,11 +632,18 @@
       </div>
     </div>
 
-    <!-- Recorded absences: not month-scoped, so they stay put as the month changes -->
-    <section class="mt-6" data-testid="absence-list">
-      <h3 class="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">
-        {{ 'employeeCalendar.absencesHeading' | t: { count: upcomingLeave.length + pastLeave.length } }}
-      </h3>
+    <!-- Recorded absences: not month-scoped, so they stay put as the month changes.
+         Collapsed by default: the count is enough until someone wants the dates. -->
+    <details class="group mt-6" data-testid="absence-list">
+      <summary
+        class="mb-3 flex w-fit cursor-pointer list-none items-center gap-1.5 rounded text-sm font-semibold text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 dark:text-white/90 [&::-webkit-details-marker]:hidden"
+        data-testid="absence-list-toggle"
+      >
+        <svg class="h-4 w-4 text-gray-400 transition-transform group-open:rotate-90 dark:text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m9 18 6-6-6-6"></path>
+        </svg>
+        <h3>{{ 'employeeCalendar.absencesHeading' | t: { count: upcomingLeave.length + pastLeave.length } }}</h3>
+      </summary>
       @if (loadingUnavailabilities) {
         <p class="text-sm text-gray-400 dark:text-gray-500">{{ 'employeeCalendar.loadingEntries' | t }}</p>
       } @else if (leaveEntries.length === 0) {
@@ -665,7 +672,7 @@
           </div>
         </div>
       }
-    </section>
+    </details>
         </div>
 
         @if (absenceMode) {
