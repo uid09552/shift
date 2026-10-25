@@ -303,6 +303,66 @@ impl ConfirmedShiftPlanRepository for DieselConfirmedShiftPlanRepository {
         .await.map_err(|_| AppError::Internal)?
     }
 
+    async fn apply_automated_plan(
+        &self,
+        tenant_id: &str,
+        employee_ids: &[Uuid],
+        from_date: NaiveDate,
+        to_date: NaiveDate,
+        new_plans: Vec<ConfirmedShiftPlan>,
+        ctx: &RosterChangeCtx,
+    ) -> Result<usize, AppError> {
+        let tenant_id = tenant_id.to_string();
+        let employee_ids = employee_ids.to_vec();
+        let pool = Arc::clone(&self.pool);
+        let ctx = ctx.clone();
+        let inserts = new_rows(&tenant_id, new_plans);
+
+        telemetry::db_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            let cells = period_cells_with(&employee_ids, from_date, to_date, &inserts);
+            rostertracking::guarded(&mut conn, &tenant_id, &ctx, &cells, |conn| {
+                // Only what an earlier automatic plan wrote; a person's entry is not ours to drop.
+                diesel::delete(
+                    confirmed_shift_plans::table
+                        .filter(confirmed_shift_plans::tenant_id.eq(&tenant_id))
+                        .filter(confirmed_shift_plans::employee_id.eq_any(&employee_ids))
+                        .filter(confirmed_shift_plans::date.ge(from_date))
+                        .filter(confirmed_shift_plans::date.le(to_date))
+                        .filter(confirmed_shift_plans::creation_type.eq("automated")),
+                )
+                .execute(conn)
+                .map_err(|_| AppError::DbError)?;
+
+                if inserts.is_empty() {
+                    return Ok(0);
+                }
+                // A day that still has an entry belongs to a person: leave it.
+                diesel::insert_into(confirmed_shift_plans::table)
+                    .values(&inserts)
+                    .on_conflict_do_nothing()
+                    .execute(conn)
+                    .map_err(|_| AppError::DbError)
+            })
+        })
+        .await.map_err(|_| AppError::Internal)?
+    }
+
+    async fn last_planned_day(&self, tenant_id: &str) -> Result<Option<NaiveDate>, AppError> {
+        let tenant_id = tenant_id.to_string();
+        let pool = Arc::clone(&self.pool);
+        telemetry::db_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            confirmed_shift_plans::table
+                .filter(confirmed_shift_plans::tenant_id.eq(&tenant_id))
+                .filter(confirmed_shift_plans::shift_id.is_not_null())
+                .select(diesel::dsl::max(confirmed_shift_plans::date))
+                .first::<Option<NaiveDate>>(&mut conn)
+                .map_err(|_| AppError::DbError)
+        })
+        .await.map_err(|_| AppError::Internal)?
+    }
+
     async fn count_period_changes(
         &self,
         tenant_id: &str,

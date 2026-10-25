@@ -20,6 +20,7 @@ pub mod rotation_pattern;
 pub mod shift_wish;
 pub mod shift_swap;
 pub mod wish_settings;
+pub mod auto_plan;
 pub mod wish_schedule;
 pub mod personal_limits;
 pub mod roster_guard;

@@ -18,6 +18,8 @@ pub struct DieselPlanningTaskRepository {
 fn to_domain(t: PlanningTask) -> PlanningTaskDomain {
     PlanningTaskDomain {
         id: t.id,
+        tenant_id: t.tenant_id,
+        source: t.source,
         status: t.status,
         payload: t.payload,
         result_id: t.result_id,
@@ -34,8 +36,10 @@ impl PlanningTaskRepository for DieselPlanningTaskRepository {
         tenant_id: &str,
         id: Uuid,
         payload: serde_json::Value,
+        source: &str,
     ) -> Result<PlanningTaskDomain, AppError> {
         let tenant_id = tenant_id.to_string();
+        let source = source.to_string();
         let pool = Arc::clone(&self.pool);
         telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
@@ -44,12 +48,27 @@ impl PlanningTaskRepository for DieselPlanningTaskRepository {
                 status: "scheduled".to_string(),
                 payload,
                 tenant_id,
+                source,
             };
             let inserted: PlanningTask = diesel::insert_into(planning_tasks::table)
                 .values(&new_task)
                 .get_result(&mut conn)
                 .map_err(|_| AppError::DbError)?;
             Ok(to_domain(inserted))
+        })
+        .await.map_err(|_| AppError::Internal)?
+    }
+
+    async fn find_planning_task(&self, id: Uuid) -> Result<Option<PlanningTaskDomain>, AppError> {
+        let pool = Arc::clone(&self.pool);
+        telemetry::db_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            let result = planning_tasks::table
+                .filter(planning_tasks::id.eq(id))
+                .first::<PlanningTask>(&mut conn)
+                .optional()
+                .map_err(|_| AppError::DbError)?;
+            Ok(result.map(to_domain))
         })
         .await.map_err(|_| AppError::Internal)?
     }

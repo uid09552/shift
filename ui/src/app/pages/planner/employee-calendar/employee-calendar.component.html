@@ -30,30 +30,44 @@
       </select>
     </div>
 
-    <!-- Absences are not month-scoped, so the month control would only mislead there. -->
-    @if (isMonthScoped) {
-      <app-calendar-nav
-        [label]="monthLabel"
-        periodType="month"
-        (prev)="prevMonth()"
-        (next)="nextMonth()"
-        (today)="goToday()"
-      />
+    <app-calendar-nav
+      [label]="monthLabel"
+      periodType="month"
+      (prev)="prevMonth()"
+      (next)="nextMonth()"
+      (today)="goToday()"
+    />
 
-      @if (selectedEmployeeId) {
-        <button
-          (click)="exportToExcel()"
-          class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05] sm:ml-auto"
-          [title]="'employeeCalendar.exportTitle' | t"
-        >
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          {{ 'common.exportExcel' | t }}
-        </button>
-      }
+    @if (selectedEmployeeId) {
+      <button
+        (click)="exportToExcel()"
+        class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05] sm:ml-auto"
+        [title]="'employeeCalendar.exportTitle' | t"
+      >
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        {{ 'common.exportExcel' | t }}
+      </button>
+    }
+    @if (selectedEmployeeId && canRecordAbsence) {
+      <button
+        type="button"
+        (click)="absenceMode ? leaveAbsenceMode() : startAbsenceMode()"
+        [attr.aria-pressed]="absenceMode"
+        data-testid="absence-mode-button"
+        class="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+        [class]="absenceMode
+          ? 'bg-brand-500 text-white hover:bg-brand-600'
+          : 'border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]'"
+      >
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 5v14M5 12h14"></path>
+        </svg>
+        {{ 'employeeCalendar.addAbsence' | t }}
+      </button>
     }
   </div>
 
@@ -102,7 +116,11 @@
         </div>
       }
 
-      <div class="p-4 sm:p-6">
+      <div
+        class="p-4 sm:p-6"
+        [ngClass]="absenceMode ? 'lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-6' : ''"
+      >
+        <div class="min-w-0">
     <!-- Day headers, with the week-number gutter the rows below line up with -->
     <div class="calendar-grid mb-1">
       <div
@@ -172,6 +190,20 @@
               [class.cell-editing]="isEditing(formatDate(day.date)) || isDeleting(formatDate(day.date)) || isDeletingWish(formatDate(day.date))"
             >
               <div class="day-number">{{ day.dayNum }}</div>
+              @if (absenceMode && day.isCurrentMonth) {
+                <!-- Over the whole cell, so what is under it cannot be clicked by accident. -->
+                <button
+                  type="button"
+                  class="absence-pick"
+                  [class.picked]="isDaySelected(formatDate(day.date))"
+                  [attr.aria-pressed]="isDaySelected(formatDate(day.date))"
+                  [attr.aria-label]="'employeeCalendar.selectDay' | t: { date: longDate(day.date) }"
+                  [attr.data-testid]="'absence-day-' + formatDate(day.date)"
+                  (click)="onAbsenceDay(formatDate(day.date))"
+                  (mouseenter)="hoverDay = formatDate(day.date)"
+                  (mouseleave)="hoverDay = null"
+                ></button>
+              }
 
               <!-- Public holiday: runs on Sunday times and counts as a weekend day -->
               @if (day.isCurrentMonth && day.holidayName) {
@@ -599,6 +631,127 @@
         <span class="text-xs text-gray-600 dark:text-gray-400">{{ 'employeeCalendar.legendWish' | t }}</span>
       </div>
     </div>
+
+    <!-- Recorded absences: not month-scoped, so they stay put as the month changes -->
+    <section class="mt-6" data-testid="absence-list">
+      <h3 class="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">
+        {{ 'employeeCalendar.absencesHeading' | t: { count: upcomingLeave.length + pastLeave.length } }}
+      </h3>
+      @if (loadingUnavailabilities) {
+        <p class="text-sm text-gray-400 dark:text-gray-500">{{ 'employeeCalendar.loadingEntries' | t }}</p>
+      } @else if (leaveEntries.length === 0) {
+        <p class="text-sm text-gray-400 dark:text-gray-500">{{ 'employeeCalendar.noEntries' | t }}</p>
+      } @else {
+        <div class="grid gap-6 md:grid-cols-2">
+          <div>
+            <h4 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ 'employeeCalendar.upcoming' | t }}</h4>
+            <div class="space-y-1.5" data-testid="absences-upcoming">
+              @for (group of upcomingLeave; track group.key) {
+                <ng-container [ngTemplateOutlet]="leaveRow" [ngTemplateOutletContext]="{ group: group }" />
+              } @empty {
+                <p class="text-sm text-gray-400 dark:text-gray-500">—</p>
+              }
+            </div>
+          </div>
+          <div>
+            <h4 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">{{ 'employeeCalendar.past' | t }}</h4>
+            <div class="space-y-1.5" data-testid="absences-past">
+              @for (group of pastLeave; track group.key) {
+                <ng-container [ngTemplateOutlet]="leaveRow" [ngTemplateOutletContext]="{ group: group, past: true }" />
+              } @empty {
+                <p class="text-sm text-gray-400 dark:text-gray-500">—</p>
+              }
+            </div>
+          </div>
+        </div>
+      }
+    </section>
+        </div>
+
+        @if (absenceMode) {
+          <aside
+            class="mt-6 rounded-xl border border-gray-200 p-4 dark:border-gray-800 lg:mt-0"
+            data-testid="absence-panel"
+            [attr.aria-label]="'employeeCalendar.absencePanelTitle' | t"
+          >
+            <h3 class="text-sm font-semibold text-gray-800 dark:text-white/90">{{ 'employeeCalendar.absencePanelTitle' | t }}</h3>
+
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-300" data-testid="absence-dates" aria-live="polite">
+              @if (isComplete) {
+                {{ 'employeeCalendar.selectedRange' | t: { range: selectionLabel, days: selectedDays.length } }}
+              } @else if (selection.start) {
+                {{ 'employeeCalendar.pickLastDay' | t }}
+              } @else {
+                {{ 'employeeCalendar.pickFirstDay' | t }}
+              }
+            </p>
+
+            <div class="mt-4">
+              <app-toggle-boxes
+                [options]="absenceTypes"
+                [value]="leaveType"
+                (valueChange)="setLeaveType($event)"
+                [ariaLabel]="'employeeCalendar.absenceType' | t"
+              />
+            </div>
+
+            @if (isComplete) {
+              <div class="mt-4 space-y-1 text-xs text-gray-600 dark:text-gray-400" data-testid="absence-effect" aria-live="polite">
+                @switch (effect?.state) {
+                  @case ('loading') { <p>{{ 'employeeCalendar.effect.checking' | t }}</p> }
+                  @case ('failed') { <p class="text-amber-600 dark:text-amber-400">{{ 'employeeCalendar.effect.failed' | t }}</p> }
+                  @case ('ready') {
+                    @if (leaveType) {
+                      @if (replacedCount > 0) {
+                        <p class="font-medium text-amber-700 dark:text-amber-400" data-testid="absence-replaced">{{ 'employeeCalendar.effect.replaced' | t: { count: replacedCount } }}</p>
+                      } @else {
+                        <p>{{ 'employeeCalendar.effect.none' | t }}</p>
+                      }
+                    }
+                  }
+                }
+                @if (skippedDays.length > 0) {
+                  <p data-testid="absence-skipped">{{ 'employeeCalendar.effect.skipped' | t: { count: skippedDays.length } }}</p>
+                }
+              </div>
+            }
+
+            @if (isComplete && !leaveType) {
+              <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">{{ 'employeeCalendar.chooseType' | t }}</p>
+            }
+
+            <div class="mt-5 flex items-center gap-2">
+              <button
+                type="button"
+                (click)="applyAbsence()"
+                [disabled]="!canAddAbsence"
+                data-testid="absence-add"
+                class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                @if (leaveProcessing) {
+                  <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+                    <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
+                  </svg>
+                }
+                @if (leaveType && isComplete) {
+                  {{ 'employeeCalendar.addAbsenceButton' | t: { type: leaveTypeLabelKey(leaveType) | t, days: daysToAdd.length } }}
+                } @else {
+                  {{ 'employeeCalendar.addAbsence' | t }}
+                }
+              </button>
+              <button
+                type="button"
+                (click)="leaveAbsenceMode()"
+                [disabled]="leaveProcessing"
+                data-testid="absence-cancel"
+                class="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
+              >
+                {{ 'common.cancel' | t }}
+              </button>
+            </div>
+          </aside>
+        }
       </div>
     </div>
   } @else if (activeTab === 'hours') {
@@ -702,133 +855,15 @@
       </div>
 
     </div>
-  } @else if (activeTab === 'absences') {
-    <div
-      role="tabpanel"
-      id="employee-calendar-panel-absences"
-      aria-labelledby="employee-calendar-absences"
-      class="px-5 py-5 sm:px-6"
-    >
-      <p class="mb-4 text-xs text-gray-500 dark:text-gray-400">
-        {{ 'employeeCalendar.leavePanelSub' | t }}
-      </p>
-      <div class="grid grid-cols-1 gap-6 lg:grid-cols-[280px_1fr]">
-
-        <!-- Left: type tabs + calendar picker + apply -->
-        <div>
-          <!-- Type tabs -->
-          <div class="mb-3 inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 dark:border-gray-700 dark:bg-gray-800">
-            <button type="button" (click)="leaveType = 'unavailable'"
-              class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
-              [class.bg-white]="leaveType === 'unavailable'"
-              [class.shadow-sm]="leaveType === 'unavailable'"
-              [class.text-amber-700]="leaveType === 'unavailable'"
-              [class.dark:bg-gray-700]="leaveType === 'unavailable'"
-              [class.dark:text-amber-300]="leaveType === 'unavailable'"
-              [class.text-gray-500]="leaveType !== 'unavailable'"
-              [class.dark:text-gray-400]="leaveType !== 'unavailable'"
-            >{{ 'employeeCalendar.leaveUnavailable' | t }}</button>
-            <button type="button" (click)="leaveType = 'day_off'"
-              class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
-              [class.bg-white]="leaveType === 'day_off'"
-              [class.shadow-sm]="leaveType === 'day_off'"
-              [class.text-yellow-700]="leaveType === 'day_off'"
-              [class.dark:bg-gray-700]="leaveType === 'day_off'"
-              [class.dark:text-yellow-300]="leaveType === 'day_off'"
-              [class.text-gray-500]="leaveType !== 'day_off'"
-              [class.dark:text-gray-400]="leaveType !== 'day_off'"
-            >{{ 'employeeCalendar.leaveVacation' | t }}</button>
-            <button type="button" (click)="leaveType = 'sick'"
-              class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
-              [class.bg-white]="leaveType === 'sick'"
-              [class.shadow-sm]="leaveType === 'sick'"
-              [class.text-red-600]="leaveType === 'sick'"
-              [class.dark:bg-gray-700]="leaveType === 'sick'"
-              [class.dark:text-red-400]="leaveType === 'sick'"
-              [class.text-gray-500]="leaveType !== 'sick'"
-              [class.dark:text-gray-400]="leaveType !== 'sick'"
-            >{{ 'employeeCalendar.leaveSick' | t }}</button>
-          </div>
-
-          <!-- Calendar range picker -->
-          <app-date-range-picker
-            [markedDays]="markedDays"
-            [resetKey]="pickerResetKey"
-            (rangeChange)="pickerRange = $event"
-          />
-
-          <!-- Apply button -->
-          <button
-            type="button"
-            (click)="applyLeaveRange()"
-            [disabled]="!pickerRange || leaveProcessing"
-            class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            @if (leaveProcessing) {
-              <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
-                <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
-              </svg>
-            }
-            {{ 'employeeCalendar.addLeave' | t: { type: leaveTypeLabelKey(leaveType) | t } }}
-          </button>
-
-          @if (leaveError) {
-            <p class="mt-2 text-xs text-red-500 dark:text-red-400">{{ leaveError | t }}</p>
-          }
-        </div>
-
-        <!-- Right: existing entries list -->
-        <div>
-          @if (loadingUnavailabilities) {
-            <p class="text-sm text-gray-400 dark:text-gray-500">{{ 'employeeCalendar.loadingEntries' | t }}</p>
-          } @else if (leaveEntries.length === 0) {
-            <p class="text-sm text-gray-400 dark:text-gray-500">{{ 'employeeCalendar.noEntries' | t }}</p>
-          } @else {
-            <div class="max-h-96 space-y-4 overflow-y-auto pr-1">
-              @if (upcomingLeave.length) {
-                <div>
-                  <h4 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                    {{ 'employeeCalendar.upcoming' | t }}
-                  </h4>
-                  <div class="space-y-1.5">
-                    @for (group of upcomingLeave; track group.key) {
-                      <ng-container
-                        [ngTemplateOutlet]="leaveRow"
-                        [ngTemplateOutletContext]="{ group: group }"
-                      />
-                    }
-                  </div>
-                </div>
-              }
-
-              @if (pastLeave.length) {
-                <div>
-                  <h4 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                    {{ 'employeeCalendar.past' | t }}
-                  </h4>
-                  <div class="space-y-1.5">
-                    @for (group of pastLeave; track group.key) {
-                      <ng-container
-                        [ngTemplateOutlet]="leaveRow"
-                        [ngTemplateOutletContext]="{ group: group, past: true }"
-                      />
-                    }
-                  </div>
-                </div>
-              }
-            </div>
-          }
-        </div>
-
-      </div>
-    </div>
   }
 </div>
 
 <!-- One absence range: the days it covers, its kind, and a way to take it back. -->
 <ng-template #leaveRow let-group="group" let-past="past">
   <div
+    data-testid="absence-row"
+    [attr.data-start]="group.start"
+    [attr.data-type]="group.type"
     class="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/50"
     [class.opacity-60]="past"
   >

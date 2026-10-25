@@ -52,6 +52,8 @@ export interface TaskResultDto {
   schedule: DaySchedule[];
   employee_plans: EmployeeDailyPlan[];
   message?: string;
+  /** How the run was started; absent on results stored before automatic planning. */
+  source?: 'manual' | 'auto';
 }
 
 // ── API Response types ───────────────────────────────────────────────────────
@@ -139,6 +141,8 @@ export interface PlanningTaskItem {
   status: 'scheduled' | 'done' | 'error';
   result_id?: string;
   error_message?: string;
+  /** How the run was started: a planner (`manual`) or the schedule (`auto`). */
+  source?: 'manual' | 'auto';
   created_at: string;
   updated_at: string;
 }

@@ -12,10 +12,12 @@ import { TranslatePipe } from '../../../i18n/translate.pipe';
     <div class="flex items-center gap-2">
       <button
         (click)="today.emit()"
+        data-testid="calendar-nav-today"
         class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
       >{{ 'common.today' | t }}</button>
       <button
         (click)="prev.emit()"
+        data-testid="calendar-nav-prev"
         class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
         [attr.aria-label]="previousLabelKey | t"
       >
@@ -28,6 +30,7 @@ import { TranslatePipe } from '../../../i18n/translate.pipe';
       </span>
       <button
         (click)="next.emit()"
+        data-testid="calendar-nav-next"
         class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/[0.05]"
         [attr.aria-label]="nextLabelKey | t"
       >

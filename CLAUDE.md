@@ -164,6 +164,22 @@ backend/
 - A draft month is *due* `publish_lead_days` (28) before it starts — a
   warning, nothing is blocked
 
+### Automatic planning
+- A planner setting, off by default (`auto_plan_*` on `planner_settings`): every N
+  weeks on a weekday at a time, from a start date, planning 2/4/6/8/12 weeks or
+  1/2/3 months ahead. `services/auto_plan.rs` ticks every 60 s over all tenants,
+  claims a run day with one conditional `UPDATE` (restart- and multi-instance-safe)
+  and starts a normal plan run with source `auto`
+- The range starts after the last confirmed day that has a shift (at least
+  tomorrow). The finished plan becomes the roster **only if clean**: solver status
+  optimal/feasible with an empty `message`, every month it touches `draft`, nobody
+  planned on a recorded sick/day-off/holiday/unknown absence, no closed workstation.
+  Otherwise it stays a proposal and the settings page says why. It writes through
+  `apply_automated_plan` (replaces only `automated` entries, never a person's),
+  never publishes and never notifies. Audit actor `auto-planner`
+- A plan result is stored for the tenant of its task (`find_planning_task`), not
+  the server's default tenant
+
 ### Labor law
 - A planner setting (`labor_law_profile`), not a per-ward rule: `arbzg_de`
   makes ArbZG/JArbSchG/MuSchG hard for the solver and the repair; a planner's

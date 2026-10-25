@@ -47,7 +47,33 @@ fn to_domain(s: PlannerSettings) -> PlannerSettingsDomain {
         change_weight: s.change_weight,
         labor_law_profile: s.labor_law_profile,
         labor_law_averaging_weeks: s.labor_law_averaging_weeks,
+        use_case: s.use_case,
+        auto_plan_enabled: s.auto_plan_enabled,
+        auto_plan_every_weeks: s.auto_plan_every_weeks,
+        auto_plan_weekday: s.auto_plan_weekday,
+        auto_plan_time: s.auto_plan_time,
+        auto_plan_start_date: s.auto_plan_start_date,
+        auto_plan_range_unit: s.auto_plan_range_unit,
+        auto_plan_range_count: s.auto_plan_range_count,
+        auto_plan_armed_at: s.auto_plan_armed_at,
+        auto_plan_last_run_on: s.auto_plan_last_run_on,
+        auto_plan_last_outcome: s.auto_plan_last_outcome,
+        auto_plan_last_note: s.auto_plan_last_note,
+        auto_plan_last_task_id: s.auto_plan_last_task_id,
+        auto_plan_last_started_at: s.auto_plan_last_started_at,
     }
+}
+
+/// Whether anything a planner sets about the schedule differs between the stored
+/// row and the incoming values.
+fn schedule_changed(stored: &PlannerSettings, new: &NewPlannerSettings) -> bool {
+    stored.auto_plan_enabled != new.auto_plan_enabled
+        || stored.auto_plan_every_weeks != new.auto_plan_every_weeks
+        || stored.auto_plan_weekday != new.auto_plan_weekday
+        || stored.auto_plan_time != new.auto_plan_time
+        || stored.auto_plan_start_date != new.auto_plan_start_date
+        || stored.auto_plan_range_unit != new.auto_plan_range_unit
+        || stored.auto_plan_range_count != new.auto_plan_range_count
 }
 
 #[async_trait]
@@ -75,6 +101,92 @@ impl PlannerSettingsRepository for DieselPlannerSettingsRepository {
                 .get_result(&mut conn)
                 .map_err(|_| AppError::DbError)?;
             Ok(to_domain(inserted))
+        })
+        .await.map_err(|_| AppError::Internal)?
+    }
+
+    async fn list_auto_plan_enabled(&self) -> Result<Vec<(String, PlannerSettingsDomain)>, AppError> {
+        let pool = Arc::clone(&self.pool);
+        telemetry::db_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            let rows = planner_settings::table
+                .filter(planner_settings::auto_plan_enabled.eq(true))
+                .load::<PlannerSettings>(&mut conn)
+                .map_err(|_| AppError::DbError)?;
+            Ok(rows.into_iter().map(|r| (r.tenant_id.clone(), to_domain(r))).collect())
+        })
+        .await.map_err(|_| AppError::Internal)?
+    }
+
+    async fn claim_auto_plan_run(&self, tenant_id: &str, day: chrono::NaiveDate, now: chrono::NaiveDateTime) -> Result<bool, AppError> {
+        let tenant_id = tenant_id.to_string();
+        let pool = Arc::clone(&self.pool);
+        telemetry::db_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            let touched = diesel::update(
+                planner_settings::table
+                    .filter(planner_settings::tenant_id.eq(&tenant_id))
+                    .filter(planner_settings::auto_plan_enabled.eq(true))
+                    .filter(
+                        planner_settings::auto_plan_last_run_on
+                            .is_null()
+                            .or(planner_settings::auto_plan_last_run_on.lt(day)),
+                    ),
+            )
+            .set((
+                planner_settings::auto_plan_last_run_on.eq(Some(day)),
+                planner_settings::auto_plan_last_outcome.eq(Some("running")),
+                planner_settings::auto_plan_last_note.eq(None::<String>),
+                planner_settings::auto_plan_last_task_id.eq(None::<uuid::Uuid>),
+                planner_settings::auto_plan_last_started_at.eq(Some(now)),
+            ))
+            .execute(&mut conn)
+            .map_err(|_| AppError::DbError)?;
+            Ok(touched == 1)
+        })
+        .await.map_err(|_| AppError::Internal)?
+    }
+
+    async fn set_auto_plan_outcome(&self, tenant_id: &str, outcome: &str, note: Option<String>, task_id: Option<uuid::Uuid>) -> Result<(), AppError> {
+        let tenant_id = tenant_id.to_string();
+        let outcome = outcome.to_string();
+        let pool = Arc::clone(&self.pool);
+        telemetry::db_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            let mine = planner_settings::table.filter(planner_settings::tenant_id.eq(&tenant_id));
+            conn.transaction::<_, diesel::result::Error, _>(|conn| {
+                diesel::update(mine.clone())
+                    .set((
+                        planner_settings::auto_plan_last_outcome.eq(Some(outcome)),
+                        planner_settings::auto_plan_last_note.eq(note),
+                    ))
+                    .execute(conn)?;
+                if let Some(task_id) = task_id {
+                    diesel::update(mine).set(planner_settings::auto_plan_last_task_id.eq(Some(task_id))).execute(conn)?;
+                }
+                Ok(())
+            })
+            .map_err(|_| AppError::DbError)
+        })
+        .await.map_err(|_| AppError::Internal)?
+    }
+
+    async fn fail_stale_auto_plan_runs(&self, cutoff: chrono::NaiveDateTime) -> Result<Vec<String>, AppError> {
+        let pool = Arc::clone(&self.pool);
+        telemetry::db_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            diesel::update(
+                planner_settings::table
+                    .filter(planner_settings::auto_plan_last_outcome.eq("running"))
+                    .filter(planner_settings::auto_plan_last_started_at.lt(cutoff)),
+            )
+            .set((
+                planner_settings::auto_plan_last_outcome.eq(Some("failed")),
+                planner_settings::auto_plan_last_note.eq(Some("The planner did not answer in time")),
+            ))
+            .returning(planner_settings::tenant_id)
+            .get_results::<String>(&mut conn)
+            .map_err(|_| AppError::DbError)
         })
         .await.map_err(|_| AppError::Internal)?
     }
@@ -116,13 +228,50 @@ impl PlannerSettingsRepository for DieselPlannerSettingsRepository {
                 change_weight: settings.change_weight,
                 labor_law_profile: settings.labor_law_profile,
                 labor_law_averaging_weeks: settings.labor_law_averaging_weeks,
+                auto_plan_enabled: settings.auto_plan_enabled,
+                auto_plan_every_weeks: settings.auto_plan_every_weeks,
+                auto_plan_weekday: settings.auto_plan_weekday,
+                auto_plan_time: settings.auto_plan_time,
+                auto_plan_start_date: settings.auto_plan_start_date,
+                auto_plan_range_unit: settings.auto_plan_range_unit.clone(),
+                auto_plan_range_count: settings.auto_plan_range_count,
             };
-            let updated: PlannerSettings = diesel::insert_into(planner_settings::table)
-                .values(&new_settings)
-                .on_conflict(planner_settings::tenant_id)
-                .do_update()
-                .set((&new_settings, planner_settings::updated_at.eq(diesel::dsl::now)))
-                .get_result(&mut conn)
+            // The values and the use case they came from are saved together or not at all.
+            let updated: PlannerSettings = conn
+                .transaction::<_, diesel::result::Error, _>(|conn| {
+                    let before: Option<PlannerSettings> = planner_settings::table
+                        .filter(planner_settings::tenant_id.eq(&tenant_id))
+                        .first(conn)
+                        .optional()?;
+                    let mut row: PlannerSettings = diesel::insert_into(planner_settings::table)
+                        .values(&new_settings)
+                        .on_conflict(planner_settings::tenant_id)
+                        .do_update()
+                        .set((&new_settings, planner_settings::updated_at.eq(diesel::dsl::now)))
+                        .get_result(conn)?;
+                    let mine = planner_settings::table.filter(planner_settings::tenant_id.eq(&tenant_id));
+                    // The upsert skips a `None`, so a cleared start date is written here.
+                    if row.auto_plan_start_date != new_settings.auto_plan_start_date {
+                        row = diesel::update(mine.clone())
+                            .set(planner_settings::auto_plan_start_date.eq(new_settings.auto_plan_start_date))
+                            .get_result(conn)?;
+                    }
+                    // A run day whose time had passed before the schedule was switched on
+                    // or changed must not run: note when that was, but only when it was.
+                    let changed = before.as_ref().map_or(new_settings.auto_plan_enabled, |b| schedule_changed(b, &new_settings));
+                    if changed {
+                        row = diesel::update(mine.clone())
+                            .set(planner_settings::auto_plan_armed_at.eq(Some(chrono::Local::now().naive_local())))
+                            .get_result(conn)?;
+                    }
+                    // Left out of the upsert so that an omitted field keeps what is stored.
+                    match &settings.use_case {
+                        Some(use_case) => diesel::update(mine)
+                            .set(planner_settings::use_case.eq(use_case.clone()))
+                            .get_result(conn),
+                        None => Ok(row),
+                    }
+                })
                 .map_err(|_| AppError::DbError)?;
             Ok(to_domain(updated))
         })

@@ -1043,6 +1043,9 @@
               [class.bg-brand-50/50]="selectedResult?.id === r.id" [class.dark:bg-brand-500/5]="selectedResult?.id === r.id">
               <div class="flex flex-wrap items-center gap-3 text-sm">
                 <span class="font-medium text-gray-800 dark:text-white/90">{{ resultLabel(r) }}</span>
+                @if (r.result.source === 'auto') {
+                  <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-white/10 dark:text-gray-300" data-testid="run-auto-badge">{{ 'scheduler.runs.automatic' | t }}</span>
+                }
                 <span class="text-xs text-gray-500 dark:text-gray-400">{{ r.result.status }} · {{ r.result.objective_value | number: '1.0-0' }}</span>
                 @if (selectedResult?.id === r.id) {
                   <span class="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">{{ 'scheduler.runs.current' | t }}</span>
@@ -1079,6 +1082,9 @@
             <div class="flex flex-col gap-1 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div class="flex flex-wrap items-center gap-3">
                 <span class="font-mono text-xs text-gray-400 dark:text-gray-500">{{ task.id.substring(0, 8) }}…</span>
+                @if (task.source === 'auto') {
+                  <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-white/10 dark:text-gray-300" data-testid="job-auto-badge">{{ 'scheduler.runs.automatic' | t }}</span>
+                }
                 <span class="rounded-full px-2.5 py-0.5 text-xs font-medium"
                   [class.bg-yellow-100]="task.status === 'scheduled'"
                   [class.text-yellow-800]="task.status === 'scheduled'"

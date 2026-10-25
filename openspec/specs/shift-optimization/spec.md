@@ -20,11 +20,19 @@ The optimizer SHALL solve minimum staffing before balance, wishes and fatigue, a
 - **THEN** status is `infeasible`
 
 ### Requirement: Rest and workload rules
-The optimizer SHALL honour night-shift recovery days, minimum rest hours, maximum consecutive days, maximum working days per week, employee unavailability, skills and shift availability.
+The optimizer SHALL honour night-shift recovery days, minimum rest hours, maximum consecutive days, maximum working days per week, employee unavailability, skills and shift availability. When a labor-law profile other than `none` is selected it SHALL also apply that profile's rules as hard rules, where a tenant limit and a legal limit differ the stricter wins, and a slot the legal rules leave unfillable SHALL be reported short rather than filled illegally.
 
 #### Scenario: After night shift
 - **WHEN** an employee works a night
 - **THEN** they receive the configured recovery days off
+
+#### Scenario: Legal rule stricter than tenant setting
+- **WHEN** profile is `arbzg_de` and `min_rest_hours` is 9
+- **THEN** 11 hours of rest are enforced
+
+#### Scenario: Legal rule leaves slot short
+- **WHEN** only a legally barred employee could fill a slot
+- **THEN** the slot is named in `message` and not filled
 
 ### Requirement: Period boundaries
 The backend SHALL send the confirmed roster of the 14 days before the period as read-only `history`, which carries recovery, rest and streaks across the start. Blocked slots SHALL NOT make the plan infeasible.
@@ -84,3 +92,14 @@ When the planning period overlaps a `published` or `locked` month, the optimizer
 #### Scenario: Weight off
 - **WHEN** `change_weight` is 0
 - **THEN** the published roster has no influence on the result
+
+### Requirement: Result belongs to the requesting tenant
+A planning result SHALL be stored for the tenant that requested the plan, and that tenant's task SHALL be completed with it, whichever tenant the server is configured with by default. No other tenant SHALL see the task or the result.
+
+#### Scenario: Second tenant plans
+- **WHEN** a tenant other than the server's default tenant requests a plan and the solver answers
+- **THEN** the task is `completed` for that tenant, its result is listed among that tenant's results, and the default tenant sees neither
+
+#### Scenario: Failed run in a second tenant
+- **WHEN** the solver reports an error for such a run
+- **THEN** that tenant's task is `failed` with the message

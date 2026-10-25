@@ -30,6 +30,9 @@ pub struct PlanningTaskResponse {
     pub result_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_message: Option<String>,
+    /// `manual` (a person started the run) or `auto` (the schedule did).
+    #[serde(default)]
+    pub source: String,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
 }
@@ -41,6 +44,7 @@ impl From<PlanningTaskDomain> for PlanningTaskResponse {
             status: t.status,
             result_id: t.result_id,
             error_message: t.error_message,
+            source: t.source,
             created_at: t.created_at,
             updated_at: t.updated_at,
         }
@@ -447,6 +451,7 @@ impl OptimizerService {
         start_date: Option<&str>,
         end_date: Option<&str>,
         constraints: Option<ConstraintTask>,
+        source: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let nats_client = self.state.nats_client.as_ref()
             .ok_or("NATS client not configured")?;
@@ -467,7 +472,7 @@ impl OptimizerService {
         let payload_bytes = serde_json::to_vec(&payload_value)?;
 
         // Store task in DB
-        self.state.planning_task_repo.create_planning_task(tenant_id, task_id, payload_value).await?;
+        self.state.planning_task_repo.create_planning_task(tenant_id, task_id, payload_value, source).await?;
 
         // Publish to NATS JetStream (preferred) or plain NATS
         match self.state.jetstream_status {
@@ -536,7 +541,7 @@ pub fn start_result_subscriber(state: AppState) {
         messaging.destination.name = NATS_RESULTS_SUBJECT,
     )
 )]
-async fn handle_result_message(
+pub async fn handle_result_message(
     state: AppState,
     payload: &[u8],
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -566,25 +571,34 @@ async fn handle_result_message(
     };
     let job_id: Uuid = job_id_str.parse()?;
 
-    // Background jobs have no request/token to resolve a tenant from, so they're
-    // scoped to the server's configured tenant (see TenantContext for the HTTP-side equivalent).
-    let tenant_id = state.default_tenant_id.as_str();
+    // A run belongs to the tenant that asked for it: the task row says which. The
+    // server's default tenant is only the answer for a task that cannot be found
+    // (a legacy message), since a background job has no token to resolve one from.
+    let task = state.planning_task_repo.find_planning_task(job_id).await?;
+    let tenant_id = task.as_ref().map_or(state.default_tenant_id.as_str(), |t| t.tenant_id.as_str());
 
     // Check status field for errors from optimizer
     let opt_status = raw.get("status").and_then(|v| v.as_str()).unwrap_or("unknown");
     if opt_status == "error" || opt_status == "validation_error" {
         let msg = raw.get("message").and_then(|v| v.as_str()).unwrap_or("optimizer error").to_string();
         eprintln!("Optimizer reported error for task {}: {}", job_id, msg);
-        state.planning_task_repo.update_planning_task_error(tenant_id, job_id, msg).await?;
+        state.planning_task_repo.update_planning_task_error(tenant_id, job_id, msg.clone()).await?;
+        if let Some(task) = task.as_ref().filter(|t| t.source == "auto") {
+            crate::services::auto_plan::on_failure(&state, task, &msg).await;
+        }
         return Ok(());
     }
 
     // Deserialize the result, store it, update task
-    let result_dto: TaskResultDto = serde_json::from_value(raw.clone())?;
+    let mut result_dto: TaskResultDto = serde_json::from_value(raw.clone())?;
+    result_dto.source = task.as_ref().map(|t| t.source.clone());
     let result_json = serde_json::to_value(&result_dto)?;
     let stored = state.optimized_shift_result_repo.create_optimized_shift_result(tenant_id, result_json).await?;
     state.planning_task_repo.update_planning_task_done(tenant_id, job_id, stored.id).await?;
     println!("Task {} done — result stored as {}", job_id, stored.id);
+    if let Some(task) = task.as_ref().filter(|t| t.source == "auto") {
+        crate::services::auto_plan::on_result(&state, task, &result_dto).await;
+    }
 
     Ok(())
 }
@@ -595,7 +609,7 @@ async fn handle_result_message(
 /// settings, letting a per-request `monthly_hours_target_weight` override the
 /// stored value. Falls back to the optimizer's own built-in defaults (an empty
 /// `ConstraintTask`) if the settings can't be loaded.
-async fn build_constraints(
+pub(crate) async fn build_constraints(
     state: &AppState,
     tenant_id: &str,
     monthly_hours_target_weight_override: Option<u64>,
@@ -669,6 +683,7 @@ pub async fn trigger_plan(
         start_date.as_deref(),
         end_date.as_deref(),
         constraints,
+        "manual",
     ).await {
         let msg = e.to_string();
         eprintln!("Failed to schedule task {}: {}", task_id, msg);
@@ -811,6 +826,73 @@ pub struct TakeAsPlanResponse {
     pub dry_run: bool,
 }
 
+/// What a plan becomes in the confirmed roster: one entry per planned employee-day.
+pub struct PlanEntries {
+    /// The employees the plan covers (the ones whose period is replaced).
+    pub employee_ids: Vec<Uuid>,
+    /// An `assigned` day is a shift entry, a `free` day a free entry; both `automated`.
+    pub entries: Vec<ConfirmedShiftPlan>,
+    /// Assignments that fall on a closed or deactivated workstation, in words.
+    pub closed: Vec<String>,
+}
+
+/// Turns a plan into roster entries. Shared by *Take as Plan* and the automatic
+/// planner, so both confirm exactly the same thing. `closed_reason` says why a
+/// workstation is closed on a day (`None` = open).
+pub fn entries_from_plan(
+    plans: &[crate::models::EmployeeDailyPlan],
+    closed_reason: impl Fn(Uuid, NaiveDate) -> Option<String>,
+    now: chrono::NaiveDateTime,
+) -> PlanEntries {
+    let mut out = PlanEntries { employee_ids: Vec::new(), entries: Vec::new(), closed: Vec::new() };
+
+    for ep in plans {
+        let Ok(employee_id) = ep.employee_id.parse::<Uuid>() else { continue };
+        out.employee_ids.push(employee_id);
+
+        for entry in &ep.daily_plan {
+            let Ok(date) = NaiveDate::parse_from_str(&entry.date, "%Y-%m-%d") else { continue };
+            match entry.status.as_str() {
+                "assigned" => {
+                    let Some(shift_id) = entry.shift_id.as_ref().and_then(|s| s.parse::<Uuid>().ok()) else { continue };
+                    let workstation_id = entry.workstation_id.as_ref().and_then(|s| s.parse::<Uuid>().ok());
+                    if let Some(reason) = workstation_id.and_then(|ws| closed_reason(ws, date)) {
+                        out.closed.push(format!("{} on {date} ({reason})", ep.employee_name));
+                    }
+                    out.entries.push(ConfirmedShiftPlan {
+                        id: Uuid::new_v4(),
+                        employee_id,
+                        shift_id: Some(shift_id),
+                        workstation_id,
+                        date,
+                        is_present: true,
+                        absence_type: None,
+                        creation_type: "automated".to_string(),
+                        created_at: now,
+                        updated_at: now,
+                    });
+                }
+                "free" => {
+                    out.entries.push(ConfirmedShiftPlan {
+                        id: Uuid::new_v4(),
+                        employee_id,
+                        shift_id: None,
+                        workstation_id: None,
+                        date,
+                        is_present: false,
+                        absence_type: Some("free".to_string()),
+                        creation_type: "automated".to_string(),
+                        created_at: now,
+                        updated_at: now,
+                    });
+                }
+                _ => {}
+            }
+        }
+    }
+    out
+}
+
 /// POST /planner/optimized-shifts/:result_id/take-as-plan
 /// Overwrites the confirmed shift plans for the result's planning period (optionally
 /// scoped to a subset of employees) with the assignments/free days from this optimized
@@ -846,58 +928,11 @@ pub async fn take_as_plan(
     let to_date = NaiveDate::parse_from_str(&result.planning_period.end_date, "%Y-%m-%d")
         .map_err(|_| AppError::Internal)?;
 
-    let now = Utc::now().naive_utc();
-    let mut employee_ids: Vec<Uuid> = Vec::new();
-    let mut new_plans: Vec<ConfirmedShiftPlan> = Vec::new();
     // A proposal solved before a workstation was closed or deactivated can
     // still staff it; confirming that would put people where nobody may work.
     let closures = WorkstationClosures::load(&state, &tenant.0).await?;
-    let mut closed: Vec<String> = Vec::new();
-
-    for ep in &plans {
-        let Ok(employee_id) = ep.employee_id.parse::<Uuid>() else { continue };
-        employee_ids.push(employee_id);
-
-        for entry in &ep.daily_plan {
-            let Ok(date) = NaiveDate::parse_from_str(&entry.date, "%Y-%m-%d") else { continue };
-            match entry.status.as_str() {
-                "assigned" => {
-                    let Some(shift_id) = entry.shift_id.as_ref().and_then(|s| s.parse::<Uuid>().ok()) else { continue };
-                    let workstation_id = entry.workstation_id.as_ref().and_then(|s| s.parse::<Uuid>().ok());
-                    if let Some(reason) = workstation_id.and_then(|ws| closures.closed_reason(ws, date)) {
-                        closed.push(format!("{} on {date} ({reason})", ep.employee_name));
-                    }
-                    new_plans.push(ConfirmedShiftPlan {
-                        id: Uuid::new_v4(),
-                        employee_id,
-                        shift_id: Some(shift_id),
-                        workstation_id,
-                        date,
-                        is_present: true,
-                        absence_type: None,
-                        creation_type: "automated".to_string(),
-                        created_at: now,
-                        updated_at: now,
-                    });
-                }
-                "free" => {
-                    new_plans.push(ConfirmedShiftPlan {
-                        id: Uuid::new_v4(),
-                        employee_id,
-                        shift_id: None,
-                        workstation_id: None,
-                        date,
-                        is_present: false,
-                        absence_type: Some("free".to_string()),
-                        creation_type: "automated".to_string(),
-                        created_at: now,
-                        updated_at: now,
-                    });
-                }
-                _ => {}
-            }
-        }
-    }
+    let PlanEntries { employee_ids, entries: new_plans, closed } =
+        entries_from_plan(&plans, |ws, date| closures.closed_reason(ws, date), Utc::now().naive_utc());
 
     if !closed.is_empty() {
         let shown = closed.iter().take(3).cloned().collect::<Vec<_>>().join("; ");
@@ -1075,5 +1110,49 @@ mod tests {
     #[test]
     fn shift_without_weekday_times_is_not_a_night_shift() {
         assert!(!OptimizerService::is_night_shift(&shift_with(&[])));
+    }
+
+    // ── entries_from_plan ───────────────────────────────────────────────────
+
+    fn plan_of(employee: Uuid, shift: Uuid, workstation: Uuid) -> Vec<crate::models::EmployeeDailyPlan> {
+        serde_json::from_value(serde_json::json!([{
+            "employee_id": employee.to_string(),
+            "employee_name": "Anna Berg",
+            "daily_plan": [
+                { "date": "2026-11-02", "status": "assigned", "shift_id": shift.to_string(), "workstation_id": workstation.to_string() },
+                { "date": "2026-11-03", "status": "free" },
+                { "date": "2026-11-04", "status": "assigned" },
+                { "date": "not a date", "status": "free" },
+                { "date": "2026-11-05", "status": "something-else" },
+            ],
+        }]))
+        .unwrap()
+    }
+
+    #[test]
+    fn a_plan_becomes_one_automated_entry_per_assigned_or_free_day() {
+        let (employee, shift, workstation) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let now = chrono::Utc::now().naive_utc();
+        let out = entries_from_plan(&plan_of(employee, shift, workstation), |_, _| None, now);
+
+        assert_eq!(out.employee_ids, vec![employee]);
+        assert!(out.closed.is_empty());
+        assert_eq!(out.entries.len(), 2, "an assignment without a shift, a bad date and an unknown status are skipped");
+        let (assigned, free) = (&out.entries[0], &out.entries[1]);
+        assert_eq!((assigned.shift_id, assigned.workstation_id, assigned.is_present), (Some(shift), Some(workstation), true));
+        assert_eq!((free.shift_id, free.absence_type.as_deref(), free.is_present), (None, Some("free"), false));
+        assert!(out.entries.iter().all(|e| e.creation_type == "automated" && e.employee_id == employee));
+    }
+
+    #[test]
+    fn an_assignment_on_a_closed_workstation_is_reported_with_the_person_and_day() {
+        let (employee, shift, workstation) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let out = entries_from_plan(
+            &plan_of(employee, shift, workstation),
+            |ws, date| (ws == workstation && date.to_string() == "2026-11-02").then(|| "ICU is deactivated".to_string()),
+            chrono::Utc::now().naive_utc(),
+        );
+        assert_eq!(out.closed, vec!["Anna Berg on 2026-11-02 (ICU is deactivated)".to_string()]);
+        assert_eq!(out.entries.len(), 2, "the entries are still built; the caller decides what a closure means");
     }
 }

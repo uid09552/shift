@@ -28,9 +28,9 @@ import { PatternIssue, checkPattern, formatSequence, parseSequence } from './rot
   template: `
     <app-page-breadcrumb pageTitle="nav.rotations" />
 
-    <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+    <div class="flex flex-col gap-6">
       <!-- Patterns -->
-      <section class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] xl:col-span-1" data-testid="rotation-patterns">
+      <section class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]" data-testid="rotation-patterns">
         <div class="flex items-start justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-white/[0.05]">
           <div>
             <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'rotations.patterns' | t }}</h3>
@@ -46,7 +46,7 @@ import { PatternIssue, checkPattern, formatSequence, parseSequence } from './rot
 
         @if (editing) {
           <!-- Editor -->
-          <div class="space-y-4 px-5 py-4" data-testid="rotation-editor">
+          <div class="max-w-3xl space-y-4 px-5 py-4" data-testid="rotation-editor">
             <label class="block text-sm">
               <span class="mb-1 block font-medium text-gray-700 dark:text-gray-300">{{ 'common.name' | t }}</span>
               <input type="text" [(ngModel)]="editName" [placeholder]="'rotations.namePlaceholder' | t" data-testid="rotation-name"
@@ -104,10 +104,10 @@ import { PatternIssue, checkPattern, formatSequence, parseSequence } from './rot
         } @else if (!patterns.length) {
           <p class="px-5 py-10 text-center text-sm text-gray-400 dark:text-gray-500">{{ 'rotations.noPatterns' | t }}</p>
         } @else {
-          <ul class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+          <ul class="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
             @for (p of patterns; track p.id) {
               <li
-                class="cursor-pointer px-5 py-3 transition-colors"
+                class="cursor-pointer rounded-xl border border-gray-100 px-4 py-3 transition-colors dark:border-white/[0.05]"
                 [ngClass]="selected?.id === p.id ? 'bg-brand-50/60 dark:bg-brand-500/10' : 'hover:bg-gray-50 dark:hover:bg-white/[0.02]'"
                 (click)="selectPattern(p)"
                 [attr.data-testid]="'rotation-pattern-' + p.name"
@@ -131,7 +131,7 @@ import { PatternIssue, checkPattern, formatSequence, parseSequence } from './rot
       </section>
 
       <!-- Apply -->
-      <section class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] xl:col-span-2" data-testid="rotation-apply">
+      <section class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]" data-testid="rotation-apply">
         <div class="border-b border-gray-100 px-5 py-4 dark:border-white/[0.05]">
           <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
             {{ selected ? ('rotations.applyTitle' | t: { name: selected.name }) : ('rotations.applyTitleEmpty' | t) }}
@@ -152,7 +152,7 @@ import { PatternIssue, checkPattern, formatSequence, parseSequence } from './rot
               </div>
               <input type="search" [(ngModel)]="peopleFilter" [placeholder]="'rotations.searchPeople' | t"
                 class="mb-2 w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200" />
-              <div class="max-h-56 overflow-y-auto rounded-lg border border-gray-200 p-1 dark:border-gray-700">
+              <div class="max-h-[40vh] overflow-y-auto rounded-lg border border-gray-200 p-1 dark:border-gray-700">
                 @for (e of filteredEmployees; track e.id) {
                   <label class="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-gray-50 dark:hover:bg-white/[0.03]">
                     <input type="checkbox" [checked]="pickedIds.has(e.id)" (change)="togglePerson(e.id)"

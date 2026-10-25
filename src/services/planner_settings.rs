@@ -5,6 +5,8 @@ use crate::errors::AppError;
 use crate::repository::domain::{MinStaffingMode, PlannerSettingsDomain, PlannerSettingsRepository, UpdatePlannerSettings};
 use crate::repository::AppState;
 use crate::services::audit_log::{self, AuditActor};
+use crate::services::auto_plan;
+use chrono::Local;
 use crate::services::tenant::TenantContext;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -54,10 +56,33 @@ pub struct PlannerSettingsResponse {
     pub labor_law_profile: String,
     /// Reference period of the 48 h weekly average, in weeks (24).
     pub labor_law_averaging_weeks: i16,
+    /// The use case picked on the settings page (`balanced`, `fairness`, …), or null.
+    /// A label: the optimizer never sees it.
+    pub use_case: Option<String>,
+    /// Automatic planning: on or off (off by default).
+    pub auto_plan_enabled: bool,
+    /// Runs every this many weeks (1–12), counted from `auto_plan_start_date`.
+    pub auto_plan_every_weeks: i16,
+    /// 0 = Monday … 6 = Sunday.
+    pub auto_plan_weekday: i16,
+    /// Server local time of the run, `HH:MM`.
+    pub auto_plan_time: String,
+    pub auto_plan_start_date: Option<chrono::NaiveDate>,
+    /// `weeks` (2, 4, 6, 8, 12) or `months` (1, 2, 3).
+    pub auto_plan_range_unit: String,
+    pub auto_plan_range_count: i16,
+    /// Read-only: when the schedule runs next (server local time), or null.
+    pub auto_plan_next_run: Option<chrono::NaiveDateTime>,
+    /// Read-only, written by the job: the run day last started and what came of it.
+    pub auto_plan_last_run_on: Option<chrono::NaiveDate>,
+    pub auto_plan_last_outcome: Option<String>,
+    pub auto_plan_last_note: Option<String>,
+    pub auto_plan_last_task_id: Option<uuid::Uuid>,
 }
 
 impl From<PlannerSettingsDomain> for PlannerSettingsResponse {
     fn from(s: PlannerSettingsDomain) -> Self {
+        let auto_plan_next_run = auto_plan::next_run(&s, Local::now().naive_local(), s.auto_plan_armed_at);
         Self {
             night_shift_recovery_days: s.night_shift_recovery_days,
             min_rest_hours: s.min_rest_hours,
@@ -92,6 +117,19 @@ impl From<PlannerSettingsDomain> for PlannerSettingsResponse {
             change_weight: s.change_weight,
             labor_law_profile: s.labor_law_profile,
             labor_law_averaging_weeks: s.labor_law_averaging_weeks,
+            auto_plan_next_run,
+            use_case: s.use_case,
+            auto_plan_enabled: s.auto_plan_enabled,
+            auto_plan_every_weeks: s.auto_plan_every_weeks,
+            auto_plan_weekday: s.auto_plan_weekday,
+            auto_plan_time: s.auto_plan_time.format("%H:%M").to_string(),
+            auto_plan_start_date: s.auto_plan_start_date,
+            auto_plan_range_unit: s.auto_plan_range_unit,
+            auto_plan_range_count: s.auto_plan_range_count,
+            auto_plan_last_run_on: s.auto_plan_last_run_on,
+            auto_plan_last_outcome: s.auto_plan_last_outcome,
+            auto_plan_last_note: s.auto_plan_last_note,
+            auto_plan_last_task_id: s.auto_plan_last_task_id,
         }
     }
 }
@@ -145,6 +183,106 @@ pub struct UpdatePlannerSettingsRequest {
     pub labor_law_profile: String,
     #[serde(default = "default_labor_law_averaging_weeks")]
     pub labor_law_averaging_weeks: i16,
+    /// Omitted keeps the stored use case, `null` clears it, a string sets it.
+    #[serde(default, deserialize_with = "keep_clear_or_set")]
+    pub use_case: Option<Option<String>>,
+    /// The schedule fields below are all optional: absent keeps what is stored.
+    /// The status fields (`auto_plan_last_*`, `auto_plan_next_run`) are ignored.
+    #[serde(default)]
+    pub auto_plan_enabled: Option<bool>,
+    #[serde(default)]
+    pub auto_plan_every_weeks: Option<i16>,
+    #[serde(default)]
+    pub auto_plan_weekday: Option<i16>,
+    #[serde(default)]
+    pub auto_plan_time: Option<String>,
+    /// `YYYY-MM-DD`; omitted keeps, `null` clears.
+    #[serde(default, deserialize_with = "keep_clear_or_set")]
+    pub auto_plan_start_date: Option<Option<String>>,
+    #[serde(default)]
+    pub auto_plan_range_unit: Option<String>,
+    #[serde(default)]
+    pub auto_plan_range_count: Option<i16>,
+}
+
+/// The schedule after a request: what was sent over what is stored.
+struct Schedule {
+    enabled: bool,
+    every_weeks: i16,
+    weekday: i16,
+    time: chrono::NaiveTime,
+    start_date: Option<chrono::NaiveDate>,
+    range_unit: String,
+    range_count: i16,
+}
+
+/// The eight ranges a planner may pick.
+fn range_offered(unit: &str, count: i16) -> bool {
+    match unit {
+        "weeks" => matches!(count, 2 | 4 | 6 | 8 | 12),
+        "months" => matches!(count, 1..=3),
+        _ => false,
+    }
+}
+
+fn merge_schedule(current: &PlannerSettingsDomain, body: &UpdatePlannerSettingsRequest) -> Result<Schedule, AppError> {
+    let time = match &body.auto_plan_time {
+        None => current.auto_plan_time,
+        Some(text) => chrono::NaiveTime::parse_from_str(text, "%H:%M")
+            .map_err(|_| AppError::Validation("auto_plan_time must be a time as HH:MM".into()))?,
+    };
+    let start_date = match &body.auto_plan_start_date {
+        None => current.auto_plan_start_date,
+        Some(None) => None,
+        Some(Some(text)) => Some(
+            chrono::NaiveDate::parse_from_str(text, "%Y-%m-%d")
+                .map_err(|_| AppError::Validation("auto_plan_start_date must be a date as YYYY-MM-DD".into()))?,
+        ),
+    };
+    let schedule = Schedule {
+        enabled: body.auto_plan_enabled.unwrap_or(current.auto_plan_enabled),
+        every_weeks: body.auto_plan_every_weeks.unwrap_or(current.auto_plan_every_weeks),
+        weekday: body.auto_plan_weekday.unwrap_or(current.auto_plan_weekday),
+        time,
+        start_date,
+        range_unit: body.auto_plan_range_unit.clone().unwrap_or_else(|| current.auto_plan_range_unit.clone()),
+        range_count: body.auto_plan_range_count.unwrap_or(current.auto_plan_range_count),
+    };
+    if !(1..=12).contains(&schedule.every_weeks) {
+        return Err(AppError::Validation("auto_plan_every_weeks must be between 1 and 12".into()));
+    }
+    if !(0..=6).contains(&schedule.weekday) {
+        return Err(AppError::Validation("auto_plan_weekday must be between 0 (Monday) and 6 (Sunday)".into()));
+    }
+    if !range_offered(&schedule.range_unit, schedule.range_count) {
+        return Err(AppError::Validation(
+            "auto_plan_range must be 2, 4, 6, 8 or 12 weeks, or 1, 2 or 3 months".into(),
+        ));
+    }
+    if schedule.enabled && schedule.start_date.is_none() {
+        return Err(AppError::Validation("auto_plan_start_date is required while automatic planning is on".into()));
+    }
+    Ok(schedule)
+}
+
+/// Tells an absent field (`None`: keep) from an explicit `null` (`Some(None)`: clear).
+/// A value that is not text becomes an empty id, which `validate` refuses with the
+/// same 400 as any other bad id, instead of the framework's 422.
+fn keep_clear_or_set<'de, D>(deserializer: D) -> Result<Option<Option<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(Some(match <serde_json::Value as Deserialize>::deserialize(deserializer)? {
+        serde_json::Value::Null => None,
+        serde_json::Value::String(id) => Some(id),
+        _ => Some(String::new()),
+    }))
+}
+
+/// A use case is a short slug: the page's templates are constants in the UI, so
+/// the server stores the label without knowing the set.
+fn valid_use_case(id: &str) -> bool {
+    (1..=40).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
 }
 
 fn default_labor_law_profile() -> String { "none".to_string() }
@@ -185,6 +323,8 @@ impl PlannerSettingsService {
         Json(body): Json<UpdatePlannerSettingsRequest>,
     ) -> Result<Json<PlannerSettingsResponse>, AppError> {
         validate(&body)?;
+        let current = state.planner_settings_repo.get_or_create_planner_settings(&tenant.0).await?;
+        let schedule = merge_schedule(&current, &body)?;
 
         let update = UpdatePlannerSettings {
             night_shift_recovery_days: body.night_shift_recovery_days,
@@ -217,6 +357,14 @@ impl PlannerSettingsService {
             change_weight: body.change_weight,
             labor_law_profile: body.labor_law_profile,
             labor_law_averaging_weeks: body.labor_law_averaging_weeks,
+            use_case: body.use_case.clone(),
+            auto_plan_enabled: schedule.enabled,
+            auto_plan_every_weeks: schedule.every_weeks,
+            auto_plan_weekday: schedule.weekday,
+            auto_plan_time: schedule.time,
+            auto_plan_start_date: schedule.start_date,
+            auto_plan_range_unit: schedule.range_unit,
+            auto_plan_range_count: schedule.range_count,
         };
 
         let settings = state.planner_settings_repo.update_planner_settings(&tenant.0, update).await?;
@@ -303,6 +451,13 @@ fn validate(body: &UpdatePlannerSettingsRequest) -> Result<(), AppError> {
     }
     if !matches!(body.labor_law_profile.as_str(), "none" | "arbzg_de") {
         return Err(AppError::Validation("labor_law_profile must be 'none' or 'arbzg_de'".into()));
+    }
+    if let Some(Some(use_case)) = &body.use_case {
+        if !valid_use_case(use_case) {
+            return Err(AppError::Validation(
+                "use_case must be 1 to 40 lowercase letters, digits, hyphens or underscores".into(),
+            ));
+        }
     }
     if !(1..=52).contains(&body.labor_law_averaging_weeks) {
         return Err(AppError::Validation("labor_law_averaging_weeks must be between 1 and 52".into()));

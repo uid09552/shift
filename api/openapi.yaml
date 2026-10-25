@@ -2050,7 +2050,8 @@ paths:
       tags:
         - Planner
       summary: Update planner algorithm settings
-      description: Replaces the current tenant's optimizer settings. These are merged into every subsequent /planner/plan and /planner/prepare request as the default constraint configuration.
+      description: Replaces the current tenant's optimizer settings. These are merged into every subsequent /planner/plan and /planner/prepare request as the default constraint configuration
+        The selected `use_case` is a label stored with them; it is the one field that an omitted value leaves unchanged (see the schema).
       operationId: updatePlannerSettings
       requestBody:
         required: true
@@ -3882,6 +3883,12 @@ components:
           type: string
           nullable: true
           description: Error details (present when status is "error")
+        source:
+          type: string
+          enum: [manual, auto]
+          description: |
+            How the run was started: `manual` (a planner) or `auto` (the automatic
+            planning schedule).
         created_at:
           type: string
           format: date-time
@@ -4086,6 +4093,77 @@ components:
           maximum: 52
           description: Reference period, in weeks, of the 48 h weekly average (ArbZG §3).
           example: 24
+        use_case:
+          type: string
+          nullable: true
+          pattern: '^[a-z0-9_-]{1,40}$'
+          description: |
+            The use case picked on the planner settings page (`balanced`, `fairness`,
+            `wishes`, `coverage`, `stability`, `wellbeing`, …), or null when none is
+            chosen. A label that records which template filled in the values: the
+            optimizer never sees it, and the server does not check that the values
+            match the template. The set of ids is defined by the UI.
+          example: fairness
+        auto_plan_enabled:
+          type: boolean
+          description: Automatic planning is on. Off by default.
+        auto_plan_every_weeks:
+          type: integer
+          minimum: 1
+          maximum: 12
+          description: The schedule runs every this many weeks, counted from `auto_plan_start_date`.
+        auto_plan_weekday:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: Run day, 0 = Monday … 6 = Sunday.
+        auto_plan_time:
+          type: string
+          pattern: '^[0-2][0-9]:[0-5][0-9]$'
+          example: '02:00'
+          description: Time of the run, `HH:MM`, in the server's local time.
+        auto_plan_start_date:
+          type: string
+          format: date
+          nullable: true
+          description: Anchors the cycle. Required while automatic planning is on.
+        auto_plan_range_unit:
+          type: string
+          enum: [weeks, months]
+        auto_plan_range_count:
+          type: integer
+          description: |
+            How far ahead a run plans. With `weeks`: 2, 4, 6, 8 or 12. With `months`:
+            1, 2 or 3 (calendar months, clamped to the month's end).
+        auto_plan_next_run:
+          type: string
+          format: date-time
+          nullable: true
+          readOnly: true
+          description: When the schedule runs next (server local time), or null while it is off.
+        auto_plan_last_run_on:
+          type: string
+          format: date
+          nullable: true
+          readOnly: true
+          description: The run day the job last started. Written only by the job.
+        auto_plan_last_outcome:
+          type: string
+          nullable: true
+          readOnly: true
+          enum: [running, taken_over, kept_as_proposal, skipped, failed]
+          description: What the last run did. Written only by the job.
+        auto_plan_last_note:
+          type: string
+          nullable: true
+          readOnly: true
+          description: The reason for the outcome, in words.
+        auto_plan_last_task_id:
+          type: string
+          format: uuid
+          nullable: true
+          readOnly: true
+          description: The planning run, to find it in the Scheduler's Runs tab.
         skill_downgrade_weight:
           type: integer
           minimum: 0
@@ -4229,6 +4307,51 @@ components:
           minimum: 1
           maximum: 52
           default: 24
+        use_case:
+          type: string
+          nullable: true
+          pattern: '^[a-z0-9_-]{1,40}$'
+          description: |
+            The selected use case. Omitted: the stored one is kept. `null`: it is
+            cleared (custom settings). A string: it is stored, in the same request
+            and transaction as the values. Anything that is not 1 to 40 lowercase
+            letters, digits, hyphens or underscores is refused with 400 and nothing
+            is saved.
+        auto_plan_enabled:
+          type: boolean
+          description: |
+            Omitted keeps the stored value. Switching on requires a start date. All
+            `auto_plan_*` schedule fields are optional, so a client that does not know
+            them keeps the stored schedule; the read-only status fields of the response
+            (`auto_plan_next_run`, `auto_plan_last_*`) are ignored here. An invalid
+            schedule is a 400 and nothing is saved. Switching on or changing the schedule
+            means a run day whose time has already passed does not run.
+        auto_plan_every_weeks:
+          type: integer
+          minimum: 1
+          maximum: 12
+          description: Omitted keeps the stored value.
+        auto_plan_weekday:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: 0 = Monday … 6 = Sunday. Omitted keeps the stored value.
+        auto_plan_time:
+          type: string
+          example: '02:00'
+          description: '`HH:MM`, server local time. Omitted keeps the stored value.'
+        auto_plan_start_date:
+          type: string
+          format: date
+          nullable: true
+          description: Omitted keeps the stored date, `null` clears it (refused while automatic planning is on).
+        auto_plan_range_unit:
+          type: string
+          enum: [weeks, months]
+          description: Omitted keeps the stored value. With the count it must be one of the eight offered ranges.
+        auto_plan_range_count:
+          type: integer
+          description: Weeks 2, 4, 6, 8 or 12; months 1, 2 or 3. Omitted keeps the stored value.
         skill_downgrade_weight:
           type: integer
           minimum: 0
@@ -6241,6 +6364,12 @@ components:
           nullable: true
           description: Optional message from the optimizer
           example: null
+        source:
+          type: string
+          enum: [manual, auto]
+          description: |
+            How the run was started: `manual` or `auto`. Set by the backend when it
+            stores the result; absent on results stored before automatic planning.
 
     EmployeeDailyPlan:
       type: object

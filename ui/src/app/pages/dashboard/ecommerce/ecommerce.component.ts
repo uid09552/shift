@@ -69,6 +69,8 @@ export class EcommerceComponent implements OnInit {
     'capability.update': 'Capability updated',
     'capability.delete': 'Capability deleted',
     'planner.optimize': 'Optimization run started',
+    'planner.auto_run': 'Automatic planning run started',
+    'planner.auto_result': 'Automatic planning run finished',
     'planner.take_as_plan': 'Optimizer result applied as plan',
     'planner_settings.update': 'Planner settings updated',
   };

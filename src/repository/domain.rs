@@ -419,6 +419,21 @@ pub trait ConfirmedShiftPlanRepository {
         new_plans: &[ConfirmedShiftPlan],
         today: NaiveDate,
     ) -> Result<usize, AppError>;
+    /// The automatic planner's write: deletes only the `automated` entries of these
+    /// employees in the window and inserts the plan's entries where nothing is
+    /// left, so a day a person has filled in stays as it is. Guarded like every
+    /// roster write; returns how many entries it inserted.
+    async fn apply_automated_plan(
+        &self,
+        tenant_id: &str,
+        employee_ids: &[Uuid],
+        from_date: NaiveDate,
+        to_date: NaiveDate,
+        new_plans: Vec<ConfirmedShiftPlan>,
+        ctx: &RosterChangeCtx,
+    ) -> Result<usize, AppError>;
+    /// The latest day with a shift in the confirmed roster; absences and free days do not count.
+    async fn last_planned_day(&self, tenant_id: &str) -> Result<Option<NaiveDate>, AppError>;
     /// Whether a write to these employee-days would be allowed, without writing.
     async fn check_roster_write(&self, tenant_id: &str, ctx: &RosterChangeCtx, cells: &[(Uuid, NaiveDate)]) -> Result<WriteMode, AppError>;
 }
@@ -519,6 +534,9 @@ pub trait OptimizedShiftResultRepository {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PlanningTaskDomain {
     pub id: Uuid,
+    pub tenant_id: String,
+    /// `manual` (a person asked for the run) or `auto` (the schedule did).
+    pub source: String,
     pub status: String,
     pub payload: serde_json::Value,
     pub result_id: Option<Uuid>,
@@ -529,8 +547,12 @@ pub struct PlanningTaskDomain {
 
 #[async_trait]
 pub trait PlanningTaskRepository {
-    async fn create_planning_task(&self, tenant_id: &str, id: Uuid, payload: serde_json::Value) -> Result<PlanningTaskDomain, AppError>;
+    async fn create_planning_task(&self, tenant_id: &str, id: Uuid, payload: serde_json::Value, source: &str) -> Result<PlanningTaskDomain, AppError>;
     async fn get_planning_task(&self, tenant_id: &str, id: Uuid) -> Result<Option<PlanningTaskDomain>, AppError>;
+    /// A task by its id alone, with the tenant it belongs to. Task ids are random
+    /// UUIDs; the solver's answer carries only that id, and this is how it finds
+    /// whose it is.
+    async fn find_planning_task(&self, id: Uuid) -> Result<Option<PlanningTaskDomain>, AppError>;
     async fn list_planning_tasks(&self, tenant_id: &str) -> Result<Vec<PlanningTaskDomain>, AppError>;
     async fn update_planning_task_done(&self, tenant_id: &str, id: Uuid, result_id: Uuid) -> Result<(), AppError>;
     async fn update_planning_task_error(&self, tenant_id: &str, id: Uuid, error_message: String) -> Result<(), AppError>;
@@ -642,6 +664,25 @@ pub struct PlannerSettingsDomain {
     pub labor_law_profile: String,
     /// Reference period, in weeks, of the 48 h average.
     pub labor_law_averaging_weeks: i16,
+    /// The use case picked on the settings page, if any. A label only.
+    pub use_case: Option<String>,
+    pub auto_plan_enabled: bool,
+    pub auto_plan_every_weeks: i16,
+    /// 0 = Monday ... 6 = Sunday.
+    pub auto_plan_weekday: i16,
+    /// Server local time.
+    pub auto_plan_time: NaiveTime,
+    pub auto_plan_start_date: Option<NaiveDate>,
+    /// `weeks` or `months`.
+    pub auto_plan_range_unit: String,
+    pub auto_plan_range_count: i16,
+    /// When the schedule was last switched on or changed.
+    pub auto_plan_armed_at: Option<NaiveDateTime>,
+    pub auto_plan_last_run_on: Option<NaiveDate>,
+    pub auto_plan_last_outcome: Option<String>,
+    pub auto_plan_last_note: Option<String>,
+    pub auto_plan_last_task_id: Option<Uuid>,
+    pub auto_plan_last_started_at: Option<NaiveDateTime>,
 }
 
 /// Whether `min_employees` (per shift/day and per workstation/shift/day) is a
@@ -734,6 +775,16 @@ pub struct UpdatePlannerSettings {
     pub labor_law_profile: String,
     #[serde(default = "default_labor_law_averaging_weeks")]
     pub labor_law_averaging_weeks: i16,
+    /// `None` keeps the stored use case, `Some(None)` clears it, `Some(Some(id))` sets it.
+    #[serde(default)]
+    pub use_case: Option<Option<String>>,
+    pub auto_plan_enabled: bool,
+    pub auto_plan_every_weeks: i16,
+    pub auto_plan_weekday: i16,
+    pub auto_plan_time: NaiveTime,
+    pub auto_plan_start_date: Option<NaiveDate>,
+    pub auto_plan_range_unit: String,
+    pub auto_plan_range_count: i16,
 }
 
 fn default_labor_law_profile() -> String { "none".to_string() }
@@ -761,6 +812,16 @@ pub trait PlannerSettingsRepository {
     /// Returns the tenant's settings, creating a default row on first access.
     async fn get_or_create_planner_settings(&self, tenant_id: &str) -> Result<PlannerSettingsDomain, AppError>;
     async fn update_planner_settings(&self, tenant_id: &str, settings: UpdatePlannerSettings) -> Result<PlannerSettingsDomain, AppError>;
+    /// Every tenant whose automatic planning is switched on, for the job's tick.
+    async fn list_auto_plan_enabled(&self) -> Result<Vec<(String, PlannerSettingsDomain)>, AppError>;
+    /// Claims `day`'s automatic run for the tenant in one conditional update:
+    /// `true` for the one caller whose update touched the row, `false` when the
+    /// day was already claimed (a restart, another instance), or the schedule is off.
+    async fn claim_auto_plan_run(&self, tenant_id: &str, day: NaiveDate, now: NaiveDateTime) -> Result<bool, AppError>;
+    /// Records what the last automatic run did. `task_id` is left as it is when `None`.
+    async fn set_auto_plan_outcome(&self, tenant_id: &str, outcome: &str, note: Option<String>, task_id: Option<Uuid>) -> Result<(), AppError>;
+    /// Fails every run still `running` that started before `cutoff`; the tenants it touched.
+    async fn fail_stale_auto_plan_runs(&self, cutoff: NaiveDateTime) -> Result<Vec<String>, AppError>;
 }
 
 /// Whether — and when — employees may place shift wishes themselves.
@@ -881,6 +942,21 @@ fn days_in_month(year: i32, month: u32) -> u32 {
         .map_or(28, |last| last.day())
 }
 
+/// Whether `date` is a run day of a schedule that repeats every `interval` weeks
+/// on `weekday` (0 = Monday), counted from the week of `start`: the weekday matches,
+/// `date` is not before `start`, and a whole multiple of `interval` weeks lies
+/// between the two weeks. Shared by the wish window and automatic planning, so the
+/// two settings agree on what "every 2nd Monday" means.
+pub fn weekly_occurrence(start: NaiveDate, weekday: i16, interval: i32, date: NaiveDate) -> bool {
+    if date < start {
+        return false;
+    }
+    let interval = i64::from(interval.max(1));
+    let first_monday = start - Duration::days(i64::from(start.weekday().num_days_from_monday()));
+    i64::from(date.weekday().num_days_from_monday()) == i64::from(weekday)
+        && ((date - first_monday).num_days() / 7) % interval == 0
+}
+
 impl WishScheduleDomain {
     fn occurs_on(&self, date: NaiveDate) -> bool {
         let Some(start) = self.start_date else { return false };
@@ -890,11 +966,7 @@ impl WishScheduleDomain {
         let interval = i64::from(self.interval.max(1));
         match self.unit {
             ScheduleUnit::Days => (date - start).num_days() % interval == 0,
-            ScheduleUnit::Weeks => {
-                let first_monday = start - Duration::days(i64::from(start.weekday().num_days_from_monday()));
-                i64::from(date.weekday().num_days_from_monday()) == i64::from(self.weekday)
-                    && ((date - first_monday).num_days() / 7) % interval == 0
-            }
+            ScheduleUnit::Weeks => weekly_occurrence(start, self.weekday, self.interval, date),
             ScheduleUnit::Months => {
                 let months = i64::from((date.year() - start.year()) * 12 + date.month() as i32 - start.month() as i32);
                 let day = u32::try_from(self.day_of_month).unwrap_or(1).min(days_in_month(date.year(), date.month()));

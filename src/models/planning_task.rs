@@ -15,6 +15,8 @@ pub struct PlanningTask {
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
     pub tenant_id: String,
+    /// `manual` (a person asked) or `auto` (the schedule did).
+    pub source: String,
 }
 
 #[derive(Insertable, Debug)]
@@ -24,4 +26,5 @@ pub struct NewPlanningTask {
     pub status: String,
     pub payload: serde_json::Value,
     pub tenant_id: String,
+    pub source: String,
 }

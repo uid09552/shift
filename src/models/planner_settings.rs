@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -46,6 +46,22 @@ pub struct PlannerSettings {
     /// `none` or `arbzg_de`; see `planner/shift_planner/legal.py`.
     pub labor_law_profile: String,
     pub labor_law_averaging_weeks: i16,
+    /// The use case picked on the settings page; a label, never read by the solver.
+    pub use_case: Option<String>,
+    pub auto_plan_enabled: bool,
+    pub auto_plan_every_weeks: i16,
+    /// 0 = Monday ... 6 = Sunday.
+    pub auto_plan_weekday: i16,
+    pub auto_plan_time: NaiveTime,
+    pub auto_plan_start_date: Option<NaiveDate>,
+    pub auto_plan_range_unit: String,
+    pub auto_plan_range_count: i16,
+    pub auto_plan_armed_at: Option<NaiveDateTime>,
+    pub auto_plan_last_run_on: Option<NaiveDate>,
+    pub auto_plan_last_outcome: Option<String>,
+    pub auto_plan_last_note: Option<String>,
+    pub auto_plan_last_task_id: Option<uuid::Uuid>,
+    pub auto_plan_last_started_at: Option<NaiveDateTime>,
 }
 
 #[derive(Insertable, AsChangeset, Debug, Clone)]
@@ -86,6 +102,15 @@ pub struct NewPlannerSettings {
     pub change_weight: i32,
     pub labor_law_profile: String,
     pub labor_law_averaging_weeks: i16,
+    // The schedule a planner sets. The columns the job writes (`auto_plan_last_*`,
+    // `auto_plan_armed_at`) are not here: an upsert must never overwrite them.
+    pub auto_plan_enabled: bool,
+    pub auto_plan_every_weeks: i16,
+    pub auto_plan_weekday: i16,
+    pub auto_plan_time: NaiveTime,
+    pub auto_plan_start_date: Option<NaiveDate>,
+    pub auto_plan_range_unit: String,
+    pub auto_plan_range_count: i16,
 }
 
 impl NewPlannerSettings {
@@ -123,6 +148,13 @@ impl NewPlannerSettings {
             change_weight: 100000,
             labor_law_profile: "none".to_string(),
             labor_law_averaging_weeks: 24,
+            auto_plan_enabled: false,
+            auto_plan_every_weeks: 4,
+            auto_plan_weekday: 0,
+            auto_plan_time: NaiveTime::from_hms_opt(2, 0, 0).expect("02:00"),
+            auto_plan_start_date: None,
+            auto_plan_range_unit: "weeks".to_string(),
+            auto_plan_range_count: 4,
         }
     }
 }

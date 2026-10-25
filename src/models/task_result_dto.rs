@@ -17,6 +17,10 @@ pub struct TaskResultDto {
     /// (`TaskDTO::published_roster`); absent without one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub changes_vs_published: Option<i64>,
+    /// How the run was started: `manual` (a planner) or `auto` (the schedule).
+    /// Set by the backend when it stores the result; absent on older results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

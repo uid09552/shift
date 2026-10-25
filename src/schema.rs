@@ -158,6 +158,7 @@ diesel::table! {
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
         tenant_id -> Varchar,
+        source -> Varchar,
     }
 }
 
@@ -196,6 +197,20 @@ diesel::table! {
         change_weight -> Int4,
         labor_law_profile -> Varchar,
         labor_law_averaging_weeks -> Int2,
+        use_case -> Nullable<Varchar>,
+        auto_plan_enabled -> Bool,
+        auto_plan_every_weeks -> Int2,
+        auto_plan_weekday -> Int2,
+        auto_plan_time -> Time,
+        auto_plan_start_date -> Nullable<Date>,
+        auto_plan_range_unit -> Varchar,
+        auto_plan_range_count -> Int2,
+        auto_plan_armed_at -> Nullable<Timestamp>,
+        auto_plan_last_run_on -> Nullable<Date>,
+        auto_plan_last_outcome -> Nullable<Varchar>,
+        auto_plan_last_note -> Nullable<Text>,
+        auto_plan_last_task_id -> Nullable<Uuid>,
+        auto_plan_last_started_at -> Nullable<Timestamp>,
     }
 }
 

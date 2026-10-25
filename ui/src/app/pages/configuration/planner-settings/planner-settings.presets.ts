@@ -1,4 +1,9 @@
-import type { PlannerSettings, PriorityWeights } from '../../../shared/services/planner-settings.service';
+import type {
+  AutoPlanRangeUnit,
+  AutoPlanStatusField,
+  PlannerSettings,
+  PriorityWeights,
+} from '../../../shared/services/planner-settings.service';
 
 /** Settings the UI exposes as a named strength instead of a raw number. */
 export type WeightField =
@@ -111,6 +116,15 @@ export type PresetValues = Omit<
   | 'change_weight'
   | 'labor_law_profile'
   | 'labor_law_averaging_weeks'
+  | 'use_case'
+  | 'auto_plan_enabled'
+  | 'auto_plan_every_weeks'
+  | 'auto_plan_weekday'
+  | 'auto_plan_time'
+  | 'auto_plan_start_date'
+  | 'auto_plan_range_unit'
+  | 'auto_plan_range_count'
+  | AutoPlanStatusField
 >;
 
 export interface UseCaseTemplate {
@@ -237,3 +251,95 @@ export const USE_CASE_TEMPLATES: readonly UseCaseTemplate[] = [
     }),
   },
 ];
+
+// ── Which use case is selected ─────────────────────────────────────
+
+/** The settings of `values` a form holds differently. The priority weights are one setting, not three. */
+export function differingSettings(values: PresetValues, form: PresetValues): number {
+  let differing = 0;
+  for (const key of Object.keys(values) as (keyof PresetValues)[]) {
+    if (key === 'priority_weights') {
+      const [a, b] = [values.priority_weights, form.priority_weights];
+      if (a.high !== b.high || a.medium !== b.medium || a.low !== b.low) differing++;
+    } else if (values[key] !== form[key]) {
+      differing++;
+    }
+  }
+  return differing;
+}
+
+/** The use case whose values the form holds exactly, if any. */
+export function exactUseCase(
+  form: PresetValues,
+  templates: readonly UseCaseTemplate[] = USE_CASE_TEMPLATES,
+): UseCaseTemplate | null {
+  return templates.find((template) => differingSettings(template.values, form) === 0) ?? null;
+}
+
+export interface SelectedUseCase {
+  /** The selected use case, or none: custom settings. */
+  template: UseCaseTemplate | null;
+  /** How many of its settings the form holds differently; 0 when none or exactly matching. */
+  changed: number;
+}
+
+/**
+ * What the page shows as selected. A stored id the page knows wins, however far
+ * the values have since been fine-tuned. A stored id it does not know is custom.
+ * With nothing stored (a tenant from before the choice was kept) the use case
+ * whose values the form holds exactly counts as selected, if there is one.
+ */
+export function resolveUseCase(
+  stored: string | null,
+  form: PresetValues,
+  templates: readonly UseCaseTemplate[] = USE_CASE_TEMPLATES,
+): SelectedUseCase {
+  if (stored === null) {
+    return { template: exactUseCase(form, templates), changed: 0 };
+  }
+  const template = templates.find((candidate) => candidate.id === stored) ?? null;
+  return { template, changed: template ? differingSettings(template.values, form) : 0 };
+}
+
+// ── Automatic planning ───────────────────────────────────────────────────────
+
+export interface AutoPlanRange {
+  /** `<unit>:<count>`: the value of the dropdown. */
+  value: string;
+  unit: AutoPlanRangeUnit;
+  count: number;
+  labelKey: string;
+}
+
+/** The eight ranges one automatic run can plan ahead, shortest first. */
+export const AUTO_PLAN_RANGES: readonly AutoPlanRange[] = [
+  { value: 'weeks:2', unit: 'weeks', count: 2, labelKey: 'plannerSettings.autoPlan.range.weeks2' },
+  { value: 'weeks:4', unit: 'weeks', count: 4, labelKey: 'plannerSettings.autoPlan.range.weeks4' },
+  { value: 'weeks:6', unit: 'weeks', count: 6, labelKey: 'plannerSettings.autoPlan.range.weeks6' },
+  { value: 'weeks:8', unit: 'weeks', count: 8, labelKey: 'plannerSettings.autoPlan.range.weeks8' },
+  { value: 'weeks:12', unit: 'weeks', count: 12, labelKey: 'plannerSettings.autoPlan.range.weeks12' },
+  { value: 'months:1', unit: 'months', count: 1, labelKey: 'plannerSettings.autoPlan.range.months1' },
+  { value: 'months:2', unit: 'months', count: 2, labelKey: 'plannerSettings.autoPlan.range.months2' },
+  { value: 'months:3', unit: 'months', count: 3, labelKey: 'plannerSettings.autoPlan.range.months3' },
+];
+
+export function rangeValue(unit: AutoPlanRangeUnit, count: number): string {
+  return `${unit}:${count}`;
+}
+
+/** `YYYY-MM-DD` of a local date, without a trip through UTC. */
+export function isoDay(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/**
+ * The first day on or after `from` that falls on `weekday` (0 = Monday … 6 =
+ * Sunday), as `YYYY-MM-DD`: where a schedule starts when it is switched on.
+ */
+export function nextOccurrence(weekday: number, from: Date): string {
+  const mondayBased = (from.getDay() + 6) % 7;
+  const ahead = (weekday - mondayBased + 7) % 7;
+  const day = new Date(from.getFullYear(), from.getMonth(), from.getDate() + ahead);
+  return isoDay(day);
+}

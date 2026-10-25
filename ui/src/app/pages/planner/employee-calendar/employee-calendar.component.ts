@@ -1,9 +1,9 @@
-import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { Component, HostListener, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Observable, forkJoin, of } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { Observable, Subscription, forkJoin, from, of } from 'rxjs';
+import { catchError, concatMap, map, toArray } from 'rxjs/operators';
 import {
   WorkstationUnavailabilityService,
   WorkstationUnavailability,
@@ -11,7 +11,6 @@ import {
 } from '../../../shared/services/workstation-unavailability.service';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
 import { CalendarNavComponent } from '../../../shared/components/ui/calendar-nav/calendar-nav.component';
-import { DateRangePickerComponent, MarkedDay } from '../../../shared/components/ui/date-range-picker/date-range-picker.component';
 import { TabItem, TabsComponent } from '../../../shared/components/ui/tabs/tabs.component';
 import {
   EmployeeService,
@@ -45,6 +44,9 @@ import { ThemeService } from '../../../shared/services/theme.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
 import { HolidayService } from '../../../shared/services/holiday.service';
+import { UserService } from '../../../shared/services/user.service';
+import { ToggleBoxesComponent, ToggleBoxOption } from '../../../shared/components/ui/toggle-boxes/toggle-boxes.component';
+import { NO_SELECTION, Selection, click as selectDay, daysOf, inSelection, isComplete } from './absence-selection';
 import { LoadErrorComponent } from '../../../shared/components/ui/load-error/load-error.component';
 import { ErrorNoticeComponent } from '../../../shared/components/ui/error-notice/error-notice.component';
 import { apiErrorMessage } from '../../../shared/http/api-error';
@@ -54,6 +56,14 @@ interface LeaveEntry {
   date: string;
   type: 'unavailable' | 'day_off' | 'sick';
   source: 'unavailability' | 'plan';
+}
+
+type LeaveType = LeaveEntry['type'];
+
+/** What adding an absence would replace, read for the selected range. */
+interface AbsenceEffect {
+  state: 'loading' | 'ready' | 'failed';
+  plans: ConfirmedShiftPlan[];
 }
 
 interface CalendarDay {
@@ -124,12 +134,9 @@ interface Coworker {
 }
 
 /** The sections of this screen, in tab order. */
-type Section = 'calendar' | 'hours' | 'absences';
+type Section = 'calendar' | 'hours';
 
-const SECTIONS: Section[] = ['calendar', 'hours', 'absences'];
-
-/** Sections that show one month; the absence list is not month-scoped. */
-const MONTH_SCOPED: Section[] = ['calendar', 'hours'];
+const SECTIONS: Section[] = ['calendar', 'hours'];
 
 interface WeeklyHoursSummary {
   weekNumber: number;
@@ -155,11 +162,11 @@ interface ShiftHoursSummary {
     FormsModule,
     PageBreadcrumbComponent,
     CalendarNavComponent,
-    DateRangePickerComponent,
     TabsComponent,
     ModalComponent,
     LoadErrorComponent,
     ErrorNoticeComponent,
+    ToggleBoxesComponent,
     TranslatePipe,
   ],
   templateUrl: './employee-calendar.component.html',
@@ -239,11 +246,20 @@ export class EmployeeCalendarComponent implements OnInit {
   /** Ranges still to come (soonest first) and ranges already over (most recent first). */
   upcomingLeave: LeaveGroup[] = [];
   pastLeave: LeaveGroup[] = [];
-  leaveType: 'unavailable' | 'day_off' | 'sick' = 'unavailable';
-  pickerRange: { start: string; end: string } | null = null;
-  pickerResetKey = 0;
+
+  // ── Recording an absence on the month grid ────────────────────────
+  /** Planners and admins only; the server refuses anyone else regardless. */
+  canRecordAbsence = false;
+  /** The grid is picking days for an absence instead of editing the roster. */
+  absenceMode = false;
+  selection: Selection = NO_SELECTION;
+  /** The day under the pointer while the end of the range is still open. */
+  hoverDay: string | null = null;
+  /** No type is on at first: the types do different things, so none is assumed. */
+  leaveType: LeaveType | null = null;
   leaveProcessing = false;
-  leaveError: string | null = null;
+  effect: AbsenceEffect | null = null;
+  private effectRequest?: Subscription;
 
   // Weekday headers, Monday-first, in the active UI language.
   get DAY_NAMES(): string[] {
@@ -279,6 +295,7 @@ export class EmployeeCalendarComponent implements OnInit {
     private confirmDialog: ConfirmDialogService,
     private themeService: ThemeService,
     private holidayService: HolidayService,
+    private userService: UserService,
   ) {
     const now = new Date();
     this.currentYear = now.getFullYear();
@@ -289,6 +306,7 @@ export class EmployeeCalendarComponent implements OnInit {
   ngOnInit(): void {
     this.loadInitialData();
     this.loadWishSettings();
+    this.userService.canPlan().subscribe((can) => (this.canRecordAbsence = can));
 
     this.route.queryParams.subscribe((params) => {
       const tab = params['tab'];
@@ -341,17 +359,7 @@ export class EmployeeCalendarComponent implements OnInit {
             })
           : null,
       },
-      {
-        id: 'absences',
-        label: this.translations.t('employeeCalendar.tabAbsences'),
-        badge: chosen && this.leaveEntries.length > 0 ? this.leaveEntries.length : null,
-      },
     ];
-  }
-
-  /** Whether the visible section is about the selected month. */
-  get isMonthScoped(): boolean {
-    return MONTH_SCOPED.includes(this.activeTab);
   }
 
   setTab(tab: string): void {
@@ -416,12 +424,11 @@ export class EmployeeCalendarComponent implements OnInit {
   }
 
   onEmployeeChange(): void {
+    this.leaveAbsenceMode();
     this.syncUrl();
     this.leaveEntries = [];
     this.upcomingLeave = [];
     this.pastLeave = [];
-    this.pickerRange = null;
-    this.leaveError = null;
     this.wishes = [];
     this.wishMap.clear();
     this.loadPlansForMonth();
@@ -1029,8 +1036,8 @@ export class EmployeeCalendarComponent implements OnInit {
   }
 
   /** The server's reason when it gives one (a closed workstation, say), else a generic line. */
-  private showSaveError(err: any): void {
-    this.saveError = apiErrorMessage(err, 'schedule.saveFailed', this.translations);
+  private showSaveError(err: any, fallbackKey = 'schedule.saveFailed'): void {
+    this.saveError = apiErrorMessage(err, fallbackKey, this.translations);
   }
 
   // ── Shift wish helpers ───────────────────────────────────────────
@@ -1162,13 +1169,6 @@ export class EmployeeCalendarComponent implements OnInit {
 
   // ── Unified leave & unavailability ───────────────────────────────
 
-  get markedDays(): MarkedDay[] {
-    return this.leaveEntries.map(e => ({
-      date: e.date,
-      type: e.type === 'unavailable' ? 'unavailable' : e.type === 'day_off' ? 'vacation' : 'sick',
-    }));
-  }
-
   // Translation key of a leave entry's type label.
   leaveTypeLabelKey(type: string): string {
     if (type === 'sick') return 'employeeCalendar.leaveSick';
@@ -1193,58 +1193,164 @@ export class EmployeeCalendarComponent implements OnInit {
     }
   }
 
-  applyLeaveRange(): void {
-    if (!this.pickerRange || !this.selectedEmployeeId) return;
+  // ── Absence mode: days picked on the grid, the type in the panel ──
 
-    const dates = this.datesBetween(this.pickerRange.start, this.pickerRange.end);
+  /** The types of absence, as toggle boxes: colour, name, and what each one does. */
+  get absenceTypes(): ToggleBoxOption[] {
+    const t = (key: string) => this.translations.t(key);
+    return [
+      { value: 'unavailable', label: t('employeeCalendar.leaveUnavailable'), hint: t('employeeCalendar.leaveUnavailableHint'), tone: 'amber' },
+      { value: 'day_off', label: t('employeeCalendar.leaveVacation'), hint: t('employeeCalendar.leaveVacationHint'), tone: 'yellow' },
+      { value: 'sick', label: t('employeeCalendar.leaveSick'), hint: t('employeeCalendar.leaveSickHint'), tone: 'red' },
+    ];
+  }
+
+  startAbsenceMode(): void {
+    if (!this.selectedEmployeeId || !this.canRecordAbsence) return;
+    this.editingCell = null;
+    this.deletingCell = null;
+    this.deletingWish = null;
+    this.resetAbsenceMode();
+    this.absenceMode = true;
+  }
+
+  leaveAbsenceMode(): void {
+    this.resetAbsenceMode();
+    this.absenceMode = false;
+  }
+
+  private resetAbsenceMode(): void {
+    this.effectRequest?.unsubscribe();
+    this.effect = null;
+    this.selection = NO_SELECTION;
+    this.hoverDay = null;
+    this.leaveType = null;
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.absenceMode && !this.leaveProcessing) this.leaveAbsenceMode();
+  }
+
+  /** A click on a day while picking: the start, then the end, then a new start. */
+  onAbsenceDay(dateStr: string): void {
+    this.selection = selectDay(this.selection, dateStr);
+    if (isComplete(this.selection)) {
+      this.loadEffect();
+    } else {
+      this.effectRequest?.unsubscribe();
+      this.effect = null;
+    }
+  }
+
+  isDaySelected(dateStr: string): boolean {
+    return inSelection(this.selection, dateStr, this.hoverDay);
+  }
+
+  setLeaveType(value: string): void {
+    this.leaveType = value as LeaveType;
+  }
+
+  get isComplete(): boolean {
+    return isComplete(this.selection);
+  }
+
+  get selectedDays(): string[] {
+    return daysOf(this.selection);
+  }
+
+  /** "Mon, Oct 12 – Fri, Oct 16, 2026" for the selection, in the page's language. */
+  get selectionLabel(): string {
+    const [start, end] = [this.selection.start, this.selection.end];
+    if (!start || !end) return '';
+    return this.leaveGroupLabel({ start, end, days: this.selectedDays.length } as LeaveGroup);
+  }
+
+  /** For Unavailable, the days that already are: adding them again would only duplicate. */
+  get skippedDays(): string[] {
+    if (this.leaveType !== 'unavailable') return [];
+    const already = new Set(this.unavailabilities.map((u) => u.unavailable_date));
+    return this.selectedDays.filter((d) => already.has(d));
+  }
+
+  get daysToAdd(): string[] {
+    const skipped = new Set(this.skippedDays);
+    return this.selectedDays.filter((d) => !skipped.has(d));
+  }
+
+  /**
+   * Entries on the selected days that adding the chosen type replaces: a shift,
+   * or an absence of another type. A plain free day is no entry of a person's,
+   * and an absence of the type being added changes nothing.
+   */
+  get replacedCount(): number {
+    if (!this.effect || this.effect.state !== 'ready' || !this.leaveType) return 0;
+    const skipped = new Set(this.skippedDays);
+    return this.effect.plans.filter((p) =>
+      !skipped.has(p.date) &&
+      (p.is_present || (!!p.absence_type && p.absence_type !== 'free' && p.absence_type !== this.leaveType)),
+    ).length;
+  }
+
+  get canAddAbsence(): boolean {
+    return this.absenceMode && isComplete(this.selection) && !!this.leaveType
+      && this.daysToAdd.length > 0 && !this.leaveProcessing;
+  }
+
+  /** Reads what the whole range holds, which may reach into months the grid does not show. */
+  private loadEffect(): void {
+    const { start, end } = this.selection;
+    if (!start || !end || !this.selectedEmployeeId) return;
+    this.effectRequest?.unsubscribe();
+    this.effect = { state: 'loading', plans: [] };
+    this.effectRequest = this.confirmedShiftPlanService
+      .getEmployeeConfirmedShiftPlans(this.selectedEmployeeId, start, end)
+      .subscribe({
+        next: (plans) => (this.effect = { state: 'ready', plans }),
+        error: () => (this.effect = { state: 'failed', plans: [] }),
+      });
+  }
+
+  /**
+   * Records the chosen type for every selected day, one request each and one
+   * after another, so a reason asked for by a published month is asked once. A
+   * refused day does not stop the others; afterwards the page is reloaded so it
+   * shows exactly what was saved, and on any failure the selection stays.
+   */
+  applyAbsence(): void {
+    if (!this.canAddAbsence || !this.leaveType) return;
+    const type = this.leaveType;
+    const employeeId = this.selectedEmployeeId;
     this.leaveProcessing = true;
-    this.leaveError = null;
+    this.saveError = null;
 
-    const creates: Observable<any>[] = this.leaveType === 'unavailable'
-      ? dates.map(date =>
-          this.unavailabilityService.createUnavailability({
-            employee_id: this.selectedEmployeeId,
-            unavailable_date: date,
-          })
-        )
-      : dates.map(date =>
-          this.confirmedShiftPlanService.createConfirmedShiftPlan(this.selectedEmployeeId, {
+    const create = (date: string): Observable<unknown> =>
+      type === 'unavailable'
+        ? this.unavailabilityService.createUnavailability({ employee_id: employeeId, unavailable_date: date })
+        : this.confirmedShiftPlanService.createConfirmedShiftPlan(employeeId, {
             date,
             is_present: false,
-            absence_type: this.leaveType as 'day_off' | 'sick',
+            absence_type: type,
             creation_type: 'manual',
-          })
-        );
+          });
 
-    forkJoin(creates).subscribe({
-      next: (results: any[]) => {
-        const newEntries: LeaveEntry[] = results.map((r, i) => ({
-          id: r.id,
-          date: dates[i],
-          type: this.leaveType,
-          source: this.leaveType === 'unavailable' ? 'unavailability' : 'plan',
-        }));
-        this.leaveEntries = [...this.leaveEntries, ...newEntries]
-          .sort((a, b) => a.date.localeCompare(b.date));
+    from(this.daysToAdd)
+      .pipe(
+        concatMap((date) => create(date).pipe(map(() => null), catchError((err) => of(err)))),
+        toArray(),
+      )
+      .subscribe((results) => {
+        const failures = results.filter((r) => r !== null);
         this.leaveProcessing = false;
-        this.pickerRange = null;
-        this.pickerResetKey++;
-        // refresh calendar grid (unavailabilities or month plans may have changed)
-        if (this.leaveType === 'unavailable') {
-          this.unavailabilities = [
-            ...this.unavailabilities,
-            ...results.map((r: Unavailability) => r),
-          ].sort((a, b) => a.unavailable_date.localeCompare(b.unavailable_date));
-          this.applyPlansToCalendar();
-        } else {
-          this.loadPlansForMonth();
+        this.loadLeaveEntries();
+        this.loadPlansForMonth();
+        if (failures.length === 0) {
+          this.leaveAbsenceMode();
+          return;
         }
-      },
-      error: () => {
-        this.leaveProcessing = false;
-        this.leaveError = 'employeeCalendar.saveFailed';
-      },
-    });
+        this.showSaveError(failures[0], 'employeeCalendar.saveFailed');
+        this.loadEffect();
+      });
   }
 
   /** Folds the day rows into ranges, split into what is still ahead and what is past. */
@@ -1336,22 +1442,8 @@ export class EmployeeCalendarComponent implements OnInit {
           this.loadPlansForMonth();
         }
       },
-      error: () => { this.leaveError = 'employeeCalendar.deleteFailed'; },
+      error: (err) => this.showSaveError(err, 'employeeCalendar.deleteFailed'),
     });
-  }
-
-  private datesBetween(start: string, end: string): string[] {
-    const dates: string[] = [];
-    const cur = new Date(start + 'T00:00:00');
-    const endDate = new Date(end + 'T00:00:00');
-    while (cur <= endDate) {
-      const y = cur.getFullYear();
-      const m = String(cur.getMonth() + 1).padStart(2, '0');
-      const d = String(cur.getDate()).padStart(2, '0');
-      dates.push(`${y}-${m}-${d}`);
-      cur.setDate(cur.getDate() + 1);
-    }
-    return dates;
   }
 
   // ── Excel export ─────────────────────────────────────────

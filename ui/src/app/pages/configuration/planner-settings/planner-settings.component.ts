@@ -21,9 +21,14 @@ import {
   NIGHT_FATIGUE_OPTIONS,
   PRIORITY_PRESETS,
   SOLVER_EFFORTS,
+  AUTO_PLAN_RANGES,
   USE_CASE_TEMPLATES,
   WEIGHT_SCALES,
-  type PresetValues,
+  exactUseCase,
+  nextOccurrence,
+  rangeValue,
+  resolveUseCase,
+  type SelectedUseCase,
   type SliderField,
   type UseCaseTemplate,
   type WeightField,
@@ -113,14 +118,16 @@ const DEFAULT_BAND: { min: number; max: number } = { min: 30, max: 45 };
               <button
                 type="button"
                 (click)="applyTemplate(template)"
+                [attr.aria-pressed]="selected.template?.id === template.id"
+                [attr.data-testid]="'use-case-' + template.id"
                 class="flex flex-col rounded-xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-brand-500/20"
-                [class]="activeTemplateId === template.id
+                [class]="selected.template?.id === template.id
                   ? 'border-brand-400 bg-brand-50/60 dark:border-brand-500/60 dark:bg-brand-500/10'
                   : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/60 dark:border-gray-800 dark:hover:border-gray-700 dark:hover:bg-white/[0.02]'"
               >
                 <span class="flex w-full items-center justify-between gap-2">
                   <span class="text-sm font-medium text-gray-800 dark:text-white/90">{{ template.labelKey | t }}</span>
-                  @if (activeTemplateId === template.id) {
+                  @if (selected.template?.id === template.id) {
                     <svg class="shrink-0 text-brand-500 dark:text-brand-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
                   }
                 </span>
@@ -131,8 +138,22 @@ const DEFAULT_BAND: { min: number; max: number } = { min: 30, max: 45 };
 
           <!-- Live read of the trade-offs the current values encode -->
           <div class="flex flex-col gap-3 border-t border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <span class="text-xs text-gray-500 dark:text-gray-400">
-              {{ (activeTemplateId ? 'plannerSettings.templateActive' : 'plannerSettings.customActive') | t }}
+            <span class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400" data-testid="use-case-status" aria-live="polite">
+              @if (selected.template; as chosen) {
+                @if (selected.changed === 0) {
+                  <span>{{ 'plannerSettings.useCaseSelected' | t: { name: (chosen.labelKey | t) } }}</span>
+                } @else {
+                  <span>{{ 'plannerSettings.useCaseModified' | t: { name: (chosen.labelKey | t), count: selected.changed } }}</span>
+                }
+                <button
+                  type="button"
+                  (click)="clearUseCase()"
+                  data-testid="use-case-clear"
+                  class="font-medium text-brand-600 underline-offset-2 hover:underline dark:text-brand-400"
+                >{{ 'plannerSettings.useCaseClear' | t }}</button>
+              } @else {
+                <span>{{ 'plannerSettings.customActive' | t }}</span>
+              }
             </span>
             <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
               @for (axis of profile; track axis.labelKey) {
@@ -626,6 +647,136 @@ const DEFAULT_BAND: { min: number; max: number } = { min: 30, max: 45 };
           </div>
         </section>
 
+        <!-- Automatic planning -->
+        <section
+          class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
+          data-testid="auto-plan-section"
+        >
+          <div class="px-5 py-4 sm:px-6">
+            <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'plannerSettings.autoPlan.section' | t }}</h3>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'plannerSettings.autoPlan.sectionSub' | t }}</p>
+          </div>
+          <div class="divide-y divide-gray-100 border-t border-gray-100 dark:divide-white/[0.05] dark:border-white/[0.05]">
+            <app-setting-row
+              [label]="'plannerSettings.autoPlan.enabled.label' | t"
+              [description]="'plannerSettings.autoPlan.enabled.hint' | t"
+              [tooltip]="'plannerSettings.autoPlan.enabled.tooltip' | t"
+            >
+              <button
+                type="button"
+                role="switch"
+                data-testid="auto-plan-enabled"
+                [attr.aria-checked]="form.auto_plan_enabled"
+                [attr.aria-label]="'plannerSettings.autoPlan.enabled.label' | t"
+                (click)="setAutoPlan(!form.auto_plan_enabled)"
+                class="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+              >
+                <span
+                  class="relative block h-6 w-11 rounded-full transition-colors duration-150"
+                  [class]="form.auto_plan_enabled ? 'bg-brand-500' : 'bg-gray-200 dark:bg-white/10'"
+                >
+                  <span
+                    class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-theme-xs transition-transform duration-150"
+                    [class]="form.auto_plan_enabled ? 'translate-x-5' : 'translate-x-0'"
+                  ></span>
+                </span>
+              </button>
+            </app-setting-row>
+
+            <div class="grid gap-4 px-5 py-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-4" [class.opacity-60]="!form.auto_plan_enabled">
+              <label class="block text-sm text-gray-700 dark:text-gray-300">
+                <span class="mb-1.5 block">{{ 'plannerSettings.autoPlan.every' | t }}</span>
+                <select
+                  [(ngModel)]="form.auto_plan_every_weeks"
+                  [disabled]="!form.auto_plan_enabled"
+                  data-testid="auto-plan-every"
+                  [class]="autoPlanInput"
+                >
+                  @for (n of everyWeeksOptions; track n) {
+                    <option [ngValue]="n">{{ 'plannerSettings.autoPlan.everyWeeks' | t: { n: n } }}</option>
+                  }
+                </select>
+              </label>
+              <label class="block text-sm text-gray-700 dark:text-gray-300">
+                <span class="mb-1.5 block">{{ 'plannerSettings.autoPlan.weekday' | t }}</span>
+                <select
+                  [(ngModel)]="form.auto_plan_weekday"
+                  (ngModelChange)="onAutoPlanWeekday()"
+                  [disabled]="!form.auto_plan_enabled"
+                  data-testid="auto-plan-weekday"
+                  [class]="autoPlanInput"
+                >
+                  @for (day of weekdays; track day) {
+                    <option [ngValue]="day">{{ 'common.weekdayShort.' + day | t }}</option>
+                  }
+                </select>
+              </label>
+              <label class="block text-sm text-gray-700 dark:text-gray-300">
+                <span class="mb-1.5 block">{{ 'plannerSettings.autoPlan.time' | t }}</span>
+                <input
+                  type="time"
+                  [(ngModel)]="form.auto_plan_time"
+                  [disabled]="!form.auto_plan_enabled"
+                  data-testid="auto-plan-time"
+                  [class]="autoPlanInput"
+                />
+              </label>
+              <label class="block text-sm text-gray-700 dark:text-gray-300">
+                <span class="mb-1.5 block">{{ 'plannerSettings.autoPlan.startDate' | t }}</span>
+                <input
+                  type="date"
+                  [(ngModel)]="form.auto_plan_start_date"
+                  [disabled]="!form.auto_plan_enabled"
+                  data-testid="auto-plan-start"
+                  [class]="autoPlanInput"
+                />
+              </label>
+              <label class="block text-sm text-gray-700 dark:text-gray-300 sm:col-span-2">
+                <span class="mb-1.5 block">{{ 'plannerSettings.autoPlan.range' | t }}</span>
+                <select
+                  [ngModel]="autoPlanRange"
+                  (ngModelChange)="setAutoPlanRange($event)"
+                  [disabled]="!form.auto_plan_enabled"
+                  data-testid="auto-plan-range"
+                  [class]="autoPlanInput"
+                >
+                  @for (range of autoPlanRanges; track range.value) {
+                    <option [value]="range.value">{{ range.labelKey | t }}</option>
+                  }
+                </select>
+              </label>
+            </div>
+            <p class="px-5 pb-4 text-xs leading-relaxed text-gray-500 dark:text-gray-400 sm:px-6">{{ 'plannerSettings.autoPlan.rule' | t }}</p>
+
+            @if (form.auto_plan_next_run || form.auto_plan_last_outcome) {
+              <div class="space-y-1.5 bg-gray-50 px-5 py-4 text-sm text-gray-700 dark:bg-white/[0.02] dark:text-gray-300 sm:px-6" data-testid="auto-plan-status">
+                @if (form.auto_plan_next_run) {
+                  <p data-testid="auto-plan-next-run">
+                    <span class="font-medium">{{ 'plannerSettings.autoPlan.nextRun' | t }}:</span>
+                    {{ form.auto_plan_next_run | date: 'medium' }}
+                  </p>
+                }
+                @if (form.auto_plan_last_outcome) {
+                  <p data-testid="auto-plan-last-outcome">
+                    <span class="font-medium">{{ 'plannerSettings.autoPlan.lastRun' | t }}:</span>
+                    {{ form.auto_plan_last_run_on | date: 'mediumDate' }} –
+                    {{ 'plannerSettings.autoPlan.outcome.' + form.auto_plan_last_outcome | t }}
+                    @if (form.auto_plan_last_note) {
+                      <span class="text-gray-500 dark:text-gray-400" data-testid="auto-plan-last-note">({{ form.auto_plan_last_note }})</span>
+                    }
+                  </p>
+                  <a
+                    routerLink="/scheduler"
+                    [queryParams]="{ tab: 'runs' }"
+                    class="inline-block text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                    data-testid="auto-plan-open-runs"
+                  >{{ 'plannerSettings.autoPlan.openRuns' | t }}</a>
+                }
+              </div>
+            }
+          </div>
+        </section>
+
         <!-- Solver performance -->
         <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <div class="px-5 py-4 sm:px-6">
@@ -741,13 +892,75 @@ export class PlannerSettingsComponent implements OnInit {
     change_weight: 100000,
     labor_law_profile: 'none',
     labor_law_averaging_weeks: 24,
+    use_case: null,
+    auto_plan_enabled: false,
+    auto_plan_every_weeks: 4,
+    auto_plan_weekday: 0,
+    auto_plan_time: '02:00',
+    auto_plan_start_date: null,
+    auto_plan_range_unit: 'weeks',
+    auto_plan_range_count: 4,
+    auto_plan_next_run: null,
+    auto_plan_last_run_on: null,
+    auto_plan_last_outcome: null,
+    auto_plan_last_note: null,
+    auto_plan_last_task_id: null,
   };
+
+  // ── Automatic planning ────────────────────────────────────────
+
+  readonly weekdays = [0, 1, 2, 3, 4, 5, 6];
+  readonly everyWeeksOptions = Array.from({ length: 12 }, (_, i) => i + 1);
+  readonly autoPlanRanges = AUTO_PLAN_RANGES;
+  readonly autoPlanInput =
+    'h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-800 disabled:cursor-not-allowed disabled:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:disabled:bg-white/[0.03]';
+
+  get autoPlanRange(): string {
+    return rangeValue(this.form.auto_plan_range_unit, this.form.auto_plan_range_count);
+  }
+
+  setAutoPlanRange(value: string): void {
+    const range = AUTO_PLAN_RANGES.find((r) => r.value === value);
+    if (!range) return;
+    this.form.auto_plan_range_unit = range.unit;
+    this.form.auto_plan_range_count = range.count;
+  }
+
+  /** Switching on starts the cycle at the next chosen weekday, unless a start date is already set. */
+  setAutoPlan(on: boolean): void {
+    this.form.auto_plan_enabled = on;
+    if (on && !this.form.auto_plan_start_date) {
+      this.form.auto_plan_start_date = nextOccurrence(this.form.auto_plan_weekday, new Date());
+      this.prefilledStart = this.form.auto_plan_start_date;
+    }
+  }
+
+  /** A start date nobody chose follows the weekday; one the planner set stays. */
+  onAutoPlanWeekday(): void {
+    if (this.form.auto_plan_enabled && this.autoPlanStartPrefilled) {
+      this.form.auto_plan_start_date = nextOccurrence(this.form.auto_plan_weekday, new Date());
+      this.prefilledStart = this.form.auto_plan_start_date;
+    }
+  }
+
+  /** Whether the start date is the one `setAutoPlan` filled in. */
+  private get autoPlanStartPrefilled(): boolean {
+    return this.form.auto_plan_start_date === this.prefilledStart;
+  }
+  private prefilledStart: string | null = null;
+
+  /**
+   * The planner cleared the selection this visit. Only that: what is stored is
+   * what the form carries, but a tenant with none stored would otherwise get an
+   * exactly matching use case derived again straight away.
+   */
+  private selectionCleared = false;
 
   ngOnInit(): void {
     this.loading = true;
     this.plannerSettingsService.getPlannerSettings().subscribe({
       next: (settings) => {
-        this.form = settings;
+        this.adopt(settings);
         this.loading = false;
       },
       error: (err) => {
@@ -760,32 +973,35 @@ export class PlannerSettingsComponent implements OnInit {
 
   // ── Use-case templates ────────────────────────────────────────
 
-  /** The preset whose values the form currently matches, if any. */
-  get activeTemplateId(): string | null {
-    return this.templates.find((template) => this.matches(template.values))?.id ?? null;
+  /**
+   * Takes settings from the server into the form. A tenant with no use case
+   * stored gets the one its values match exactly, so that match is stored the
+   * next time they save; an id this page does not know is kept as it is.
+   */
+  private adopt(settings: PlannerSettings): void {
+    const derived = this.selectionCleared ? null : exactUseCase(settings)?.id ?? null;
+    this.form = { ...settings, use_case: settings.use_case ?? derived };
+  }
+
+  /** What the page shows as selected: the stored use case, however far it has been fine-tuned. */
+  get selected(): SelectedUseCase {
+    return this.selectionCleared ? { template: null, changed: 0 } : resolveUseCase(this.form.use_case, this.form);
   }
 
   applyTemplate(template: UseCaseTemplate): void {
+    this.selectionCleared = false;
     this.form = {
       ...this.form,
       ...template.values,
       priority_weights: { ...template.values.priority_weights },
+      use_case: template.id,
     };
   }
 
-  private matches(values: PresetValues): boolean {
-    for (const key of Object.keys(values) as (keyof PresetValues)[]) {
-      if (key === 'priority_weights') {
-        const preset = values.priority_weights;
-        const current = this.form.priority_weights;
-        if (preset.high !== current.high || preset.medium !== current.medium || preset.low !== current.low) {
-          return false;
-        }
-      } else if (values[key] !== this.form[key]) {
-        return false;
-      }
-    }
-    return true;
+  /** Back to custom settings: the values stay, the label goes. */
+  clearUseCase(): void {
+    this.selectionCleared = true;
+    this.form = { ...this.form, use_case: null };
   }
 
   /** The four trade-offs the current values encode, for the meter strip. */
@@ -1103,12 +1319,21 @@ export class PlannerSettingsComponent implements OnInit {
     this.saving = true;
     this.message = null;
 
-    const { updated_at, ...body } = this.form;
+    // The server computes the status; sending it back would only be ignored.
+    const {
+      updated_at,
+      auto_plan_next_run,
+      auto_plan_last_run_on,
+      auto_plan_last_outcome,
+      auto_plan_last_note,
+      auto_plan_last_task_id,
+      ...body
+    } = this.form;
     const request: UpdatePlannerSettingsRequest = body;
 
     this.plannerSettingsService.updatePlannerSettings(request).subscribe({
       next: (settings) => {
-        this.form = settings;
+        this.adopt(settings);
         this.saving = false;
         this.showMessage('plannerSettings.saved', 'success');
       },
