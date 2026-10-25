@@ -5,3 +5,5 @@ config.local.yaml
 config/config.local.yaml
 # The virtualenv `make install` creates
 .venv/
+# Python bytecode from the helper libraries in resources/libraries
+__pycache__/

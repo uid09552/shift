@@ -77,9 +77,7 @@
       {{ 'common.loading' | t }}
     </div>
   } @else if (error) {
-    <div class="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
-      <p class="text-sm">{{ error | t }}</p>
-    </div>
+    <app-load-error class="py-10" [message]="error | t" (retry)="loadInitialData()" />
   } @else if (!selectedEmployeeId) {
     <div class="flex flex-col items-center justify-center py-20 text-center text-gray-400 dark:text-gray-500">
       <svg class="mb-3 h-8 w-8 text-gray-300 dark:text-gray-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -123,24 +121,16 @@
       }
     </div>
 
-    @if (saveError) {
-      <div
-        class="mx-4 my-3 flex items-start justify-between gap-3 rounded-lg border border-error-200 bg-error-50 px-4 py-2.5 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400"
-        role="alert"
-      >
-        <span>{{ saveError }}</span>
-        <button
-          type="button"
-          (click)="saveError = null"
-          [attr.aria-label]="'common.close' | t"
-          class="shrink-0 opacity-70 transition-opacity hover:opacity-100"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
-      </div>
-    }
+    <app-error-notice class="mx-4 my-3" [message]="saveError" (dismiss)="saveError = null" />
 
     <!-- Calendar weeks -->
+    @if (plansLoadError) {
+      <app-load-error
+        class="rounded-xl border border-gray-200 dark:border-gray-800"
+        [message]="'employeeCalendar.plansLoadFailed' | t"
+        (retry)="loadPlansForMonth()"
+      />
+    } @else {
     <div class="relative">
       @if (loadingPlans) {
         <div
@@ -564,6 +554,7 @@
         </div>
       }
     </div>
+    }
 
     <!-- Legend -->
     <div

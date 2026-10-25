@@ -23,6 +23,7 @@ import { InputFieldComponent } from '../../../shared/components/form/input/input
 import { LabelComponent } from '../../../shared/components/form/label/label.component';
 import { DirtyAware } from '../../../shared/guards/form.guards';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
+import { LoadErrorComponent } from '../../../shared/components/ui/load-error/load-error.component';
 import { TranslationService } from '../../../shared/i18n/translation.service';
 import { datesBetween, formatRange } from './closure-dates';
 
@@ -51,6 +52,7 @@ interface WorkstationForm {
     LabelComponent,
     ButtonComponent,
     DateRangePickerComponent,
+    LoadErrorComponent,
     TranslatePipe,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -193,7 +195,13 @@ interface WorkstationForm {
             </app-button>
           </div>
           <div class="flex-1 space-y-2">
-            @if (workstationUnavailabilities.length === 0) {
+            @if (unavailabilitiesLoadError) {
+              <app-load-error
+                class="rounded border border-gray-200 dark:border-gray-700"
+                [message]="'workstations.closuresLoadFailed' | t"
+                (retry)="loadUnavailabilities()"
+              />
+            } @else if (workstationUnavailabilities.length === 0) {
               <p class="text-sm text-gray-400 dark:text-gray-500">{{ 'workstations.noUnavailability' | t }}</p>
             } @else {
               @for (u of workstationUnavailabilities; track u.id) {
@@ -230,6 +238,8 @@ export class WorkstationFormComponent implements OnInit, DirtyAware {
   allShifts: Shift[] = [];
   allCapabilities: Capability[] = [];
   workstationUnavailabilities: WorkstationUnavailability[] = [];
+  /** Not "no closures": the list could not be loaded. */
+  unavailabilitiesLoadError = false;
   pickerRange: DateRange | null = null;
   pickerResetKey = 0;
 
@@ -390,11 +400,15 @@ export class WorkstationFormComponent implements OnInit, DirtyAware {
     });
   }
 
-  private loadUnavailabilities(): void {
+  loadUnavailabilities(): void {
     if (!this.editingId) return;
+    this.unavailabilitiesLoadError = false;
     this.workstationUnavailabilityService.getUnavailabilities(this.editingId).subscribe({
       next: (unavailabilities) => (this.workstationUnavailabilities = unavailabilities),
-      error: (err) => console.error('Failed to load workstation unavailabilities', err),
+      error: (err) => {
+        console.error('Failed to load workstation unavailabilities', err);
+        this.unavailabilitiesLoadError = true;
+      },
     });
   }
 

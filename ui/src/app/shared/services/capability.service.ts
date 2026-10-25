@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { ImportColumnMapping, ImportPreview, importFormData } from '../components/import-dialog/import.models';
 
 export interface Capability {
   id: string;
@@ -53,9 +54,14 @@ export class CapabilityService {
     return this.http.get(`${this.apiUrl}/template`, { responseType: 'blob' });
   }
 
-  importFromFile(file: File): Observable<ImportResult> {
-    const formData = new FormData();
-    formData.append('file', file);
-    return this.http.post<ImportResult>(`${this.apiUrl}/import`, formData);
+  /** How `file` would be read, nothing written. `sheet` picks another sheet of the workbook. */
+  previewImport(file: File, sheet?: string): Observable<ImportPreview> {
+    return this.http.post<ImportPreview>(`${this.apiUrl}/import/preview`, importFormData(file, { sheet }));
+  }
+
+  /** Imports `file`; `mapping` is what the user assigned, detection is used without it. */
+  importFromFile(file: File, mapping?: ImportColumnMapping): Observable<ImportResult> {
+    const parts = { mapping: mapping && JSON.stringify(mapping) };
+    return this.http.post<ImportResult>(`${this.apiUrl}/import`, importFormData(file, parts));
   }
 }

@@ -5,6 +5,12 @@ import { Subscription } from 'rxjs';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
 import { SavedNoticeComponent } from '../../../shared/components/form/form-page/saved-notice.component';
 import { ButtonComponent } from '../../../shared/components/ui/button/button.component';
+import { IconButtonComponent } from '../../../shared/components/ui/icon-button/icon-button.component';
+import { LoadErrorComponent } from '../../../shared/components/ui/load-error/load-error.component';
+import { ImportDialogComponent } from '../../../shared/components/import-dialog/import-dialog.component';
+import { ImportConfirmation } from '../../../shared/components/import-dialog/import.models';
+import { ErrorNoticeComponent } from '../../../shared/components/ui/error-notice/error-notice.component';
+import { apiErrorMessage } from '../../../shared/http/api-error';
 import { EmployeeService, EmployeeProfile, PaginatedEmployeeResponse, ImportResult } from '../../../shared/services/employee.service';
 import { GlobalSearchService } from '../../../shared/services/global-search.service';
 import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
@@ -20,6 +26,10 @@ import { PlannerSettingsService } from '../../../shared/services/planner-setting
     PageBreadcrumbComponent,
     SavedNoticeComponent,
     ButtonComponent,
+    IconButtonComponent,
+    LoadErrorComponent,
+    ImportDialogComponent,
+    ErrorNoticeComponent,
     TranslatePipe,
   ],
   template: `
@@ -28,8 +38,8 @@ import { PlannerSettingsService } from '../../../shared/services/planner-setting
     <app-saved-notice />
 
     <!-- User Profiles Table -->
-    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-      <div class="flex items-center justify-between px-5 py-4 sm:px-6">
+    <div class="table-card">
+      <div class="flex items-center justify-between px-5 py-4">
         <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
           {{ 'userProfiles.overview' | t }}
         </h3>
@@ -43,7 +53,7 @@ import { PlannerSettingsService } from '../../../shared/services/planner-setting
           <input
             #importFileInput
             type="file"
-            accept=".xlsx"
+            accept=".xlsx,.xls,.xlsb,.ods"
             class="hidden"
             (change)="onImportFileSelected($event)"
           />
@@ -58,9 +68,13 @@ import { PlannerSettingsService } from '../../../shared/services/planner-setting
         </div>
       </div>
 
+      <app-error-notice class="mx-5 mb-4" [message]="actionError" (dismiss)="actionError = null" />
+
+      <app-import-dialog [file]="importFile" [preview]="previewImport" (cancel)="importFile = null" (confirmed)="runImport($event)" />
+
       @if (importResult) {
         <div
-          class="mx-5 mb-4 rounded-lg border px-4 py-3 text-sm transition-colors sm:mx-6"
+          class="mx-5 mb-4 rounded-lg border px-4 py-3 text-sm transition-colors"
           [class]="importResult.errors.length === 0
             ? 'border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400'
             : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400'"
@@ -85,34 +99,40 @@ import { PlannerSettingsService } from '../../../shared/services/planner-setting
         </div>
       }
 
-      <div class="max-w-full overflow-x-auto">
-        <table class="min-w-full">
-          <thead class="border-b border-gray-100 dark:border-white/[0.05]">
+      <div class="table-scroll">
+        <table class="table-base">
+          <thead class="table-head">
             <tr>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.name' | t }}</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'userProfiles.maxHoursColumn' | t }}</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.shifts' | t }}</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.capabilities' | t }}</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.actions' | t }}</th>
+              <th class="table-th">{{ 'common.name' | t }}</th>
+              <th class="table-th table-num">{{ 'userProfiles.maxHoursColumn' | t }}</th>
+              <th class="table-th">{{ 'common.shifts' | t }}</th>
+              <th class="table-th">{{ 'common.capabilities' | t }}</th>
+              <th class="table-th table-actions">{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+          <tbody class="table-striped">
             @if (loading) {
               <tr>
-                <td colspan="5" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
+                <td colspan="5" class="table-empty">
                   {{ 'userProfiles.loading' | t }}
+                </td>
+              </tr>
+            } @else if (loadError) {
+              <tr>
+                <td colspan="5" class="p-0">
+                  <app-load-error [message]="'userProfiles.loadFailed' | t" (retry)="loadEmployees()" />
                 </td>
               </tr>
             } @else if (employees.length === 0 && !loading) {
               <tr>
-                <td colspan="5" class="px-5 py-8 text-center text-gray-400 dark:text-gray-500">
+                <td colspan="5" class="table-empty">
                   {{ 'userProfiles.empty' | t }}
                 </td>
               </tr>
             } @else {
               @for (employee of employees; track employee.id) {
-                <tr (dblclick)="openEditForm(employee)">
-                  <td class="px-5 py-4 sm:px-6 text-start">
+                <tr class="table-tr" (dblclick)="openEditForm(employee)">
+                  <td class="table-td">
                     <div>
                       <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
                         {{ employee.name }}
@@ -122,13 +142,13 @@ import { PlannerSettingsService } from '../../../shared/services/planner-setting
                       </span>
                     </div>
                   </td>
-                  <td class="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                  <td class="table-td table-num">
                     {{ employee.effective_weekly_working_hours || '—' }}
                     @if (employee.weekly_working_hours === null) {
                       <span class="ml-1 text-theme-xs text-gray-400 dark:text-gray-500">{{ 'userProfiles.weeklyHoursDefaultTag' | t }}</span>
                     }
                   </td>
-                  <td class="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                  <td class="table-td">
                     @if (employee.shifts.length === 0) {
                       <span class="text-gray-300 dark:text-gray-600">—</span>
                     } @else {
@@ -143,7 +163,7 @@ import { PlannerSettingsService } from '../../../shared/services/planner-setting
                       </div>
                     }
                   </td>
-                  <td class="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                  <td class="table-td">
                     @if (employee.capabilities.length === 0) {
                       <span class="text-gray-300 dark:text-gray-600">—</span>
                     } @else {
@@ -158,22 +178,10 @@ import { PlannerSettingsService } from '../../../shared/services/planner-setting
                       </div>
                     }
                   </td>
-                  <td class="px-4 py-3 text-start text-theme-sm">
-                    <div class="flex items-center gap-2">
-                      <app-button
-                        size="sm"
-                        variant="outline"
-                        (btnClick)="openEditForm(employee)"
-                      >
-                        {{ 'common.edit' | t }}
-                      </app-button>
-                      <app-button
-                        size="sm"
-                        variant="danger"
-                        (btnClick)="deleteEmployee(employee)"
-                      >
-                        {{ 'common.delete' | t }}
-                      </app-button>
+                  <td class="table-td table-actions">
+                    <div class="flex items-center justify-end gap-1">
+                      <app-icon-button icon="edit" [label]="'common.edit' | t" (btnClick)="openEditForm(employee)" />
+                      <app-icon-button icon="delete" tone="danger" [label]="'common.delete' | t" (btnClick)="deleteEmployee(employee)" />
                     </div>
                   </td>
                 </tr>
@@ -184,8 +192,8 @@ import { PlannerSettingsService } from '../../../shared/services/planner-setting
       </div>
 
       <!-- Pagination -->
-      @if (totalEmployees > 0) {
-        <div class="flex items-center justify-between border-t border-gray-100 px-5 py-4 sm:px-6 dark:border-white/[0.05]">
+      @if (totalEmployees > 0 && !loadError) {
+        <div class="flex items-center justify-between border-t border-gray-100 px-5 py-4 dark:border-white/[0.05]">
           <div class="text-sm text-gray-500 dark:text-gray-400">
             Showing {{ startIndex + 1 }}–{{ endIndex }} of {{ totalEmployees }}
           </div>
@@ -230,6 +238,10 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
   allEmployees: EmployeeProfile[] = []; // Store all employees for client-side filtering
   totalEmployees = 0;
   loading = true;
+  /** The list request failed: shown instead of the empty state. */
+  loadError = false;
+  /** Why the last action failed, until dismissed or the next one succeeds. */
+  actionError: string | null = null;
   /** The tenant default, shown where an employee follows it. */
   defaultWeeklyHours = 40;
 
@@ -278,6 +290,8 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
 
   importing = false;
   importResult: ImportResult | null = null;
+  /** The file chosen for import; the import dialog is open while there is one. */
+  importFile: File | null = null;
 
   constructor(
     private employeeService: EmployeeService,
@@ -308,6 +322,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
 
   loadEmployees(): void {
     this.loading = true;
+    this.loadError = false;
     // Load all employees for client-side filtering
     this.employeeService.getEmployeeProfiles(1000, 0).subscribe({
       next: (response: PaginatedEmployeeResponse) => {
@@ -325,6 +340,7 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Failed to load employee profiles', err);
+        this.loadError = true;
         this.loading = false;
       },
     });
@@ -368,9 +384,13 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
 
     this.employeeService.deleteEmployee(employee.id).subscribe({
       next: () => {
+        this.actionError = null;
         this.loadEmployees();
       },
-      error: (err) => console.error('Failed to delete employee', err),
+      error: (err) => {
+        console.error('Failed to delete employee', err);
+        this.actionError = apiErrorMessage(err, 'common.deleteFailed', this.translations);
+      },
     });
   }
 
@@ -383,29 +403,42 @@ export class UserProfilesComponent implements OnInit, OnDestroy {
         a.download = 'employees_template.xlsx';
         a.click();
         URL.revokeObjectURL(url);
+        this.actionError = null;
       },
-      error: (err) => console.error('Failed to download employee template', err),
+      error: (err) => {
+        console.error('Failed to download employee template', err);
+        this.actionError = apiErrorMessage(err, 'common.downloadFailed', this.translations);
+      },
     });
   }
 
   onImportFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    if (!file) return;
+    input.value = ''; // so the same file can be chosen again
+    if (file) this.importFile = file; // opens the import dialog
+  }
 
+  /** The import dialog reads the file through this. */
+  readonly previewImport = (file: File, sheet?: string) => this.employeeService.previewImport(file, sheet);
+
+  /** The dialog's answer: the file and the columns the user confirmed. */
+  runImport({ file, mapping }: ImportConfirmation): void {
+    this.importFile = null;
     this.importing = true;
     this.importResult = null;
-    this.employeeService.importFromFile(file).subscribe({
+    this.employeeService.importFromFile(file, mapping).subscribe({
       next: (result) => {
         this.importResult = result;
         this.importing = false;
+        this.actionError = null;
         this.loadEmployees();
       },
       error: (err) => {
         console.error('Failed to import employees', err);
+        this.actionError = apiErrorMessage(err, 'common.importFailed', this.translations);
         this.importing = false;
       },
     });
-    input.value = '';
   }
 }

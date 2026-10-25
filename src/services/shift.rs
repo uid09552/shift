@@ -14,7 +14,7 @@ use crate::repository::domain::ShiftRepository;
 use crate::services::audit_log::{self, AuditActor};
 use crate::services::employee::PaginationQuery;
 use crate::services::tenant::TenantContext;
-use crate::services::xlsx_io::{self, ImportResult};
+use crate::services::xlsx_io::{self, ImportField, ImportResult};
 
 #[derive(Deserialize)]
 pub struct SetWeekdayTimeRequest {
@@ -25,6 +25,14 @@ pub struct SetWeekdayTimeRequest {
     pub max_employees: Option<i16>,
     pub free_days_after_shift: Option<i16>,
 }
+
+/// The columns of the shift import and its template, in template order.
+pub const IMPORT_FIELDS: &[ImportField] = &[
+    ImportField { key: "name", required: true, aliases: &["bezeichnung", "titel", "title"] },
+    ImportField { key: "short_name", required: true, aliases: &["kuerzel", "kurzname", "abbreviation", "abkuerzung", "code"] },
+    ImportField { key: "color", required: true, aliases: &["colour", "farbe"] },
+    ImportField { key: "order", required: false, aliases: &["reihenfolge", "sortierung", "position"] },
+];
 
 pub struct ShiftService;
 
@@ -223,8 +231,15 @@ impl ShiftService {
     }
 
     pub async fn download_template(_tenant: TenantContext) -> Result<Response, AppError> {
-        let bytes = xlsx_io::build_template(&["name", "short_name", "color", "order"])?;
+        let bytes = xlsx_io::template_for(IMPORT_FIELDS)?;
         Ok(xlsx_io::xlsx_download_response(bytes, "shifts_template.xlsx"))
+    }
+
+    /// POST /shifts/import/preview — how an upload would be read, nothing written.
+    pub async fn preview_import(_tenant: TenantContext, multipart: Multipart) -> Result<Json<Value>, AppError> {
+        let upload = xlsx_io::extract_upload(multipart).await?;
+        let preview = xlsx_io::preview(&upload.file, IMPORT_FIELDS, upload.sheet.as_deref())?;
+        Ok(Json(serde_json::to_value(preview).unwrap()))
     }
 
     pub async fn import_shifts(
@@ -233,17 +248,17 @@ impl ShiftService {
         State(state): State<AppState>,
         multipart: Multipart,
     ) -> Result<Json<Value>, AppError> {
-        let bytes = xlsx_io::extract_uploaded_file(multipart).await?;
-        let rows = xlsx_io::parse_rows(&bytes)?;
+        let upload = xlsx_io::extract_upload(multipart).await?;
+        let table = xlsx_io::read_mapped(&upload.file, IMPORT_FIELDS, upload.mapping.as_ref())?;
 
         let mut result = ImportResult::default();
 
-        for (idx, row) in rows.iter().enumerate() {
-            let row_num = idx + 2;
-            let name = row.first().map(String::as_str).unwrap_or("");
-            let short_name = row.get(1).map(String::as_str).unwrap_or("");
-            let color = row.get(2).map(String::as_str).unwrap_or("");
-            let order_str = row.get(3).map(String::as_str).unwrap_or("");
+        for row in table.rows() {
+            let row_num = row.number();
+            let name = row.get("name");
+            let short_name = row.get("short_name");
+            let color = row.get("color");
+            let order_str = row.get("order");
 
             if name.is_empty() || short_name.is_empty() || color.is_empty() {
                 result.push_error(row_num, "Missing required 'name', 'short_name' or 'color'");

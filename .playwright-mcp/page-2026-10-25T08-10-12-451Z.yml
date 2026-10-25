@@ -1,0 +1,110 @@
+- generic [ref=f6e3]:
+  - generic [ref=f6e4]:
+    - heading "Fähigkeiten" [level=3] [ref=f6e5]
+    - generic [ref=f6e6]:
+      - button "Vorlage" [ref=f6e7] [cursor=pointer]
+      - button "+ Fähigkeit" [ref=f6e8] [cursor=pointer]
+  - table [ref=f6e10]:
+    - rowgroup [ref=f6e11]:
+      - row [ref=f6e12]:
+        - columnheader "Name" [ref=f6e13]
+        - columnheader "Gruppe / Stufe" [ref=f6e14]
+        - columnheader "ID" [ref=f6e15]
+        - columnheader "Aktionen" [ref=f6e16]
+    - rowgroup [ref=f6e17]:
+      - row [ref=f6e18]:
+        - cell "Intensivpflege" [ref=f6e19]
+        - cell "ICU · L2" [ref=f6e21]
+        - cell "3f2a9c1e…" [ref=f6e23]
+        - cell [ref=f6e25]:
+          - generic [ref=f6e26]:
+            - button "Bearbeiten" [ref=f6e27] [cursor=pointer]
+            - button "Löschen" [ref=f6e30] [cursor=pointer]
+      - row [ref=f6e35]:
+        - cell "Notaufnahme" [ref=f6e36]
+        - cell "ER · L1" [ref=f6e38]
+        - cell "3f2a9c1e…" [ref=f6e40]
+        - cell [ref=f6e42]:
+          - generic [ref=f6e43]:
+            - button "Bearbeiten" [ref=f6e44] [cursor=pointer]
+            - button "Löschen" [ref=f6e47] [cursor=pointer]
+      - row [ref=f6e52]:
+        - cell "Anästhesie" [ref=f6e53]
+        - cell "ANE · L3" [ref=f6e55]
+        - cell "3f2a9c1e…" [ref=f6e57]
+        - cell [ref=f6e59]:
+          - generic [ref=f6e60]:
+            - button "Bearbeiten" [ref=f6e61] [cursor=pointer]
+            - button "Löschen" [ref=f6e64] [cursor=pointer]
+      - row [ref=f6e69]:
+        - cell "OP-Assistenz" [ref=f6e70]
+        - cell "—" [ref=f6e72]
+        - cell "3f2a9c1e…" [ref=f6e73]
+        - cell [ref=f6e75]:
+          - generic [ref=f6e76]:
+            - button "Bearbeiten" [ref=f6e77] [cursor=pointer]
+            - button "Löschen" [ref=f6e80] [cursor=pointer]
+      - row [ref=f6e85]:
+        - cell "Pädiatrie" [ref=f6e86]
+        - cell "PED · L2" [ref=f6e88]
+        - cell "3f2a9c1e…" [ref=f6e90]
+        - cell [ref=f6e92]:
+          - generic [ref=f6e93]:
+            - button "Bearbeiten" [ref=f6e94] [cursor=pointer]
+            - button "Löschen" [ref=f6e97] [cursor=pointer]
+      - row [ref=f6e102]:
+        - cell "Geburtshilfe" [ref=f6e103]
+        - cell "OB · L1" [ref=f6e105]
+        - cell "3f2a9c1e…" [ref=f6e107]
+        - cell [ref=f6e109]:
+          - generic [ref=f6e110]:
+            - button "Bearbeiten" [ref=f6e111] [cursor=pointer]
+            - button "Löschen" [ref=f6e114] [cursor=pointer]
+      - row [ref=f6e119]:
+        - cell "Dialyse" [ref=f6e120]
+        - cell "—" [ref=f6e122]
+        - cell "3f2a9c1e…" [ref=f6e123]
+        - cell [ref=f6e125]:
+          - generic [ref=f6e126]:
+            - button "Bearbeiten" [ref=f6e127] [cursor=pointer]
+            - button "Löschen" [ref=f6e130] [cursor=pointer]
+      - row [ref=f6e135]:
+        - cell "Wundmanagement" [ref=f6e136]
+        - cell "WND · L2" [ref=f6e138]
+        - cell "3f2a9c1e…" [ref=f6e140]
+        - cell [ref=f6e142]:
+          - generic [ref=f6e143]:
+            - button "Bearbeiten" [ref=f6e144] [cursor=pointer]
+            - button "Löschen" [ref=f6e147] [cursor=pointer]
+      - row [ref=f6e152]:
+        - cell "Praxisanleitung" [ref=f6e153]
+        - cell "EDU · L3" [ref=f6e155]
+        - cell "3f2a9c1e…" [ref=f6e157]
+        - cell [ref=f6e159]:
+          - generic [ref=f6e160]:
+            - button "Bearbeiten" [ref=f6e161] [cursor=pointer]
+            - button "Löschen" [ref=f6e164] [cursor=pointer]
+      - row [ref=f6e169]:
+        - cell "Hygiene" [ref=f6e170]
+        - cell "—" [ref=f6e172]
+        - cell "3f2a9c1e…" [ref=f6e173]
+        - cell [ref=f6e175]:
+          - generic [ref=f6e176]:
+            - button "Bearbeiten" [ref=f6e177] [cursor=pointer]
+            - button "Löschen" [ref=f6e180] [cursor=pointer]
+      - row [ref=f6e185]:
+        - cell "Palliativ" [ref=f6e186]
+        - cell "PAL · L1" [ref=f6e188]
+        - cell "3f2a9c1e…" [ref=f6e190]
+        - cell [ref=f6e192]:
+          - generic [ref=f6e193]:
+            - button "Bearbeiten" [ref=f6e194] [cursor=pointer]
+            - button "Löschen" [ref=f6e197] [cursor=pointer]
+      - row [ref=f6e202]:
+        - cell "Stroke Unit" [ref=f6e203]
+        - cell "NEU · L2" [ref=f6e205]
+        - cell "3f2a9c1e…" [ref=f6e207]
+        - cell [ref=f6e209]:
+          - generic [ref=f6e210]:
+            - button "Bearbeiten" [ref=f6e211] [cursor=pointer]
+            - button "Löschen" [ref=f6e214] [cursor=pointer]

@@ -48,6 +48,14 @@
     </div>
   }
 
+  @if (dataLoadError) {
+    <app-load-error
+      class="border-b border-gray-100 dark:border-white/[0.05]"
+      [message]="'scheduler.loadFailed' | t"
+      (retry)="reloadData()"
+    />
+  }
+
   @switch (activeTab) {
     <!-- ── Calculate: period, options, who could work, run ─────────── -->
     @case ('calculate') {
@@ -1027,7 +1035,7 @@
           <span class="ml-2 text-xs text-gray-400">{{ 'scheduler.runs.proposalsHint' | t }}</span>
         </div>
         <div class="divide-y divide-gray-100 border-b border-gray-100 dark:divide-white/[0.05] dark:border-white/[0.05]" data-testid="optimizer-proposals">
-          @if (allResults.length === 0) {
+          @if (allResults.length === 0 && !dataLoadError) {
             <div class="px-5 py-6 text-center text-sm text-gray-400">{{ 'scheduler.runs.noProposals' | t }}</div>
           }
           @for (r of allResults; track r.id) {
@@ -1064,7 +1072,7 @@
           </div>
         </div>
         <div class="divide-y divide-gray-100 dark:divide-white/[0.05]">
-          @if (planningTasks.length === 0) {
+          @if (planningTasks.length === 0 && !dataLoadError) {
             <div class="px-5 py-6 text-center text-sm text-gray-400">{{ 'scheduler.noJobs' | t }}</div>
           }
           @for (task of planningTasks; track task.id) {

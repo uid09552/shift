@@ -12,7 +12,14 @@ use crate::repository::domain::CapabilityRepository;
 use crate::services::audit_log::{self, AuditActor};
 use crate::services::employee::PaginationQuery;
 use crate::services::tenant::TenantContext;
-use crate::services::xlsx_io::{self, ImportResult};
+use crate::services::xlsx_io::{self, ImportField, ImportResult};
+
+/// The columns of the capability import and its template.
+pub const IMPORT_FIELDS: &[ImportField] = &[ImportField {
+    key: "name",
+    required: true,
+    aliases: &["bezeichnung", "titel", "title"],
+}];
 
 pub struct CapabilityService;
 
@@ -128,8 +135,15 @@ impl CapabilityService {
     }
 
     pub async fn download_template(_tenant: TenantContext) -> Result<Response, AppError> {
-        let bytes = xlsx_io::build_template(&["name"])?;
+        let bytes = xlsx_io::template_for(IMPORT_FIELDS)?;
         Ok(xlsx_io::xlsx_download_response(bytes, "capabilities_template.xlsx"))
+    }
+
+    /// POST /capabilities/import/preview — how an upload would be read, nothing written.
+    pub async fn preview_import(_tenant: TenantContext, multipart: Multipart) -> Result<Json<Value>, AppError> {
+        let upload = xlsx_io::extract_upload(multipart).await?;
+        let preview = xlsx_io::preview(&upload.file, IMPORT_FIELDS, upload.sheet.as_deref())?;
+        Ok(Json(serde_json::to_value(preview).unwrap()))
     }
 
     pub async fn import_capabilities(
@@ -138,14 +152,14 @@ impl CapabilityService {
         State(state): State<AppState>,
         multipart: Multipart,
     ) -> Result<Json<Value>, AppError> {
-        let bytes = xlsx_io::extract_uploaded_file(multipart).await?;
-        let rows = xlsx_io::parse_rows(&bytes)?;
+        let upload = xlsx_io::extract_upload(multipart).await?;
+        let table = xlsx_io::read_mapped(&upload.file, IMPORT_FIELDS, upload.mapping.as_ref())?;
 
         let mut result = ImportResult::default();
 
-        for (idx, row) in rows.iter().enumerate() {
-            let row_num = idx + 2;
-            let name = row.first().map(String::as_str).unwrap_or("");
+        for row in table.rows() {
+            let row_num = row.number();
+            let name = row.get("name");
 
             if name.is_empty() {
                 result.push_error(row_num, "Missing required 'name'");

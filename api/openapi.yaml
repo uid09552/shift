@@ -126,22 +126,25 @@ paths:
         - Employees
       summary: Bulk-create employees from an Excel file
       description: |
-        Rows follow the columns from GET /employees/template. `capabilities` and
-        `available_shifts` are comma-separated lists of existing capability/shift
-        names; unmatched names are reported as warnings rather than failing the row.
+        Columns are found by their header, not by position: `name`, `email`,
+        `weekly_working_hours`, `capabilities` and `available_shifts` as in
+        GET /employees/template, or German names (`Mitarbeiter`, `E-Mail`,
+        `Wochenstunden`, `Qualifikationen`, `Schichten`), in any order. Title rows
+        above the header are skipped and unknown columns ignored. `capabilities`
+        and `available_shifts` are comma-separated lists of existing
+        capability/shift names; unmatched names are reported as warnings rather
+        than failing the row.
+
+        When `name` or `email` cannot be found, or several columns match one, the
+        whole file is refused (400) naming the field and nothing is created;
+        POST /employees/import/preview shows how the file is read and `mapping`
+        assigns the columns by hand. A file with an old monthly hours column
+        (`max_working_hours` or `monthly_working_hours`, in any position) is
+        refused too, mapping or not: hours are per week now. Row numbers in
+        `errors` are the spreadsheet's own.
       operationId: importEmployees
       requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - file
-              properties:
-                file:
-                  type: string
-                  format: binary
+        $ref: '#/components/requestBodies/ImportUpload'
       responses:
         '200':
           description: Import summary
@@ -149,6 +152,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employees/import/preview:
+    post:
+      tags:
+        - Employees
+      summary: Preview how an employee file would be imported
+      description: As POST /shifts/import/preview, for employees. Writes nothing. An old monthly hours column is refused here too, since no mapping can make it usable.
+      operationId: previewEmployeeImport
+      requestBody:
+        $ref: '#/components/requestBodies/ImportPreviewUpload'
+      responses:
+        '200':
+          description: The interpretation of the file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportPreview'
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
@@ -566,21 +590,19 @@ paths:
         - Shifts
       summary: Bulk-create shifts from an Excel file
       description: |
-        Rows follow the columns from GET /shifts/template. Per-weekday start/end
-        times are not part of the template and must be configured afterward.
+        Columns are found by their header, not by position: `name`, `short_name`,
+        `color` and `order` as in GET /shifts/template, or the German names
+        (`Bezeichnung`, `Kürzel`, `Farbe`, `Reihenfolge`), in any order. Title
+        rows above the header are skipped and unknown columns ignored. When a
+        required column cannot be found, or several match it, the whole file is
+        refused (400) naming the field and nothing is created; POST
+        /shifts/import/preview shows how the file is read, and `mapping` assigns
+        the columns by hand. Row numbers in `errors` are the spreadsheet's own.
+        Per-weekday start/end times are not part of the template and must be
+        configured afterward.
       operationId: importShifts
       requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - file
-              properties:
-                file:
-                  type: string
-                  format: binary
+        $ref: '#/components/requestBodies/ImportUpload'
       responses:
         '200':
           description: Import summary
@@ -588,6 +610,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /shifts/import/preview:
+    post:
+      tags:
+        - Shifts
+      summary: Preview how a shift file would be imported
+      description: |
+        Reads the file the way POST /shifts/import would and says how, without
+        writing anything: the sheets, the detected header row, every column with
+        sample values and the field it maps to, and the required fields still
+        unmapped. Planners and admins only, like the import.
+      operationId: previewShiftImport
+      requestBody:
+        $ref: '#/components/requestBodies/ImportPreviewUpload'
+      responses:
+        '200':
+          description: The interpretation of the file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportPreview'
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
@@ -759,19 +806,15 @@ paths:
       tags:
         - Capabilities
       summary: Bulk-create capabilities from an Excel file
+      description: |
+        The `name` column is found by its header (`name`, `Bezeichnung`, …), in
+        any position; other columns are ignored and title rows above the header
+        skipped. A file without one is refused (400); POST
+        /capabilities/import/preview shows how a file is read and `mapping`
+        assigns the column by hand.
       operationId: importCapabilities
       requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - file
-              properties:
-                file:
-                  type: string
-                  format: binary
+        $ref: '#/components/requestBodies/ImportUpload'
       responses:
         '200':
           description: Import summary
@@ -779,6 +822,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /capabilities/import/preview:
+    post:
+      tags:
+        - Capabilities
+      summary: Preview how a capability file would be imported
+      description: As POST /shifts/import/preview, for capabilities. Writes nothing.
+      operationId: previewCapabilityImport
+      requestBody:
+        $ref: '#/components/requestBodies/ImportPreviewUpload'
+      responses:
+        '200':
+          description: The interpretation of the file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportPreview'
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
@@ -889,23 +953,25 @@ paths:
         - Workstations
       summary: Bulk-create workstations from an Excel file
       description: |
-        Rows follow the columns from GET /workstations/template. `active_shifts`
-        and `required_capabilities` are comma-separated lists of existing
-        shift/capability names; unmatched names are reported as warnings rather
-        than failing the row.
+        Columns are found by their header, not by position: `name` (the only
+        required one), `priority`, `min_employees`, `max_employees`, `available`,
+        `active_shifts` and `required_capabilities` as in
+        GET /workstations/template, or German names (`Bezeichnung`,
+        `Priorität`, `Mindestbesetzung`, `Verfügbar`, `Schichten`,
+        `Qualifikationen`), in any order. Title rows above the header are skipped
+        and unknown columns ignored. `available` takes true/false, yes/no,
+        ja/nein or 1/0. `active_shifts` and `required_capabilities` are
+        comma-separated lists of existing shift/capability names; unmatched names
+        are reported as warnings rather than failing the row.
+
+        When `name` cannot be found, or several columns match it, the whole file
+        is refused (400) and nothing is created; POST
+        /workstations/import/preview shows how the file is read and `mapping`
+        assigns the columns by hand. Row numbers in `errors` are the
+        spreadsheet's own.
       operationId: importWorkstations
       requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - file
-              properties:
-                file:
-                  type: string
-                  format: binary
+        $ref: '#/components/requestBodies/ImportUpload'
       responses:
         '200':
           description: Import summary
@@ -913,6 +979,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /workstations/import/preview:
+    post:
+      tags:
+        - Workstations
+      summary: Preview how a workstation file would be imported
+      description: As POST /shifts/import/preview, for workstations. Writes nothing.
+      operationId: previewWorkstationImport
+      requestBody:
+        $ref: '#/components/requestBodies/ImportPreviewUpload'
+      responses:
+        '200':
+          description: The interpretation of the file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportPreview'
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
@@ -3525,6 +3612,44 @@ paths:
           $ref: '#/components/responses/ServiceUnavailable'
 
 components:
+  requestBodies:
+    ImportUpload:
+      required: true
+      description: |
+        A spreadsheet (.xlsx, .xls, .xlsb or .ods; the format is taken from the
+        content, not the file name). Columns are found by their header, in any
+        order, so a file does not have to follow the template's layout.
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required:
+              - file
+            properties:
+              file:
+                type: string
+                format: binary
+              mapping:
+                type: string
+                description: |
+                  Optional. A JSON document (see ImportColumnMapping) assigning
+                  columns the header detection did not find, or chose wrongly.
+                  When present it is used as given instead of detection.
+    ImportPreviewUpload:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required:
+              - file
+            properties:
+              file:
+                type: string
+                format: binary
+              sheet:
+                type: string
+                description: The sheet to look at; the first when absent.
   schemas:
     OrganizationUser:
       type: object
@@ -5577,6 +5702,79 @@ components:
         message:
           type: string
           description: Why the row was skipped, or a warning about unmatched names
+
+    ImportColumnMapping:
+      type: object
+      description: |
+        The `mapping` part of an import: what the user assigned in the import
+        dialog. A field it does not name has no column.
+      properties:
+        sheet:
+          type: string
+          description: The sheet to read; the first when absent.
+        header_row:
+          type: integer
+          minimum: 1
+          description: The header row, counted from 1 as in the spreadsheet; detected when absent.
+        columns:
+          type: object
+          description: Field key to 0-based column. A column can serve only one field.
+          additionalProperties:
+            type: integer
+            minimum: 0
+          example: { name: 1, email: 0 }
+
+    ImportPreview:
+      type: object
+      description: How an upload would be read. Nothing has been written.
+      required: [sheets, sheet, header_row, row_count, fields, columns, missing_required, ambiguous]
+      properties:
+        sheets:
+          type: array
+          items: { type: string }
+        sheet:
+          type: string
+          description: The sheet the rest of this describes.
+        header_row:
+          type: integer
+          description: The detected header row, counted from 1.
+        row_count:
+          type: integer
+          description: Data rows below the header, not counting empty ones.
+        fields:
+          type: array
+          description: What can be imported, in template order.
+          items:
+            type: object
+            required: [key, required]
+            properties:
+              key: { type: string }
+              required: { type: boolean }
+        columns:
+          type: array
+          description: Every non-empty column of the sheet.
+          items:
+            type: object
+            required: [index, header, field, samples]
+            properties:
+              index: { type: integer, description: 0-based }
+              header: { type: string }
+              field:
+                type: string
+                nullable: true
+                description: The field this column is read as; null when nothing matches or several columns claim it.
+              samples:
+                type: array
+                description: Up to five values from below the header.
+                items: { type: string }
+        missing_required:
+          type: array
+          description: Required fields no column was found for. An import is refused while any remain.
+          items: { type: string }
+        ambiguous:
+          type: array
+          description: Fields several columns match; none of those columns is read for it.
+          items: { type: string }
 
     ImportResult:
       type: object

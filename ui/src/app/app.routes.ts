@@ -8,8 +8,6 @@ import { CapabilityFormComponent } from './pages/configuration/capabilities/capa
 import { EcommerceComponent } from './pages/dashboard/ecommerce/ecommerce.component';
 import { NotFoundComponent } from './pages/other-page/not-found/not-found.component';
 import { AppLayoutComponent } from './shared/layout/app-layout/app-layout.component';
-import { SignInComponent } from './pages/auth-pages/sign-in/sign-in.component';
-import { SignUpComponent } from './pages/auth-pages/sign-up/sign-up.component';
 import { KalenderComponent } from './pages/planner/kalender/kalender.component';
 import { EmployeeCalendarComponent } from './pages/planner/employee-calendar/employee-calendar.component';
 import { SchedulerComponent } from './pages/planner/scheduler/scheduler.component';
@@ -197,17 +195,6 @@ export const routes: Routes = [
         title:'title.auditLog'
       },
     ]
-  },
-  // auth pages
-  {
-    path:'signin',
-    component:SignInComponent,
-    title:'title.signIn'
-  },
-  {
-    path:'signup',
-    component:SignUpComponent,
-    title:'title.signUp'
   },
   // error pages
   {

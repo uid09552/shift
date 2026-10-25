@@ -71,6 +71,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/employees", get(EmployeeService::list_employees).post(EmployeeService::create_employee))
         .route("/employees/template", get(EmployeeService::download_template))
         .route("/employees/import", post(EmployeeService::import_employees))
+        .route("/employees/import/preview", post(EmployeeService::preview_import))
         .route("/employees/:employee_id", get(EmployeeService::get_employee_by_id).put(EmployeeService::update_employee).delete(EmployeeService::delete_employee))
         .route("/employees/email/:email", get(EmployeeService::get_employee_by_email))
         .route(
@@ -93,6 +94,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/shifts", get(ShiftService::list_shifts).post(ShiftService::create_shift))
         .route("/shifts/template", get(ShiftService::download_template))
         .route("/shifts/import", post(ShiftService::import_shifts))
+        .route("/shifts/import/preview", post(ShiftService::preview_import))
         .route("/shifts/:shift_id", get(ShiftService::get_shift_by_id).put(ShiftService::update_shift).delete(ShiftService::delete_shift))
         .route("/shifts/:shift_id/weekday-times", post(ShiftService::set_weekday_time))
         .route("/shifts/:shift_id/weekday-times/:weekday", delete(ShiftService::delete_weekday_time))
@@ -100,11 +102,13 @@ pub fn create_router(state: AppState) -> Router {
         .route("/capabilities", get(CapabilityService::list_capabilities).post(CapabilityService::create_capability))
         .route("/capabilities/template", get(CapabilityService::download_template))
         .route("/capabilities/import", post(CapabilityService::import_capabilities))
+        .route("/capabilities/import/preview", post(CapabilityService::preview_import))
         .route("/capabilities/:capability_id", get(CapabilityService::get_capability_by_id).put(CapabilityService::update_capability).delete(CapabilityService::delete_capability))
         // Workstations
         .route("/workstations", get(WorkstationService::list_workstations).post(WorkstationService::create_workstation))
         .route("/workstations/template", get(WorkstationService::download_template))
         .route("/workstations/import", post(WorkstationService::import_workstations))
+        .route("/workstations/import/preview", post(WorkstationService::preview_import))
         .route(
             "/workstations/:workstation_id",
             get(WorkstationService::get_workstation_by_id).put(WorkstationService::update_workstation).delete(WorkstationService::delete_workstation),

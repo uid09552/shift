@@ -45,6 +45,9 @@ import { ThemeService } from '../../../shared/services/theme.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
 import { HolidayService } from '../../../shared/services/holiday.service';
+import { LoadErrorComponent } from '../../../shared/components/ui/load-error/load-error.component';
+import { ErrorNoticeComponent } from '../../../shared/components/ui/error-notice/error-notice.component';
+import { apiErrorMessage } from '../../../shared/http/api-error';
 
 interface LeaveEntry {
   id: string;
@@ -155,6 +158,8 @@ interface ShiftHoursSummary {
     DateRangePickerComponent,
     TabsComponent,
     ModalComponent,
+    LoadErrorComponent,
+    ErrorNoticeComponent,
     TranslatePipe,
   ],
   templateUrl: './employee-calendar.component.html',
@@ -214,6 +219,8 @@ export class EmployeeCalendarComponent implements OnInit {
   // The tenant's wish window. Only about what the UI offers — the backend
   // enforces it, for every role.
   wishSettings: WishSettings | null = null;
+  /** This month's roster failed to load: shown instead of an empty month. */
+  plansLoadError = false;
 
   wishes: ShiftWish[] = [];
   private wishMap = new Map<string, ShiftWish>(); // dateStr -> wish
@@ -369,7 +376,7 @@ export class EmployeeCalendarComponent implements OnInit {
     });
   }
 
-  private loadInitialData(): void {
+  loadInitialData(): void {
     this.loading = true;
     this.error = null;
 
@@ -448,7 +455,7 @@ export class EmployeeCalendarComponent implements OnInit {
     this.loadPlansForMonth();
   }
 
-  private loadPlansForMonth(): void {
+  loadPlansForMonth(): void {
     this.loadHolidays();
     if (!this.selectedEmployeeId) {
       this.planMap.clear();
@@ -458,6 +465,7 @@ export class EmployeeCalendarComponent implements OnInit {
 
     this.buildCalendar();
     this.loadingPlans = true;
+    this.plansLoadError = false;
 
     const fromDate = this.formatDate(
       new Date(this.currentYear, this.currentMonth, 1),
@@ -476,6 +484,7 @@ export class EmployeeCalendarComponent implements OnInit {
         },
         error: (err) => {
           console.error('Error loading confirmed shift plans:', err);
+          this.plansLoadError = true;
           this.loadingPlans = false;
         },
       });
@@ -1021,7 +1030,7 @@ export class EmployeeCalendarComponent implements OnInit {
 
   /** The server's reason when it gives one (a closed workstation, say), else a generic line. */
   private showSaveError(err: any): void {
-    this.saveError = err?.error?.error ?? this.translations.t('schedule.saveFailed');
+    this.saveError = apiErrorMessage(err, 'schedule.saveFailed', this.translations);
   }
 
   // ── Shift wish helpers ───────────────────────────────────────────
@@ -1029,7 +1038,10 @@ export class EmployeeCalendarComponent implements OnInit {
   private loadWishSettings(): void {
     this.wishSettingsService.getWishSettings().subscribe({
       next: (settings) => (this.wishSettings = settings),
-      error: (err) => console.error('Failed to load wish settings', err),
+      error: (err) => {
+        console.error('Failed to load wish settings', err);
+        this.saveError = apiErrorMessage(err, 'employeeCalendar.wishWindowLoadFailed', this.translations);
+      },
     });
   }
 
@@ -1084,6 +1096,7 @@ export class EmployeeCalendarComponent implements OnInit {
         },
         error: (err) => {
           console.error('Failed to create shift wish', err);
+          this.showSaveError(err);
           this.processingCell = null;
         },
       });
@@ -1116,6 +1129,7 @@ export class EmployeeCalendarComponent implements OnInit {
       },
       error: (err) => {
         console.error('Failed to delete shift wish', err);
+        this.showSaveError(err);
         this.processingCell = null;
       },
     });
@@ -1140,6 +1154,7 @@ export class EmployeeCalendarComponent implements OnInit {
         },
         error: (err) => {
           console.error('Failed to delete shift plan', err);
+          this.showSaveError(err);
           this.processingCell = null;
         },
       });

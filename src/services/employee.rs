@@ -15,7 +15,7 @@ use crate::repository::domain::{
 };
 use crate::services::audit_log::{self, AuditActor};
 use crate::services::tenant::TenantContext;
-use crate::services::xlsx_io::{self, ImportResult};
+use crate::services::xlsx_io::{self, ImportField, ImportResult};
 
 #[derive(Deserialize)]
 pub struct PaginationQuery {
@@ -38,9 +38,35 @@ pub struct AddCapabilityRequest {
 
 pub struct EmployeeService;
 
-/// The template's hours column, and the names it had before hours became weekly.
+/// The template's hours column, and the names it had before hours became weekly
+/// (normalised, as `xlsx_io::normalize` writes them).
 const HOURS_COLUMN: &str = "weekly_working_hours";
-const OLD_HOURS_COLUMNS: [&str; 2] = ["max_working_hours", "monthly_working_hours"];
+const OLD_HOURS_COLUMNS: [&str; 2] = ["maxworkinghours", "monthlyworkinghours"];
+
+/// The columns of the employee import and its template, in template order.
+/// `name` takes no "title": on a staff list that is usually an academic title.
+pub const IMPORT_FIELDS: &[ImportField] = &[
+    ImportField { key: "name", required: true, aliases: &["mitarbeiter", "mitarbeiterin", "employee", "fullname"] },
+    ImportField { key: "email", required: true, aliases: &["mail", "emailadresse"] },
+    ImportField {
+        key: HOURS_COLUMN,
+        required: false,
+        aliases: &["weeklyhours", "wochenstunden", "stundenprowoche", "hours"],
+    },
+    ImportField { key: "capabilities", required: false, aliases: &["skills", "faehigkeiten", "qualifikationen"] },
+    ImportField { key: "available_shifts", required: false, aliases: &["shifts", "schichten"] },
+];
+
+/// A header from an outdated template, whose hours were monthly: importing its
+/// numbers as weekly hours would quietly quadruple everyone's target.
+fn refuse_old_hours_column<'a>(headers: impl IntoIterator<Item = &'a String>) -> Result<(), AppError> {
+    match headers.into_iter().find(|h| OLD_HOURS_COLUMNS.contains(&xlsx_io::normalize(h).as_str())) {
+        Some(old) => Err(AppError::Validation(format!(
+            "Column '{old}' is from an old template: hours are now per week. Download the current template and fill in '{HOURS_COLUMN}' (empty = the default)"
+        ))),
+        None => Ok(()),
+    }
+}
 
 /// Most hours a week can hold.
 const MAX_WEEKLY_HOURS: f64 = 168.0;
@@ -318,14 +344,17 @@ impl EmployeeService {
     }
 
     pub async fn download_template(_tenant: TenantContext) -> Result<Response, AppError> {
-        let bytes = xlsx_io::build_template(&[
-            "name",
-            "email",
-            HOURS_COLUMN,
-            "capabilities",
-            "available_shifts",
-        ])?;
+        let bytes = xlsx_io::template_for(IMPORT_FIELDS)?;
         Ok(xlsx_io::xlsx_download_response(bytes, "employees_template.xlsx"))
+    }
+
+    /// POST /employees/import/preview — how an upload would be read, nothing written.
+    pub async fn preview_import(_tenant: TenantContext, multipart: Multipart) -> Result<Json<Value>, AppError> {
+        let upload = xlsx_io::extract_upload(multipart).await?;
+        let preview = xlsx_io::preview(&upload.file, IMPORT_FIELDS, upload.sheet.as_deref())?;
+        // Nothing the dialog offers can make an old monthly column usable.
+        refuse_old_hours_column(preview.columns.iter().map(|c| &c.header))?;
+        Ok(Json(serde_json::to_value(preview).unwrap()))
     }
 
     pub async fn import_employees(
@@ -334,18 +363,10 @@ impl EmployeeService {
         State(state): State<AppState>,
         multipart: Multipart,
     ) -> Result<Json<Value>, AppError> {
-        let bytes = xlsx_io::extract_uploaded_file(multipart).await?;
-        // An outdated template's hours were monthly; importing them as weekly
-        // would quietly quadruple everyone's target.
-        if let Some(old) = xlsx_io::parse_header(&bytes)?
-            .get(2)
-            .filter(|h| OLD_HOURS_COLUMNS.contains(&h.as_str()))
-        {
-            return Err(AppError::Validation(format!(
-                "Column '{old}' is from an old template: hours are now per week. Download the current template and fill in '{HOURS_COLUMN}' (empty = the default)"
-            )));
-        }
-        let rows = xlsx_io::parse_rows(&bytes)?;
+        let upload = xlsx_io::extract_upload(multipart).await?;
+        let table = xlsx_io::read_mapped(&upload.file, IMPORT_FIELDS, upload.mapping.as_ref())?;
+        // Wherever it sits, and whatever the user assigned.
+        refuse_old_hours_column(&table.headers)?;
 
         let cap_by_name: HashMap<String, Uuid> = state
             .capability_repo
@@ -364,13 +385,13 @@ impl EmployeeService {
 
         let mut result = ImportResult::default();
 
-        for (idx, row) in rows.iter().enumerate() {
-            let row_num = idx + 2; // +1 for 0-index, +1 for header row
-            let name = row.first().map(String::as_str).unwrap_or("");
-            let email = row.get(1).map(String::as_str).unwrap_or("");
-            let hours_str = row.get(2).map(String::as_str).unwrap_or("");
-            let capabilities_str = row.get(3).map(String::as_str).unwrap_or("");
-            let shifts_str = row.get(4).map(String::as_str).unwrap_or("");
+        for row in table.rows() {
+            let row_num = row.number();
+            let name = row.get("name");
+            let email = row.get("email");
+            let hours_str = row.get(HOURS_COLUMN);
+            let capabilities_str = row.get("capabilities");
+            let shifts_str = row.get("available_shifts");
 
             if name.is_empty() || email.is_empty() {
                 result.push_error(row_num, "Missing required 'name' or 'email'");

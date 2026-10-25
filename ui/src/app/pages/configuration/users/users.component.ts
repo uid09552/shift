@@ -12,6 +12,7 @@ import { UserService } from '../../../shared/services/user.service';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
 import { SavedNoticeComponent } from '../../../shared/components/form/form-page/saved-notice.component';
 import { ButtonComponent } from '../../../shared/components/ui/button/button.component';
+import { IconButtonComponent } from '../../../shared/components/ui/icon-button/icon-button.component';
 import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
 import { TranslationService } from '../../../shared/i18n/translation.service';
@@ -25,6 +26,7 @@ import { ROLE_OPTIONS } from './user-roles';
     PageBreadcrumbComponent,
     SavedNoticeComponent,
     ButtonComponent,
+    IconButtonComponent,
     TranslatePipe,
   ],
   template: `
@@ -65,8 +67,8 @@ import { ROLE_OPTIONS } from './user-roles';
       <app-saved-notice />
 
       <!-- Members -->
-      <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-        <div class="flex items-center justify-between px-5 py-4 sm:px-6">
+      <div class="table-card">
+        <div class="flex items-center justify-between px-5 py-4">
           <div>
             <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'users.overview' | t }}</h3>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'users.overviewSub' | t }}</p>
@@ -78,30 +80,30 @@ import { ROLE_OPTIONS } from './user-roles';
           </div>
         </div>
 
-        <div class="max-w-full overflow-x-auto">
-          <table class="min-w-full" data-testid="users-table">
-            <thead class="border-b border-gray-100 dark:border-white/[0.05]">
+        <div class="table-scroll">
+          <table class="table-base" data-testid="users-table">
+            <thead class="table-head">
               <tr>
-                <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'users.userColumn' | t }}</th>
-                <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'users.rolesColumn' | t }}</th>
-                <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.actions' | t }}</th>
+                <th class="table-th">{{ 'users.userColumn' | t }}</th>
+                <th class="table-th">{{ 'users.rolesColumn' | t }}</th>
+                <th class="table-th table-actions">{{ 'common.actions' | t }}</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+            <tbody class="table-striped">
               @if (loading) {
                 <tr>
-                  <td colspan="3" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">{{ 'users.loading' | t }}</td>
+                  <td colspan="3" class="table-empty">{{ 'users.loading' | t }}</td>
                 </tr>
               } @else if (users.length === 0) {
                 <tr>
-                  <td colspan="3" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500" data-testid="users-empty">
+                  <td colspan="3" class="table-empty" data-testid="users-empty">
                     {{ 'users.empty' | t }}
                   </td>
                 </tr>
               } @else {
                 @for (user of users; track user.id) {
-                  <tr data-testid="users-row" [attr.data-user]="user.username">
-                    <td class="px-5 py-4 sm:px-6 text-start">
+                  <tr class="table-tr" data-testid="users-row" [attr.data-user]="user.username">
+                    <td class="table-td">
                       <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">{{ displayName(user) }}</span>
                       <span class="block text-xs text-gray-500 dark:text-gray-400">{{ user.email || user.username }}</span>
                       @if (!user.enabled) {
@@ -110,7 +112,7 @@ import { ROLE_OPTIONS } from './user-roles';
                         </span>
                       }
                     </td>
-                    <td class="px-4 py-3 text-start text-theme-sm">
+                    <td class="table-td">
                       <div class="flex flex-wrap items-center gap-3">
                         @for (option of roleOptions; track option.value) {
                           <label
@@ -134,15 +136,14 @@ import { ROLE_OPTIONS } from './user-roles';
                         }
                       </div>
                     </td>
-                    <td class="px-4 py-3 text-start text-theme-sm">
-                      <app-button
-                        size="sm"
-                        variant="danger"
+                    <td class="table-td table-actions">
+                      <app-icon-button
+                        icon="remove-user"
+                        tone="danger"
+                        [label]="'users.remove' | t"
                         [disabled]="isBusy(user) || isSelf(user)"
                         (btnClick)="removeUser(user)"
-                      >
-                        {{ 'users.remove' | t }}
-                      </app-button>
+                      />
                     </td>
                   </tr>
                 }

@@ -123,23 +123,7 @@
     </div>
   </div>
 
-  @if (saveError) {
-    <div
-      class="mx-5 mb-3 flex items-start justify-between gap-3 rounded-lg border border-error-200 bg-error-50 px-4 py-2.5 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400"
-      role="alert"
-      data-testid="schedule-save-error"
-    >
-      <span>{{ saveError }}</span>
-      <button
-        type="button"
-        (click)="saveError = null"
-        [attr.aria-label]="'common.close' | t"
-        class="shrink-0 opacity-70 transition-opacity hover:opacity-100"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg>
-      </button>
-    </div>
-  }
+  <app-error-notice class="mx-5 mb-3" data-testid="schedule-save-error" [message]="saveError" (dismiss)="saveError = null" />
 
   @if (notice) {
     <div
@@ -208,17 +192,13 @@
         {{ (wishesOnly ? 'schedule.loadingWishes' : 'schedule.loadingPlans') | t }}
       </div>
     } @else if (error) {
-      <div
-        class="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500"
-      >
-        <p class="mb-2 text-sm">{{ error | t }}</p>
-        <button
-          (click)="loadAll()"
-          class="rounded-lg bg-brand-500 px-4 py-2 text-xs font-medium text-white transition hover:bg-brand-600"
-        >
-          {{ 'common.retry' | t }}
-        </button>
-      </div>
+      <app-load-error class="py-10" [message]="error | t" (retry)="loadAll()" />
+    } @else if (periodLoadError) {
+      <app-load-error
+        class="py-10"
+        [message]="(wishesOnly ? 'schedule.wishesLoadFailed' : 'schedule.plansLoadFailed') | t"
+        (retry)="loadPeriod()"
+      />
     } @else if (employees.length === 0) {
       <div
         class="flex items-center justify-center py-20 text-sm text-gray-400 dark:text-gray-500"

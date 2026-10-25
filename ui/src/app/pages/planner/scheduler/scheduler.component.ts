@@ -54,6 +54,7 @@ import { TabItem, TabsComponent } from '../../../shared/components/ui/tabs/tabs.
 import { DateRange, DateRangePickerComponent } from '../../../shared/components/ui/date-range-picker/date-range-picker.component';
 import { ActivatedRoute, Router } from '@angular/router';
 import { PlannerSettingsService } from '../../../shared/services/planner-settings.service';
+import { LoadErrorComponent } from '../../../shared/components/ui/load-error/load-error.component';
 
 interface DayInfo {
   date: Date;
@@ -83,7 +84,7 @@ function isOptimizerTab(value: string | null): value is OptimizerTab {
 @Component({
   selector: 'app-scheduler',
   standalone: true,
-  imports: [CommonModule, FormsModule, PageBreadcrumbComponent, CalendarNavComponent, CalendarTableComponent, TabsComponent, DateRangePickerComponent, TranslatePipe],
+  imports: [CommonModule, FormsModule, PageBreadcrumbComponent, CalendarNavComponent, CalendarTableComponent, TabsComponent, DateRangePickerComponent, LoadErrorComponent, TranslatePipe],
   templateUrl: './scheduler.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './scheduler.component.css',
@@ -121,6 +122,8 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   isPlanning = false;
   planningTaskId: string | null = null;
   error: string | null = null;
+  /** Runs, staff, shifts/workstations or the job list failed to load: never shown as "none yet". */
+  dataLoadError = false;
   deletingResultId: string | null = null;
 
   private pollSub: Subscription | null = null;
@@ -431,20 +434,35 @@ export class SchedulerComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Retry for `dataLoadError`: everything the page loads on open. */
+  reloadData(): void {
+    this.dataLoadError = false;
+    this.loadLatestResult();
+    this.loadEmployees();
+    this.loadShiftsAndWorkstations();
+    this.startTaskListPolling();
+  }
+
   loadAllResults(): void {
     this.plannerService.getOptimizedShifts(20, 0, false).subscribe({
       next: (r) => {
         this.allResults = r.data || [];
         if (this.activeTab === 'compare') this.openCompare(); // opened from the URL before the runs arrived
       },
-      error: (e) => console.error('Error loading all results:', e),
+      error: (e) => {
+        console.error('Error loading all results:', e);
+        this.dataLoadError = true;
+      },
     });
   }
 
   loadEmployees(): void {
     this.employeeService.getEmployeeProfiles(100, 0).subscribe({
       next: (r) => { this.employees = r.data || []; },
-      error: (e) => console.error('Error loading employees:', e),
+      error: (e) => {
+        console.error('Error loading employees:', e);
+        this.dataLoadError = true;
+      },
     });
   }
 
@@ -461,7 +479,10 @@ export class SchedulerComponent implements OnInit, OnDestroy {
         this.workstations = workstations;
         this.closures = closures;
       },
-      error: (e) => console.error('Error loading shifts/workstations:', e),
+      error: (e) => {
+        console.error('Error loading shifts/workstations:', e);
+        this.dataLoadError = true;
+      },
     });
   }
 
@@ -986,7 +1007,10 @@ export class SchedulerComponent implements OnInit, OnDestroy {
       switchMap(() => this.plannerService.getPlanningTasks()),
     ).subscribe({
       next: (r) => { this.planningTasks = r.tasks; },
-      error: (e) => console.error('Failed to load task list:', e),
+      error: (e) => {
+        console.error('Failed to load task list:', e);
+        this.dataLoadError = true;
+      },
     });
   }
 

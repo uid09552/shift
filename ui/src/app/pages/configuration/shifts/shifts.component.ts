@@ -4,6 +4,12 @@ import { Router } from '@angular/router';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
 import { SavedNoticeComponent } from '../../../shared/components/form/form-page/saved-notice.component';
 import { ButtonComponent } from '../../../shared/components/ui/button/button.component';
+import { IconButtonComponent } from '../../../shared/components/ui/icon-button/icon-button.component';
+import { LoadErrorComponent } from '../../../shared/components/ui/load-error/load-error.component';
+import { ImportDialogComponent } from '../../../shared/components/import-dialog/import-dialog.component';
+import { ImportConfirmation } from '../../../shared/components/import-dialog/import.models';
+import { ErrorNoticeComponent } from '../../../shared/components/ui/error-notice/error-notice.component';
+import { apiErrorMessage } from '../../../shared/http/api-error';
 import { ShiftService, Shift, ImportResult } from '../../../shared/services/shift.service';
 import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
 import { ContextMenuService } from '../../../shared/components/ui/context-menu/context-menu.service';
@@ -19,6 +25,10 @@ import { crossesMidnight, trimTime, weekdayName } from './shift-time';
     PageBreadcrumbComponent,
     SavedNoticeComponent,
     ButtonComponent,
+    IconButtonComponent,
+    LoadErrorComponent,
+    ImportDialogComponent,
+    ErrorNoticeComponent,
     TranslatePipe,
   ],
   template: `
@@ -27,8 +37,8 @@ import { crossesMidnight, trimTime, weekdayName } from './shift-time';
     <app-saved-notice />
 
     <!-- Shifts Table -->
-    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-      <div class="flex items-center justify-between px-5 py-4 sm:px-6">
+    <div class="table-card">
+      <div class="flex items-center justify-between px-5 py-4">
         <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
           {{ 'shifts.overview' | t }}
         </h3>
@@ -42,7 +52,7 @@ import { crossesMidnight, trimTime, weekdayName } from './shift-time';
           <input
             #importFileInput
             type="file"
-            accept=".xlsx"
+            accept=".xlsx,.xls,.xlsb,.ods"
             class="hidden"
             (change)="onImportFileSelected($event)"
           />
@@ -57,9 +67,13 @@ import { crossesMidnight, trimTime, weekdayName } from './shift-time';
         </div>
       </div>
 
+      <app-error-notice class="mx-5 mb-4" [message]="actionError" (dismiss)="actionError = null" />
+
+      <app-import-dialog [file]="importFile" [preview]="previewImport" (cancel)="importFile = null" (confirmed)="runImport($event)" />
+
       @if (importResult) {
         <div
-          class="mx-5 mb-4 rounded-lg border px-4 py-3 text-sm transition-colors sm:mx-6"
+          class="mx-5 mb-4 rounded-lg border px-4 py-3 text-sm transition-colors"
           [class]="importResult.errors.length === 0
             ? 'border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400'
             : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400'"
@@ -84,27 +98,33 @@ import { crossesMidnight, trimTime, weekdayName } from './shift-time';
         </div>
       }
 
-      <div class="max-w-full overflow-x-auto">
-        <table class="min-w-full">
-          <thead class="border-b border-gray-100 dark:border-white/[0.05]">
+      <div class="table-scroll">
+        <table class="table-base">
+          <thead class="table-head">
             <tr>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'shifts.colorLabel' | t }}</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'shifts.shortNameLabel' | t }}</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.name' | t }}</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'shifts.weekdayTimes' | t }}</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.actions' | t }}</th>
+              <th class="table-th">{{ 'shifts.colorLabel' | t }}</th>
+              <th class="table-th">{{ 'shifts.shortNameLabel' | t }}</th>
+              <th class="table-th">{{ 'common.name' | t }}</th>
+              <th class="table-th">{{ 'shifts.weekdayTimes' | t }}</th>
+              <th class="table-th table-actions">{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+          <tbody class="table-striped">
             @if (loading) {
               <tr>
-                <td colspan="5" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
+                <td colspan="5" class="table-empty">
                   {{ 'shifts.loading' | t }}
+                </td>
+              </tr>
+            } @else if (loadError) {
+              <tr>
+                <td colspan="5" class="p-0">
+                  <app-load-error [message]="'shifts.loadFailed' | t" (retry)="loadShifts()" />
                 </td>
               </tr>
             } @else if (shifts.length === 0) {
               <tr>
-                <td colspan="5" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
+                <td colspan="5" class="table-empty">
                   <svg class="mx-auto mb-3 h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                     <line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
@@ -115,10 +135,11 @@ import { crossesMidnight, trimTime, weekdayName } from './shift-time';
             } @else {
               @for (shift of shifts; track shift.id) {
                 <tr
+                  class="table-tr"
                   (dblclick)="openEditForm(shift)"
                   (contextmenu)="onRowContextMenu($event, shift)"
                 >
-                  <td class="px-5 py-4 sm:px-6 text-start">
+                  <td class="table-td">
                     <div class="flex items-center gap-2">
                       <div
                         class="w-6 h-6 rounded border border-gray-200 dark:border-gray-700"
@@ -128,7 +149,7 @@ import { crossesMidnight, trimTime, weekdayName } from './shift-time';
                       <span class="text-xs font-mono text-gray-500 dark:text-gray-400">{{ shift.color }}</span>
                     </div>
                   </td>
-                  <td class="px-5 py-4 sm:px-6 text-start">
+                  <td class="table-td">
                     <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
                       [style.backgroundColor]="shift.color + '20'"
                       [style.color]="shift.color"
@@ -136,12 +157,12 @@ import { crossesMidnight, trimTime, weekdayName } from './shift-time';
                       {{ shift.short_name }}
                     </span>
                   </td>
-                  <td class="px-5 py-4 sm:px-6 text-start">
+                  <td class="table-td">
                     <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
                       {{ shift.name }}
                     </span>
                   </td>
-                  <td class="px-4 py-3 text-start text-theme-sm">
+                  <td class="table-td">
                     @if (shift.weekday_times.length === 0) {
                       <span class="text-gray-300 dark:text-gray-600">{{ 'shifts.noTimes' | t }}</span>
                     } @else {
@@ -165,22 +186,10 @@ import { crossesMidnight, trimTime, weekdayName } from './shift-time';
                       </div>
                     }
                   </td>
-                  <td class="px-4 py-3 text-start text-theme-sm">
-                    <div class="flex items-center gap-2">
-                      <app-button
-                        size="sm"
-                        variant="outline"
-                        (btnClick)="openEditForm(shift)"
-                      >
-                        {{ 'common.edit' | t }}
-                      </app-button>
-                      <app-button
-                        size="sm"
-                        variant="danger"
-                        (btnClick)="deleteShift(shift)"
-                      >
-                        {{ 'common.delete' | t }}
-                      </app-button>
+                  <td class="table-td table-actions">
+                    <div class="flex items-center justify-end gap-1">
+                      <app-icon-button icon="edit" [label]="'common.edit' | t" (btnClick)="openEditForm(shift)" />
+                      <app-icon-button icon="delete" tone="danger" [label]="'common.delete' | t" (btnClick)="deleteShift(shift)" />
                     </div>
                   </td>
                 </tr>
@@ -197,6 +206,10 @@ import { crossesMidnight, trimTime, weekdayName } from './shift-time';
 export class ShiftsComponent implements OnInit {
   shifts: Shift[] = [];
   loading = true;
+  /** The list request failed: shown instead of the empty state. */
+  loadError = false;
+  /** Why the last action failed, until dismissed or the next one succeeds. */
+  actionError: string | null = null;
   readonly trimTime = trimTime;
   readonly crossesMidnight = crossesMidnight;
 
@@ -204,6 +217,8 @@ export class ShiftsComponent implements OnInit {
 
   importing = false;
   importResult: ImportResult | null = null;
+  /** The file chosen for import; the import dialog is open while there is one. */
+  importFile: File | null = null;
 
   constructor(
     private shiftService: ShiftService,
@@ -219,6 +234,7 @@ export class ShiftsComponent implements OnInit {
 
   loadShifts(): void {
     this.loading = true;
+    this.loadError = false;
     this.shiftService.getShifts().subscribe({
       next: (shifts) => {
         this.shifts = shifts;
@@ -226,6 +242,7 @@ export class ShiftsComponent implements OnInit {
       },
       error: (err) => {
         console.error('Failed to load shifts', err);
+        this.loadError = true;
         this.loading = false;
       },
     });
@@ -240,30 +257,43 @@ export class ShiftsComponent implements OnInit {
         a.download = 'shifts_template.xlsx';
         a.click();
         URL.revokeObjectURL(url);
+        this.actionError = null;
       },
-      error: (err) => console.error('Failed to download shift template', err),
+      error: (err) => {
+        console.error('Failed to download shift template', err);
+        this.actionError = apiErrorMessage(err, 'common.downloadFailed', this.translations);
+      },
     });
   }
 
   onImportFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    if (!file) return;
+    input.value = ''; // so the same file can be chosen again
+    if (file) this.importFile = file; // opens the import dialog
+  }
 
+  /** The import dialog reads the file through this. */
+  readonly previewImport = (file: File, sheet?: string) => this.shiftService.previewImport(file, sheet);
+
+  /** The dialog's answer: the file and the columns the user confirmed. */
+  runImport({ file, mapping }: ImportConfirmation): void {
+    this.importFile = null;
     this.importing = true;
     this.importResult = null;
-    this.shiftService.importFromFile(file).subscribe({
+    this.shiftService.importFromFile(file, mapping).subscribe({
       next: (result) => {
         this.importResult = result;
         this.importing = false;
+        this.actionError = null;
         this.loadShifts();
       },
       error: (err) => {
         console.error('Failed to import shifts', err);
+        this.actionError = apiErrorMessage(err, 'common.importFailed', this.translations);
         this.importing = false;
       },
     });
-    input.value = '';
   }
 
   getWeekdayName(weekday: number): string {
@@ -296,9 +326,13 @@ export class ShiftsComponent implements OnInit {
 
     this.shiftService.deleteShift(shift.id).subscribe({
       next: () => {
+        this.actionError = null;
         this.loadShifts();
       },
-      error: (err) => console.error('Failed to delete shift', err),
+      error: (err) => {
+        console.error('Failed to delete shift', err);
+        this.actionError = apiErrorMessage(err, 'common.deleteFailed', this.translations);
+      },
     });
   }
 }

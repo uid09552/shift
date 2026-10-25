@@ -13,7 +13,7 @@ use crate::repository::AppState;
 use crate::repository::domain::{CapabilityRepository, ShiftRepository, WorkstationRepository};
 use crate::services::audit_log::{self, AuditActor};
 use crate::services::tenant::TenantContext;
-use crate::services::xlsx_io::{self, ImportResult};
+use crate::services::xlsx_io::{self, ImportField, ImportResult};
 
 #[derive(Deserialize)]
 pub struct ListWorkstationsQuery {
@@ -21,6 +21,17 @@ pub struct ListWorkstationsQuery {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
 }
+
+/// The columns of the workstation import and its template, in template order.
+pub const IMPORT_FIELDS: &[ImportField] = &[
+    ImportField { key: "name", required: true, aliases: &["bezeichnung", "titel", "title"] },
+    ImportField { key: "priority", required: false, aliases: &["prioritaet"] },
+    ImportField { key: "min_employees", required: false, aliases: &["min", "minimum", "mindestbesetzung"] },
+    ImportField { key: "max_employees", required: false, aliases: &["max", "maximum", "hoechstbesetzung"] },
+    ImportField { key: "available", required: false, aliases: &["verfuegbar", "aktiv", "active"] },
+    ImportField { key: "active_shifts", required: false, aliases: &["shifts", "schichten"] },
+    ImportField { key: "required_capabilities", required: false, aliases: &["capabilities", "faehigkeiten", "qualifikationen"] },
+];
 
 pub struct WorkstationService;
 
@@ -342,16 +353,15 @@ impl WorkstationService {
     }
 
     pub async fn download_template(_tenant: TenantContext) -> Result<Response, AppError> {
-        let bytes = xlsx_io::build_template(&[
-            "name",
-            "priority",
-            "min_employees",
-            "max_employees",
-            "available",
-            "active_shifts",
-            "required_capabilities",
-        ])?;
+        let bytes = xlsx_io::template_for(IMPORT_FIELDS)?;
         Ok(xlsx_io::xlsx_download_response(bytes, "workstations_template.xlsx"))
+    }
+
+    /// POST /workstations/import/preview — how an upload would be read, nothing written.
+    pub async fn preview_import(_tenant: TenantContext, multipart: Multipart) -> Result<Json<Value>, AppError> {
+        let upload = xlsx_io::extract_upload(multipart).await?;
+        let preview = xlsx_io::preview(&upload.file, IMPORT_FIELDS, upload.sheet.as_deref())?;
+        Ok(Json(serde_json::to_value(preview).unwrap()))
     }
 
     pub async fn import_workstations(
@@ -360,8 +370,8 @@ impl WorkstationService {
         State(state): State<AppState>,
         multipart: Multipart,
     ) -> Result<Json<Value>, AppError> {
-        let bytes = xlsx_io::extract_uploaded_file(multipart).await?;
-        let rows = xlsx_io::parse_rows(&bytes)?;
+        let upload = xlsx_io::extract_upload(multipart).await?;
+        let table = xlsx_io::read_mapped(&upload.file, IMPORT_FIELDS, upload.mapping.as_ref())?;
 
         let cap_by_name: HashMap<String, Uuid> = state
             .capability_repo
@@ -380,15 +390,15 @@ impl WorkstationService {
 
         let mut result = ImportResult::default();
 
-        for (idx, row) in rows.iter().enumerate() {
-            let row_num = idx + 2;
-            let name = row.first().map(String::as_str).unwrap_or("");
-            let priority_str = row.get(1).map(String::as_str).unwrap_or("");
-            let min_employees_str = row.get(2).map(String::as_str).unwrap_or("");
-            let max_employees_str = row.get(3).map(String::as_str).unwrap_or("");
-            let available_str = row.get(4).map(String::as_str).unwrap_or("");
-            let active_shifts_str = row.get(5).map(String::as_str).unwrap_or("");
-            let required_capabilities_str = row.get(6).map(String::as_str).unwrap_or("");
+        for row in table.rows() {
+            let row_num = row.number();
+            let name = row.get("name");
+            let priority_str = row.get("priority");
+            let min_employees_str = row.get("min_employees");
+            let max_employees_str = row.get("max_employees");
+            let available_str = row.get("available");
+            let active_shifts_str = row.get("active_shifts");
+            let required_capabilities_str = row.get("required_capabilities");
 
             if name.is_empty() {
                 result.push_error(row_num, "Missing required 'name'");
@@ -425,8 +435,8 @@ impl WorkstationService {
                 true
             } else {
                 match available_str.to_lowercase().as_str() {
-                    "true" | "yes" | "1" => true,
-                    "false" | "no" | "0" => false,
+                    "true" | "yes" | "ja" | "1" => true,
+                    "false" | "no" | "nein" | "0" => false,
                     _ => {
                         result.push_error(row_num, format!("Invalid 'available' value: '{available_str}'"));
                         continue;

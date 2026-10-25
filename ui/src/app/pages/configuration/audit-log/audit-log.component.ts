@@ -10,6 +10,7 @@ import { WorkstationService } from '../../../shared/services/workstation.service
 import { CapabilityService } from '../../../shared/services/capability.service';
 import { EmployeeService } from '../../../shared/services/employee.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
+import { LoadErrorComponent } from '../../../shared/components/ui/load-error/load-error.component';
 import { TranslationService } from '../../../shared/i18n/translation.service';
 import {
   FieldChange,
@@ -64,19 +65,19 @@ interface Row {
 @Component({
   selector: 'app-audit-log',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, PageBreadcrumbComponent, TranslatePipe],
+  imports: [CommonModule, FormsModule, RouterModule, PageBreadcrumbComponent, LoadErrorComponent, TranslatePipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <app-page-breadcrumb pageTitle="nav.auditLog" />
 
-    <div class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-      <div class="border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
+    <div class="table-card">
+      <div class="border-b border-gray-100 px-5 py-4 dark:border-white/[0.05]">
         <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'auditLog.heading' | t }}</h3>
         <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{{ 'auditLog.intro' | t }}</p>
       </div>
 
       <!-- Filters -->
-      <div class="flex flex-wrap items-end gap-3 border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6" data-testid="audit-filters">
+      <div class="flex flex-wrap items-end gap-3 border-b border-gray-100 px-5 py-4 dark:border-white/[0.05]" data-testid="audit-filters">
         <div class="flex flex-col gap-1.5">
           <div class="flex items-center rounded-lg border border-gray-200 p-0.5 dark:border-gray-700" role="group">
             @for (p of presets; track p) {
@@ -146,7 +147,7 @@ interface Row {
       </div>
 
       @if (entityId) {
-        <div class="flex items-center gap-2 border-b border-gray-100 px-5 py-2.5 dark:border-white/[0.05] sm:px-6">
+        <div class="flex items-center gap-2 border-b border-gray-100 px-5 py-2.5 dark:border-white/[0.05]">
           <span class="inline-flex items-center gap-1.5 rounded-full bg-gray-100 py-1 pl-3 pr-1 text-xs font-medium text-gray-700 dark:bg-white/[0.06] dark:text-gray-300" data-testid="audit-item-chip">
             {{ 'auditLog.onlyItem' | t: { name: itemChipName } }}
             <button type="button" (click)="entityId = ''; applyFilters()" [attr.aria-label]="'auditLog.showAllItems' | t"
@@ -158,23 +159,23 @@ interface Row {
       }
 
       @if (error) {
-        <p class="px-5 py-12 text-center text-sm text-error-600 dark:text-error-400 sm:px-6" role="alert">{{ 'auditLog.loadFailed' | t }}</p>
+        <app-load-error [message]="'auditLog.loadFailed' | t" (retry)="load()" />
       } @else if (!loaded) {
-        <p class="px-5 py-12 text-center text-sm text-gray-400 dark:text-gray-500 sm:px-6">{{ 'common.loading' | t }}</p>
+        <p class="px-5 py-12 text-center text-sm text-gray-400 dark:text-gray-500">{{ 'common.loading' | t }}</p>
       } @else if (total === 0) {
-        <p class="px-5 py-12 text-center text-sm text-gray-400 dark:text-gray-500 sm:px-6" data-testid="audit-empty">
+        <p class="px-5 py-12 text-center text-sm text-gray-400 dark:text-gray-500" data-testid="audit-empty">
           {{ (hasFilters ? 'auditLog.noMatch' : 'auditLog.empty') | t }}
         </p>
       } @else {
-        <div class="relative max-w-full overflow-x-auto transition-opacity" [class.opacity-50]="loading">
-          <table class="w-full min-w-[40rem] text-left text-sm" data-testid="audit-table">
-            <thead>
-              <tr class="border-b border-gray-100 text-xs text-gray-500 dark:border-white/[0.05] dark:text-gray-400">
-                <th scope="col" class="w-24 py-2.5 pl-5 pr-3 font-medium sm:pl-6">{{ 'auditLog.col.time' | t }}</th>
-                <th scope="col" class="px-3 py-2.5 font-medium">{{ 'auditLog.col.what' | t }}</th>
-                <th scope="col" class="px-3 py-2.5 font-medium">{{ 'auditLog.col.item' | t }}</th>
-                <th scope="col" class="px-3 py-2.5 font-medium">{{ 'auditLog.col.who' | t }}</th>
-                <th scope="col" class="w-10 py-2.5 pl-3 pr-5 sm:pr-6"><span class="sr-only">{{ 'auditLog.showDetails' | t }}</span></th>
+        <div class="table-scroll relative transition-opacity" [class.opacity-50]="loading">
+          <table class="table-base min-w-[40rem]" data-testid="audit-table">
+            <thead class="table-head">
+              <tr>
+                <th scope="col" class="table-th w-24">{{ 'auditLog.col.time' | t }}</th>
+                <th scope="col" class="table-th">{{ 'auditLog.col.what' | t }}</th>
+                <th scope="col" class="table-th">{{ 'auditLog.col.item' | t }}</th>
+                <th scope="col" class="table-th">{{ 'auditLog.col.who' | t }}</th>
+                <th scope="col" class="table-th table-actions w-10"><span class="sr-only">{{ 'auditLog.showDetails' | t }}</span></th>
               </tr>
             </thead>
             <tbody>
@@ -182,21 +183,21 @@ interface Row {
                 @if (row.day) {
                   <tr>
                     <th colspan="5" scope="colgroup"
-                      class="bg-gray-50/80 py-1.5 pl-5 text-xs font-medium text-gray-500 dark:bg-white/[0.02] dark:text-gray-400 sm:pl-6">{{ row.day }}</th>
+                      class="border-b border-gray-100 bg-gray-50/80 px-5 py-1.5 text-start text-xs font-medium text-gray-500 dark:border-white/[0.05] dark:bg-white/[0.02] dark:text-gray-400">{{ row.day }}</th>
                   </tr>
                 }
-                <tr class="cursor-pointer border-b border-gray-100 transition-colors hover:bg-gray-50 dark:border-white/[0.05] dark:hover:bg-white/[0.02]"
-                  [class.bg-gray-50]="open === row.entry.id" (click)="toggle(row.entry)" [attr.data-testid]="'audit-row-' + row.entry.action">
-                  <td class="whitespace-nowrap py-3 pl-5 pr-3 tabular-nums text-gray-500 dark:text-gray-400 sm:pl-6" [title]="fullTime(row.entry.created_at)">{{ clock(row.entry.created_at) }}</td>
-                  <td class="px-3 py-3">
+                <tr class="table-tr cursor-pointer"
+                  [ngClass]="open === row.entry.id ? 'bg-gray-50 dark:bg-white/[0.04]' : ''" (click)="toggle(row.entry)" [attr.data-testid]="'audit-row-' + row.entry.action">
+                  <td class="table-td whitespace-nowrap tabular-nums text-gray-500 dark:text-gray-400" [title]="fullTime(row.entry.created_at)">{{ clock(row.entry.created_at) }}</td>
+                  <td class="table-td">
                     <span class="flex items-center gap-2 text-gray-800 dark:text-white/90">
                       <span class="h-1.5 w-1.5 shrink-0 rounded-full" [ngClass]="dotClass(row.entry.action)" aria-hidden="true"></span>
                       {{ actionLabel(row.entry.action) }}
                     </span>
                   </td>
-                  <td class="max-w-[16rem] truncate px-3 py-3 text-gray-700 dark:text-gray-300" data-testid="audit-subject">{{ subject(row.entry) }}</td>
-                  <td class="max-w-[14rem] truncate px-3 py-3 text-gray-500 dark:text-gray-400">{{ row.entry.actor || ('auditLog.unknownActor' | t) }}</td>
-                  <td class="py-3 pl-3 pr-5 text-right sm:pr-6">
+                  <td class="table-td max-w-[16rem] truncate" data-testid="audit-subject">{{ subject(row.entry) }}</td>
+                  <td class="table-td max-w-[14rem] truncate text-gray-500 dark:text-gray-400">{{ row.entry.actor || ('auditLog.unknownActor' | t) }}</td>
+                  <td class="table-td table-actions">
                     <button type="button" (click)="$event.stopPropagation(); toggle(row.entry)"
                       [attr.aria-expanded]="open === row.entry.id" [attr.aria-label]="'auditLog.showDetails' | t"
                       class="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-white/5 dark:hover:text-gray-200">
@@ -209,7 +210,7 @@ interface Row {
                 </tr>
                 @if (open === row.entry.id) {
                   <tr class="border-b border-gray-100 bg-gray-50 dark:border-white/[0.05] dark:bg-white/[0.02]">
-                    <td colspan="5" class="px-5 pb-5 pt-1 sm:px-6" data-testid="audit-detail">
+                    <td colspan="5" class="px-5 pb-5 pt-1" data-testid="audit-detail">
                       <ng-container *ngTemplateOutlet="detailTpl; context: { $implicit: row.entry, d: details.get(row.entry.id) }" />
                     </td>
                   </tr>
@@ -219,7 +220,7 @@ interface Row {
           </table>
         </div>
 
-        <div class="flex items-center justify-between gap-3 px-5 py-3 sm:px-6">
+        <div class="flex items-center justify-between gap-3 px-5 py-3">
           <p class="text-xs tabular-nums text-gray-500 dark:text-gray-400" data-testid="audit-range">
             {{ 'auditLog.range' | t: { from: offset + 1, to: offset + rows.length, total: total } }}
           </p>
@@ -469,7 +470,7 @@ export class AuditLogComponent implements OnInit, OnDestroy {
 
   // ── Loading ───────────────────────────────────────────────────────
 
-  private load(): void {
+  load(): void {
     const request = ++this.request;
     this.loading = true;
     this.error = false;

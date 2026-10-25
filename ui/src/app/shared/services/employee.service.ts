@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Observable, catchError, forkJoin, map, of, throwError } from 'rxjs';
+import { ImportColumnMapping, ImportPreview, importFormData } from '../components/import-dialog/import.models';
 
 export interface Employee {
   id: string;
@@ -159,9 +160,14 @@ export class EmployeeService {
     return this.http.get(`${this.apiUrl}/employees/template`, { responseType: 'blob' });
   }
 
-  importFromFile(file: File): Observable<ImportResult> {
-    const formData = new FormData();
-    formData.append('file', file);
-    return this.http.post<ImportResult>(`${this.apiUrl}/employees/import`, formData);
+  /** How `file` would be read, nothing written. `sheet` picks another sheet of the workbook. */
+  previewImport(file: File, sheet?: string): Observable<ImportPreview> {
+    return this.http.post<ImportPreview>(`${this.apiUrl}/employees/import/preview`, importFormData(file, { sheet }));
+  }
+
+  /** Imports `file`; `mapping` is what the user assigned, detection is used without it. */
+  importFromFile(file: File, mapping?: ImportColumnMapping): Observable<ImportResult> {
+    const parts = { mapping: mapping && JSON.stringify(mapping) };
+    return this.http.post<ImportResult>(`${this.apiUrl}/employees/import`, importFormData(file, parts));
   }
 }

@@ -41,6 +41,9 @@ import { SwapNotificationService } from '../../../shared/services/swap-notificat
 import { UserService } from '../../../shared/services/user.service';
 import { GroupedPlanViewComponent } from './grouped-plan-view.component';
 import { DayViewComponent } from '../day-view/day-view.component';
+import { LoadErrorComponent } from '../../../shared/components/ui/load-error/load-error.component';
+import { ErrorNoticeComponent } from '../../../shared/components/ui/error-notice/error-notice.component';
+import { apiErrorMessage } from '../../../shared/http/api-error';
 import {
   AssignedPerson,
   CellDetail,
@@ -112,6 +115,8 @@ interface WishCellData {
     ReplacementDialogComponent,
     SwapRequestsDialogComponent,
     RosterMonthStatusComponent,
+    LoadErrorComponent,
+    ErrorNoticeComponent,
     TranslatePipe,
   ],
   templateUrl: './kalender.component.html',
@@ -160,6 +165,8 @@ export class KalenderComponent implements OnInit, OnDestroy {
 
   loading = true;
   error: string | null = null;
+  /** The visible period's roster (or wishes) failed to load: never shown as an empty grid. */
+  periodLoadError = false;
 
   // Delete confirmation state
   deletingCell: { employeeId: string; dateStr: string; planId: string } | null = null;
@@ -493,6 +500,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
 
   loadPlans(): void {
     this.loading = true;
+    this.periodLoadError = false;
     const fromStr = this.formatDate(this.periodStart);
     const toStr = this.formatDate(this.periodEnd);
     // Month view can span far more employee×day cells than the week view's fixed 7 columns.
@@ -513,7 +521,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           console.error('Failed to load shift plans', err);
-          this.planMap.clear();
+          this.periodLoadError = true;
           this.loading = false;
         },
       });
@@ -521,6 +529,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
 
   loadWishes(): void {
     this.loading = true;
+    this.periodLoadError = false;
     const fromStr = this.formatDate(this.periodStart);
     const toStr = this.formatDate(this.periodEnd);
 
@@ -531,7 +540,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Failed to load shift wishes', err);
-        this.wishMap.clear();
+        this.periodLoadError = true;
         this.loading = false;
       },
     });
@@ -1465,7 +1474,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
 
   /** The server's reason when it gives one (a closed workstation, say), else a generic line. */
   private showSaveError(err: any): void {
-    this.saveError = err?.error?.error ?? this.translations.t('schedule.saveFailed');
+    this.saveError = apiErrorMessage(err, 'schedule.saveFailed', this.translations);
   }
 
   confirmDelete(): void {
@@ -1488,6 +1497,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           console.error('Failed to delete shift plan', err);
+          this.showSaveError(err);
           this.processingCell = null;
         },
       });

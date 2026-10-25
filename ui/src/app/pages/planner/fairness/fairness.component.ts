@@ -9,6 +9,7 @@ import {
   FairnessReport,
 } from '../../../shared/services/analysis.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
+import { LoadErrorComponent } from '../../../shared/components/ui/load-error/load-error.component';
 import { TranslationService } from '../../../shared/i18n/translation.service';
 import {
   FairnessColumn,
@@ -29,14 +30,14 @@ type Preset = 'thisMonth' | 'lastMonth' | 'thisQuarter' | 'last3Months' | 'custo
 @Component({
   selector: 'app-fairness',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, PageBreadcrumbComponent, TranslatePipe],
+  imports: [CommonModule, FormsModule, RouterModule, PageBreadcrumbComponent, LoadErrorComponent, TranslatePipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <app-page-breadcrumb pageTitle="nav.fairness" />
 
-    <div class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+    <div class="table-card">
       <!-- Period -->
-      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-white/[0.05]">
         <div>
           <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'fairness.heading' | t }}</h3>
           <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{{ 'fairness.intro' | t }}</p>
@@ -71,26 +72,26 @@ type Preset = 'thisMonth' | 'lastMonth' | 'thisQuarter' | 'last3Months' | 'custo
       </div>
 
       @if (error) {
-        <p class="px-5 py-12 text-center text-sm text-error-600 dark:text-error-400 sm:px-6" role="alert">{{ error | t }}</p>
+        <app-load-error [message]="error | t" (retry)="load()" />
       } @else if (!report) {
-        <p class="px-5 py-12 text-center text-sm text-gray-400 dark:text-gray-500 sm:px-6">{{ 'fairness.loading' | t }}</p>
+        <p class="px-5 py-12 text-center text-sm text-gray-400 dark:text-gray-500">{{ 'fairness.loading' | t }}</p>
       } @else if (team.working === 0) {
-        <p class="px-5 py-12 text-center text-sm text-gray-400 dark:text-gray-500 sm:px-6">{{ 'fairness.empty' | t }}</p>
+        <p class="px-5 py-12 text-center text-sm text-gray-400 dark:text-gray-500">{{ 'fairness.empty' | t }}</p>
       } @else {
         <div class="transition-opacity" [class.opacity-50]="loading">
           <!-- How far apart the team is -->
           <div class="grid grid-cols-2 gap-px border-b border-gray-100 bg-gray-100 dark:border-white/[0.05] dark:bg-white/[0.05] lg:grid-cols-4" data-testid="fairness-summary">
-            <div class="bg-white px-5 py-4 dark:bg-gray-900 sm:px-6">
+            <div class="bg-white px-5 py-4 dark:bg-gray-900">
               <p class="text-xs text-gray-500 dark:text-gray-400">{{ 'fairness.col.nights' | t }}</p>
               <p class="mt-1 text-xl font-semibold tabular-nums tracking-tight text-gray-800 dark:text-white/90">{{ team.nights!.min }}–{{ team.nights!.max }}</p>
               <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'fairness.avg' | t: { value: team.nights!.avg } }}</p>
             </div>
-            <div class="bg-white px-5 py-4 dark:bg-gray-900 sm:px-6">
+            <div class="bg-white px-5 py-4 dark:bg-gray-900">
               <p class="text-xs text-gray-500 dark:text-gray-400">{{ 'fairness.col.weekendDays' | t }}</p>
               <p class="mt-1 text-xl font-semibold tabular-nums tracking-tight text-gray-800 dark:text-white/90">{{ team.weekendDays!.min }}–{{ team.weekendDays!.max }}</p>
               <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'fairness.avg' | t: { value: team.weekendDays!.avg } }}</p>
             </div>
-            <div class="bg-white px-5 py-4 dark:bg-gray-900 sm:px-6">
+            <div class="bg-white px-5 py-4 dark:bg-gray-900">
               <p class="text-xs text-gray-500 dark:text-gray-400">{{ 'fairness.col.hours' | t }}</p>
               <p class="mt-1 text-xl font-semibold tabular-nums tracking-tight text-gray-800 dark:text-white/90">{{ team.hours!.min }}–{{ team.hours!.max }} h</p>
               <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -101,14 +102,14 @@ type Preset = 'thisMonth' | 'lastMonth' | 'thisQuarter' | 'last3Months' | 'custo
                 }
               </p>
             </div>
-            <div class="bg-white px-5 py-4 dark:bg-gray-900 sm:px-6">
+            <div class="bg-white px-5 py-4 dark:bg-gray-900">
               <p class="text-xs text-gray-500 dark:text-gray-400">{{ 'fairness.col.wishes' | t }}</p>
               <p class="mt-1 text-xl font-semibold tabular-nums tracking-tight text-gray-800 dark:text-white/90">{{ team.wishesGranted }} / {{ team.wishesAsked }}</p>
               <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'fairness.wishesNote' | t }}</p>
             </div>
           </div>
 
-          <div class="flex flex-wrap items-center justify-between gap-2 px-5 pt-4 sm:px-6">
+          <div class="flex flex-wrap items-center justify-between gap-2 px-5 pt-4">
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ 'fairness.workingNote' | t: { working: team.working, total: report.employees.length } }}</p>
             <label class="flex cursor-pointer items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
               <input type="checkbox" [(ngModel)]="onlyWorking" (ngModelChange)="applySort()"
@@ -118,16 +119,15 @@ type Preset = 'thisMonth' | 'lastMonth' | 'thisQuarter' | 'last3Months' | 'custo
           </div>
 
           <!-- Everyone, sortable by any column -->
-          <div class="max-w-full overflow-x-auto px-2 pb-2 pt-2 sm:px-3">
-            <table class="min-w-full text-sm" data-testid="fairness-table">
-              <thead>
-                <tr class="border-b border-gray-100 dark:border-white/[0.05]">
+          <div class="table-scroll mt-4">
+            <table class="table-base" data-testid="fairness-table">
+              <thead class="table-head">
+                <tr>
                   @for (col of columns; track col.key) {
                     <th
                       scope="col"
-                      class="px-3 py-2 font-medium text-gray-500 dark:text-gray-400"
-                      [class.text-left]="col.key === 'employee_name'"
-                      [class.text-right]="col.key !== 'employee_name'"
+                      class="table-th"
+                      [class.table-num]="col.key !== 'employee_name'"
                       [attr.aria-sort]="sortColumn === col.key ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'"
                     >
                       <button
@@ -145,34 +145,34 @@ type Preset = 'thisMonth' | 'lastMonth' | 'thisQuarter' | 'last3Months' | 'custo
                   }
                 </tr>
               </thead>
-              <tbody class="divide-y divide-gray-100 tabular-nums dark:divide-white/[0.05]">
+              <tbody class="table-striped tabular-nums">
                 @for (row of rows; track row.employee_id) {
                   @let delta = targetDelta(row);
-                  <tr class="transition-colors hover:bg-gray-50/60 dark:hover:bg-white/[0.02]">
-                    <td class="px-3 py-2.5">
+                  <tr class="table-tr">
+                    <td class="table-td">
                       <a
                         [routerLink]="['/employee-calendar']"
                         [queryParams]="{ employeeId: row.employee_id }"
                         class="font-medium text-gray-800 hover:text-brand-600 dark:text-white/90 dark:hover:text-brand-400"
                       >{{ row.employee_name }}</a>
                     </td>
-                    <td class="px-3 py-2.5 text-right text-gray-700 dark:text-gray-300">{{ row.shifts }}</td>
-                    <td class="px-3 py-2.5 text-right text-gray-700 dark:text-gray-300">{{ row.hours }}</td>
+                    <td class="table-td table-num">{{ row.shifts }}</td>
+                    <td class="table-td table-num">{{ row.hours }}</td>
                     <td
-                      class="px-3 py-2.5 text-right"
+                      class="table-td table-num"
                       [ngClass]="delta !== null && offTarget(row) ? 'text-warning-600 dark:text-warning-400' : 'text-gray-500 dark:text-gray-400'"
                       [title]="row.target_hours !== null ? ('fairness.targetTitle' | t: { target: row.target_hours }) : ''"
                     >{{ delta === null ? '—' : signed(delta) + ' h' }}</td>
-                    <td class="px-3 py-2.5">
+                    <td class="table-td">
                       <ng-container [ngTemplateOutlet]="bar" [ngTemplateOutletContext]="{ value: row.night_shifts, max: team.nights!.max }" />
                     </td>
-                    <td class="px-3 py-2.5" [title]="'fairness.weekendsTitle' | t: { count: row.weekends }">
+                    <td class="table-td" [title]="'fairness.weekendsTitle' | t: { count: row.weekends }">
                       <ng-container [ngTemplateOutlet]="bar" [ngTemplateOutletContext]="{ value: row.weekend_days, max: team.weekendDays!.max }" />
                     </td>
-                    <td class="px-3 py-2.5 text-right text-gray-700 dark:text-gray-300">
+                    <td class="table-td table-num">
                       {{ row.wishes_asked ? row.wishes_granted + ' / ' + row.wishes_asked : '—' }}
                     </td>
-                    <td class="px-3 py-2.5 text-right text-gray-500 dark:text-gray-400">{{ row.days_absent || '—' }}</td>
+                    <td class="table-td table-num text-gray-500 dark:text-gray-400">{{ row.days_absent || '—' }}</td>
                   </tr>
                 }
               </tbody>

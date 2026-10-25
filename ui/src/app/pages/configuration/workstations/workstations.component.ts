@@ -6,6 +6,12 @@ import { Observable, forkJoin, Subscription } from 'rxjs';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
 import { SavedNoticeComponent } from '../../../shared/components/form/form-page/saved-notice.component';
 import { ButtonComponent } from '../../../shared/components/ui/button/button.component';
+import { IconButtonComponent } from '../../../shared/components/ui/icon-button/icon-button.component';
+import { LoadErrorComponent } from '../../../shared/components/ui/load-error/load-error.component';
+import { ImportDialogComponent } from '../../../shared/components/import-dialog/import-dialog.component';
+import { ImportConfirmation } from '../../../shared/components/import-dialog/import.models';
+import { ErrorNoticeComponent } from '../../../shared/components/ui/error-notice/error-notice.component';
+import { apiErrorMessage } from '../../../shared/http/api-error';
 import {
   WorkstationService,
   Workstation,
@@ -54,6 +60,10 @@ type DeactivateMode = 'complete' | 'period';
     PageBreadcrumbComponent,
     SavedNoticeComponent,
     ButtonComponent,
+    IconButtonComponent,
+    LoadErrorComponent,
+    ImportDialogComponent,
+    ErrorNoticeComponent,
     DateRangePickerComponent,
     ModalComponent,
     TranslatePipe,
@@ -64,8 +74,8 @@ type DeactivateMode = 'complete' | 'period';
     <app-saved-notice />
 
     <!-- Workstations Table -->
-    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-      <div class="flex items-center justify-between px-5 py-4 sm:px-6">
+    <div class="table-card">
+      <div class="flex items-center justify-between px-5 py-4">
         <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
           {{ 'workstations.overview' | t }}
         </h3>
@@ -79,7 +89,7 @@ type DeactivateMode = 'complete' | 'period';
           <input
             #importFileInput
             type="file"
-            accept=".xlsx"
+            accept=".xlsx,.xls,.xlsb,.ods"
             class="hidden"
             (change)="onImportFileSelected($event)"
           />
@@ -94,9 +104,13 @@ type DeactivateMode = 'complete' | 'period';
         </div>
       </div>
 
+      <app-error-notice class="mx-5 mb-4" [message]="actionError" (dismiss)="actionError = null" />
+
+      <app-import-dialog [file]="importFile" [preview]="previewImport" (cancel)="importFile = null" (confirmed)="runImport($event)" />
+
       @if (importResult) {
         <div
-          class="mx-5 mb-4 rounded-lg border px-4 py-3 text-sm transition-colors sm:mx-6"
+          class="mx-5 mb-4 rounded-lg border px-4 py-3 text-sm transition-colors"
           [class]="importResult.errors.length === 0
             ? 'border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400'
             : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400'"
@@ -121,29 +135,35 @@ type DeactivateMode = 'complete' | 'period';
         </div>
       }
 
-      <div class="max-w-full overflow-x-auto">
-        <table class="min-w-full">
-          <thead class="border-b border-gray-100 dark:border-white/[0.05]">
+      <div class="table-scroll">
+        <table class="table-base">
+          <thead class="table-head">
             <tr>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.name' | t }}</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'workstations.status' | t }}</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'workstations.priority' | t }}</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'workstations.staffing' | t }}</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'workstations.activeShifts' | t }}</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'workstations.requiredCapabilities' | t }}</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.actions' | t }}</th>
+              <th class="table-th">{{ 'common.name' | t }}</th>
+              <th class="table-th">{{ 'workstations.status' | t }}</th>
+              <th class="table-th">{{ 'workstations.priority' | t }}</th>
+              <th class="table-th">{{ 'workstations.staffing' | t }}</th>
+              <th class="table-th">{{ 'workstations.activeShifts' | t }}</th>
+              <th class="table-th">{{ 'workstations.requiredCapabilities' | t }}</th>
+              <th class="table-th table-actions">{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+          <tbody class="table-striped">
             @if (loading) {
               <tr>
-                <td colspan="7" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
+                <td colspan="7" class="table-empty">
                   {{ 'workstations.loading' | t }}
+                </td>
+              </tr>
+            } @else if (loadError) {
+              <tr>
+                <td colspan="7" class="p-0">
+                  <app-load-error [message]="'workstations.loadFailed' | t" (retry)="loadData()" />
                 </td>
               </tr>
             } @else if (workstations.length === 0) {
               <tr>
-                <td colspan="7" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
+                <td colspan="7" class="table-empty">
                   <svg class="mx-auto mb-3 h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
                     <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
@@ -154,15 +174,16 @@ type DeactivateMode = 'complete' | 'period';
             } @else {
               @for (ws of workstations; track ws.id) {
                 <tr
+                  class="table-tr"
                   (dblclick)="openEditForm(ws)"
                   (contextmenu)="onRowContextMenu($event, ws)"
                 >
-                  <td class="px-5 py-4 sm:px-6 text-start">
+                  <td class="table-td">
                     <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
                       {{ ws.name }}
                     </span>
                   </td>
-                  <td class="px-4 py-3 text-start text-theme-sm" [attr.data-testid]="'ws-status-' + ws.id">
+                  <td class="table-td" [attr.data-testid]="'ws-status-' + ws.id">
                     @let status = statusOf(ws);
                     <span
                       class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium"
@@ -192,7 +213,7 @@ type DeactivateMode = 'complete' | 'period';
                       </span>
                     }
                   </td>
-                  <td class="px-4 py-3 text-start text-theme-sm">
+                  <td class="table-td">
                     <span
                       class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
                       [ngClass]="{
@@ -204,10 +225,10 @@ type DeactivateMode = 'complete' | 'period';
                       {{ ws.priority | titlecase }}
                     </span>
                   </td>
-                  <td class="px-4 py-3 text-start text-theme-sm text-gray-600 dark:text-gray-400">
+                  <td class="table-td tabular-nums">
                     {{ ws.min_employees }}–{{ ws.max_employees ?? '∞' }}
                   </td>
-                  <td class="px-4 py-3 text-start text-theme-sm">
+                  <td class="table-td">
                     @if (ws.active_shift_ids.length === 0) {
                       <span class="text-gray-300 dark:text-gray-600">—</span>
                     } @else {
@@ -222,7 +243,7 @@ type DeactivateMode = 'complete' | 'period';
                       </div>
                     }
                   </td>
-                  <td class="px-4 py-3 text-start text-theme-sm">
+                  <td class="table-td">
                     @if (getRequiredCapabilities(ws.id).length === 0) {
                       <span class="text-gray-300 dark:text-gray-600">—</span>
                     } @else {
@@ -237,42 +258,26 @@ type DeactivateMode = 'complete' | 'period';
                       </div>
                     }
                   </td>
-                  <td class="px-4 py-3 text-start text-theme-sm">
-                    <div class="flex items-center gap-2">
-                      <app-button
-                        size="sm"
-                        variant="outline"
-                        (btnClick)="openEditForm(ws)"
-                      >
-                        {{ 'common.edit' | t }}
-                      </app-button>
+                  <td class="table-td table-actions">
+                    <div class="flex items-center justify-end gap-1">
+                      <app-icon-button icon="edit" [label]="'common.edit' | t" (btnClick)="openEditForm(ws)" />
                       @if (ws.available) {
-                        <app-button
-                          size="sm"
-                          variant="outline"
+                        <app-icon-button
+                          icon="deactivate"
+                          [label]="'workstations.deactivate' | t"
                           [attr.data-testid]="'ws-deactivate-' + ws.id"
                           (btnClick)="openDeactivate(ws)"
-                        >
-                          {{ 'workstations.deactivate' | t }}
-                        </app-button>
+                        />
                       } @else {
-                        <app-button
-                          size="sm"
-                          variant="outline"
+                        <app-icon-button
+                          icon="reactivate"
+                          [label]="'workstations.reactivate' | t"
                           [disabled]="togglingId === ws.id"
                           [attr.data-testid]="'ws-reactivate-' + ws.id"
                           (btnClick)="reactivate(ws)"
-                        >
-                          {{ 'workstations.reactivate' | t }}
-                        </app-button>
+                        />
                       }
-                      <app-button
-                        size="sm"
-                        variant="danger"
-                        (btnClick)="deleteWorkstation(ws)"
-                      >
-                        {{ 'common.delete' | t }}
-                      </app-button>
+                      <app-icon-button icon="delete" tone="danger" [label]="'common.delete' | t" (btnClick)="deleteWorkstation(ws)" />
                     </div>
                   </td>
                 </tr>
@@ -372,6 +377,10 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
   allCapabilities: Capability[] = [];
   workstationCapabilities: Map<string, Capability[]> = new Map();
   loading = true;
+  /** The list request failed: shown instead of the empty state. */
+  loadError = false;
+  /** Why the last action failed, until dismissed or the next one succeeds. */
+  actionError: string | null = null;
 
   // Search
   private searchQuery = '';
@@ -398,6 +407,8 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
 
   importing = false;
   importResult: ImportResult | null = null;
+  /** The file chosen for import; the import dialog is open while there is one. */
+  importFile: File | null = null;
 
   constructor(
     private workstationService: WorkstationService,
@@ -424,6 +435,7 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
 
   loadData(): void {
     this.loading = true;
+    this.loadError = false;
 
     // Load workstations, shifts, and capabilities in parallel
     forkJoin({
@@ -445,6 +457,7 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
       },
       error: (err: any) => {
         console.error('Failed to load data', err);
+        this.loadError = true;
         this.loading = false;
       },
     });
@@ -459,30 +472,43 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
         a.download = 'workstations_template.xlsx';
         a.click();
         URL.revokeObjectURL(url);
+        this.actionError = null;
       },
-      error: (err) => console.error('Failed to download workstation template', err),
+      error: (err) => {
+        console.error('Failed to download workstation template', err);
+        this.actionError = apiErrorMessage(err, 'common.downloadFailed', this.translations);
+      },
     });
   }
 
   onImportFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    if (!file) return;
+    input.value = ''; // so the same file can be chosen again
+    if (file) this.importFile = file; // opens the import dialog
+  }
 
+  /** The import dialog reads the file through this. */
+  readonly previewImport = (file: File, sheet?: string) => this.workstationService.previewImport(file, sheet);
+
+  /** The dialog's answer: the file and the columns the user confirmed. */
+  runImport({ file, mapping }: ImportConfirmation): void {
+    this.importFile = null;
     this.importing = true;
     this.importResult = null;
-    this.workstationService.importFromFile(file).subscribe({
+    this.workstationService.importFromFile(file, mapping).subscribe({
       next: (result) => {
         this.importResult = result;
         this.importing = false;
+        this.actionError = null;
         this.loadData();
       },
       error: (err) => {
         console.error('Failed to import workstations', err);
+        this.actionError = apiErrorMessage(err, 'common.importFailed', this.translations);
         this.importing = false;
       },
     });
-    input.value = '';
   }
 
   applySearch(): void {
@@ -524,7 +550,10 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
         }
         this.allCapabilities = allCaps;
       },
-      error: (err: any) => console.error('Failed to load workstation details', err),
+      error: (err: any) => {
+        console.error('Failed to load workstation details', err);
+        this.actionError = apiErrorMessage(err, 'workstations.detailsLoadFailed', this.translations);
+      },
     });
   }
 
@@ -567,7 +596,10 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
         this.closures = closures;
         this.computeStatuses();
       },
-      error: (err: any) => console.error('Failed to load workstation closures', err),
+      error: (err: any) => {
+        console.error('Failed to load workstation closures', err);
+        this.actionError = apiErrorMessage(err, 'workstations.closuresLoadFailed', this.translations);
+      },
     });
   }
 
@@ -664,9 +696,11 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
       next: (updated) => {
         this.replaceWorkstation(updated);
         this.togglingId = null;
+        this.actionError = null;
       },
       error: (err: any) => {
         console.error('Failed to reactivate workstation', err);
+        this.actionError = apiErrorMessage(err, 'workstations.reactivateFailed', this.translations);
         this.togglingId = null;
       },
     });
@@ -716,9 +750,13 @@ export class WorkstationsComponent implements OnInit, OnDestroy {
 
     this.workstationService.deleteWorkstation(ws.id).subscribe({
       next: () => {
+        this.actionError = null;
         this.loadData();
       },
-      error: (err: any) => console.error('Failed to delete workstation', err),
+      error: (err: any) => {
+        console.error('Failed to delete workstation', err);
+        this.actionError = apiErrorMessage(err, 'common.deleteFailed', this.translations);
+      },
     });
   }
 }

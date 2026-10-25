@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { AfterViewChecked, Component, ElementRef, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { NavigationStart, Router } from '@angular/router';
+import { Router } from '@angular/router';
 import { Marked, Renderer } from 'marked';
 import {
   ACCEPTED_UPLOAD_TYPES,
@@ -22,9 +22,6 @@ interface ChatMessage {
   html?: string;
   error?: boolean;
 }
-
-// Routes that shouldn't show the assistant (not signed in yet).
-const HIDDEN_ON = ['/signin', '/signup'];
 
 // Tables are the widest thing the agent sends and the panel is narrow, so
 // wrap each one in a horizontally scrollable box (styled in styles.css).
@@ -49,7 +46,6 @@ const markdown = new Marked({ gfm: true, breaks: true, renderer });
 })
 export class ChatWidgetComponent implements AfterViewChecked {
   open = false;
-  hidden = false;
   sending = false;
   draft = '';
   messages: ChatMessage[] = [];
@@ -58,14 +54,7 @@ export class ChatWidgetComponent implements AfterViewChecked {
   @ViewChild('scrollAnchor') private scrollAnchor?: ElementRef<HTMLDivElement>;
   @ViewChild('fileInput') private fileInput?: ElementRef<HTMLInputElement>;
 
-  constructor(private chatService: ChatService, private router: Router) {
-    this.hidden = HIDDEN_ON.some((p) => this.router.url.startsWith(p));
-    this.router.events.subscribe((event) => {
-      if (event instanceof NavigationStart) {
-        this.hidden = HIDDEN_ON.some((p) => event.url.startsWith(p));
-      }
-    });
-  }
+  constructor(private chatService: ChatService, private router: Router) {}
 
   ngAfterViewChecked(): void {
     this.scrollAnchor?.nativeElement.scrollIntoView({ behavior: 'smooth' });

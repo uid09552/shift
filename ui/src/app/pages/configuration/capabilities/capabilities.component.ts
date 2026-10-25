@@ -5,6 +5,12 @@ import { CapabilityService, Capability, ImportResult } from '../../../shared/ser
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
 import { SavedNoticeComponent } from '../../../shared/components/form/form-page/saved-notice.component';
 import { ButtonComponent } from '../../../shared/components/ui/button/button.component';
+import { IconButtonComponent } from '../../../shared/components/ui/icon-button/icon-button.component';
+import { LoadErrorComponent } from '../../../shared/components/ui/load-error/load-error.component';
+import { ImportDialogComponent } from '../../../shared/components/import-dialog/import-dialog.component';
+import { ImportConfirmation } from '../../../shared/components/import-dialog/import.models';
+import { ErrorNoticeComponent } from '../../../shared/components/ui/error-notice/error-notice.component';
+import { apiErrorMessage } from '../../../shared/http/api-error';
 import { ConfirmDialogService } from '../../../shared/components/ui/confirm-dialog/confirm-dialog.service';
 import { ContextMenuService } from '../../../shared/components/ui/context-menu/context-menu.service';
 import { TranslatePipe } from '../../../shared/i18n/translate.pipe';
@@ -18,6 +24,10 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
     PageBreadcrumbComponent,
     SavedNoticeComponent,
     ButtonComponent,
+    IconButtonComponent,
+    LoadErrorComponent,
+    ImportDialogComponent,
+    ErrorNoticeComponent,
     TranslatePipe,
   ],
   template: `
@@ -26,8 +36,8 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
     <app-saved-notice />
 
     <!-- Capabilities Table -->
-    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-      <div class="flex items-center justify-between px-5 py-4 sm:px-6">
+    <div class="table-card">
+      <div class="flex items-center justify-between px-5 py-4">
         <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
           {{ 'capabilities.overview' | t }}
         </h3>
@@ -41,7 +51,8 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
           <input
             #importFileInput
             type="file"
-            accept=".xlsx"
+            accept=".xlsx,.xls,.xlsb,.ods"
+            data-testid="capabilities-import-file"
             class="hidden"
             (change)="onImportFileSelected($event)"
           />
@@ -56,9 +67,16 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
         </div>
       </div>
 
+      <app-error-notice class="mx-5 mb-4" [message]="actionError" (dismiss)="actionError = null" />
+
+      <app-import-dialog [file]="importFile" [preview]="previewImport" (cancel)="importFile = null" (confirmed)="runImport($event)" />
+
       @if (importResult) {
         <div
-          class="mx-5 mb-4 rounded-lg border px-4 py-3 text-sm transition-colors sm:mx-6"
+          data-testid="import-result"
+          [attr.data-created]="importResult.created"
+          [attr.data-skipped]="importResult.skipped"
+          class="mx-5 mb-4 rounded-lg border px-4 py-3 text-sm transition-colors"
           [class]="importResult.errors.length === 0
             ? 'border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400'
             : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400'"
@@ -83,26 +101,32 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
         </div>
       }
 
-      <div class="max-w-full overflow-x-auto">
-        <table class="min-w-full">
-          <thead class="border-b border-gray-100 dark:border-white/[0.05]">
+      <div class="table-scroll">
+        <table class="table-base">
+          <thead class="table-head">
             <tr>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.name' | t }}</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'capabilities.skillGroupLevel' | t }}</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'config.id' | t }}</th>
-              <th class="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{{ 'common.actions' | t }}</th>
+              <th class="table-th">{{ 'common.name' | t }}</th>
+              <th class="table-th">{{ 'capabilities.skillGroupLevel' | t }}</th>
+              <th class="table-th">{{ 'config.id' | t }}</th>
+              <th class="table-th table-actions">{{ 'common.actions' | t }}</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+          <tbody class="table-striped">
             @if (loading) {
               <tr>
-                <td colspan="4" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
+                <td colspan="4" class="table-empty">
                   {{ 'capabilities.loading' | t }}
+                </td>
+              </tr>
+            } @else if (loadError) {
+              <tr>
+                <td colspan="4" class="p-0">
+                  <app-load-error [message]="'capabilities.loadFailed' | t" (retry)="loadCapabilities()" />
                 </td>
               </tr>
             } @else if (capabilities.length === 0) {
               <tr>
-                <td colspan="4" class="px-5 py-12 text-center text-gray-400 dark:text-gray-500">
+                <td colspan="4" class="table-empty">
                   <svg class="mx-auto mb-3 h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z"></path>
                     <path d="M8 12h8"></path>
@@ -113,15 +137,18 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
             } @else {
               @for (capability of capabilities; track capability.id) {
                 <tr
+                  class="table-tr"
+                  data-testid="capability-row"
+                  [attr.data-capability]="capability.name"
                   (dblclick)="openEditForm(capability)"
                   (contextmenu)="onRowContextMenu($event, capability)"
                 >
-                  <td class="px-5 py-4 sm:px-6 text-start">
+                  <td class="table-td">
                     <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
                       {{ capability.name }}
                     </span>
                   </td>
-                  <td class="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                  <td class="table-td">
                     @if (capability.skill_group) {
                       <span
                         class="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/[0.15] dark:text-brand-400"
@@ -132,29 +159,17 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
                       <span class="text-xs text-gray-400 dark:text-gray-500">—</span>
                     }
                   </td>
-                  <td class="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                  <td class="table-td">
                     <span
                       class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/[0.08] dark:text-gray-300"
                     >
                       {{ capability.id.substring(0, 8) }}…
                     </span>
                   </td>
-                  <td class="px-4 py-3 text-start text-theme-sm">
-                    <div class="flex items-center gap-2">
-                      <app-button
-                        size="sm"
-                        variant="outline"
-                        (btnClick)="openEditForm(capability)"
-                      >
-                        {{ 'common.edit' | t }}
-                      </app-button>
-                      <app-button
-                        size="sm"
-                        variant="danger"
-                        (btnClick)="deleteCapability(capability)"
-                      >
-                        {{ 'common.delete' | t }}
-                      </app-button>
+                  <td class="table-td table-actions">
+                    <div class="flex items-center justify-end gap-1">
+                      <app-icon-button icon="edit" [label]="'common.edit' | t" (btnClick)="openEditForm(capability)" />
+                      <app-icon-button icon="delete" tone="danger" [label]="'common.delete' | t" (btnClick)="deleteCapability(capability)" />
                     </div>
                   </td>
                 </tr>
@@ -171,10 +186,16 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
 export class CapabilitiesComponent implements OnInit {
   capabilities: Capability[] = [];
   loading = true;
+  /** The list request failed: shown instead of the empty state. */
+  loadError = false;
+  /** Why the last action failed, until dismissed or the next one succeeds. */
+  actionError: string | null = null;
   plusIcon = `<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3.25C12.4142 3.25 12.75 3.58579 12.75 4V11.25H20C20.4142 11.25 20.75 11.5858 20.75 12C20.75 12.4142 20.4142 12.75 20 12.75H12.75V20C12.75 20.4142 12.4142 20.75 12 20.75C11.5858 20.75 11.25 20.4142 11.25 20V12.75H4C3.58579 12.75 3.25 12.4142 3.25 12C3.25 11.5858 3.58579 11.25 4 11.25H11.25V4C11.25 3.58579 11.5858 3.25 12 3.25Z" fill="currentColor"></path></svg>`;
 
   importing = false;
   importResult: ImportResult | null = null;
+  /** The file chosen for import; the import dialog is open while there is one. */
+  importFile: File | null = null;
 
   constructor(
     private capabilityService: CapabilityService,
@@ -190,6 +211,7 @@ export class CapabilitiesComponent implements OnInit {
 
   loadCapabilities(): void {
     this.loading = true;
+    this.loadError = false;
     this.capabilityService.getCapabilities().subscribe({
       next: (capabilities) => {
         this.capabilities = capabilities;
@@ -197,6 +219,7 @@ export class CapabilitiesComponent implements OnInit {
       },
       error: (err) => {
         console.error('Failed to load capabilities', err);
+        this.loadError = true;
         this.loading = false;
       },
     });
@@ -219,30 +242,43 @@ export class CapabilitiesComponent implements OnInit {
         a.download = 'capabilities_template.xlsx';
         a.click();
         URL.revokeObjectURL(url);
+        this.actionError = null;
       },
-      error: (err) => console.error('Failed to download capability template', err),
+      error: (err) => {
+        console.error('Failed to download capability template', err);
+        this.actionError = apiErrorMessage(err, 'common.downloadFailed', this.translations);
+      },
     });
   }
 
   onImportFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    if (!file) return;
+    input.value = ''; // so the same file can be chosen again
+    if (file) this.importFile = file; // opens the import dialog
+  }
 
+  /** The import dialog reads the file through this. */
+  readonly previewImport = (file: File, sheet?: string) => this.capabilityService.previewImport(file, sheet);
+
+  /** The dialog's answer: the file and the columns the user confirmed. */
+  runImport({ file, mapping }: ImportConfirmation): void {
+    this.importFile = null;
     this.importing = true;
     this.importResult = null;
-    this.capabilityService.importFromFile(file).subscribe({
+    this.capabilityService.importFromFile(file, mapping).subscribe({
       next: (result) => {
         this.importResult = result;
         this.importing = false;
+        this.actionError = null;
         this.loadCapabilities();
       },
       error: (err) => {
         console.error('Failed to import capabilities', err);
+        this.actionError = apiErrorMessage(err, 'common.importFailed', this.translations);
         this.importing = false;
       },
     });
-    input.value = '';
   }
 
   onRowContextMenu(event: MouseEvent, capability: Capability): void {
@@ -263,9 +299,13 @@ export class CapabilitiesComponent implements OnInit {
 
     this.capabilityService.deleteCapability(capability.id).subscribe({
       next: () => {
+        this.actionError = null;
         this.loadCapabilities();
       },
-      error: (err) => console.error('Failed to delete capability', err),
+      error: (err) => {
+        console.error('Failed to delete capability', err);
+        this.actionError = apiErrorMessage(err, 'common.deleteFailed', this.translations);
+      },
     });
   }
 }
