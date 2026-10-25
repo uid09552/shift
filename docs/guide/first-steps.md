@@ -40,6 +40,7 @@ content in the middle, here showing one nurse's day](../assets/screenshots/dashb
 | **Dashboard** | *Overview* — the summary screen you land on |
 | **Configuration** | User Profiles, Shifts, Workstations, Capabilities, Planner Settings, Wish Window (admins only), Users (admins only), Audit log |
 | **Planner** | Schedule (day, week, month), Employee Calendar, Rotations, Schedule Optimizer, Fairness |
+| **Reports** | Relationships — who can work where (planners and admins) |
 
 Roughly: **Configuration** is where you describe the world, **Planner** is
 where you work with it.

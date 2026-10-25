@@ -88,6 +88,8 @@ backend/
 │       │   │   ├── day-view/        # Hourly Gantt of one day — the Schedule page's Day view
 │       │   │   ├── scheduler/       # Optimizer, in tabs: Calculate · Proposal · Check & fix · Compare · Runs
 │       │   │   └── employee-calendar/
+│       │   ├── reports/
+│       │   │   └── relationships/   # Who can work where: d3 network, optional roster layer; read-only
 │       │   └── configuration/  # Admin settings
 │       │       ├── shifts/
 │       │       ├── workstations/

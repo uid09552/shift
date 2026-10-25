@@ -215,6 +215,42 @@ calendar.
 It reads the **confirmed** roster only. To see how a proposal would share the
 work before you take it, use **Compare** on the Schedule Optimizer.
 
+## Relationships — who can work where
+
+![Relationships, with Intensivpflege selected and the roster of one week shown](../assets/screenshots/relationships.png)
+
+**Reports → Relationships** draws your ward as a network: everyone, every
+capability, every workstation and every shift, with a line for each
+connection. It answers questions like *who could cover the ICU?* or *which
+qualification rests on one person?* at a glance. Planners and admins see it;
+staff with the viewer role do not, since it shows everyone's qualifications.
+
+| Shape | Is | A line to it means |
+|---|---|---|
+| ● circle | an employee | — |
+| ◆ diamond | a capability | the employee has it, or the workstation requires it |
+| ■ square | a workstation (hollow when closed) | — |
+| ⬢ hexagon, in the shift's colour | a shift | the employee may work it, or the workstation runs it |
+
+**Roster** adds what was actually planned: pick a **Day** or a **Week** and
+a dashed line joins each person to the workstation and shift they are
+rostered on, with the number of days. A line in amber means the person is
+rostered at a workstation that requires a capability they don't have.
+Absences and days off are not drawn.
+
+An **amber ring** around a capability marks a single point of failure: an open
+workstation requires it and fewer than two people hold it.
+
+Click a node to light up its neighbours and list them on the right; click
+the background to clear it. **Show** hides or shows each kind of node —
+shifts start hidden because they connect to almost everything — and the
+search box highlights matching names. Drag a node to move it out of the
+way; it stays where you drop it until you double-click it. **Reset layout**
+releases every node and fits the picture to the window.
+
+Nothing on this page changes anything: dragging a person onto a workstation
+moves a dot on the screen, not a shift in the roster.
+
 ---
 
 ## Exporting
