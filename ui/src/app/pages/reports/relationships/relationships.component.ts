@@ -24,6 +24,8 @@ import {
   forceLink,
   forceManyBody,
   forceSimulation,
+  forceX,
+  forceY,
 } from 'd3-force';
 import { Selection, select } from 'd3-selection';
 import { ZoomBehavior, zoom, zoomIdentity } from 'd3-zoom';
@@ -131,7 +133,7 @@ const SHAPE: Record<NodeType, string> = {
           <input
             type="search"
             [(ngModel)]="search"
-            (ngModelChange)="render()"
+            (ngModelChange)="onSearch()"
             [placeholder]="'relationships.search' | t"
             data-testid="relationships-search"
             class="h-8 w-48 rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:text-gray-300"
@@ -271,6 +273,9 @@ export class RelationshipsComponent implements OnInit, AfterViewInit, OnDestroy 
   private positions = new Map<string, { x?: number; y?: number; fx?: number | null; fy?: number | null }>();
   private nodes: SimNode[] = [];
   private links: SimLink[] = [];
+  /** Zoom to fit once the layout settles: on the first picture and after Reset layout. */
+  private fitPending = true;
+  private dragMoved = false;
   private loadSub?: Subscription;
   private rosterSub?: Subscription;
   private resizeObserver?: ResizeObserver;
@@ -431,6 +436,7 @@ export class RelationshipsComponent implements OnInit, AfterViewInit, OnDestroy 
       n.fy = null;
     }
     if (this.svg && this.zoomBehaviour) this.svg.call(this.zoomBehaviour.transform, zoomIdentity);
+    this.fitPending = true;
     this.recentre();
     this.simulation?.alpha(1).restart();
     this.cdr.markForCheck();
@@ -464,9 +470,19 @@ export class RelationshipsComponent implements OnInit, AfterViewInit, OnDestroy 
       // Weaker repulsion on large tenants keeps the layout from flying apart.
       .force('charge', forceManyBody<SimNode>().strength(-Math.max(40, 220 - this.nodes.length / 3)))
       .force('center', forceCenter(width / 2, height / 2))
+      // A weak pull to the middle: without it, parts that share no link
+      // (say, with workstations hidden) drift apart for good.
+      .force('x', forceX<SimNode>(width / 2).strength(0.06))
+      .force('y', forceY<SimNode>(height / 2).strength(0.06))
       .force('collide', forceCollide<SimNode>(14))
       // A known picture settles quietly; a new one gets a full run.
-      .alpha(this.positions.size ? 0.3 : 1);
+      .alpha(this.positions.size ? 0.3 : 1)
+      .on('end', () => {
+        if (this.fitPending) {
+          this.fitPending = false;
+          this.fitToView();
+        }
+      });
 
     const linkSel = this.layer
       .select<SVGGElement>('g.links')
@@ -531,19 +547,21 @@ export class RelationshipsComponent implements OnInit, AfterViewInit, OnDestroy 
         this.simulation?.alphaTarget(0).alpha(0.3).restart();
       })
       .call(
+        // A click runs start and end too, so only a real move pins the node.
         drag<SVGGElement, SimNode>()
-          .on('start', (event, n) => {
-            if (!event.active) this.simulation?.alphaTarget(0.3).restart();
-            n.fx = n.x;
-            n.fy = n.y;
-          })
+          .on('start', () => (this.dragMoved = false))
           .on('drag', (event, n) => {
+            if (!this.dragMoved) {
+              this.dragMoved = true;
+              this.simulation?.alphaTarget(0.3).restart();
+            }
             n.fx = event.x;
             n.fy = event.y;
           })
           // Pinned where it was dropped: fx/fy stay until a double-click.
-          .on('end', (event) => {
-            if (!event.active) this.simulation?.alphaTarget(0);
+          .on('end', () => {
+            if (!this.dragMoved) return;
+            this.simulation?.alphaTarget(0);
             this.markPinned();
           }),
       );
@@ -568,6 +586,35 @@ export class RelationshipsComponent implements OnInit, AfterViewInit, OnDestroy 
   }
 
   private searchHits: Set<string> | null = null;
+
+  /** Searching only highlights — the layout stays as it is. */
+  onSearch(): void {
+    if (!this.graph) return;
+    this.searchHits = applyFilters({ nodes: this.nodes, links: this.links as unknown as GraphLink[] }, {
+      nodeTypes: this.shown,
+      linkTypes: new Set(LINK_TYPES),
+      search: this.search,
+    }).highlighted;
+    this.applyHighlight();
+  }
+
+  /** Scales and centres the view on every visible node, with a margin; never zooms in past 1.5. */
+  private fitToView(): void {
+    if (!this.svg || !this.zoomBehaviour || !this.nodes.length) return;
+    const { width, height } = this.size();
+    const xs = this.nodes.map((n) => n.x ?? 0);
+    const ys = this.nodes.map((n) => n.y ?? 0);
+    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    // Labels run to the right of a node, so leave more room there; the
+    // legend floats along the bottom, so keep clear of it.
+    const margin = 32;
+    const legend = 40;
+    const usable = height - 2 * margin - legend;
+    const scale = Math.min(1.5, (width - 2 * margin) / Math.max(1, x1 - x0 + 120), usable / Math.max(1, y1 - y0 + 24));
+    const tx = width / 2 - scale * ((x0 + x1 + 100) / 2);
+    const ty = margin + usable / 2 - scale * ((y0 + y1) / 2);
+    this.svg.call(this.zoomBehaviour.transform, zoomIdentity.translate(tx, ty).scale(scale));
+  }
 
   /** Hover beats selection beats search; everything outside the focus is dimmed. */
   private applyHighlight(): void {
