@@ -3614,6 +3614,33 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /self:
+    get:
+      tags:
+        - Users
+      summary: Who the caller is
+      description: >
+        The caller's roles, identity and own employee. The identity comes from the
+        access token's claims and is overlaid by the gateway's user info where the
+        request passed the gateway, so a direct caller (the MCP server, an MCP
+        client) learns it too. `employee_id` is the caller's employee in their
+        tenant, matched by e-mail or username the way shift swaps identify the
+        requester; null when nothing matches. Any role may call it; it never
+        returns another user's data. Use it before answering anything personal
+        ("when do I work next week?") or permission-dependent.
+      operationId: getSelf
+      responses:
+        '200':
+          description: The caller
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /users:
     get:
       tags:
@@ -3812,6 +3839,40 @@ components:
                 type: string
                 description: The sheet to look at; the first when absent.
   schemas:
+    UserInfo:
+      type: object
+      required: [roles]
+      properties:
+        sub:
+          type: string
+          nullable: true
+        preferred_username:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        given_name:
+          type: string
+          nullable: true
+        family_name:
+          type: string
+          nullable: true
+        roles:
+          type: array
+          description: The caller's shift roles
+          items:
+            type: string
+            enum: [shift-admin, shift-planner, shift-viewer]
+        employee_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The caller's own employee, or null when none matches their e-mail or username
+
     OrganizationUser:
       type: object
       required:

@@ -41,13 +41,15 @@ data stays out of the model, and only the judgement goes in:
 * the **roster upload**, reading a shift plan out of a file the user attached. Its
   writes still go through MCP; the local part exists because the file's *grid*
   must not pass through the model, only the layout the model declares for it.
-* the **plan check** (`validation.py`), re-deriving every rule a proposed plan was
-  solved under and counting what it breaks. The model explains the findings; it
-  does not find them.
-* the **plan repair** (`repair.py`), putting right what the check found. Every
-  move is tested against the same re-derived rules before it is made; the model's
-  only job is turning the planner's sentence ("Anna is off sick on the 12th")
-  into directives, which are then checked like any other move.
+* the **plan check** (`validation.py`), the **plan repair** (`repair.py`) and the
+  **replacement search and swap check** (`replacement.py`) are *engines*: the
+  agent's HTTP routes (*Verify Plan*, *Fix Plan*, *Find replacement…*, the
+  backend's swap review) call them, and the MCP server serves them as tools
+  (`mcp/agent_tools.py`), so the chat and any external MCP client get the same
+  answers. The check re-derives every rule a proposed plan was solved under and
+  counts what it breaks; the repair tests every move against the same rules,
+  and the model's only job is turning the planner's sentence ("Anna is off sick
+  on the 12th") into directives, which are then checked like any other move.
 
 ```mermaid
 flowchart TB
@@ -55,13 +57,13 @@ flowchart TB
     S --> G["agent/graph.py<br/>ReAct loop, MemorySaver"]
     G <--> K["agent/knowledge.py<br/>this bundle, in-process"]
     G <--> D["agent/roster.py<br/>uploaded grid, per session"]
-    G <--> V["agent/validation.py<br/>rules re-derived, counted"]
-    G <--> P["agent/repair.py<br/>moves checked against the same rules"]
+    S --> V["agent/validation.py · repair.py · replacement.py<br/>engines: rules re-derived, counted"]
     D --> C
     V --> C
-    P --> C
     G <--> C["agent/client.py<br/>MCP client"]
     C -->|"streamable HTTP<br/>Authorization: Bearer"| M["mcp/server.py<br/>FastMCP.from_openapi()"]
+    M --> T["mcp/agent_tools.py<br/>validateOptimizedPlan · repairOptimizedPlan<br/>findReplacement · checkShiftSwap"]
+    T -->|"in process, as the caller"| M
     M --> B["Rust backend REST API"]
     S --> R["{ reply, ui_action }"]
 ```
@@ -75,8 +77,8 @@ flowchart TB
 | `knowledge.py` | The agent's own tools over this bundle — `searchKnowledge`, `readKnowledgeDoc`, `listKnowledgeTopics`. |
 | `documents.py` | Reduces an uploaded PDF/CSV/XLSX to sheets of cell strings. Interprets nothing. |
 | `roster.py` | `previewRosterUpload` / `interpretRosterUpload` / `applyRosterUpload`, over a per-session store of uploaded grids. |
-| `validation.py` | `validateOptimizedPlan`, and the `POST /plan/validate` endpoint behind the scheduler's **Verify Plan** button. Checks a proposed plan against the rules; no LLM in the checking. |
-| `repair.py` | `repairOptimizedPlan`, and the `POST /plan/fix` endpoint behind the scheduler's **Fix Plan** button. Moves the plan into shape and saves it; no LLM in the moving. |
+| `validation.py` | The plan check: the `POST /plan/validate` endpoint behind the scheduler's **Verify Plan** button. Checks a proposed plan against the rules; no LLM in the checking. Served to MCP clients as `validateOptimizedPlan`. |
+| `repair.py` | The repair: the `POST /plan/fix` endpoint behind the scheduler's **Fix Plan** button. Moves the plan into shape and saves it; no LLM in the moving. Served to MCP clients as `repairOptimizedPlan`. |
 | `server.py` | HTTP surface. Verifies the caller's token against Keycloak's JWKS, then stores it in a contextvar for the duration of the call. |
 | `auth.py` | Keycloak verification plus the contextvar holding the token. |
 
@@ -119,10 +121,18 @@ session must be created per call to carry the right user's token.
 
 # shift_agent/mcp — the MCP server
 
-`server.py` builds the tool surface with `FastMCP.from_openapi()`. The one
-hand-written tool is `navigate`, which has no REST equivalent: it targets the
-browser, and `agent/server.py` turns it into a `ui_action` in the chat response.
-Navigable pages are listed in `KNOWN_PAGES`.
+`server.py` builds the tool surface with `FastMCP.from_openapi()`. Hand-written
+on top: `navigate`, which has no REST equivalent — it targets the browser, and
+`agent/server.py` turns it into a `ui_action` in the chat response (pages in
+`KNOWN_PAGES`); `optimizeSchedule`, the synchronous solve; and the four agent
+tools from `agent_tools.py` — `validateOptimizedPlan`, `repairOptimizedPlan`,
+`findReplacement`, `checkShiftSwap`. Those run the engines in process
+(`inprocess.py`): the engines call the server's own generated tools by name,
+with the MCP caller's token pinned, so **every backend call runs as the
+caller**. `repairOptimizedPlan` reads a free-text instruction with the LLM
+configured on the MCP server (`shift_agent/llm.py`) and refuses a non-empty one
+— saving nothing — when there is none. A middleware percent-encodes the
+`X-Change-Reason` argument of roster writes before the request is built.
 
 Usable directly by any MCP client:
 

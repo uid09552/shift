@@ -1,8 +1,9 @@
 //! End-to-end tests for the shift-wish window (`/wish-settings`).
 //!
 //! These drive the real router over real HTTP against a real database, with
-//! forged access tokens — the same path a request from the gateway takes, since
-//! the backend only decodes the JWT payload (APISIX verifies the signature).
+//! access tokens signed by a throwaway test key (`common::TestKeys`) — the same
+//! path a request from the gateway takes, since the backend verifies every token
+//! against a JWKS.
 //! That is deliberate: the window's rules live partly in the role middleware and
 //! partly in the handler, so only a request that goes through both proves them.
 //!
@@ -14,16 +15,19 @@
 //! and pass rather than failing — CI does not run them today, and a missing
 //! database should not look like a broken window.
 
+
+mod common;
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use base64::{engine::general_purpose, Engine as _};
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+use common::TestKeys;
 use shift::database::DbPool;
 use shift::models::{NewEmployee, NewShift};
 use shift::repository::AppState;
@@ -39,6 +43,7 @@ struct TestApp {
     employee_id: Uuid,
     employee_email: String,
     shift_id: Uuid,
+    keys: TestKeys,
     pool: DbPool,
 }
 
@@ -91,7 +96,9 @@ impl TestApp {
 
         // dev_mode stays false: the tests are about roles, and dev mode hands
         // every request planner *and* admin rights.
-        let state = AppState::new(Arc::new(pool.clone()));
+        let keys = TestKeys::serve().await;
+        let mut state = AppState::new(Arc::new(pool.clone()));
+        state.token_verifier = Some(keys.verifier());
         let app = shift::server::create_router(state);
         let listener = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .await
@@ -107,6 +114,7 @@ impl TestApp {
             employee_id,
             employee_email,
             shift_id,
+            keys,
             pool,
         })
     }
@@ -120,23 +128,13 @@ impl TestApp {
             "email": email,
             "preferred_username": email,
         });
-        let encode = |bytes: &[u8]| general_purpose::URL_SAFE_NO_PAD.encode(bytes);
-        format!(
-            "{}.{}.signature",
-            encode(br#"{"alg":"RS256","typ":"JWT"}"#),
-            encode(payload.to_string().as_bytes()),
-        )
+        self.keys.sign(payload)
     }
 
     /// A token with exactly these claims — for the cases where something the real
     /// gateway always sends is deliberately missing.
     fn token_with_claims(&self, payload: Value) -> String {
-        let encode = |bytes: &[u8]| general_purpose::URL_SAFE_NO_PAD.encode(bytes);
-        format!(
-            "{}.{}.signature",
-            encode(br#"{"alg":"RS256","typ":"JWT"}"#),
-            encode(payload.to_string().as_bytes()),
-        )
+        self.keys.sign(payload)
     }
 
     /// The employee themselves — a `shift-viewer` writing their own wishes.

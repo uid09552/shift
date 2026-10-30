@@ -1,0 +1,25 @@
+info:
+  name: auto-plan-reason
+  type: http
+  seq: 10
+
+docs: |-
+  Expect: Reads auto_plan_last_outcome / auto_plan_last_note and explains them with the documented conditions.
+
+http:
+  method: POST
+  url: http://localhost:1111/api/v1/chat
+  body:
+    type: json
+    data: |-
+        {
+          "message": "Why did the automatic plan stay a proposal?",
+          "session_id": "scenario-auto-plan-reason"
+        }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,25 @@
+info:
+  name: publish-month
+  type: http
+  seq: 4
+
+docs: |-
+  Expect: Names the month and asks for a yes before publishRosterMonth.
+
+http:
+  method: POST
+  url: http://localhost:1111/api/v1/chat
+  body:
+    type: json
+    data: |-
+        {
+          "message": "Publish next month.",
+          "session_id": "scenario-publish-month"
+        }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

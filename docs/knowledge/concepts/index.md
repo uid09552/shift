@@ -20,6 +20,7 @@ schema — see [Tenant](/concepts/tenant.md).
 ## People and skills
 
 * [Employee](/concepts/employee.md) - a member of staff, their contracted hours, qualifications and workable shifts.
+* [Personal limits](/concepts/personal-limits.md) - max nights and weekends per month, no nights, preferred days off; hard or soft.
 * [Capability](/concepts/capability.md) - a qualification, optionally ranked within a substitutable skill group.
 
 ## Work structure
@@ -31,15 +32,20 @@ schema — see [Tenant](/concepts/tenant.md).
 
 * [Unavailability](/concepts/unavailability.md) - a day or shift someone cannot work; hard block or soft preference.
 * [Shift assignment](/concepts/shift-assignment.md) - a fixed pre-arranged commitment the solver must respect.
+* [Rotation pattern](/concepts/rotation-pattern.md) - a repeating cycle of shifts and days off, applied with a stagger as fixed assignments.
 * [Shift wish](/concepts/shift-wish.md) - a request to work a shift on a day; rewarded, never forced.
 * [Shift swap request](/concepts/shift-swap.md) - two people trade confirmed shifts: the colleague agrees, a planner decides; rules are warnings only.
 
 ## Plans and runs
 
 * [Confirmed shift plan](/concepts/confirmed-shift-plan.md) - the approved roster, one row per employee per day.
+* [Roster lifecycle](/concepts/roster-lifecycle.md) - each month draft, published or locked; the freeze window and change reasons.
+* [Roster change notice](/concepts/roster-change-notice.md) - what tells an employee their published shift changed, and whether they read it.
 * [Optimized shift result](/concepts/optimized-shift-result.md) - a raw solver result, stored verbatim as JSONB.
 * [Planning task](/concepts/planning-task.md) - one optimization run and its lifecycle.
 * [Planner settings](/concepts/planner-settings.md) - the per-tenant weights and limits sent with every run.
+* [Automatic planning](/concepts/automatic-planning.md) - planning on a schedule; taken as the roster only when safe.
+* [Labor-law profile](/concepts/labor-law-profile.md) - ArbZG, JArbSchG and MuSchG as hard rules; a modelled subset, not legal advice.
 
 ## Cross-cutting
 

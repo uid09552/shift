@@ -59,6 +59,7 @@ Most time goes on the second and third.
 * [Staff management](/guide/staff-management.md) - qualifications, workable shifts, absences, and shift wishes.
 * [Creating a schedule](/guide/creating-a-schedule.md) - the main workflow, step by step.
 * [Reading calendars](/guide/reading-calendars.md) - the three views, editing a single day, exporting.
+* [Finding cover](/guide/short-notice-replacement.md) - who can take a sick colleague's shift, ranked, and assigning them.
 * [Analytics report](/guide/analytics-report.md) - the ward over time: coverage heatmap, hours and fairness, absences, roster changes, audit activity and planning runs, with filters and CSV export.
 * [Using the assistant](/guide/using-the-assistant.md) - asking the app for things in ordinary sentences.
 * [Importing a roster](/guide/importing-a-roster.md) - handing the assistant a plan you already have as a PDF, CSV or Excel file.

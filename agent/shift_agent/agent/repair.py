@@ -48,7 +48,6 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any, Callable, Iterator
 
-from langchain_core.tools import StructuredTool
 
 from shift_agent.agent import legal
 from shift_agent.agent.validation import (
@@ -1362,55 +1361,3 @@ def narrate(report: dict, llm: Any) -> str:
     except Exception:
         logger.exception("Repair narration failed — falling back to the plain headline")
         return fix_headline(report)
-
-
-# ---------------------------------------------------------------------------
-# Chat tool
-# ---------------------------------------------------------------------------
-
-
-def build_repair_tools(
-    call_mcp: Callable[[str, dict], str], llm_provider: Callable[[], Any] | None = None
-) -> list[StructuredTool]:
-    """The repair, as a tool the chat agent can call itself.
-
-    The same code the scheduler page's **Fix** button runs, so "sort last
-    night's plan out" in the chat and the button cannot disagree about what a
-    fix means. The tool returns what it did; the model explains it in its own
-    reply, which is why nothing here narrates.
-    """
-
-    def repair_optimized_plan(
-        result_id: str, instruction: str = "", strategy: str = "repair"
-    ) -> str:
-        llm = llm_provider() if llm_provider else None
-        try:
-            report = fix(call_mcp, result_id, instruction, strategy, llm=llm)
-        except (ValidationError, RepairError) as exc:
-            return json.dumps({"error": str(exc)})
-        except Exception:
-            logger.exception("Plan repair failed for result %s", result_id)
-            return json.dumps({"error": "The plan could not be repaired."})
-        # The findings are already in the report's before/after; the change log
-        # is what the model has to talk about, so keep it and trim the rest.
-        report["before"].pop("findings", None)
-        return json.dumps(report, indent=2, default=str)
-
-    return [
-        StructuredTool.from_function(
-            func=repair_optimized_plan,
-            name="repairOptimizedPlan",
-            description=(
-                "Fix a proposed (optimized) shift plan and save the result. Pass the "
-                "optimizer result's id — listOptimizedShifts gives you those, newest "
-                "first. Every row that breaks a hard rule is moved somewhere legal or "
-                "removed, and understaffed shifts are filled from whoever is free and "
-                "qualified. `instruction` carries the user's own wishes in their words "
-                "('take Anna off Thursday', 'nobody new on nights') — pass it through "
-                "verbatim rather than interpreting it. `strategy` is 'repair' for local "
-                "moves (seconds) or 'resolve' to re-run the CP-SAT optimizer over the "
-                "whole period (minutes, better plan, keeps only what the user pinned). "
-                "The plan is written back, so confirm with the user before calling it."
-            ),
-        ),
-    ]

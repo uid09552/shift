@@ -1,0 +1,25 @@
+info:
+  name: reason-required-retry
+  type: http
+  seq: 3
+
+docs: |-
+  Expect: On 428 reason_required asks for a reason and retries with exactly that reason.
+
+http:
+  method: POST
+  url: http://localhost:1111/api/v1/chat
+  body:
+    type: json
+    data: |-
+        {
+          "message": "Take Ben off the night shift on the 3rd of next month.",
+          "session_id": "scenario-reason-required-retry"
+        }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

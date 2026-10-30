@@ -31,8 +31,9 @@ keycloak:
 otel:
   # gRPC: https://<project>.otel.gitlab-o11y.com:14317
   # HTTP: https://<project>.otel.gitlab-o11y.com:14318
+  # Grafana Cloud: https://otlp-gateway-prod-<region>.grafana.net/otlp — HTTP only
   endpoint: ""
-  protocol: "grpc"      # grpc | http
+  protocol: ""          # grpc | http; empty = OTEL_EXPORTER_OTLP_PROTOCOL, else grpc
   headers: ""           # "key=value,key2=value2" — e.g. the collector's auth token
   service_name: "shift-backend"
   service_version: ""   # CI_COMMIT_SHA

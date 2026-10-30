@@ -1,0 +1,25 @@
+info:
+  name: sick-replacement
+  type: http
+  seq: 5
+
+docs: |-
+  Expect: Resolves tomorrow, calls findReplacement for Anna, lists candidates best first with reasons; writes nothing.
+
+http:
+  method: POST
+  url: http://localhost:1111/api/v1/chat
+  body:
+    type: json
+    data: |-
+        {
+          "message": "Anna is sick tomorrow, who can take her shift?",
+          "session_id": "scenario-sick-replacement"
+        }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

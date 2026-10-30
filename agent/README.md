@@ -38,6 +38,9 @@ Website chat widget · scheduler page
                                                │ <that same token>
 ┌─ shift_agent/mcp ────────────────────────────▼──────────────────┐
 │ MCP server (server.py)  ─── token resolution (auth.py)          │
+│   generated REST tools · navigate · optimizeSchedule            │
+│   agent tools (agent_tools.py): plan check, repair,             │
+│   replacement, swap check — run in process (inprocess.py)       │
 └──────────────────────────────────────────────┼──────────────────┘
         │                                      ▼
         │                        Rust backend REST API (../src)
@@ -69,7 +72,8 @@ Website chat widget · scheduler page
 
 - **`validation.py`** — checking a *proposed* plan against the rules it was
   solved under: `POST /api/v1/plan/validate` behind the scheduler page's **Verify
-  Plan** button, and `validateOptimizedPlan` for the chat. It fetches the stored
+  Plan** button, and the MCP server's `validateOptimizedPlan` tool (the chat's
+  and any MCP client's — see `mcp/agent_tools.py`). It fetches the stored
   result (`getOptimizedShift`) and the rules for its period (`preparePlan` — the
   same payload the optimizer gets) through MCP, then re-derives every hard
   constraint of the CP-SAT model in Python: one shift a day, qualifications,
@@ -82,7 +86,8 @@ Website chat widget · scheduler page
 
 - **`repair.py`** — *fixing* a plan, where validation.py stops at reporting it:
   `POST /api/v1/plan/validate`'s neighbour `POST /api/v1/plan/fix` behind the
-  scheduler page's **Fix Plan** button, and `repairOptimizedPlan` for the chat.
+  scheduler page's **Fix Plan** button, and the MCP server's
+  `repairOptimizedPlan` tool.
   The same split as the check, for the same reason. **The moves are arithmetic**
   — every row that breaks a hard rule is moved somewhere the solver could have
   put it or removed, and what is left short is filled from whoever is free and
@@ -123,8 +128,29 @@ Website chat widget · scheduler page
   "what would this look like with the rest rule relaxed?" without saving
   anything.
 
+- **`agent_tools.py`** — the agent's own tools, served here so the chat and
+  any external MCP client get the answers the app's pages get:
+  `validateOptimizedPlan` (*Verify Plan*), `repairOptimizedPlan` (*Fix Plan*),
+  `findReplacement` (*Find replacement…*) and `checkShiftSwap` (the swap
+  review). Same engines as the agent's HTTP routes, minus the written summary —
+  an MCP client has its own model for that. **Each runs as the caller**: every
+  backend call it makes carries the token the MCP request presented, so it sees
+  only that tenant and is bound by that role. `repairOptimizedPlan` reads a
+  free-text `instruction` with the configured LLM (`shift_agent/llm.py`); with
+  no model configured or reachable, a non-empty instruction is refused and
+  nothing is saved.
+
+- **`inprocess.py`** — how those tools reach the backend: the engines call this
+  server's own generated tools by name (`FastMCP.call_tool`), from a worker
+  thread back on the server's loop, with the caller's token pinned for them.
+
+- `X-Change-Reason` — the nine roster-write tools take the reason as an
+  argument of that name; `ChangeReasonMiddleware` percent-encodes it before the
+  request is built, so callers pass the planner's words as they are.
+
 - **`auth.py`** — decides which access token the server's backend calls carry:
-  whatever the caller presented, else `BACKEND_ACCESS_TOKEN`.
+  a token pinned by `acting_as` (the in-process tools), else whatever the caller
+  presented, else `BACKEND_ACCESS_TOKEN`.
 
 ### Shared
 
@@ -241,6 +267,11 @@ next one retries.
 `MCP_TOOLS` narrows what the model sees to a comma-separated allowlist of tool
 names — worth setting for small local models, which pick badly from all ~70
 backend operations. Unset means everything.
+
+An allowlist must name `validateOptimizedPlan`, `repairOptimizedPlan`,
+`findReplacement`, `checkShiftSwap` and `getSelf` for the chat to check, repair,
+find replacements, check swaps and know who it is talking to — the first two
+used to be the agent's own tools and so were never subject to the list.
 
 ### MCP server
 

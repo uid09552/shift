@@ -190,7 +190,7 @@ def fix(result_id, instruction, strategy, dry_run, as_json, explain):
     """
     from shift_agent.agent import repair as repair_module
     from shift_agent.agent.client import MCPClient
-    from shift_agent.agent.graph import plain_llm
+    from shift_agent.llm import plain_llm
 
     client = MCPClient()
     llm = plain_llm() if (instruction or explain) else None
@@ -267,7 +267,7 @@ def validate(result_id, as_json, explain):
     report["headline"] = validation.headline(report)
 
     if explain:
-        from shift_agent.agent.graph import build_llm
+        from shift_agent.llm import build_llm
 
         try:
             report["summary"] = validation.narrate(report, build_llm())

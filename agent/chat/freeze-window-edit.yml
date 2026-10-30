@@ -1,0 +1,25 @@
+info:
+  name: freeze-window-edit
+  type: http
+  seq: 2
+
+docs: |-
+  Expect: Asks why before writing, warns that Anna gets a change notice, writes only after a yes, with X-Change-Reason.
+
+http:
+  method: POST
+  url: http://localhost:1111/api/v1/chat
+  body:
+    type: json
+    data: |-
+        {
+          "message": "Move Anna from the early to the late shift the day after tomorrow.",
+          "session_id": "scenario-freeze-window-edit"
+        }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,25 @@
+info:
+  name: rotation-apply
+  type: http
+  seq: 7
+
+docs: |-
+  Expect: Calls applyRotationPattern with dry_run true, shows the result, applies only after a yes.
+
+http:
+  method: POST
+  url: http://localhost:1111/api/v1/chat
+  body:
+    type: json
+    data: |-
+        {
+          "message": "Put Anna, Ben and Carla on the night rotation from Monday for four weeks.",
+          "session_id": "scenario-rotation-apply"
+        }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

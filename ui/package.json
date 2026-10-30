@@ -27,6 +27,8 @@
     "@fullcalendar/daygrid": "^6.1.20",
     "@fullcalendar/interaction": "^6.1.20",
     "@fullcalendar/timegrid": "^6.1.20",
+    "@grafana/faro-web-sdk": "^2.13.0",
+    "@grafana/faro-web-tracing": "^2.13.0",
     "@popperjs/core": "^2.11.8",
     "@tailwindcss/postcss": "^4.1.11",
     "@types/prismjs": "^1.26.5",

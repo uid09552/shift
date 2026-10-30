@@ -11,16 +11,19 @@
 //! development default. When no database is reachable the tests print a notice
 //! and pass rather than failing, matching `wish_window.rs`.
 
+
+mod common;
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use base64::{engine::general_purpose, Engine as _};
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+use common::TestKeys;
 use shift::database::DbPool;
 use shift::models::NewShift;
 use shift::repository::AppState;
@@ -33,6 +36,7 @@ struct TestApp {
     tenant: String,
     shift_id: Uuid,
     pool: DbPool,
+    keys: TestKeys,
 }
 
 impl TestApp {
@@ -68,7 +72,9 @@ impl TestApp {
             .expect("insert shift");
         drop(conn);
 
-        let state = AppState::new(Arc::new(pool.clone()));
+        let keys = TestKeys::serve().await;
+        let mut state = AppState::new(Arc::new(pool.clone()));
+        state.token_verifier = Some(keys.verifier());
         let app = shift::server::create_router(state);
         let listener = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .await
@@ -83,6 +89,7 @@ impl TestApp {
             tenant,
             shift_id,
             pool,
+            keys,
         })
     }
 
@@ -93,12 +100,7 @@ impl TestApp {
             "email": "planner@test.invalid",
             "preferred_username": "planner@test.invalid",
         });
-        let encode = |bytes: &[u8]| general_purpose::URL_SAFE_NO_PAD.encode(bytes);
-        format!(
-            "{}.{}.signature",
-            encode(br#"{"alg":"RS256","typ":"JWT"}"#),
-            encode(payload.to_string().as_bytes()),
-        )
+        self.keys.sign(payload)
     }
 
     async fn set_time(&self, weekday: i16, start: &str, end: &str) -> (u16, Value) {

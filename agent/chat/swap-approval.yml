@@ -1,0 +1,25 @@
+info:
+  name: swap-approval
+  type: http
+  seq: 6
+
+docs: |-
+  Expect: Runs checkShiftSwap, reports its warnings, approves only after a yes.
+
+http:
+  method: POST
+  url: http://localhost:1111/api/v1/chat
+  body:
+    type: json
+    data: |-
+        {
+          "message": "Approve the pending shift swap.",
+          "session_id": "scenario-swap-approval"
+        }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

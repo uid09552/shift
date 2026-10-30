@@ -77,7 +77,8 @@ from shift_agent.agent.documents import (
     DocumentError,
     parse_document,
 )
-from shift_agent.agent.graph import build_graph, build_llm, connect_mcp, disconnect_mcp
+from shift_agent.agent.graph import build_graph, connect_mcp, disconnect_mcp
+from shift_agent.llm import build_llm
 from shift_agent.agent import repair, replacement, roster, validation
 
 logging.basicConfig(level=logging.INFO)

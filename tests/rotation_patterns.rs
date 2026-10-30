@@ -6,16 +6,19 @@
 //! development default. When no database is reachable the tests print a notice
 //! and pass rather than failing, matching `wish_window.rs`.
 
+
+mod common;
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use base64::{engine::general_purpose, Engine as _};
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+use common::TestKeys;
 use shift::database::DbPool;
 use shift::repository::AppState;
 use shift::schema::{audit_logs, employee_shift_assignments, employees, rotation_patterns, shifts, workstations};
@@ -26,6 +29,7 @@ struct TestApp {
     base_url: String,
     tenant: String,
     pool: DbPool,
+    keys: TestKeys,
 }
 
 impl TestApp {
@@ -44,7 +48,10 @@ impl TestApp {
         };
         shift::database::run_migrations(&pool).expect("migrations");
 
-        let app = shift::server::create_router(AppState::new(Arc::new(pool.clone())));
+        let keys = TestKeys::serve().await;
+        let mut state = AppState::new(Arc::new(pool.clone()));
+        state.token_verifier = Some(keys.verifier());
+        let app = shift::server::create_router(state);
         let listener = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .await
             .expect("bind");
@@ -57,6 +64,7 @@ impl TestApp {
             base_url: format!("http://{addr}/api/v1"),
             tenant: format!("test-rotations-{}", Uuid::new_v4()),
             pool,
+            keys,
         })
     }
 
@@ -66,12 +74,7 @@ impl TestApp {
             "realm_access": { "roles": ["shift-planner"] },
             "email": "planner@test.invalid",
         });
-        let encode = |bytes: &[u8]| general_purpose::URL_SAFE_NO_PAD.encode(bytes);
-        format!(
-            "{}.{}.signature",
-            encode(br#"{"alg":"RS256","typ":"JWT"}"#),
-            encode(payload.to_string().as_bytes()),
-        )
+        self.keys.sign(payload)
     }
 
     async fn call(&self, method: reqwest::Method, path: &str, body: Option<Value>) -> (u16, Value) {

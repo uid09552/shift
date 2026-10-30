@@ -16,6 +16,9 @@ The chat agent's own auth — verifying users and picking the token to send here
 from __future__ import annotations
 
 import logging
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Iterator
 
 import httpx
 from fastmcp.server.dependencies import get_access_token as get_incoming_access_token
@@ -24,6 +27,23 @@ from fastmcp.server.dependencies import get_http_headers
 from shift_agent.config import settings
 
 logger = logging.getLogger(__name__)
+
+# The token a tool that runs other tools in process (mcp/inprocess.py) pinned
+# for them: resolved once from the outer MCP request, then carried explicitly,
+# since the thread and loop hops between them need not keep FastMCP's own
+# request context.
+_pinned_token: ContextVar[str | None] = ContextVar("mcp_pinned_token", default=None)
+
+
+@contextmanager
+def acting_as(token: str | None) -> Iterator[None]:
+    """Make backend calls inside the block carry ``token``, whatever request
+    context they run in. ``None`` pins nothing."""
+    reset = _pinned_token.set(token)
+    try:
+        yield
+    finally:
+        _pinned_token.reset(reset)
 
 
 def _incoming_token() -> str | None:
@@ -39,7 +59,13 @@ def _incoming_token() -> str | None:
     silently dropping to the static token.
 
     None outside of an HTTP request context (e.g. stdio transport).
+
+    A token pinned with ``acting_as`` comes first: it is the outer request's,
+    passed down to tools run in process.
     """
+    pinned = _pinned_token.get()
+    if pinned:
+        return pinned
     access_token = get_incoming_access_token()
     if access_token:
         return access_token.token

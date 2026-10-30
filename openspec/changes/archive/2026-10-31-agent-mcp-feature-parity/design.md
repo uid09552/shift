@@ -91,12 +91,10 @@ MCP request (caller token T)
   - Keeping the engines in the agent and having the MCP server call the
     agent's HTTP routes: a circular dependency between the two services, and
     it leaves the agent as a required runtime for MCP clients.
-- **Spike.** Task 1.1 verifies that FastMCP 3.4.x offers a stable server-side
-  way to run a registered tool by name. Task 1.2 verifies that the override
-  reaches `BackendTokenAuth`. If no public API exists, the adapter keeps a
-  name → `Tool` map built at registration (`await mcp.get_tools()` after
-  `from_openapi`), so the code depends on the tool objects rather than on
-  private managers.
+- **Spike (done).** The lockfile now pins FastMCP 4.1.4, whose public
+  `FastMCP.call_tool(name, arguments)` runs a registered tool by name,
+  middleware included — no private registry needed. Task 1.2's test shows
+  the override reaching `BackendTokenAuth`.
 
 ### 2. One LLM factory, imported by both processes
 
@@ -131,9 +129,11 @@ with `findReplacement` and `checkShiftSwap`, like every other backend tool.
 
 ### 4. `X-Change-Reason` is encoded by the MCP server, not by the model
 
-The MCP server's backend `httpx` client gets a request hook that normalises
-`X-Change-Reason`. The hook decodes the value (an already-encoded value comes
-back unchanged), then percent-encodes it as UTF-8.
+A tool-call middleware on the MCP server normalises the `X-Change-Reason`
+argument before the generated tool builds its request: it decodes the value
+(an already-encoded value comes back unchanged), then percent-encodes it as
+UTF-8. Not an `httpx` request hook, as first planned: httpx refuses a
+non-ASCII header value when the request is built, before any hook runs.
 
 - The model passes the user's words verbatim. The spec's "sent URL-encoded"
   then holds regardless of the model.
@@ -141,8 +141,8 @@ back unchanged), then percent-encodes it as UTF-8.
 - **Alternative considered:** instructing the model to encode. That is
   unreliable for umlauts, and a raw non-ASCII header fails before the backend
   ever sees it.
-- Task 1.7 checks the argument name the generated tools give the header. The
-  prompt names that exact argument.
+- The generated tools name the argument `X-Change-Reason` (nine of them take
+  it). The prompt names that exact argument.
 
 ### 5. `/self` falls back to token claims and adds `employee_id`
 

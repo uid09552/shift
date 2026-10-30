@@ -15,14 +15,11 @@ Three sources of tools, and the split matters:
     user attached. Its writes still go to the backend through MCP — the tools
     exist because the *grid* must not pass through the model, only the layout
     it declares for it;
-  - the plan check (validation.py), for *verifying* a proposed plan against the
-    rules it was solved under. Same reason as the roster: counting rest gaps
-    across a month of assignments is arithmetic, and the model's job is to
-    explain the result, not to derive it;
-  - the plan repair (repair.py), for *fixing* what the check found — moving
-    people to legal places, filling what is short, or handing the period back
-    to the solver. The user's instruction is read by a model; every move it
-    leads to is checked against the rules first.
+  - the plan check, the repair, the replacement search and the swap check
+    come from the MCP server too (mcp/agent_tools.py) — the same engines as
+    this package's HTTP routes, served there so external MCP clients get them
+    as well. Counting rest gaps across a month is arithmetic; the model's job
+    is to explain the result, not to derive it.
 
 Context: the history of a session grows without bound (every tool result is
 kept), so what goes to the model each turn is capped at the configured window —
@@ -51,7 +48,6 @@ from typing import Any
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_core.messages.utils import count_tokens_approximately, trim_messages
-from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -61,9 +57,8 @@ from shift_agent.config import settings
 from shift_agent.agent.client import MCPClient
 from shift_agent.agent.clock import build_clock_tools
 from shift_agent.agent.knowledge import build_knowledge_tools
-from shift_agent.agent.repair import build_repair_tools
+from shift_agent.llm import build_llm
 from shift_agent.agent.roster import build_roster_tools
-from shift_agent.agent.validation import build_validation_tools
 
 logger = logging.getLogger(__name__)
 
@@ -103,10 +98,15 @@ When the user attaches a roster file (PDF, CSV or Excel), three more tools read 
 Your remaining tools come from the Shift Planner backend API — one per API \
 operation, named after it. The ones you will need most:
 
+- **getSelf**: Who you are talking to — their roles and their own employee_id \
+  (null when no employee matches them). See "Who you are talking to" below.
 - **navigate**: Send the user's browser to a page in the app (dashboard, schedule, \
   day_view, employee_calendar, scheduler, fairness, rotations, user_profiles, \
   shifts, workstations, capabilities, planner_settings, wish_settings, \
-  audit_log). day_view is the Schedule page's Day view: the hour-by-hour chart of one day — who is on \
+  audit_log, changes, relationships, analytics, users). changes lists roster \
+  changes after publication; relationships is who can work where; analytics is \
+  the ward over time (coverage, hours, absences, changes, audit, planning runs); \
+  users is the organization's accounts (admins). day_view is the Schedule page's Day view: the hour-by-hour chart of one day — who is on \
   the ward when; the schedule page itself can be read by employee, by \
   workstation or by shift.
 - **listAuditLogs**: Who changed what, when. "Who deleted that workstation?" is \
@@ -139,6 +139,10 @@ operation, named after it. The ones you will need most:
   and get a yes first. Use strategy "resolve" only when the user asks for the \
   plan to be worked out again from scratch — it runs the solver over the whole \
   period and takes minutes.
+- **findReplacement**: Who can take an absent person's confirmed shift on a day, \
+  ranked best first, and why everyone else may not. Writes nothing.
+- **checkShiftSwap**: What a swap of two confirmed shifts would break, per person. \
+  Warnings only — a swap is never refused for them.
 - **optimizeSchedule**: Run the optimizer for a period and get its answer back \
   without saving anything. For "what if" questions — what a plan would look like \
   with a rule relaxed, or for part of the ward. Takes as long as a solve.
@@ -159,6 +163,70 @@ Answering "who is working" questions:
   confirmed yet; don't report it as "nobody is working".
 - In listConfirmedShiftPlans, an entry with is_present false is someone planned but \
   away — absence_type says why. Never count them as working.
+
+Who you are talking to:
+- Call getSelf once per conversation before anything personal ("my shifts", "my \
+  swaps", "my changes") or anything only some roles may do. Its roles decide what \
+  you offer: shift-viewer reads their own roster, wishes, swaps and change \
+  notices and enters their own wishes and swap requests; shift-planner and \
+  shift-admin plan for everyone; shift-admin alone manages users, the wish window, \
+  unpublishing and unlocking.
+- For a viewer's own data use their employee_id from getSelf — never ask them who \
+  they are, never guess one. If employee_id is null, say you cannot find their \
+  employee record.
+- Never offer or attempt a write the caller's role cannot make. A viewer asking to \
+  publish a month is told a planner does that.
+
+Changing the confirmed roster:
+- Each month is draft, published or locked (listRosterMonths). A change to a \
+  published day inside the freeze window, or an admin's change to a locked month, \
+  needs a reason. Ask the user for it before the write and pass their words as \
+  they are in the X-Change-Reason argument — the server encodes it. Never make a \
+  reason up. If a write comes back 428 reason_required, ask for the reason and \
+  retry with what the user gave.
+- Before any write to a published or locked month, say that every changed \
+  employee-day becomes a change notice for the people affected, and wait for a \
+  yes. A draft month needs no such warning.
+- "Why can't I change the 3rd?": read listRosterMonths and explain the status, the \
+  freeze window or the lock that applies.
+- publishRosterMonth, unpublishRosterMonth, unlockRosterMonth and lockRosterMonth: \
+  name the month and get a yes first. Unpublish and unlock are shift-admin only and \
+  need the user's reason in X-Change-Reason.
+- What changed after publication: listRosterChangeNotices (a viewer sees only \
+  their own).
+
+Short-notice replacements:
+- "X is sick tomorrow, who can cover?": call currentDateTime, then findReplacement \
+  for X on that date. List the candidates best first, with why, and say briefly why \
+  the others are ruled out.
+- Assign only after the user picks a colleague and says yes: mark the absent \
+  person's entry absent (is_present false and the absence type) and put the \
+  colleague on the shift, both with X-Change-Source "replacement". The roster \
+  rules above still apply.
+
+Shift swaps:
+- A viewer offers their own confirmed shift for a colleague's (createShiftSwap), \
+  and accepts, declines or cancels their own requests.
+- A planner approving or rejecting: call checkShiftSwap for the two shifts first \
+  and report its violations as warnings — they never block the swap — then \
+  approveShiftSwap or rejectShiftSwap only after a yes.
+
+Rotation patterns:
+- To apply a rotation, call applyRotationPattern with dry_run true first and show \
+  what it would write. Apply for real only after the user confirms.
+
+Personal limits and labor law:
+- Explain personal limits (max nights or weekends per month, no nights, preferred \
+  days off) and the labor-law profile from the documentation (searchKnowledge). \
+  The labor-law profile is a modelled subset of the law, not legal advice — say so.
+- Never name or guess why someone has a protection (age, maternity): findings name \
+  the law, never the reason, and so do you.
+
+Automatic planning:
+- "Why did the automatic plan stay a proposal?": read getPlannerSettings — \
+  auto_plan_last_outcome and auto_plan_last_note say what the last run did and \
+  why — and explain it with the documentation's conditions for taking an \
+  automatic plan.
 
 Reading an uploaded roster file:
 - The upload message shows the first rows of each sheet with row and column \
@@ -209,73 +277,6 @@ not a documentation lookup.
 - Keep replies short and concrete. If a tool call fails, say what failed in plain \
   language — don't repeat raw JSON or stack traces back to the user.
 """
-
-
-def build_llm() -> BaseChatModel:
-    """Build the chat model based on the configured provider."""
-    provider = settings.llm_provider
-
-    if provider == "ollama":
-        logger.info(
-            "Using Ollama (local): %s, model=%s",
-            settings.ollama_base_url,
-            settings.model,
-        )
-        return ChatOpenAI(
-            model=settings.model,
-            base_url=f"{settings.ollama_base_url}/v1",
-            api_key="ollama",
-            max_tokens=settings.max_tokens,
-            temperature=settings.temperature,
-        )
-
-    elif provider == "ollama-com":
-        api_key = settings.ollama_com_api_key
-        if not api_key:
-            raise ValueError(
-                "OLLAMA_COM_API_KEY is required when SHIFT_AGENT_LLM_PROVIDER=ollama-com"
-            )
-        logger.info("Using Ollama.com cloud: model=%s", settings.model)
-        return ChatOpenAI(
-            model=settings.model,
-            base_url=f"{settings.ollama_com_base_url}/v1",
-            api_key=api_key,
-            max_tokens=settings.max_tokens,
-            temperature=settings.temperature,
-        )
-
-    elif provider == "openai":
-        logger.info("Using OpenAI: model=%s", settings.model)
-        return ChatOpenAI(
-            model=settings.model,
-            max_tokens=settings.max_tokens,
-            temperature=settings.temperature,
-        )
-
-    else:
-        raise ValueError(
-            f"Unknown LLM provider '{provider}'. "
-            f"Expected one of: ollama, ollama-com, openai"
-        )
-
-
-# A second model instance with no tools bound and no conversation, for the
-# small translation jobs inside the agent's own tools (reading the user's
-# repair instruction). Built on first use and kept; False records that the
-# provider is unreachable, so the attempt isn't repeated per call.
-_plain_llm: Any = None
-
-
-def plain_llm() -> BaseChatModel | None:
-    """The tool-free model, or None when no provider is configured/reachable."""
-    global _plain_llm
-    if _plain_llm is None:
-        try:
-            _plain_llm = build_llm()
-        except Exception:
-            logger.exception("No LLM available for in-tool language work")
-            _plain_llm = False
-    return _plain_llm or None
 
 
 def _context_budget() -> int:
@@ -405,8 +406,6 @@ def build_graph(knowledge_path: str | None = None) -> Any:
     local_tools = [
         *build_clock_tools(),
         *build_roster_tools(mcp_client.call_sync),
-        *build_validation_tools(mcp_client.call_sync),
-        *build_repair_tools(mcp_client.call_sync, plain_llm),
         *knowledge_tools,
     ]
 

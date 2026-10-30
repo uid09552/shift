@@ -47,8 +47,9 @@ logger = logging.getLogger(__name__)
 
 # Tools that run the solver rather than reading the database, and so need the
 # long timeout instead of the per-call one. Everything else answers in
-# milliseconds; these are bounded by the optimizer's own time limit.
-LONG_RUNNING_TOOLS = {"optimizeSchedule"}
+# milliseconds; these are bounded by the optimizer's own time limit — the
+# repair too, whose "resolve" strategy re-solves the period.
+LONG_RUNNING_TOOLS = {"optimizeSchedule", "repairOptimizedPlan"}
 
 
 def _as_json(text: str) -> str:

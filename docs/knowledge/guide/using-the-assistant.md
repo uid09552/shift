@@ -20,7 +20,9 @@ menus.
 # What it can do
 
 The assistant uses the same functions the screens use, and it can read this
-documentation, so requests fall into six sorts:
+documentation, so requests fall into these sorts. It first asks the app who you are (your
+roles and your own employee record), and only offers what your role may do — a
+viewer asking it to publish a month is told a planner does that:
 
 **Take me somewhere.**
 > *"Open the planner settings."* · *"Show me the workstation calendar."*
@@ -47,6 +49,28 @@ It re-checks a proposed plan against every rule the planner was solving under an
 reports what it finds — the same check the **Verify Plan** button on the Schedule
 Optimizer runs, and the same numbers, because both call the same code. See
 [Creating a schedule](/guide/creating-a-schedule.md).
+
+**Find cover.**
+> *"Anna is sick tomorrow, who can take her shift?"*
+
+It lists who may take the shift, best first, and why the others cannot — the
+same search as **Find replacement…** on the Schedule page — and assigns only
+after you pick someone. See [Finding cover](/guide/short-notice-replacement.md).
+
+**Change the published roster, carefully.**
+> *"Move Anna to the late shift on Friday."* · *"Publish next month."*
+
+In a published month it tells you who will be notified and asks before writing;
+inside the freeze window it asks for your reason and passes it on as you typed
+it. Publishing, unpublishing and unlocking are confirmed first. Swap requests
+are checked for rule breaches (warnings only) before a planner approves, and a
+rotation is previewed before it is applied. See
+[Roster lifecycle](/concepts/roster-lifecycle.md).
+
+**About me.** (any role)
+> *"When do I work next week?"* · *"Did anything change in my shifts?"*
+
+It answers from your own roster and change notices, without asking who you are.
 
 **Explain something.**
 > *"How do I confirm a plan?"* · *"What does 'soft minimum' actually mean?"* · *"Why would the planner call a week infeasible?"* · *"What is the difference between a shift wish and an available shift?"*

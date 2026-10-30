@@ -31,8 +31,13 @@ only; the solver never sees a request.
    for one of a colleague's. Planners and admins cannot request: every swap needs
    the colleague's consent. → `pending_colleague`
 2. The colleague accepts (→ `pending_planner`) or declines (→ `rejected`).
-3. A `shift-planner` or `shift-admin` approves (→ `approved`, the two roster rows
-   are exchanged) or rejects (→ `rejected`).
+3. A `shift-planner` or `shift-admin` reviews it with the **swap check** in front
+   of them (see below) and approves (→ `approved`, the two roster rows are
+   exchanged) or rejects (→ `rejected`). Approving is a roster write: in a
+   published month inside the freeze window it needs a reason
+   (`X-Change-Reason`, see [Roster lifecycle](/concepts/roster-lifecycle.md)),
+   and each changed day becomes a [change notice](/concepts/roster-change-notice.md)
+   with the source *swap*.
 
 While pending, the requester may cancel (→ `cancelled`); once the earlier date
 has passed it is `expired`. If either shift was edited or removed between request
@@ -59,7 +64,9 @@ with the roster as it is then.
 - **At review**: the agent's swap check lists, for each person, every rule the
   new shift breaks — qualification, rest, recovery days, streaks, weekly cap,
   station maximum, personal limits. **Warnings only**: a planner may approve a
-  swap that breaks a rule; the warnings are kept in the audit entry.
+  swap that breaks a rule; the warnings are kept in the audit entry. The same
+  check is the MCP tool `checkShiftSwap(requester, colleague)`, so the assistant
+  shows a planner the warnings before approving.
 
 # Where it shows
 

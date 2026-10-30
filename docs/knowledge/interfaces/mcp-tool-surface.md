@@ -1,7 +1,7 @@
 ---
 type: API Surface
 title: MCP Tool Surface
-description: One MCP tool per OpenAPI operation plus two hand-written tools (navigate, optimizeSchedule) — transports, allowlisting, auth and registration.
+description: One MCP tool per OpenAPI operation plus hand-written tools (navigate, optimizeSchedule, and the agent's plan check, repair, replacement search and swap check) — transports, allowlisting, auth and registration.
 resource: agent/shift_agent/mcp/server.py
 tags: [interfaces, mcp, agent, tools]
 status: stable
@@ -18,8 +18,8 @@ sources:
 ---
 
 `FastMCP.from_openapi()` turns `api/openapi.yaml` into one MCP tool per operation
-at startup — roughly 70 of them. Only `navigate` and `optimizeSchedule` are
-hand-written. The reasoning is in
+at startup — well over a hundred of them. `navigate`, `optimizeSchedule` and
+four agent tools are hand-written. The reasoning is in
 [Spec-driven tool surface](/architecture/spec-driven-tool-surface.md).
 
 # What the tools are
@@ -32,7 +32,7 @@ Names follow the OpenAPI `operationId`s, so the surface mirrors the
 Adding an operation to the spec adds a tool. Removing one removes a tool. There is
 no separate registry to keep in step.
 
-# The two exceptions
+# The two browser- and solver-facing exceptions
 
 `navigate` has no REST equivalent — it targets the browser. `agent/server.py`
 converts a `navigate` call into a `ui_action` in the chat response:
@@ -66,6 +66,42 @@ changes nothing. `locked_assignments` pins rows the solver must keep, which is
 what lets a re-solve repair a plan rather than replace it — see
 [Optimizer contract](/interfaces/optimizer-contract.md) and the repair behind
 the scheduler page's **Fix Plan** button.
+
+# The agent's tools
+
+Four tools serve what the app's own pages compute, so an MCP client gets the
+same answers as a planner clicking through:
+
+| Tool | Same as | Writes |
+|---|---|---|
+| `validateOptimizedPlan(result_id)` | the scheduler page's **Verify Plan** | no |
+| `repairOptimizedPlan(result_id, instruction, strategy)` | **Fix Plan** | the stored result |
+| `findReplacement(employee_id, date)` | the Schedule page's **Find replacement…** | no |
+| `checkShiftSwap(requester, colleague)` | the planner's swap review | no |
+
+They run the agent's engines (`agent/validation.py`, `repair.py`,
+`replacement.py`) inside the MCP server, reaching the backend through the
+server's own generated tools (`FastMCP.call_tool`, see `mcp/inprocess.py`).
+**Each runs as the caller**: the MCP request's token is pinned for every
+backend call, so a viewer's repair is refused by the backend and a tenant sees
+only its own results. The written summary the HTTP routes add is left out.
+
+`repairOptimizedPlan` reads its free-text `instruction` ("Anna is off sick
+Thursday") with the LLM configured on the MCP server (`SHIFT_AGENT_LLM_PROVIDER`
+and friends, the same settings as the agent). With no model configured or
+reachable, a non-empty instruction is refused and nothing is saved; an empty
+one never needs the model. `strategy: "resolve"` re-solves the period and takes
+as long as a solve.
+
+# Roster-write reasons
+
+Nine generated tools (`createConfirmedShiftPlan`, `updateConfirmedShiftPlan`,
+`deleteConfirmedShiftPlan`, `takeOptimizedShiftAsPlan`, `approveShiftSwap`,
+`createUnavailability`, `deleteUnavailability`, `unpublishRosterMonth`,
+`unlockRosterMonth`) take an `X-Change-Reason` argument, the header a change to
+a published or locked month needs (428 `reason_required` without it). Pass the
+planner's words as they are: the server percent-encodes the value before the
+request is built, and an already-encoded value is left as it is.
 
 # Transports
 

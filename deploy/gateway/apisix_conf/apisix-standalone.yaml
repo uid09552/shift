@@ -170,7 +170,7 @@ routes:
         headers:
           set:
             Clear-Site-Data: '"cache", "cookies", "storage"'
-            Content-Security-Policy: "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; frame-src 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'"
+            Content-Security-Policy: "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; frame-src 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://faro-collector-prod-eu-west-2.grafana.net; worker-src 'self' blob:; manifest-src 'self'"
             X-Content-Type-Options: nosniff
             X-Frame-Options: DENY
             Referrer-Policy: strict-origin-when-cross-origin
@@ -204,7 +204,7 @@ routes:
       response-rewrite:
         headers:
           set:
-            Content-Security-Policy: "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; frame-src 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'"
+            Content-Security-Policy: "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; frame-src 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://faro-collector-prod-eu-west-2.grafana.net; worker-src 'self' blob:; manifest-src 'self'"
             X-Content-Type-Options: nosniff
             X-Frame-Options: DENY
             Referrer-Policy: strict-origin-when-cross-origin
@@ -250,7 +250,7 @@ routes:
       response-rewrite:
         headers:
           set:
-            Content-Security-Policy: "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; frame-src 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'"
+            Content-Security-Policy: "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; frame-src 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://faro-collector-prod-eu-west-2.grafana.net; worker-src 'self' blob:; manifest-src 'self'"
             X-Content-Type-Options: nosniff
             X-Frame-Options: DENY
             Referrer-Policy: strict-origin-when-cross-origin

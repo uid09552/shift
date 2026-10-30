@@ -1,5 +1,22 @@
 # Bundle Update Log
 
+## 2026-10-31
+
+* **Creation**: [Roster lifecycle](/concepts/roster-lifecycle.md),
+  [Roster change notice](/concepts/roster-change-notice.md),
+  [Automatic planning](/concepts/automatic-planning.md),
+  [Rotation pattern](/concepts/rotation-pattern.md),
+  [Personal limits](/concepts/personal-limits.md),
+  [Labor-law profile](/concepts/labor-law-profile.md) and the guide
+  [Finding cover](/guide/short-notice-replacement.md), from the archived
+  specs of those features.
+* **Revision**: [Shift swap request](/concepts/shift-swap.md) (review with the
+  swap check, reasons and notices on approval),
+  [Using the assistant](/guide/using-the-assistant.md) (what it can do by role),
+  [Agent and MCP service](/architecture/agent-and-mcp-service.md) and
+  [MCP tool surface](/interfaces/mcp-tool-surface.md) — the plan check, repair,
+  replacement search and swap check are MCP tools now, run as the caller.
+
 ## 2026-10-30
 
 * **Creation**: Added [Analytics report](/guide/analytics-report.md) — the

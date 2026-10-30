@@ -4,8 +4,10 @@ tools, one per operation, generated directly from the spec via FastMCP — full,
 unopinionated coverage of the API for use by any MCP client (the chat agent
 itself, Claude Code, Claude Desktop, etc.). Plus `navigate`, the one tool that
 has no REST equivalent because it targets the browser rather than the backend,
-and `optimizeSchedule`, which runs the CP-SAT solver synchronously against the
-optimizer service — the spec's own planning endpoints only queue a job.
+`optimizeSchedule`, which runs the CP-SAT solver synchronously against the
+optimizer service — the spec's own planning endpoints only queue a job — and
+the agent's own tools (mcp/agent_tools.py: plan check, repair, replacement
+search, swap check), which run in process as the caller.
 
 Multi-tenant auth: over HTTP transport, connecting MCP clients authenticate
 against Keycloak via the OAuth2 authorization code grant + Dynamic Client
@@ -23,6 +25,7 @@ at all (see mcp/auth.py, and FastMCP's docs: auth is HTTP-only).
 import json
 import logging
 from pathlib import Path
+from urllib.parse import quote, unquote
 
 import httpx
 import yaml
@@ -33,6 +36,7 @@ from fastmcp.server.middleware import Middleware, MiddlewareContext
 
 from shift_agent import telemetry
 from shift_agent.config import settings
+from shift_agent.mcp.agent_tools import register_agent_tools
 from shift_agent.mcp.auth import BackendTokenAuth
 
 logger = logging.getLogger(__name__)
@@ -138,6 +142,13 @@ KNOWN_PAGES = {
     "planner_settings": "/planner-settings",
     "wish_settings": "/wish-settings",
     "audit_log": "/audit-log",
+    # Changes to published rosters: one's own, and for planners the ward's.
+    "changes": "/changes",
+    # Reports: who can work where (network), and the ward over time.
+    "relationships": "/relationships",
+    "analytics": "/analytics",
+    # Organization users and their roles (admins).
+    "users": "/users",
 }
 
 
@@ -155,7 +166,8 @@ def _register_navigation(mcp: FastMCP) -> None:
         Args:
             page: One of: dashboard, schedule, day_view, employee_calendar,
                 workstation_calendar, scheduler, fairness, rotations, user_profiles, shifts,
-                workstations, capabilities, planner_settings, wish_settings, audit_log.
+                workstations, capabilities, planner_settings, wish_settings, audit_log,
+                changes, relationships, analytics, users.
         """
         path = KNOWN_PAGES.get(page)
         if not path:
@@ -313,6 +325,31 @@ def _register_optimizer(mcp: FastMCP) -> None:
         return json.dumps(answer, default=str)
 
 
+# The header roster writes carry their reason in (api/openapi.yaml,
+# ChangeReason); the generated tools take it as an argument of this name.
+CHANGE_REASON_ARG = "X-Change-Reason"
+
+
+def encode_change_reason(value: str) -> str:
+    """The backend reads the reason URL-encoded, and an HTTP header cannot carry
+    "Müller" raw at all. Decoding first makes this idempotent: a value that
+    arrives already encoded comes out the same."""
+    return quote(unquote(value), safe="")
+
+
+class ChangeReasonMiddleware(Middleware):
+    """Percent-encodes a roster write's reason before its tool builds the
+    request, so a caller — the chat model or anyone else — can pass the
+    planner's words as they are. It has to happen here, on the arguments: by
+    the time an HTTP request exists, httpx has already refused the raw value."""
+
+    async def on_call_tool(self, context: MiddlewareContext, call_next):
+        arguments = getattr(context.message, "arguments", None)
+        if isinstance(arguments, dict) and isinstance(arguments.get(CHANGE_REASON_ARG), str):
+            arguments[CHANGE_REASON_ARG] = encode_change_reason(arguments[CHANGE_REASON_ARG])
+        return await call_next(context)
+
+
 class TracingMiddleware(Middleware):
     """One span per tool call, named after the tool.
 
@@ -340,6 +377,8 @@ def build_mcp_server() -> FastMCP:
     )
     _register_navigation(mcp)
     _register_optimizer(mcp)
+    register_agent_tools(mcp)
+    mcp.add_middleware(ChangeReasonMiddleware())
     if telemetry.enabled():
         mcp.add_middleware(TracingMiddleware())
     return mcp

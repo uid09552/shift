@@ -1,4 +1,4 @@
-import { ApplicationConfig, LOCALE_ID, provideZoneChangeDetection } from '@angular/core';
+import { ApplicationConfig, ErrorHandler, LOCALE_ID, provideZoneChangeDetection } from '@angular/core';
 import { registerLocaleData } from '@angular/common';
 import localeDe from '@angular/common/locales/de';
 import { provideRouter, TitleStrategy } from '@angular/router';
@@ -9,6 +9,7 @@ import { routes } from './app.routes';
 import { reasonRequiredInterceptor } from './shared/http/reason-required.interceptor';
 import { TranslatedTitleStrategy } from './shared/i18n/translated-title.strategy';
 import { TranslationService } from './shared/i18n/translation.service';
+import { FaroErrorHandler } from './shared/faro-error-handler';
 
 // Locale data for the languages the UI ships, so Angular's date/number pipes format
 // for the language resolved at startup.
@@ -21,6 +22,8 @@ export const appConfig: ApplicationConfig = {
     // A change to a published roster that needs a reason asks for one and retries.
     provideHttpClient(withXhr(), withInterceptors([reasonRequiredInterceptor])),
     provideAnimationsAsync(),
+    // Errors Angular catches itself go to Grafana Faro (see src/faro.ts).
+    { provide: ErrorHandler, useClass: FaroErrorHandler },
     // Route titles are translation keys; this strategy resolves them and keeps the
     // browser tab in sync when the language changes.
     { provide: TitleStrategy, useClass: TranslatedTitleStrategy },

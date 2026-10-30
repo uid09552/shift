@@ -36,7 +36,6 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Any, Callable
 
-from langchain_core.tools import StructuredTool
 
 from shift_agent.agent import legal
 
@@ -1365,49 +1364,3 @@ def narrate(report: dict, llm: Any) -> str:
     except Exception:
         logger.exception("Plan validation narration failed — falling back to the plain verdict")
         return headline(report)
-
-
-# ---------------------------------------------------------------------------
-# Chat tool
-# ---------------------------------------------------------------------------
-
-
-def build_validation_tools(call_mcp: Callable[[str, dict], str]) -> list[StructuredTool]:
-    """The plan check, as a tool the chat agent can call itself.
-
-    The same check the scheduler page's button runs, so "is last night's plan
-    OK?" in the chat and the button on the page cannot disagree. The tool
-    returns the findings; the model does the explaining in its own reply, which
-    is why nothing here calls an LLM.
-    """
-
-    def validate_optimized_plan(result_id: str) -> str:
-        try:
-            rules, result, capability_names = collect(call_mcp, result_id)
-            report = validate(rules, result, capability_names)
-        except ValidationError as exc:
-            return json.dumps({"error": str(exc)})
-        except Exception:
-            logger.exception("Plan validation failed for result %s", result_id)
-            return json.dumps({"error": "The plan could not be checked."})
-
-        report["result_id"] = result_id
-        report["headline"] = headline(report)
-        return json.dumps(report, indent=2, default=str)
-
-    return [
-        StructuredTool.from_function(
-            func=validate_optimized_plan,
-            name="validateOptimizedPlan",
-            description=(
-                "Check a proposed (optimized) shift plan against the ward's rules and "
-                "report every violation. Pass the optimizer result's id — "
-                "listOptimizedShifts gives you those, newest first. The check is exact "
-                "and covers the hard constraints (one shift a day, qualifications, "
-                "absences, rest between shifts, recovery days, consecutive and weekly "
-                "day limits, staffing maximums) plus the soft ones the solver may have "
-                "traded away (staffing minimums, preferred days off, hours targets). "
-                "Report what it returns; do not re-count or second-guess it."
-            ),
-        ),
-    ]

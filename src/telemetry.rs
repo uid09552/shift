@@ -312,7 +312,9 @@ fn grpc_metadata(headers: &HashMap<String, String>) -> MetadataMap {
     MetadataMap::from_headers(map)
 }
 
-/// Parse `OTEL_EXPORTER_OTLP_HEADERS` syntax: `key=value,key2=value2`.
+/// Parse `OTEL_EXPORTER_OTLP_HEADERS` syntax: `key=value,key2=value2`. Values
+/// are URL-encoded per the OTel spec — Grafana Cloud hands out
+/// `Authorization=Basic%20…`.
 fn parse_headers(raw: &str) -> HashMap<String, String> {
     raw.split(',')
         .filter_map(|pair| {
@@ -321,7 +323,10 @@ fn parse_headers(raw: &str) -> HashMap<String, String> {
             if key.is_empty() {
                 return None;
             }
-            Some((key.to_string(), value.trim().to_string()))
+            Some((
+                key.to_string(),
+                crate::services::roster_guard::percent_decode(value.trim()),
+            ))
         })
         .collect()
 }
@@ -694,6 +699,15 @@ mod tests {
         assert_eq!(headers.get("private-token"), Some(&"abc".to_string()));
         assert_eq!(headers.get("x-other"), Some(&"1".to_string()));
         assert!(parse_headers("").is_empty());
+    }
+
+    #[test]
+    fn decodes_url_encoded_header_values() {
+        let headers = parse_headers("Authorization=Basic%20MTIzOmdsY18rYQ==");
+        assert_eq!(
+            headers.get("Authorization"),
+            Some(&"Basic MTIzOmdsY18rYQ==".to_string())
+        );
     }
 
     #[test]

@@ -4,32 +4,28 @@
 //! at it, or leave it unset to use the development default. When no database
 //! is reachable the test prints a notice and passes, matching `wish_window.rs`.
 
+mod common;
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use base64::{engine::general_purpose, Engine as _};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::PgConnection;
 use serde_json::{json, Value};
 
+use common::TestKeys;
 use shift::database::DbPool;
 use shift::repository::AppState;
 
 const DEFAULT_DATABASE_URL: &str = "postgresql://postgres:postgres@localhost:5432/shift";
 
-fn viewer_token() -> String {
-    let payload = json!({
+fn viewer_token(keys: &TestKeys) -> String {
+    keys.sign(json!({
         "tenant": ["test-info"],
         "realm_access": { "roles": ["shift-viewer"] },
         "email": "viewer@test.invalid",
-    });
-    let encode = |bytes: &[u8]| general_purpose::URL_SAFE_NO_PAD.encode(bytes);
-    format!(
-        "{}.{}.signature",
-        encode(br#"{"alg":"RS256","typ":"JWT"}"#),
-        encode(payload.to_string().as_bytes()),
-    )
+    }))
 }
 
 #[tokio::test]
@@ -47,7 +43,10 @@ async fn info_reports_the_running_version_to_any_role() {
         }
     };
 
-    let app = shift::server::create_router(AppState::new(Arc::new(pool)));
+    let keys = TestKeys::serve().await;
+    let mut state = AppState::new(Arc::new(pool));
+    state.token_verifier = Some(keys.verifier());
+    let app = shift::server::create_router(state);
     let listener = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
         .await
         .expect("bind");
@@ -58,7 +57,7 @@ async fn info_reports_the_running_version_to_any_role() {
 
     let response = reqwest::Client::new()
         .get(format!("http://{addr}/api/v1/info"))
-        .header("x-access-token", viewer_token())
+        .header("x-access-token", viewer_token(&keys))
         .send()
         .await
         .expect("GET /info");

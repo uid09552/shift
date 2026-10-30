@@ -22,7 +22,9 @@
             ],
             "allowedCommonJsDependencies": [
                "prismjs",
-               "polylabel"
+               "polylabel",
+               "ua-parser-js",
+               "@opentelemetry/otlp-transformer"
             ],
             "tsConfig": "tsconfig.app.json",
             "assets": [
