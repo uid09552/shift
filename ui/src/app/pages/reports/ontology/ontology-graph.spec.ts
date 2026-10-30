@@ -6,7 +6,7 @@ import {
   applyFilters,
   buildGraph,
   neighbourhood,
-} from './relationship-graph';
+} from './ontology-graph';
 
 /** Anna (ICU-qualified, nights), Ben (no capabilities, early); ICU requires ICU care. */
 function ward(): GraphInput {

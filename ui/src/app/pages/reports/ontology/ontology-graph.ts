@@ -1,5 +1,5 @@
 /**
- * The Relationships report's model: who has which capability, who may work
+ * The Ontology report's model: who has which capability, who may work
  * which shift, what each workstation requires and runs, and — for a chosen
  * period — who is rostered where. Pure functions over API data, so the
  * rules are tested without a browser; the page only draws the result.

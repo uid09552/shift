@@ -89,7 +89,7 @@ backend/
 │       │   │   ├── scheduler/       # Optimizer, in tabs: Calculate · Proposal · Check & fix · Compare · Runs
 │       │   │   └── employee-calendar/
 │       │   ├── reports/
-│       │   │   ├── relationships/   # Who can work where: d3 network, optional roster layer; read-only
+│       │   │   ├── ontology/        # Who can work where: d3 network, optional roster layer; read-only
 │       │   │   └── analytics/       # ECharts report: coverage, hours, absences, changes, audit, runs; read-only
 │       │   └── configuration/  # Admin settings
 │       │       ├── shifts/

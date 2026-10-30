@@ -1,5 +1,5 @@
 *** Settings ***
-Documentation       Reports › Relationships draws who can work where as a network. It
+Documentation       Reports › Ontology draws who can work where as a network. It
 ...                 is for planners and admins: it shows every colleague's
 ...                 qualifications, so a viewer is neither offered it nor shown it.
 ...
@@ -8,24 +8,24 @@ Documentation       Reports › Relationships draws who can work where as a netw
 
 Resource            ../../resources/common.resource
 Resource            ../../resources/login.resource
-Resource            ../../resources/pages/relationships_page.resource
+Resource            ../../resources/pages/ontology_page.resource
 
 Suite Setup         Open Application
 Suite Teardown      Close Application
 Test Teardown       Log Out
 
-Force Tags          reports    relationships
+Force Tags          reports    ontology
 
 
 *** Test Cases ***
-Admin Opens Relationships From The Sidebar
-    [Documentation]    The Reports group lists Relationships, and the entry leads
+Admin Opens Ontology From The Sidebar
+    [Documentation]    The Reports group lists Ontology, and the entry leads
     ...                to a drawn network with its legend.
     [Tags]    smoke
     Log In As    admin
-    Relationships Entry Should Be Offered
-    Click    ${NAV_RELATIONSHIPS}
-    Wait For Condition    Url    contains    /relationships    timeout=${TIMEOUT}
+    Ontology Entry Should Be Offered
+    Click    ${NAV_ONTOLOGY}
+    Wait For Condition    Url    contains    /ontology    timeout=${TIMEOUT}
     Network Should Be Drawn
 
 Shifts Start Hidden And Can Be Shown And Hidden Again
@@ -33,7 +33,7 @@ Shifts Start Hidden And Can Be Shown And Hidden Again
     ...                the toggle brings them in and takes them out again, and the
     ...                other node types stay.
     Log In As    admin
-    Open Relationships
+    Open Ontology
     Network Should Be Drawn
     Node Type Should Be Hidden    ${SHIFT_NODE}
     Toggle Node Type    shift
@@ -42,14 +42,22 @@ Shifts Start Hidden And Can Be Shown And Hidden Again
     Node Type Should Be Hidden    ${SHIFT_NODE}
     Node Type Should Be Shown    ${EMPLOYEE_NODE}
 
-Viewer Is Not Offered Relationships
+Viewer Is Not Offered Ontology
     Log In As    viewer
-    Relationships Entry Should Be Hidden
+    Ontology Entry Should Be Hidden
 
-Viewer Opening Relationships Directly Lands On The Overview
+Viewer Opening Ontology Directly Lands On The Overview
     [Documentation]    The route can still be typed in; the guard sends a viewer
     ...                to the overview instead of showing the page.
     Log In As    viewer
+    Open Page    ${APP_PATH}ontology
+    Wait For Condition    Url    not contains    /ontology    timeout=${TIMEOUT}
+    Element Should Not Exist    ${ONTOLOGY_PAGE}
+
+Old Relationships Address Leads To Ontology
+    [Documentation]    The page was called Relationships; links and bookmarks to
+    ...                the old address still open it.
+    Log In As    admin
     Open Page    ${APP_PATH}relationships
-    Wait For Condition    Url    not contains    /relationships    timeout=${TIMEOUT}
-    Element Should Not Exist    ${RELATIONSHIPS_PAGE}
+    Wait For Condition    Url    contains    /ontology    timeout=${TIMEOUT}
+    Element Should Be Visible    ${ONTOLOGY_PAGE}

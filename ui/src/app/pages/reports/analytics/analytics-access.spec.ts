@@ -68,7 +68,7 @@ describe('Analytics access', () => {
   };
 
   it('shows Analytics next to the network page in a planner\'s Reports menu', () => {
-    expect(reportPaths(true)).toEqual(['/relationships', '/analytics']);
+    expect(reportPaths(true)).toEqual(['/ontology', '/analytics']);
   });
 
   it('hides it from a viewer', () => {

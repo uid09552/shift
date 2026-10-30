@@ -12,7 +12,7 @@
   }
 }
 
-.rel .relationships-card {
+.rel .ontology-card {
   display: flex;
   flex: 1 1 0px;
   min-height: 0;
@@ -20,14 +20,14 @@
 }
 
 /* Canvas left, details right; the legend floats over the canvas's corner. */
-.rel .relationships-body {
+.rel .ontology-body {
   position: relative;
   display: flex;
   flex: 1 1 0px;
   min-height: 24rem;
 }
 
-.rel .relationships-canvas {
+.rel .ontology-canvas {
   flex: 1 1 0px;
   min-width: 0;
   overflow: hidden;
@@ -35,7 +35,7 @@
   touch-action: none;
 }
 
-.rel .relationships-panel {
+.rel .ontology-panel {
   width: 17rem;
   flex: none;
   overflow-y: auto;
@@ -43,7 +43,7 @@
   padding: 1rem 1.25rem;
 }
 
-.rel .relationships-legend {
+.rel .ontology-legend {
   position: absolute;
   bottom: 0.75rem;
   left: 0.75rem;
@@ -66,22 +66,22 @@
     height: auto;
   }
 
-  .rel .relationships-body {
+  .rel .ontology-body {
     flex-direction: column;
   }
 
-  .rel .relationships-canvas {
+  .rel .ontology-canvas {
     flex: none;
     height: max(24rem, 65dvh);
   }
 
-  .rel .relationships-panel {
+  .rel .ontology-panel {
     width: auto;
     border-left: 0;
     border-top: 1px solid var(--color-gray-100);
   }
 
-  .rel .relationships-legend {
+  .rel .ontology-legend {
     position: static;
     max-width: none;
     margin: 0.5rem 0.75rem 0;
@@ -92,7 +92,7 @@
 
 /* Unencapsulated (d3 draws the graph): every rule is scoped to the host class .rel. */
 
-.rel .relationships-svg {
+.rel .ontology-svg {
   display: block;
   width: 100%;
   height: 100%;
@@ -227,11 +227,11 @@
 
 /* ── Dark mode ──────────────────────────────────────────────────────────── */
 
-.dark .rel .relationships-panel {
+.dark .rel .ontology-panel {
   border-color: rgb(255 255 255 / 0.05);
 }
 
-.dark .rel .relationships-legend {
+.dark .rel .ontology-legend {
   background: rgb(16 24 40 / 0.85);
   color: var(--color-gray-400);
 }

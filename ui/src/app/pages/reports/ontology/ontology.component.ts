@@ -52,7 +52,7 @@ import {
   buildGraph,
   endId,
   neighbourhood,
-} from './relationship-graph';
+} from './ontology-graph';
 
 type SimNode = GraphNode & SimulationNodeDatum;
 type SimLink = Omit<GraphLink, 'source' | 'target'> & SimulationLinkDatum<SimNode>;
@@ -80,7 +80,7 @@ const SHAPE: Record<NodeType, string> = {
  * when asked for. Read-only — dragging pins a node on screen and nothing else.
  */
 @Component({
-  selector: 'app-relationships',
+  selector: 'app-ontology',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterModule, PageBreadcrumbComponent, LoadErrorComponent, TranslatePipe],
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -88,63 +88,63 @@ const SHAPE: Record<NodeType, string> = {
   // scopes itself to the host class `rel` instead.
   encapsulation: ViewEncapsulation.None,
   host: { class: 'rel' },
-  styleUrl: './relationships.component.css',
+  styleUrl: './ontology.component.css',
   template: `
-    <app-page-breadcrumb pageTitle="nav.relationships" />
+    <app-page-breadcrumb pageTitle="nav.ontology" />
 
-    <div class="table-card relationships-card" data-testid="relationships-page">
+    <div class="table-card ontology-card" data-testid="ontology-page">
       <div class="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-white/[0.05]">
         <div class="min-w-0">
-          <h3 class="text-lg font-semibold tracking-tight text-gray-800 dark:text-white/90">{{ 'relationships.heading' | t }}</h3>
-          <p class="mt-0.5 max-w-2xl text-sm text-gray-500 dark:text-gray-400">{{ 'relationships.intro' | t }}</p>
+          <h3 class="text-lg font-semibold tracking-tight text-gray-800 dark:text-white/90">{{ 'ontology.heading' | t }}</h3>
+          <p class="mt-0.5 max-w-2xl text-sm text-gray-500 dark:text-gray-400">{{ 'ontology.intro' | t }}</p>
         </div>
         <button
           type="button"
           (click)="resetLayout()"
           [disabled]="!graph"
-          data-testid="relationships-reset"
+          data-testid="ontology-reset"
           class="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-brand-500 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.03]"
-        >{{ 'relationships.reset' | t }}</button>
+        >{{ 'ontology.reset' | t }}</button>
       </div>
 
       <!-- Toolbar: what to show, search, roster layer -->
       <div class="flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-gray-100 px-5 py-3 dark:border-white/[0.05]">
-        <div class="flex flex-wrap items-center gap-1.5" role="group" [attr.aria-label]="'relationships.show' | t">
-          <span class="mr-1 text-xs text-gray-500 dark:text-gray-400">{{ 'relationships.show' | t }}</span>
+        <div class="flex flex-wrap items-center gap-1.5" role="group" [attr.aria-label]="'ontology.show' | t">
+          <span class="mr-1 text-xs text-gray-500 dark:text-gray-400">{{ 'ontology.show' | t }}</span>
           @for (type of nodeTypes; track type) {
             <button
               type="button"
               (click)="toggleNodeType(type)"
               [attr.aria-pressed]="shown.has(type)"
-              [attr.data-testid]="'relationships-toggle-' + type"
+              [attr.data-testid]="'ontology-toggle-' + type"
               class="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-brand-500"
               [ngClass]="shown.has(type)
                 ? 'border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-600 dark:bg-gray-700 dark:text-white'
                 : 'border-gray-200 text-gray-400 hover:text-gray-600 dark:border-gray-700 dark:text-gray-500 dark:hover:text-gray-300'"
             >
               <svg width="12" height="12" viewBox="-10 -10 20 20" aria-hidden="true"><path [attr.d]="shape[type]" [attr.class]="'swatch swatch-' + type" /></svg>
-              {{ 'relationships.type.' + type | t }}
+              {{ 'ontology.type.' + type | t }}
             </button>
           }
         </div>
 
         <label class="relative flex items-center">
-          <span class="sr-only">{{ 'relationships.search' | t }}</span>
+          <span class="sr-only">{{ 'ontology.search' | t }}</span>
           <input
             type="search"
             [(ngModel)]="search"
             (ngModelChange)="onSearch()"
-            [placeholder]="'relationships.search' | t"
-            data-testid="relationships-search"
+            [placeholder]="'ontology.search' | t"
+            data-testid="ontology-search"
             class="h-8 w-48 rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:text-gray-300"
           />
         </label>
 
         <div class="flex flex-wrap items-center gap-2">
           <label class="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-            <input type="checkbox" [(ngModel)]="layerOn" (ngModelChange)="loadRoster()" data-testid="relationships-layer"
+            <input type="checkbox" [(ngModel)]="layerOn" (ngModelChange)="loadRoster()" data-testid="ontology-layer"
               class="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500 dark:border-gray-600" />
-            {{ 'relationships.layer' | t }}
+            {{ 'ontology.layer' | t }}
           </label>
           @if (layerOn) {
             <div class="flex items-center rounded-lg border border-gray-200 p-0.5 dark:border-gray-700" role="group">
@@ -153,15 +153,15 @@ const SHAPE: Record<NodeType, string> = {
                   type="button"
                   (click)="setLayerMode(mode)"
                   [attr.aria-pressed]="layerMode === mode"
-                  [attr.data-testid]="'relationships-layer-' + mode"
+                  [attr.data-testid]="'ontology-layer-' + mode"
                   class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
                   [ngClass]="layerMode === mode
                     ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-white'
                     : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
-                >{{ 'relationships.layer.' + mode | t }}</button>
+                >{{ 'ontology.layer.' + mode | t }}</button>
               }
             </div>
-            <input type="date" [(ngModel)]="layerDate" (ngModelChange)="loadRoster()" data-testid="relationships-date"
+            <input type="date" [(ngModel)]="layerDate" (ngModelChange)="loadRoster()" data-testid="ontology-date"
               class="h-8 rounded-lg border border-gray-200 bg-transparent px-2 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300 dark:[color-scheme:dark]" />
             <span class="text-sm tabular-nums text-gray-500 dark:text-gray-400">{{ periodLabel }}</span>
           }
@@ -170,17 +170,17 @@ const SHAPE: Record<NodeType, string> = {
 
       @if (partial.length) {
         <p class="border-b border-gray-100 bg-warning-50 px-5 py-2 text-sm text-warning-700 dark:border-white/[0.05] dark:bg-warning-500/10 dark:text-warning-400">
-          {{ 'relationships.partial' | t: { names: partial.join(', ') } }}
+          {{ 'ontology.partial' | t: { names: partial.join(', ') } }}
         </p>
       }
 
       @if (error) {
         <app-load-error [message]="error | t" (retry)="load()" />
       } @else if (!graph) {
-        <p class="px-5 py-12 text-center text-sm text-gray-400 dark:text-gray-500">{{ 'relationships.loading' | t }}</p>
+        <p class="px-5 py-12 text-center text-sm text-gray-400 dark:text-gray-500">{{ 'ontology.loading' | t }}</p>
       } @else if (!graph.nodes.length) {
-        <div class="px-5 py-12 text-center" data-testid="relationships-empty">
-          <p class="text-sm text-gray-500 dark:text-gray-400">{{ 'relationships.empty' | t }}</p>
+        <div class="px-5 py-12 text-center" data-testid="ontology-empty">
+          <p class="text-sm text-gray-500 dark:text-gray-400">{{ 'ontology.empty' | t }}</p>
           <p class="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm">
             <a routerLink="/user-profiles" class="text-brand-500 hover:underline">{{ 'nav.userProfiles' | t }}</a>
             <a routerLink="/capabilities" class="text-brand-500 hover:underline">{{ 'nav.capabilities' | t }}</a>
@@ -190,36 +190,36 @@ const SHAPE: Record<NodeType, string> = {
         </div>
       }
 
-      <div class="relationships-body" [hidden]="!graph || !graph.nodes.length">
-        <div class="relationships-canvas" #canvas data-testid="relationships-canvas"></div>
+      <div class="ontology-body" [hidden]="!graph || !graph.nodes.length">
+        <div class="ontology-canvas" #canvas data-testid="ontology-canvas"></div>
 
         <!-- Legend: shapes and line styles -->
-        <div class="relationships-legend" data-testid="relationships-legend" [attr.aria-label]="'relationships.legend' | t">
+        <div class="ontology-legend" data-testid="ontology-legend" [attr.aria-label]="'ontology.legend' | t">
           @for (type of nodeTypes; track type) {
             <span class="flex items-center gap-1.5">
               <svg width="12" height="12" viewBox="-10 -10 20 20" aria-hidden="true"><path [attr.d]="shape[type]" [attr.class]="'swatch swatch-' + type" /></svg>
-              {{ 'relationships.type.' + type | t }}
+              {{ 'ontology.type.' + type | t }}
             </span>
           }
-          <span class="flex items-center gap-1.5"><svg width="22" height="6" aria-hidden="true"><line x1="0" y1="3" x2="22" y2="3" class="legend-link" /></svg>{{ 'relationships.edge.hasCapability' | t }} · {{ 'relationships.edge.runs' | t }}</span>
+          <span class="flex items-center gap-1.5"><svg width="22" height="6" aria-hidden="true"><line x1="0" y1="3" x2="22" y2="3" class="legend-link" /></svg>{{ 'ontology.edge.hasCapability' | t }} · {{ 'ontology.edge.runs' | t }}</span>
           @if (layerOn) {
-            <span class="flex items-center gap-1.5"><svg width="22" height="6" aria-hidden="true"><line x1="0" y1="3" x2="22" y2="3" class="legend-link assigned" /></svg>{{ 'relationships.edge.assigned' | t }}</span>
-            <span class="flex items-center gap-1.5"><svg width="22" height="6" aria-hidden="true"><line x1="0" y1="3" x2="22" y2="3" class="legend-link assigned uncovered" /></svg>{{ 'relationships.edge.uncovered' | t }}</span>
+            <span class="flex items-center gap-1.5"><svg width="22" height="6" aria-hidden="true"><line x1="0" y1="3" x2="22" y2="3" class="legend-link assigned" /></svg>{{ 'ontology.edge.assigned' | t }}</span>
+            <span class="flex items-center gap-1.5"><svg width="22" height="6" aria-hidden="true"><line x1="0" y1="3" x2="22" y2="3" class="legend-link assigned uncovered" /></svg>{{ 'ontology.edge.uncovered' | t }}</span>
           }
-          <span class="flex items-center gap-1.5"><svg width="14" height="14" viewBox="-10 -10 20 20" aria-hidden="true"><circle r="8.5" class="legend-spof" /></svg>{{ 'relationships.spof' | t }}</span>
+          <span class="flex items-center gap-1.5"><svg width="14" height="14" viewBox="-10 -10 20 20" aria-hidden="true"><circle r="8.5" class="legend-spof" /></svg>{{ 'ontology.spof' | t }}</span>
         </div>
 
         <!-- Selected node -->
-        <aside class="relationships-panel" data-testid="relationships-panel" aria-live="polite">
+        <aside class="ontology-panel" data-testid="ontology-panel" aria-live="polite">
           @if (selected; as node) {
-            <p class="text-xs text-gray-500 dark:text-gray-400">{{ 'relationships.type.' + node.type | t }}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">{{ 'ontology.type.' + node.type | t }}</p>
             <h4 class="mt-0.5 text-base font-semibold tracking-tight text-gray-800 dark:text-white/90">{{ node.name }}</h4>
             <div class="mt-2 space-y-1 text-xs">
-              @if (node.closed) { <p class="text-gray-500 dark:text-gray-400">{{ 'relationships.closed' | t }}</p> }
-              @if (node.spof) { <p class="text-warning-700 dark:text-warning-400">{{ 'relationships.spof' | t }}</p> }
-              @if (isPinned(node.id)) { <p class="text-gray-500 dark:text-gray-400">{{ 'relationships.pinned' | t }}</p> }
+              @if (node.closed) { <p class="text-gray-500 dark:text-gray-400">{{ 'ontology.closed' | t }}</p> }
+              @if (node.spof) { <p class="text-warning-700 dark:text-warning-400">{{ 'ontology.spof' | t }}</p> }
+              @if (isPinned(node.id)) { <p class="text-gray-500 dark:text-gray-400">{{ 'ontology.pinned' | t }}</p> }
             </div>
-            <p class="mt-4 text-xs text-gray-500 tabular-nums dark:text-gray-400">{{ 'relationships.connections' | t: { count: connections.length } }}</p>
+            <p class="mt-4 text-xs text-gray-500 tabular-nums dark:text-gray-400">{{ 'ontology.connections' | t: { count: connections.length } }}</p>
             <ul class="mt-2 space-y-1 text-sm">
               @for (c of connections; track c.id) {
                 <li class="flex items-center justify-between gap-2">
@@ -227,20 +227,20 @@ const SHAPE: Record<NodeType, string> = {
                     {{ c.node.name }}
                   </button>
                   <span class="shrink-0 text-xs text-gray-400 tabular-nums" [class.text-warning-700]="c.uncovered">
-                    @if (c.days) { {{ 'relationships.days' | t: { count: c.days } }} } @else { {{ 'relationships.edge.' + c.type | t }} }
+                    @if (c.days) { {{ 'ontology.days' | t: { count: c.days } }} } @else { {{ 'ontology.edge.' + c.type | t }} }
                   </span>
                 </li>
               }
             </ul>
           } @else {
-            <p class="text-sm text-gray-400 dark:text-gray-500">{{ 'relationships.hint' | t }}</p>
+            <p class="text-sm text-gray-400 dark:text-gray-500">{{ 'ontology.hint' | t }}</p>
           }
         </aside>
       </div>
     </div>
   `,
 })
-export class RelationshipsComponent implements OnInit, AfterViewInit, OnDestroy {
+export class OntologyComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('canvas', { static: true }) canvas!: ElementRef<HTMLDivElement>;
 
   readonly nodeTypes = NODE_TYPES;
@@ -296,7 +296,7 @@ export class RelationshipsComponent implements OnInit, AfterViewInit, OnDestroy 
 
   ngAfterViewInit(): void {
     const host = this.canvas.nativeElement;
-    this.svg = select(host).append('svg').attr('class', 'relationships-svg').attr('data-testid', 'relationships-svg');
+    this.svg = select(host).append('svg').attr('class', 'ontology-svg').attr('data-testid', 'ontology-svg');
     this.layer = this.svg.append('g');
     this.layer.append('g').attr('class', 'links');
     this.layer.append('g').attr('class', 'link-labels');
@@ -357,7 +357,7 @@ export class RelationshipsComponent implements OnInit, AfterViewInit, OnDestroy 
           this.rebuild();
         },
         error: () => {
-          this.error = 'relationships.failed';
+          this.error = 'ontology.failed';
           this.cdr.markForCheck();
         },
       });
@@ -380,7 +380,7 @@ export class RelationshipsComponent implements OnInit, AfterViewInit, OnDestroy 
       },
       error: () => {
         this.roster = null;
-        this.error = 'relationships.failed';
+        this.error = 'ontology.failed';
         this.cdr.markForCheck();
       },
     });
@@ -512,8 +512,8 @@ export class RelationshipsComponent implements OnInit, AfterViewInit, OnDestroy 
         return g;
       })
       .attr('class', (n) => `node node-${n.type}${n.closed ? ' closed' : ''}${n.spof ? ' spof' : ''}${n.fx != null ? ' pinned' : ''}`)
-      .attr('data-testid', (n) => `relationships-node-${n.id}`)
-      .attr('aria-label', (n) => `${this.translations.t('relationships.type.' + n.type)}: ${n.name}`);
+      .attr('data-testid', (n) => `ontology-node-${n.id}`)
+      .attr('aria-label', (n) => `${this.translations.t('ontology.type.' + n.type)}: ${n.name}`);
     nodeSel.select<SVGPathElement>('path.shape')
       .attr('d', (n) => SHAPE[n.type])
       .style('fill', (n) => (n.type === 'shift' && n.color ? n.color : null));

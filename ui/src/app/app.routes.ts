@@ -75,12 +75,19 @@ export const routes: Routes = [
       },
       {
         // Lazy: the only page that needs d3. Viewers are sent to the overview.
-        path:'relationships',
+        path:'ontology',
         loadComponent: () =>
-          import('./pages/reports/relationships/relationships.component').then((m) => m.RelationshipsComponent),
+          import('./pages/reports/ontology/ontology.component').then((m) => m.OntologyComponent),
         canActivate: [writerGuard],
         data: { listPath: '/' },
-        title:'title.relationships'
+        title:'title.ontology'
+      },
+      {
+        // The Ontology page was called Relationships. Kept as a redirect so old
+        // links and bookmarks still open it; writerGuard on the target decides access.
+        path:'relationships',
+        redirectTo:'/ontology',
+        pathMatch:'full'
       },
       {
         // Lazy: the only page that needs ECharts. Viewers are sent to the overview.

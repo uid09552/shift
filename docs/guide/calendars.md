@@ -215,11 +215,11 @@ calendar.
 It reads the **confirmed** roster only. To see how a proposal would share the
 work before you take it, use **Compare** on the Schedule Optimizer.
 
-## Relationships — who can work where
+## Ontology — who can work where
 
 ![Relationships, with Intensivpflege selected and the roster of one week shown](../assets/screenshots/relationships.png)
 
-**Reports → Relationships** draws your ward as a network: everyone, every
+**Reports → Ontology** draws your ward as a network: everyone, every
 capability, every workstation and every shift, with a line for each
 connection. It answers questions like *who could cover the ICU?* or *which
 qualification rests on one person?* at a glance. Planners and admins see it;
@@ -258,7 +258,7 @@ moves a dot on the screen, not a shift in the roster.
 **Reports → Analytics** looks back over up to a year: was the ward short,
 who carried the nights and weekends, who was absent, what changed after a
 month was published, who edited what, and how planning runs went. Planners
-and admins see it; viewers do not. Like Relationships, it only reads.
+and admins see it; viewers do not. Like Ontology, it only reads.
 
 **Filters.** One bar at the top applies to everything on the page: a
 period (this month, last month, this quarter, last 3 or 12 months, or your
