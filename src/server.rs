@@ -229,6 +229,11 @@ pub fn create_router(state: AppState) -> Router {
             get(AnalysisService::get_staffing_per_day),
         )
         .route("/analysis/fairness", get(AnalysisService::get_fairness))
+        // Analytics page facts — planners and admins only
+        .route("/analysis/roster-facts", get(AnalysisService::get_roster_facts))
+        .route("/analysis/change-facts", get(AnalysisService::get_change_facts))
+        .route("/analysis/audit-activity", get(AnalysisService::get_audit_activity))
+        .route("/analysis/planning-runs", get(AnalysisService::get_planning_runs))
         // Audit Logs
         // Roster lifecycle: month status and publish deadline
         .route("/roster-months", get(RosterMonthService::list_roster_months))

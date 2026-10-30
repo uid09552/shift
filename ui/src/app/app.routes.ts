@@ -83,6 +83,15 @@ export const routes: Routes = [
         title:'title.relationships'
       },
       {
+        // Lazy: the only page that needs ECharts. Viewers are sent to the overview.
+        path:'analytics',
+        loadComponent: () =>
+          import('./pages/reports/analytics/analytics.component').then((m) => m.AnalyticsComponent),
+        canActivate: [writerGuard],
+        data: { listPath: '/' },
+        title:'title.analytics'
+      },
+      {
         path:'user-profiles',
         component:UserProfilesComponent,
         title:'title.userProfiles'

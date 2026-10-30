@@ -89,7 +89,8 @@ backend/
 │       │   │   ├── scheduler/       # Optimizer, in tabs: Calculate · Proposal · Check & fix · Compare · Runs
 │       │   │   └── employee-calendar/
 │       │   ├── reports/
-│       │   │   └── relationships/   # Who can work where: d3 network, optional roster layer; read-only
+│       │   │   ├── relationships/   # Who can work where: d3 network, optional roster layer; read-only
+│       │   │   └── analytics/       # ECharts report: coverage, hours, absences, changes, audit, runs; read-only
 │       │   └── configuration/  # Admin settings
 │       │       ├── shifts/
 │       │       ├── workstations/
@@ -268,6 +269,9 @@ Base URL: `http://localhost:8080/api/v1`
   their own), `/unread-count` for the bell, `POST …/acknowledge` (own only)
 - `GET /analysis/*` - Analysis and summary endpoints (`/analysis/fairness`: per
   employee nights, weekends, hours vs target, wishes — the Fairness page)
+  and the Analytics page's facts — `/analysis/roster-facts`, `/change-facts`,
+  `/audit-activity`, `/planning-runs` (planners and admins, at most a year;
+  aggregated in the browser)
 - `GET /audit-logs` - Who changed what: filter by `actor` (any part, case-insensitive),
   `action`, `entity_type` + `entity_id` (one item's history) and date range. A
   delete's `changes` holds `{"name": …}` of what was deleted; creates and updates

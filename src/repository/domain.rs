@@ -512,12 +512,198 @@ pub struct EmployeeFairnessDomain {
     pub days_absent: i64,
 }
 
+/// An employee as the analytics report sees them. Deliberately narrow: no
+/// e-mail and nothing from personal limits — see `analytics-data`'s "No
+/// protected personal data".
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct AnalyticsEmployeeDomain {
+    pub id: Uuid,
+    pub name: String,
+    pub capabilities: Vec<Uuid>,
+    /// Effective weekly hours: their own, else the tenant default.
+    pub weekly_hours: f64,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct AnalyticsCapabilityDomain {
+    pub id: Uuid,
+    pub name: String,
+}
+
+/// Staffing bounds of a shift on one stored weekday (0 = Monday … 6 = Sunday,
+/// which public holidays also use).
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct AnalyticsWeekdayRuleDomain {
+    pub weekday: i16,
+    pub min: i16,
+    pub max: Option<i16>,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct AnalyticsShiftDomain {
+    pub id: Uuid,
+    pub name: String,
+    pub short_name: String,
+    pub color: String,
+    /// Runs past midnight on at least one weekday.
+    pub is_night: bool,
+    pub weekday: Vec<AnalyticsWeekdayRuleDomain>,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct AnalyticsClosureDomain {
+    pub from: NaiveDate,
+    pub to: NaiveDate,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct AnalyticsWorkstationDomain {
+    pub id: Uuid,
+    pub name: String,
+    pub available: bool,
+    pub active_shift_ids: Vec<Uuid>,
+    pub min: i16,
+    pub max: Option<i16>,
+    /// Closures overlapping the period.
+    pub closures: Vec<AnalyticsClosureDomain>,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct AnalyticsMonthDomain {
+    /// First day of the month.
+    pub month: NaiveDate,
+    /// `draft` (also when no row exists), `published` or `locked`.
+    pub status: String,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq, Default)]
+pub struct RosterFactDimsDomain {
+    pub employees: Vec<AnalyticsEmployeeDomain>,
+    pub capabilities: Vec<AnalyticsCapabilityDomain>,
+    pub shifts: Vec<AnalyticsShiftDomain>,
+    pub workstations: Vec<AnalyticsWorkstationDomain>,
+    pub months: Vec<AnalyticsMonthDomain>,
+    pub holidays: Vec<NaiveDate>,
+}
+
+/// Confirmed roster entries as parallel columns — one index per entry across
+/// every vector. `employee`, `shift` and `workstation` index into the dims.
+#[derive(Serialize, Debug, Clone, PartialEq, Default)]
+pub struct RosterFactRowsDomain {
+    pub date: Vec<NaiveDate>,
+    pub employee: Vec<usize>,
+    pub shift: Vec<Option<usize>>,
+    pub workstation: Vec<Option<usize>>,
+    pub present: Vec<bool>,
+    pub absence: Vec<Option<String>>,
+    pub creation: Vec<String>,
+    /// Counted as the fairness report counts them; 0 when absent.
+    pub hours: Vec<f64>,
+    pub night: Vec<bool>,
+    /// The Saturday of the weekend the day belongs to (holidays join the
+    /// nearest one, as in the planner), or null on an ordinary weekday.
+    pub weekend: Vec<Option<NaiveDate>>,
+    pub holiday: Vec<bool>,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct RosterFactsDomain {
+    pub from_date: NaiveDate,
+    pub to_date: NaiveDate,
+    pub dims: RosterFactDimsDomain,
+    pub rows: RosterFactRowsDomain,
+}
+
+/// One roster change notice as the analytics report reads it, with names
+/// resolved so the page can search it without another call.
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct ChangeFactDomain {
+    pub id: Uuid,
+    pub created_at: NaiveDateTime,
+    /// The roster day that changed.
+    pub date: NaiveDate,
+    pub employee_id: Uuid,
+    pub employee_name: String,
+    pub workstation_before: Option<Uuid>,
+    pub workstation_after: Option<Uuid>,
+    pub workstation_before_name: Option<String>,
+    pub workstation_after_name: Option<String>,
+    pub shift_before: Option<Uuid>,
+    pub shift_after: Option<Uuid>,
+    pub absence_before: Option<String>,
+    pub absence_after: Option<String>,
+    pub source: String,
+    pub actor: Option<String>,
+    pub reason: Option<String>,
+    pub acknowledged_at: Option<NaiveDateTime>,
+}
+
+/// How many audit entries one actor wrote for one action and item type on one
+/// day (UTC, as `GET /audit-logs` compares dates).
+#[derive(Serialize, Debug, Clone, PartialEq, diesel::QueryableByName)]
+pub struct AuditActivityGroupDomain {
+    #[diesel(sql_type = diesel::sql_types::Date)]
+    pub day: NaiveDate,
+    #[diesel(sql_type = diesel::sql_types::Text)]
+    pub action: String,
+    #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Text>)]
+    pub entity_type: Option<String>,
+    #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Text>)]
+    pub actor: Option<String>,
+    #[diesel(sql_type = diesel::sql_types::BigInt)]
+    pub count: i64,
+}
+
+/// One planning run for the analytics report — never the plan itself.
+#[derive(Serialize, Debug, Clone, PartialEq, diesel::QueryableByName)]
+pub struct PlanningRunDomain {
+    #[diesel(sql_type = diesel::sql_types::Uuid)]
+    pub id: Uuid,
+    #[diesel(sql_type = diesel::sql_types::Timestamp)]
+    pub created_at: NaiveDateTime,
+    /// When the task reached `done` or `error`; null while it is scheduled.
+    #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Timestamp>)]
+    pub finished_at: Option<NaiveDateTime>,
+    /// `manual` or `auto`.
+    #[diesel(sql_type = diesel::sql_types::Text)]
+    pub source: String,
+    /// `scheduled`, `done` or `error`.
+    #[diesel(sql_type = diesel::sql_types::Text)]
+    pub status: String,
+    #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Text>)]
+    pub error_message: Option<String>,
+    #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Uuid>)]
+    pub result_id: Option<Uuid>,
+    #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Date>)]
+    pub period_start: Option<NaiveDate>,
+    #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Date>)]
+    pub period_end: Option<NaiveDate>,
+    /// The solver's `optimal` / `feasible` / `infeasible`…; null without a result.
+    #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Text>)]
+    pub solver_status: Option<String>,
+    #[diesel(sql_type = diesel::sql_types::Bool)]
+    pub has_message: bool,
+    /// Automatic runs only: whether the plan became the roster (from the
+    /// `planner.auto_result` audit entry). Null for manual runs and for an
+    /// automatic run with no outcome recorded yet.
+    #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Bool>)]
+    pub taken_as_roster: Option<bool>,
+}
+
 #[async_trait]
 pub trait AnalysisRepository {
     async fn get_planned_hours_per_day_per_workstation(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<WorkstationDailyHoursDomain>, AppError>;
     async fn get_planned_employees_per_day_per_workstation(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<WorkstationDailyEmployeesDomain>, AppError>;
     async fn get_staffing_per_day(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<DailyStaffingDomain>, AppError>;
     async fn get_fairness(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<EmployeeFairnessDomain>, AppError>;
+    async fn get_roster_facts(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<RosterFactsDomain, AppError>;
+    /// Notices created between the two dates, inclusive, oldest first.
+    async fn get_change_facts(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<ChangeFactDomain>, AppError>;
+    /// Audit entries between the two dates, counted per day, action, item type
+    /// and actor by the database.
+    async fn get_audit_activity(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<AuditActivityGroupDomain>, AppError>;
+    /// Planning tasks created between the two dates, oldest first.
+    async fn get_planning_runs(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<PlanningRunDomain>, AppError>;
 }
 
 #[async_trait]

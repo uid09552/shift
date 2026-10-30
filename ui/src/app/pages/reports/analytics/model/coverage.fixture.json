@@ -1,0 +1,64 @@
+{
+  "_about": "Staffing shortfalls and excesses, counted once by the Analytics page (coverage.ts) and once by the agent's plan check (agent/tests/test_coverage_fixture.py). Both must arrive at `expected`. 2026-09-16 is a public holiday and uses Sunday's bounds; ER is closed from the 14th.",
+  "period": { "from": "2026-09-11", "to": "2026-09-16" },
+  "holidays": ["2026-09-16"],
+  "shifts": [
+    {
+      "id": "early",
+      "name": "Early",
+      "start": "06:00",
+      "end": "14:00",
+      "weekday": [
+        { "weekday": 0, "min": 1, "max": 2 },
+        { "weekday": 1, "min": 1, "max": 2 },
+        { "weekday": 2, "min": 1, "max": 2 },
+        { "weekday": 3, "min": 1, "max": 2 },
+        { "weekday": 4, "min": 1, "max": 2 },
+        { "weekday": 5, "min": 2, "max": 2 },
+        { "weekday": 6, "min": 3, "max": 2 }
+      ]
+    }
+  ],
+  "workstations": [
+    { "id": "icu", "name": "ICU", "available": true, "active_shift_ids": ["early"], "min": 1, "max": null, "closures": [] },
+    {
+      "id": "er",
+      "name": "ER",
+      "available": true,
+      "active_shift_ids": ["early"],
+      "min": 1,
+      "max": 1,
+      "closures": [{ "from": "2026-09-14", "to": "2026-09-20" }]
+    }
+  ],
+  "employees": ["anna", "ben", "carla"],
+  "assignments": [
+    { "employee": "anna", "date": "2026-09-11", "shift": "early", "workstation": "icu" },
+    { "employee": "ben", "date": "2026-09-11", "shift": "early", "workstation": "er" },
+    { "employee": "carla", "date": "2026-09-11", "shift": "early", "workstation": "er" },
+    { "employee": "anna", "date": "2026-09-12", "shift": "early", "workstation": "icu" },
+    { "employee": "anna", "date": "2026-09-13", "shift": "early", "workstation": "icu" },
+    { "employee": "ben", "date": "2026-09-13", "shift": "early", "workstation": "icu" },
+    { "employee": "carla", "date": "2026-09-13", "shift": "early", "workstation": "er" },
+    { "employee": "anna", "date": "2026-09-14", "shift": "early", "workstation": "icu" },
+    { "employee": "anna", "date": "2026-09-15", "shift": "early", "workstation": "icu" },
+    { "employee": "ben", "date": "2026-09-15", "shift": "early", "workstation": "icu" },
+    { "employee": "anna", "date": "2026-09-16", "shift": "early", "workstation": "icu" }
+  ],
+  "expected": {
+    "shift_under_min": [
+      { "date": "2026-09-12", "shift": "early", "staffed": 1, "min": 2 },
+      { "date": "2026-09-16", "shift": "early", "staffed": 1, "min": 3 }
+    ],
+    "workstation_under_min": [
+      { "date": "2026-09-12", "shift": "early", "workstation": "er", "staffed": 0, "min": 1 }
+    ],
+    "shift_over_max": [
+      { "date": "2026-09-11", "shift": "early", "staffed": 3, "max": 2 },
+      { "date": "2026-09-13", "shift": "early", "staffed": 3, "max": 2 }
+    ],
+    "workstation_over_max": [
+      { "date": "2026-09-11", "shift": "early", "workstation": "er", "staffed": 2, "max": 1 }
+    ]
+  }
+}

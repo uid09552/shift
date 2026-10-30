@@ -30,6 +30,7 @@ All application routes render inside `AppLayoutComponent` (sidebar + header):
 | `/rotations` | Rotation patterns: write a cycle, preview and apply it as fixed assignments |
 | `/fairness` | Nights, weekends, hours vs target and wishes per employee, from the confirmed roster |
 | `/relationships` | Reports › Relationships: d3 network of employees, capabilities, workstations and shifts, optionally with a day's or week's roster. Planners and admins (`writerGuard`); lazy-loaded, the only page with d3 |
+| `/analytics` | Reports › Analytics: ECharts report over the confirmed roster, change notices, audit activity and planning runs, one filter bar and cross-filtering, state in the query string. Planners and admins (`writerGuard`); lazy-loaded, the only page with ECharts |
 | `/user-profiles` | Employee profiles |
 | `/shifts` | Shift configuration |
 | `/workstations` | Workstation configuration |
@@ -55,7 +56,7 @@ ui/src/app/
 │   ├── dashboard/          landing dashboard
 │   ├── planner/            kalender, day-view, employee-calendar, rotations,
 │   │                       scheduler, fairness, user-profiles
-│   ├── reports/            relationships (d3 network, read-only)
+│   ├── reports/            relationships (d3 network), analytics (ECharts report); both read-only
 │   ├── configuration/      shifts, workstations, capabilities, planner-settings,
 │   │                       wish-settings, users, audit-log
 │   └── auth-pages/         sign-in, sign-up

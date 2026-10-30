@@ -253,6 +253,50 @@ moves a dot on the screen, not a shift in the roster.
 
 ---
 
+## Analytics — the ward over time
+
+**Reports → Analytics** looks back over up to a year: was the ward short,
+who carried the nights and weekends, who was absent, what changed after a
+month was published, who edited what, and how planning runs went. Planners
+and admins see it; viewers do not. Like Relationships, it only reads.
+
+**Filters.** One bar at the top applies to everything on the page: a
+period (this month, last month, this quarter, last 3 or 12 months, or your
+own dates, at most a year) and any number of workstations, shifts, people,
+capabilities, absence types and change sources. Filtering by a capability
+keeps the people who hold it.
+
+**Click to narrow.** Clicking a bar, a slice or a day in the heatmap narrows
+every other chart and the table to it. Each click adds a chip next to the
+filters; click the same element again, or the chip's ×, to undo it, and
+**Clear all** to start over. The chart you clicked keeps showing the rest,
+with your pick highlighted, so you can change your mind there.
+
+**Share a view.** Everything you set — period, filters, clicks, tab, search —
+is in the page address. Copy it to send a colleague exactly what you see, or
+bookmark it.
+
+| Tab | Answers |
+|---|---|
+| **Staffing & coverage** | Days short of the minimum, as a head count against the minimum and a calendar heatmap; shortfall by shift and by workstation; where a maximum was exceeded. Draft months are shaded — they may still change |
+| **Hours & fairness** | Hours against each person's target, nights, weekend days and holiday shifts per person and per month, and how widely they spread across the team |
+| **Absences** | Absence days by type, person, weekday and over time — a Monday pattern shows here. A plain *not rostered* day is not an absence |
+| **Roster changes** | Change notices after publication: when, from where (edit, absence, swap, replacement, new plan), by whom, to whom, how many with a reason, and how long until people read them |
+| **Audit activity** | Audit entries by action, item type and person. Each row of the table opens the **Audit log** filtered to exactly those entries |
+| **Planning runs** | Runs by source (manual, automatic) and outcome, how long they took, and how many automatic plans became the roster or stayed a proposal |
+
+The counting is the same as elsewhere: shortfalls are counted the way
+**Verify Plan** counts them (a public holiday uses the Sunday minimum, a
+closed workstation needs nobody), and hours, nights and weekends match the
+**Fairness** page for the same period. If you filter by people, the head
+count shrinks but the minimum stays the ward's — the page says so.
+
+Under the charts, the **table** lists the rows behind what you see. Sort by
+any column, search it, and **Export CSV** to take exactly those rows to a
+spreadsheet. Each chart's menu icon saves it as a picture.
+
+---
+
 ## Exporting
 
 Every calendar has an **Export Excel** button that exports the current view —

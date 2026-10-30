@@ -3124,6 +3124,166 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /analysis/roster-facts:
+    get:
+      tags:
+        - Analysis
+      summary: The confirmed roster of a period as facts, for the Analytics page
+      description: >
+        One entry per confirmed roster row in the period, as parallel columns
+        (`rows.date[i]`, `rows.employee[i]`, … describe entry `i`; `employee`,
+        `shift` and `workstation` index into `dims`). Hours, nights and weekends
+        are counted exactly as `getFairness` counts them. `dims` carries what the
+        page needs to read the rows: employees (id, name, capabilities, weekly
+        target hours — no e-mail, nothing from personal limits), capabilities,
+        shifts with their per-weekday staffing bounds (weekday 0 = Monday … 6 =
+        Sunday; a public holiday uses the Sunday bounds), workstations with their
+        closures in the period, the status of every month the period touches
+        (`draft` when untouched) and the public holidays. Planners and admins only.
+        At most one year per request.
+      operationId: getRosterFacts
+      parameters:
+        - $ref: '#/components/parameters/AnalysisFromDate'
+        - $ref: '#/components/parameters/AnalysisToDate'
+      responses:
+        '200':
+          description: The period's roster facts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RosterFacts'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /analysis/change-facts:
+    get:
+      tags:
+        - Analysis
+      summary: Roster change notices of a period, for the Analytics page
+      description: >
+        Every change notice created in the period (UTC days), oldest first: the
+        employee and the roster day, workstation, shift and absence before and
+        after, the source (`manual`, `take_as_plan`, `absence`, `swap`,
+        `replacement`), the actor, the reason and when it was acknowledged (null
+        while unread). Planners and admins only. At most one year per request.
+      operationId: getChangeFacts
+      parameters:
+        - $ref: '#/components/parameters/AnalysisFromDate'
+        - $ref: '#/components/parameters/AnalysisToDate'
+      responses:
+        '200':
+          description: The period's change notices
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [from_date, to_date, notices]
+                properties:
+                  from_date:
+                    type: string
+                    format: date
+                  to_date:
+                    type: string
+                    format: date
+                  notices:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChangeFact'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /analysis/audit-activity:
+    get:
+      tags:
+        - Analysis
+      summary: Audit log entries of a period, counted
+      description: >
+        Audit entries per UTC day, action, item type and actor, counted by the
+        database, and their total. The entries themselves are on `listAuditLogs`:
+        filtering it by a group's action, entity type, actor and day returns that
+        group's count. Planners and admins only. At most one year per request.
+      operationId: getAuditActivity
+      parameters:
+        - $ref: '#/components/parameters/AnalysisFromDate'
+        - $ref: '#/components/parameters/AnalysisToDate'
+      responses:
+        '200':
+          description: Counted groups and the total
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [from_date, to_date, total, groups]
+                properties:
+                  from_date:
+                    type: string
+                    format: date
+                  to_date:
+                    type: string
+                    format: date
+                  total:
+                    type: integer
+                  groups:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditActivityGroup'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /analysis/planning-runs:
+    get:
+      tags:
+        - Analysis
+      summary: Planning runs of a period and how they ended
+      description: >
+        Every planning task created in the period (UTC days), oldest first: source
+        (`manual` or `auto`), task status, start and finish, error, the planned
+        period, the solver's status and whether it left a message, and for
+        automatic runs whether the plan became the roster or stayed a proposal.
+        Never the plan itself. Planners and admins only. At most one year per
+        request.
+      operationId: getPlanningRuns
+      parameters:
+        - $ref: '#/components/parameters/AnalysisFromDate'
+        - $ref: '#/components/parameters/AnalysisToDate'
+      responses:
+        '200':
+          description: The period's planning runs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [from_date, to_date, runs]
+                properties:
+                  from_date:
+                    type: string
+                    format: date
+                  to_date:
+                    type: string
+                    format: date
+                  runs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PlanningRun'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /roster-months:
     get:
       tags:
@@ -6638,6 +6798,198 @@ components:
           description: Number of employees planned for this workstation on this date
           example: 2
 
+    RosterFacts:
+      type: object
+      required: [from_date, to_date, dims, rows]
+      properties:
+        from_date:
+          type: string
+          format: date
+        to_date:
+          type: string
+          format: date
+        dims:
+          type: object
+          required: [employees, capabilities, shifts, workstations, months, holidays]
+          properties:
+            employees:
+              type: array
+              items:
+                type: object
+                required: [id, name, capabilities, weekly_hours]
+                properties:
+                  id: { type: string, format: uuid }
+                  name: { type: string }
+                  capabilities:
+                    type: array
+                    items: { type: string, format: uuid }
+                  weekly_hours:
+                    type: number
+                    description: Own weekly hours, else the tenant default
+            capabilities:
+              type: array
+              items:
+                type: object
+                required: [id, name]
+                properties:
+                  id: { type: string, format: uuid }
+                  name: { type: string }
+            shifts:
+              type: array
+              items:
+                type: object
+                required: [id, name, short_name, color, is_night, weekday]
+                properties:
+                  id: { type: string, format: uuid }
+                  name: { type: string }
+                  short_name: { type: string }
+                  color: { type: string }
+                  is_night:
+                    type: boolean
+                    description: Runs past midnight on at least one weekday
+                  weekday:
+                    type: array
+                    items:
+                      type: object
+                      required: [weekday, min]
+                      properties:
+                        weekday:
+                          type: integer
+                          minimum: 0
+                          maximum: 6
+                        min: { type: integer }
+                        max: { type: integer, nullable: true }
+            workstations:
+              type: array
+              items:
+                type: object
+                required: [id, name, available, active_shift_ids, min, closures]
+                properties:
+                  id: { type: string, format: uuid }
+                  name: { type: string }
+                  available: { type: boolean }
+                  active_shift_ids:
+                    type: array
+                    items: { type: string, format: uuid }
+                  min: { type: integer }
+                  max: { type: integer, nullable: true }
+                  closures:
+                    type: array
+                    items:
+                      type: object
+                      required: [from, to]
+                      properties:
+                        from: { type: string, format: date }
+                        to: { type: string, format: date }
+            months:
+              type: array
+              items:
+                type: object
+                required: [month, status]
+                properties:
+                  month: { type: string, format: date }
+                  status:
+                    type: string
+                    enum: [draft, published, locked]
+            holidays:
+              type: array
+              items: { type: string, format: date }
+        rows:
+          type: object
+          description: Parallel columns, one index per roster entry
+          required: [date, employee, shift, workstation, present, absence, creation, hours, night, weekend, holiday]
+          properties:
+            date:
+              type: array
+              items: { type: string, format: date }
+            employee:
+              type: array
+              items: { type: integer }
+            shift:
+              type: array
+              items: { type: integer, nullable: true }
+            workstation:
+              type: array
+              items: { type: integer, nullable: true }
+            present:
+              type: array
+              items: { type: boolean }
+            absence:
+              type: array
+              items: { type: string, nullable: true }
+            creation:
+              type: array
+              items: { type: string }
+            hours:
+              type: array
+              items: { type: number }
+            night:
+              type: array
+              items: { type: boolean }
+            weekend:
+              type: array
+              description: The Saturday of the weekend the day belongs to, or null
+              items: { type: string, format: date, nullable: true }
+            holiday:
+              type: array
+              items: { type: boolean }
+
+    ChangeFact:
+      type: object
+      required: [id, created_at, date, employee_id, employee_name, source]
+      properties:
+        id: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+        date: { type: string, format: date }
+        employee_id: { type: string, format: uuid }
+        employee_name: { type: string }
+        workstation_before: { type: string, format: uuid, nullable: true }
+        workstation_after: { type: string, format: uuid, nullable: true }
+        workstation_before_name: { type: string, nullable: true }
+        workstation_after_name: { type: string, nullable: true }
+        shift_before: { type: string, format: uuid, nullable: true }
+        shift_after: { type: string, format: uuid, nullable: true }
+        absence_before: { type: string, nullable: true }
+        absence_after: { type: string, nullable: true }
+        source: { type: string }
+        actor: { type: string, nullable: true }
+        reason: { type: string, nullable: true }
+        acknowledged_at: { type: string, format: date-time, nullable: true }
+
+    AuditActivityGroup:
+      type: object
+      required: [day, action, count]
+      properties:
+        day: { type: string, format: date }
+        action: { type: string }
+        entity_type: { type: string, nullable: true }
+        actor: { type: string, nullable: true }
+        count: { type: integer }
+
+    PlanningRun:
+      type: object
+      required: [id, created_at, source, status, has_message]
+      properties:
+        id: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+        finished_at: { type: string, format: date-time, nullable: true }
+        source:
+          type: string
+          enum: [manual, auto]
+        status:
+          type: string
+          enum: [scheduled, done, error]
+        error_message: { type: string, nullable: true }
+        result_id: { type: string, format: uuid, nullable: true }
+        period_start: { type: string, format: date, nullable: true }
+        period_end: { type: string, format: date, nullable: true }
+        solver_status: { type: string, nullable: true }
+        has_message: { type: boolean }
+        taken_as_roster:
+          type: boolean
+          nullable: true
+          description: Automatic runs only; null for manual runs and while no outcome is recorded
+
     EmployeeFairness:
       type: object
       required: [employee_id, employee_name, shifts, hours, night_shifts, weekend_days, weekends, wishes_asked, wishes_granted, days_absent]
@@ -6829,6 +7181,24 @@ components:
       schema:
         type: string
         example: '2026-11'
+
+    AnalysisFromDate:
+      name: from_date
+      in: query
+      required: true
+      description: First day of the period (YYYY-MM-DD)
+      schema:
+        type: string
+        format: date
+
+    AnalysisToDate:
+      name: to_date
+      in: query
+      required: true
+      description: Last day of the period, inclusive (YYYY-MM-DD); at most one year after from_date
+      schema:
+        type: string
+        format: date
 
     ChangeReason:
       name: X-Change-Reason

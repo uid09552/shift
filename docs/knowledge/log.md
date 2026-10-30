@@ -1,5 +1,12 @@
 # Bundle Update Log
 
+## 2026-10-30
+
+* **Creation**: Added [Analytics report](/guide/analytics-report.md) — the
+  Reports › Analytics page: filters and cross-filtering, the six tabs, CSV and
+  PNG export, and how its coverage and hours relate to Verify Plan and the
+  Fairness page; the four `/analysis/*` fact endpoints behind it.
+
 ## 2026-10-08
 
 * **Change**: Contracted hours are weekly. `employees.weekly_working_hours`

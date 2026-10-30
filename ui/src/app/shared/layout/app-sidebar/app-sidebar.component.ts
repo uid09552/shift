@@ -81,7 +81,8 @@ export class AppSidebarComponent {
       name: "nav.reports",
       icon: `<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="6" r="2.25"/><circle cx="18" cy="8" r="2.25"/><circle cx="9" cy="18" r="2.25"/><path d="M8.1 6.4 15.8 7.6M7 8.1l1.4 7.7M16.4 9.7l-5.6 6.6"/></g></svg>`,
       subItems: [
-        { name: "nav.relationships", path: "/relationships", pro: false, plannerOnly: true }
+        { name: "nav.relationships", path: "/relationships", pro: false, plannerOnly: true },
+        { name: "nav.analytics", path: "/analytics", pro: false, plannerOnly: true }
       ],
     },
   ];
