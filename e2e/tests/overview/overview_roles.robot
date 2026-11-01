@@ -1,7 +1,8 @@
 *** Settings ***
 Documentation       What the overview page offers depends on the role signed in.
 ...                 Administration entries — user management and the wish window —
-...                 are admin-only, and a viewer must not be offered them.
+...                 are admin-only, and a viewer must not be offered them. A viewer
+...                 gets their own overview, without the ward's sections.
 ...
 ...                 Each test signs in as a different account, so the suite opens a
 ...                 fresh browser context per test rather than sharing a session.
@@ -47,3 +48,12 @@ Viewer Opening User Management Directly Is Told It Is Admin Only
     Log In As    viewer
     Open Page    ${APP_PATH}users
     Element Should Be Visible    [data-testid="users-forbidden"]
+
+Viewer Gets Their Own Overview
+    [Documentation]    My Day, their unseen changes and — while wishes can be
+    ...                placed — the wish window; no Needs-you list, coverage grid,
+    ...                runs or audit activity.
+    Log In As    viewer
+    Open Overview Page
+    Viewer Overview Should Be Shown
+    Wish Section Should Follow The Wish Window

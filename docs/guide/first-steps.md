@@ -67,19 +67,30 @@ window where you can ask for things in ordinary sentences. See
 
 ## The dashboard, explained
 
-The Overview page answers "how do things stand right now?" at a glance.
+The Overview page answers "what needs me, and how do things stand?" at a glance.
+What it shows depends on your role.
+
+### As a planner or admin
 
 | Panel | What it tells you |
 |---|---|
+| **Needs you** | Everything waiting for a planner, each line a link to where it is dealt with: shift swaps to approve, roster changes the people concerned have not seen yet, months that are due (or overdue) for publishing, and the last automatic plan if it stayed a proposal or failed — with the reason. When nothing is open it says *Nothing is waiting for you*. |
+| **Coverage, next 7 days** | One row per shift, one column per day, each cell *staffed / minimum*. A red cell with a warning sign is short: the shift itself, or a workstation running it, is below its minimum (hover or focus it to see which). Click a short cell or a day to open that day in the Schedule. Closed workstations do not count. |
 | **My day** | Your own confirmed shift today: times, workstation, and who else is on that workstation and on which shift. The strip of days underneath steps back and forward; **Open the full schedule →** jumps to the Schedule. The people button in the corner shows anyone else's day instead. If your login is not linked to an employee record (same e-mail address), it says so and offers the staff list. |
-| **Employees / Shifts / Workstations** | How many of each are on file. Click a card to jump to that list. |
-| **Planned Hours per Day** | A bar per day of the current month, showing total planned working hours. Gaps mean nobody is scheduled — usually because you haven't planned that far ahead yet. |
-| **Today's Coverage** | How many people are working today, how many are on leave or sick, and per workstation how many are assigned against how many are required. |
 | **Latest Optimization Run** | Whether the last roster calculation finished, and when. |
 | **Recent Activity** | The last few changes anyone made, so you can see if a colleague has been editing. |
 
-The **Planned Hours per Day** chart is the quickest health check you have. A
-month that ends in a run of empty bars is a month nobody has planned yet.
+The coverage grid counts staffing exactly as **Verify Plan** and the Analytics
+report do, so the three never disagree about a shortfall.
+
+### As a viewer
+
+| Panel | What it tells you |
+|---|---|
+| **My day** | As above. |
+| **Changes to my shifts** | Changes to your published shifts you have not seen yet — the day, what it was and what it is now. **Seen** marks one as read, and the bell's count drops. |
+| **My shift swaps** | Your open swap requests. The ones waiting for your answer come first; a click opens the requests on the Schedule. Hidden while you have none. |
+| **Shift wishes** | Shown while wishes can be placed: for any day, or for which days, and when the window closes if that is planned. **Enter wishes** opens the Employee Calendar. |
 
 ## Finding your way around
 

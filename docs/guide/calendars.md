@@ -313,6 +313,6 @@ Use it to:
 ## The dashboard as a quick check
 
 Before you go digging through calendars, the **Dashboard** often answers the
-question already: today's coverage per workstation, how many people are on
-leave, and the planned-hours-per-day chart that reveals unplanned stretches at
-a glance. See [First steps](first-steps.md#the-dashboard-explained).
+question already: its coverage grid shows today and the next six days by shift,
+with every shift below its minimum marked — click one to open that day here.
+See [First steps](first-steps.md#the-dashboard-explained).

@@ -26,46 +26,43 @@ Overview Page Loads After Sign In
     Overview Page Should Be Open
     Sidebar Should Be Shown
 
-Metric Tiles Show Counts
-    [Documentation]    All three tiles have their number filled in from the API.
-    ...                The value itself is not asserted — it depends on the data in
-    ...                the target environment — only that a count arrived.
+Admin Gets The Planner Overview
+    [Documentation]    Planners and admins land on what needs them, not on a
+    ...                viewer's page.
     [Tags]    smoke
-    Metric Should Show A Number    employees
-    Metric Should Show A Number    shifts
-    Metric Should Show A Number    workstations
+    Planner Overview Should Be Shown
+
+Needs You Has Loaded
+    [Documentation]    Every source of the list answered. Which items are open
+    ...                depends on the data in the target environment, so only that
+    ...                the list loaded is asserted.
+    [Tags]    smoke
+    Needs You Should Have Loaded
+
+Coverage Grid Is Filled In
+    [Documentation]    The next seven days by shift, from the roster facts.
+    Coverage Grid Should Be Filled In
+
+A Day Of The Coverage Grid Opens That Day In The Schedule
+    [Tags]    navigation
+    Coverage Grid Should Be Filled In
+    Open Coverage Day
+
+A Short Cell Opens Its Day In The Schedule
+    [Documentation]    Skipped when nothing is short in the coming week.
+    [Tags]    navigation
+    Coverage Grid Should Be Filled In
+    Open First Short Coverage Cell
 
 My Day Section Is Shown
-    [Documentation]    The signed-in user's own plan, the first thing on the page.
+    [Documentation]    The signed-in user's own plan.
     My Day Section Should Be Shown
-
-Planned Hours Chart Is Rendered
-    [Documentation]    The chart is drawn, not just its card — an empty canvas
-    ...                would mean the analysis endpoint failed.
-    Planned Hours Chart Should Be Rendered
-
-Todays Coverage Is Filled In
-    [Documentation]    Working and on-leave counts have both loaded.
-    Coverage Card Should Be Filled In
 
 Latest Optimizer Run Card Is Shown
     Latest Run Card Should Be Shown
 
 Recent Activity Card Is Shown
     Recent Activity Card Should Be Shown
-
-Employees Tile Opens The Employee List
-    [Documentation]    The tiles are links; this one proves they navigate.
-    [Tags]    navigation
-    Open Metric Tile    employees
-
-Shifts Tile Opens The Shift Configuration
-    [Tags]    navigation
-    Open Metric Tile    shifts
-
-Workstations Tile Opens The Workstation Configuration
-    [Tags]    navigation
-    Open Metric Tile    workstations
 
 
 *** Keywords ***

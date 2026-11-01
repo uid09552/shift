@@ -234,6 +234,15 @@ export class KalenderComponent implements OnInit, OnDestroy {
       this.viewMode = 'month';
       this.anchorDate = new Date(Number(month[1]), Number(month[2]) - 1, 1);
     }
+    // `?date=YYYY-MM-DD` — the overview's coverage grid — opens that day.
+    const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(this.route.snapshot.queryParamMap.get('date') ?? '');
+    if (date) {
+      const day = new Date(Number(date[1]), Number(date[2]) - 1, Number(date[3]));
+      if (day.getMonth() === Number(date[2]) - 1 && day.getDate() === Number(date[3])) {
+        this.viewMode = 'day';
+        this.anchorDate = day;
+      }
+    }
     this.computeDays();
     this.loadAll();
     this.loadIdentity();

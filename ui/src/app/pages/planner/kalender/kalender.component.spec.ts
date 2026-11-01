@@ -1,7 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, TestRequest, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { of } from 'rxjs';
 
 import { KalenderComponent } from './kalender.component';
 
@@ -21,9 +22,15 @@ describe('KalenderComponent', () => {
   const pending = (path: string, method = 'GET'): TestRequest[] =>
     http.match((r) => r.method === method && r.url.endsWith(path));
 
-  function open() {
+  function open(queryParams: Record<string, string> = {}) {
+    const params = convertToParamMap(queryParams);
     TestBed.configureTestingModule({
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: params }, queryParamMap: of(params) } },
+      ],
     });
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(KalenderComponent);
@@ -114,5 +121,22 @@ describe('KalenderComponent', () => {
 
     expect(query('[data-testid="error-notice"]')?.textContent).toContain('October 2026 is locked');
     expect(component.planMap.get('e1')?.get('2026-10-26')).toBe(plan);
+  });
+
+  it('opens the Day view on the day a `?date=` link names', () => {
+    open({ date: '2026-11-05' });
+    const component = fixture.componentInstance;
+    expect(component.viewMode).toBe('day');
+    expect(component.anchorDate.getFullYear()).toBe(2026);
+    expect(component.anchorDate.getMonth()).toBe(10);
+    expect(component.anchorDate.getDate()).toBe(5);
+  });
+
+  it('ignores a `?date=` that is no date and opens the week', () => {
+    open({ date: 'junk' });
+    expect(fixture.componentInstance.viewMode).toBe('week');
+    TestBed.resetTestingModule();
+    open({ date: '2026-02-30' });
+    expect(fixture.componentInstance.viewMode).toBe('week');
   });
 });

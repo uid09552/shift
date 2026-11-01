@@ -5,7 +5,7 @@ import { WorkstationFormComponent } from './pages/configuration/workstations/wor
 import { EmployeeFormComponent } from './pages/planner/user-profiles/employee-form.component';
 import { UserFormComponent } from './pages/configuration/users/user-form.component';
 import { CapabilityFormComponent } from './pages/configuration/capabilities/capability-form.component';
-import { EcommerceComponent } from './pages/dashboard/ecommerce/ecommerce.component';
+import { OverviewComponent } from './pages/dashboard/overview/overview.component';
 import { NotFoundComponent } from './pages/other-page/not-found/not-found.component';
 import { AppLayoutComponent } from './shared/layout/app-layout/app-layout.component';
 import { KalenderComponent } from './pages/planner/kalender/kalender.component';
@@ -30,7 +30,7 @@ export const routes: Routes = [
     children:[
       {
         path: '',
-        component: EcommerceComponent,
+        component: OverviewComponent,
         pathMatch: 'full',
         title: 'title.dashboard',
       },

@@ -1,0 +1,237 @@
+<div class="grid grid-cols-12 gap-4 md:gap-6" data-testid="overview-planner">
+
+  <!-- Needs you — what is waiting for a planner, each item where it is handled -->
+  <section class="col-span-12 rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]" data-testid="overview-needs-you">
+    <div class="px-5 pt-4 sm:px-6">
+      <h2 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'overview.needs.title' | t }}</h2>
+    </div>
+    <div class="px-5 pb-4 pt-3 sm:px-6">
+      @if (nothingWaiting) {
+        <p class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400" data-testid="needs-you-empty">
+          <svg class="h-4 w-4 shrink-0 text-success-600 dark:text-success-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.58l7.3-7.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
+          {{ 'overview.needs.empty' | t }}
+        </p>
+      } @else {
+        <ul class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+          @if (value(swaps); as count) {
+            <li>
+              <a routerLink="/kalender" [queryParams]="{ swaps: 'open' }" class="flex items-center gap-3 rounded-lg py-3 text-sm text-gray-700 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:text-brand-400" data-testid="needs-you-item-swaps">
+                <span class="flex h-8 min-w-8 shrink-0 items-center justify-center rounded-lg px-2 text-sm font-semibold tabular-nums bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400">{{ count }}</span>
+                <span class="flex-1">{{ (count === 1 ? 'overview.needs.swapsOne' : 'overview.needs.swapsMany') | t: { count: count } }}</span>
+                <span class="shrink-0 text-gray-400 dark:text-gray-500" aria-hidden="true">→</span>
+              </a>
+            </li>
+          }
+          @if (value(notices); as count) {
+            <li>
+              <a routerLink="/changes" class="flex items-center gap-3 rounded-lg py-3 text-sm text-gray-700 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:text-brand-400" data-testid="needs-you-item-notices">
+                <span class="flex h-8 min-w-8 shrink-0 items-center justify-center rounded-lg px-2 text-sm font-semibold tabular-nums bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400">{{ count }}</span>
+                <span class="flex-1">{{ (count === 1 ? 'overview.needs.noticesOne' : 'overview.needs.noticesMany') | t: { count: count } }}</span>
+                <span class="shrink-0 text-gray-400 dark:text-gray-500" aria-hidden="true">→</span>
+              </a>
+            </li>
+          }
+          @for (m of value(months) ?? []; track m.month) {
+            <li>
+              <a routerLink="/kalender" [queryParams]="{ month: m.month }" class="flex items-center gap-3 rounded-lg py-3 text-sm text-gray-700 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:text-brand-400" [attr.data-testid]="'needs-you-item-month-' + m.month">
+                <span class="flex h-8 min-w-8 shrink-0 items-center justify-center rounded-lg px-2 text-sm font-semibold tabular-nums" [ngClass]="m.deadline === 'overdue' ? 'bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400' : 'bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400'">
+                  @if (m.deadline === 'overdue') { ! } @else { {{ 'overview.needs.daysLeft' | t: { count: daysUntil(m.publish_by) } }} }
+                </span>
+                <span class="flex-1">
+                  <span class="font-medium">{{ monthName(m.month) }}</span>
+                  {{ (m.deadline === 'overdue' ? 'rosterMonth.banner.overdue' : 'rosterMonth.banner.due') | t: { date: (m.publish_by | date: 'mediumDate') ?? '' } }}
+                </span>
+                <span class="shrink-0 text-gray-400 dark:text-gray-500" aria-hidden="true">→</span>
+              </a>
+            </li>
+          }
+          @if (value(autoRun); as run) {
+            <li>
+              <a routerLink="/scheduler" [queryParams]="{ tab: 'runs' }" class="flex items-center gap-3 rounded-lg py-3 text-sm text-gray-700 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:text-brand-400" data-testid="needs-you-item-auto-run">
+                <span class="flex h-8 min-w-8 shrink-0 items-center justify-center rounded-lg px-2 text-sm font-semibold tabular-nums" [ngClass]="run.outcome === 'failed' ? 'bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400' : 'bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400'">
+                  <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16Zm.75 4a.75.75 0 0 0-1.5 0v4c0 .2.08.39.22.53l2.5 2.5a.75.75 0 1 0 1.06-1.06l-2.28-2.28V6Z" clip-rule="evenodd"/></svg>
+                </span>
+                <span class="flex-1">
+                  {{ (run.outcome === 'failed' ? 'overview.needs.autoFailed' : 'overview.needs.autoKept') | t: { date: (run.date | date: 'mediumDate') ?? '' } }}
+                  @if (run.note) {
+                    <span class="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{{ run.note }}</span>
+                  }
+                </span>
+                <span class="shrink-0 text-gray-400 dark:text-gray-500" aria-hidden="true">→</span>
+              </a>
+            </li>
+          }
+        </ul>
+        @if (loadingNeeds) {
+          <p class="py-2 text-sm text-gray-400 dark:text-gray-500">{{ 'common.loading' | t }}</p>
+        }
+        @if (swaps.state === 'error') {
+          <p class="py-1 text-sm text-gray-500 dark:text-gray-400" data-testid="needs-you-error-swaps">{{ 'overview.needs.errorSwaps' | t }}</p>
+        }
+        @if (notices.state === 'error') {
+          <p class="py-1 text-sm text-gray-500 dark:text-gray-400" data-testid="needs-you-error-notices">{{ 'overview.needs.errorNotices' | t }}</p>
+        }
+        @if (months.state === 'error') {
+          <p class="py-1 text-sm text-gray-500 dark:text-gray-400" data-testid="needs-you-error-months">{{ 'overview.needs.errorMonths' | t }}</p>
+        }
+        @if (autoRun.state === 'error') {
+          <p class="py-1 text-sm text-gray-500 dark:text-gray-400" data-testid="needs-you-error-auto-run">{{ 'overview.needs.errorAutoRun' | t }}</p>
+        }
+      }
+    </div>
+  </section>
+
+  <!-- Coverage, next 7 days: counted as Analytics and Verify Plan count it -->
+  <section class="col-span-12 rounded-2xl border border-gray-200 bg-white lg:col-span-8 dark:border-gray-800 dark:bg-white/[0.03]" data-testid="overview-coverage-grid">
+    <div class="flex items-center justify-between gap-3 px-5 pt-4 sm:px-6">
+      <div>
+        <h2 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'overview.coverage.title' | t }}</h2>
+        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ 'overview.coverage.sub' | t }}</p>
+      </div>
+      <a routerLink="/kalender" class="shrink-0 text-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400">
+        {{ 'overview.coverage.openSchedule' | t }}
+      </a>
+    </div>
+    <div class="px-5 pb-5 pt-4 sm:px-6">
+      @switch (grid.state) {
+        @case ('loading') {
+          <p class="py-6 text-center text-sm text-gray-400 dark:text-gray-500">{{ 'common.loading' | t }}</p>
+        }
+        @case ('error') {
+          <p class="py-6 text-center text-sm text-gray-500 dark:text-gray-400" data-testid="coverage-grid-error">{{ 'overview.coverage.error' | t }}</p>
+        }
+        @default {
+          @if (value(grid); as g) {
+            @if (g.rows.length === 0) {
+              <p class="py-6 text-center text-sm text-gray-400 dark:text-gray-500" data-testid="coverage-grid-empty">{{ 'overview.coverage.noShifts' | t }}</p>
+            } @else {
+              <p class="mb-3 text-sm" [class.text-error-600]="g.shortCells > 0" [class.dark:text-error-400]="g.shortCells > 0" [class.text-gray-600]="g.shortCells === 0" [class.dark:text-gray-400]="g.shortCells === 0" data-testid="coverage-grid-summary">
+                {{ (g.shortCells === 0 ? 'overview.coverage.allCovered' : g.shortCells === 1 ? 'overview.coverage.shortOne' : 'overview.coverage.shortMany') | t: { count: g.shortCells } }}
+              </p>
+              <!-- The grid scrolls inside its card on a narrow screen, never the page -->
+              <div class="-mx-1 overflow-x-auto custom-scrollbar">
+                <table class="w-full min-w-[30rem] table-fixed border-separate border-spacing-1 text-sm">
+                  <caption class="sr-only">{{ 'overview.coverage.title' | t }}</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col" class="w-24 text-left text-xs font-medium text-gray-500 dark:text-gray-400"><span class="sr-only">{{ 'overview.coverage.shift' | t }}</span></th>
+                      @for (date of g.dates; track date) {
+                        <th scope="col" class="text-center text-xs font-medium">
+                          <a routerLink="/kalender" [queryParams]="{ date: date }"
+                             class="block rounded-md px-1 py-1 hover:bg-gray-100 dark:hover:bg-white/[0.05]"
+                             [class.text-brand-600]="isToday(date)" [class.dark:text-brand-400]="isToday(date)"
+                             [class.text-gray-500]="!isToday(date)" [class.dark:text-gray-400]="!isToday(date)"
+                             [attr.data-testid]="'coverage-day-' + date">{{ dayLabel(date) }}</a>
+                        </th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (row of g.rows; track row.shiftId) {
+                      <tr>
+                        <th scope="row" class="truncate pr-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300">
+                          <span class="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" [style.background-color]="row.color" aria-hidden="true"></span>{{ row.name }}
+                        </th>
+                        @for (cell of row.cells; track cell.date) {
+                          <td class="p-0 text-center">
+                            @if (!cell.applies) {
+                              <span class="block rounded-lg py-2 text-xs text-gray-300 dark:text-gray-600" [attr.aria-label]="cellLabel(row, cell)" [attr.data-testid]="'coverage-cell-' + cell.date + '-' + cell.shiftId">–</span>
+                            } @else if (cell.isShort) {
+                              <a routerLink="/kalender" [queryParams]="{ date: cell.date }"
+                                 class="flex items-center justify-center gap-1 rounded-lg bg-error-50 py-2 text-xs font-semibold tabular-nums text-error-700 ring-1 ring-inset ring-error-200 hover:bg-error-100 dark:bg-error-500/15 dark:text-error-300 dark:ring-error-500/30 dark:hover:bg-error-500/25"
+                                 [attr.aria-label]="cellLabel(row, cell)" [title]="cellLabel(row, cell)"
+                                 [attr.data-testid]="'coverage-cell-' + cell.date + '-' + cell.shiftId" data-short="true">
+                                <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8.49 2.87a1.75 1.75 0 0 1 3.02 0l6.28 10.88A1.75 1.75 0 0 1 16.28 16.4H3.72a1.75 1.75 0 0 1-1.51-2.63L8.49 2.87ZM10 7a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-1.5 0v-3A.75.75 0 0 1 10 7Zm0 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd"/></svg>
+                                <span aria-hidden="true">{{ cell.staffed }}/{{ cell.min }}</span>
+                              </a>
+                            } @else {
+                              <span class="block rounded-lg bg-gray-50 py-2 text-xs tabular-nums text-gray-600 dark:bg-white/[0.03] dark:text-gray-400"
+                                    [attr.aria-label]="cellLabel(row, cell)" [title]="cellLabel(row, cell)"
+                                    [attr.data-testid]="'coverage-cell-' + cell.date + '-' + cell.shiftId"><span aria-hidden="true">{{ cell.staffed }}/{{ cell.min }}</span></span>
+                            }
+                          </td>
+                        }
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+        }
+      }
+    </div>
+  </section>
+
+  <!-- My Day — the signed-in planner's own plan -->
+  <div class="col-span-12 lg:col-span-4" data-testid="overview-my-day">
+    <app-my-day />
+  </div>
+
+  <!-- Latest run and recent activity: context, after what needs doing -->
+  <section class="col-span-12 rounded-2xl border border-gray-200 bg-white md:col-span-6 dark:border-gray-800 dark:bg-white/[0.03]" data-testid="overview-latest-run">
+    <div class="px-5 py-4 sm:px-6">
+      <h2 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'dashboard.latestRun' | t }}</h2>
+    </div>
+    <div class="border-t border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
+      @if (loadingLatestTask) {
+        <p class="text-sm text-gray-400 dark:text-gray-500">{{ 'common.loading' | t }}</p>
+      } @else if (!latestTask) {
+        <p class="mb-3 text-sm text-gray-400 dark:text-gray-500" data-testid="latest-run-empty">{{ 'dashboard.noRuns' | t }}</p>
+        <a routerLink="/scheduler" class="text-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400">
+          {{ 'overview.run.start' | t }} <span aria-hidden="true">→</span>
+        </a>
+      } @else {
+        <div class="flex items-center justify-between">
+          <span
+            class="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+            [class.bg-success-50]="latestTask.status === 'done'"
+            [class.text-success-600]="latestTask.status === 'done'"
+            [class.dark:bg-success-500/10]="latestTask.status === 'done'"
+            [class.dark:text-success-400]="latestTask.status === 'done'"
+            [class.bg-error-50]="latestTask.status === 'error'"
+            [class.text-error-600]="latestTask.status === 'error'"
+            [class.dark:bg-error-500/10]="latestTask.status === 'error'"
+            [class.dark:text-error-400]="latestTask.status === 'error'"
+            [class.bg-amber-50]="latestTask.status === 'scheduled'"
+            [class.text-amber-700]="latestTask.status === 'scheduled'"
+            [class.dark:bg-amber-500/10]="latestTask.status === 'scheduled'"
+            [class.dark:text-amber-400]="latestTask.status === 'scheduled'"
+          >
+            <span data-testid="latest-run-status">{{ taskStatusLabel(latestTask.status) }}</span>
+          </span>
+          <span class="text-xs text-gray-400 dark:text-gray-500">{{ relativeTime(latestTask.created_at) }}</span>
+        </div>
+        <a routerLink="/scheduler" [queryParams]="{ tab: 'runs' }" class="mt-3 inline-block text-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400">
+          {{ 'overview.run.view' | t }} <span aria-hidden="true">→</span>
+        </a>
+      }
+    </div>
+  </section>
+
+  <section class="col-span-12 rounded-2xl border border-gray-200 bg-white md:col-span-6 dark:border-gray-800 dark:bg-white/[0.03]" data-testid="overview-activity">
+    <div class="flex items-center justify-between gap-3 px-5 py-4 sm:px-6">
+      <h2 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'dashboard.recentActivity' | t }}</h2>
+      <a routerLink="/audit-log" class="text-sm font-medium text-brand-600 hover:text-brand-700 hover:underline dark:text-brand-400" data-testid="activity-view-all">{{ 'dashboard.viewAll' | t }}</a>
+    </div>
+    <div class="border-t border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
+      @if (loadingActivity) {
+        <p class="text-sm text-gray-400 dark:text-gray-500">{{ 'common.loading' | t }}</p>
+      } @else if (recentActivity.length === 0) {
+        <p class="text-sm text-gray-400 dark:text-gray-500" data-testid="activity-empty">{{ 'dashboard.noActivity' | t }}</p>
+      } @else {
+        <ul class="space-y-3" data-testid="activity-list">
+          @for (log of recentActivity; track log.id) {
+            <li class="flex items-start gap-2.5">
+              <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" [ngClass]="actionDotClass(log.action)"></span>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm text-gray-700 dark:text-gray-300">{{ actionLabel(log.action) }}</p>
+                <p class="text-xs text-gray-400 dark:text-gray-500">{{ relativeTime(log.created_at) }}</p>
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </section>
+</div>

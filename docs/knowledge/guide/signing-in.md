@@ -55,19 +55,27 @@ name. Click your name to sign out.
 
 # Reading the dashboard
 
+The overview you land on depends on your role.
+
+**Planners and admins** see, top to bottom:
+
 | Panel | What it tells you |
 |---|---|
-| **Employees / Shifts / Workstations** | How many of each are on file. Click a card to jump to that list |
-| **Planned Hours per Day** | A bar per day of the current month. Gaps mean nobody is scheduled |
-| **Today's Coverage** | Who is working, who is on leave or sick, and per workstation assigned-against-required |
+| **Needs you** | What is waiting for a planner, each line a link to where it is handled: shift swaps to approve, roster changes the people concerned have not seen yet, months due for publishing, and an automatic plan that stayed a proposal or failed. When nothing is open it says so |
+| **Coverage, next 7 days** | Today and the next six days by shift, staffed against the minimum. A red cell with a warning sign is short — the shift, or a workstation running it. Click it to open that day in the Schedule |
+| **My day** | Your own confirmed shift and who else is on |
 | **Latest Optimization Run** | Whether the last calculation finished, and when |
 | **Recent Activity** | The last few changes anyone made |
 
-**Planned Hours per Day is the quickest health check you have.** A month ending in
-a run of empty bars is a month nobody has planned yet.
+**Coverage is counted exactly as *Verify Plan* and the Analytics report count
+it**, so a short cell here is a short cell there.
 
 **Recent Activity** is the first place to look when something changed and nobody
 admits to it — it is backed by the [audit log](/concepts/audit-log.md).
+
+**Viewers** see their own day, the changes to their published shifts they have
+not marked *Seen* yet, their open shift swaps (the ones waiting for their answer
+first), and — while wishes can be placed — for which days.
 
 # Where to go next
 
