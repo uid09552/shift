@@ -68,7 +68,7 @@ jobs:
       - uses: renovatebot/github-action@v46.3.12
         with:
           token: ${{ secrets.RENOVATE_TOKEN }}
-          renovate-version: 44.200.2
+          renovate-version: 44.221.4
           mount-docker-socket: false
         env:
           # This repository only, not every repository the token can reach.
