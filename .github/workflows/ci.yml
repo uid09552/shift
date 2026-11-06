@@ -233,6 +233,43 @@ jobs:
             docker push "$IMAGE:latest"
           fi
 
+      # Mirror to the GitLab container registry, where the release compose file
+      # and deploy/Makefile pull from (registry.gitlab.com/uid09552/shift/<component>).
+      # Needs the repository secrets GITLAB_REGISTRY_USER and GITLAB_REGISTRY_TOKEN
+      # (a GitLab deploy/access token with write_registry); without them the
+      # step is skipped with a notice rather than failing the build. Tagged with
+      # the commit hash, and `latest` on the default branch / tag runs — the
+      # same rules as the GHCR push above.
+      - name: Push to GitLab registry
+        if: github.event_name != 'pull_request'
+        env:
+          GITLAB_REGISTRY: ${{ vars.GITLAB_REGISTRY || 'registry.gitlab.com' }}
+          GITLAB_REGISTRY_IMAGE: ${{ vars.GITLAB_REGISTRY_IMAGE || 'registry.gitlab.com/uid09552/shift' }}
+          GITLAB_REGISTRY_USER: ${{ secrets.GITLAB_REGISTRY_USER }}
+          GITLAB_REGISTRY_TOKEN: ${{ secrets.GITLAB_REGISTRY_TOKEN }}
+          SOURCE_IMAGE: ${{ steps.meta.outputs.image }}
+          SHORT_SHA: ${{ steps.meta.outputs.short_sha }}
+          COMPONENT: ${{ matrix.component }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ -z "$GITLAB_REGISTRY_USER" ] || [ -z "$GITLAB_REGISTRY_TOKEN" ]; then
+            echo "::notice::GITLAB_REGISTRY_USER / GITLAB_REGISTRY_TOKEN not set — skipping the GitLab registry push."
+            exit 0
+          fi
+          TARGET="$(echo "$GITLAB_REGISTRY_IMAGE/$COMPONENT" | tr '[:upper:]' '[:lower:]')"
+          echo "$GITLAB_REGISTRY_TOKEN" | docker login -u "$GITLAB_REGISTRY_USER" --password-stdin "$GITLAB_REGISTRY"
+          docker tag "$SOURCE_IMAGE:$SHORT_SHA" "$TARGET:$SHORT_SHA"
+          docker push "$TARGET:$SHORT_SHA"
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            docker tag "$SOURCE_IMAGE:$SHORT_SHA" "$TARGET:$GITHUB_REF_NAME"
+            docker push "$TARGET:$GITHUB_REF_NAME"
+          fi
+          if [ "$GITHUB_REF_NAME" = "$DEFAULT_BRANCH" ] || [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            docker tag "$SOURCE_IMAGE:$SHORT_SHA" "$TARGET:latest"
+            docker push "$TARGET:latest"
+          fi
+          docker logout "$GITLAB_REGISTRY"
+
       - name: Pull request — not published
         if: github.event_name == 'pull_request'
         run: echo "Pull request run — image built but not published."
