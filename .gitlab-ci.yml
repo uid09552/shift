@@ -34,7 +34,7 @@ stages:
 
 variables:
   # Bumping this invalidates the cached binary (the cache key includes it).
-  TRIVY_VERSION: "0.76.1"
+  TRIVY_VERSION: "0.76.2"
   # Severities that count towards the gate below. The machine-readable report
   # and the SBOM always cover *all* severities regardless of this.
   SCAN_SEVERITY: "HIGH,CRITICAL"
@@ -571,7 +571,7 @@ pages:
 renovate:
   stage: maintenance
   needs: []
-  image: ghcr.io/renovatebot/renovate:44.200.2
+  image: ghcr.io/renovatebot/renovate:44.221.4
   # Two runs at once would race on the same branches.
   resource_group: renovate
   timeout: 1h
