@@ -1328,6 +1328,25 @@ pub trait HolidayRepository {
     async fn count_holidays(&self, tenant_id: &str, from: NaiveDate, to: NaiveDate, state: &str) -> Result<i64, AppError>;
     /// Replaces everything stored in `from..=to` with `holidays`.
     async fn replace_holidays(&self, tenant_id: &str, from: NaiveDate, to: NaiveDate, holidays: Vec<HolidayDomain>) -> Result<(), AppError>;
+    /// Every tenant that has holidays stored — the ones a refresh is about.
+    async fn list_holiday_tenants(&self) -> Result<Vec<String>, AppError>;
+    /// When `year` was last fetched for this tenant and state, if ever tried.
+    async fn get_holiday_sync(&self, tenant_id: &str, year: i32, state: &str) -> Result<Option<HolidaySyncDomain>, AppError>;
+    /// Writes the outcome of one fetch: a success stamps `last_synced_at` and
+    /// clears the failure count, a failure counts up.
+    async fn record_holiday_sync(&self, tenant_id: &str, year: i32, state: &str, ok: bool, now: NaiveDateTime) -> Result<(), AppError>;
+    /// Takes the right to fetch `year` now: true for exactly one caller when
+    /// `last_attempt_at` still equals `expected` (`None` = never tried). The
+    /// background refresh asks before fetching, so instances do not double up.
+    async fn claim_holiday_sync(&self, tenant_id: &str, year: i32, state: &str, expected: Option<NaiveDateTime>, now: NaiveDateTime) -> Result<bool, AppError>;
+}
+
+/// The fetch history of one tenant's holidays for one year and state. Times are UTC.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct HolidaySyncDomain {
+    pub last_synced_at: Option<NaiveDateTime>,
+    pub last_attempt_at: NaiveDateTime,
+    pub consecutive_failures: i32,
 }
 
 // ---------------------------------------------------------------------------
