@@ -162,6 +162,22 @@ def test_break_requirement():
     assert legal.required_break_minutes(rules, 6.0) == 0
     assert legal.required_break_minutes(rules, 6.5) == 30
     assert legal.required_break_minutes(rules, 9.5) == 45
+    assert legal.required_break_minutes(rules, 9.5, 0) == 45, "no break configured: the span is the working time"
+
+
+def test_break_tier_follows_working_time_not_the_span():
+    """ArbZG §4: the tiers count working time, i.e. the span without the break."""
+    rules = legal.rules_for("arbzg_de")
+    # 07:00-16:30 with 30 min is 9 h of work: 30 min is enough (was wrongly 45).
+    assert legal.required_break_minutes(rules, 9.5, 30) == 30
+    # 9.75 h with 30 min is 9.25 h of work: over 9 h, needs 45.
+    assert legal.required_break_minutes(rules, 9.75, 30) == 45
+    # 6.4 h with 30 min is 5.9 h of work: no break needed at all.
+    assert legal.required_break_minutes(rules, 6.4, 30) == 0
+    assert legal.required_break_minutes(rules, 6.4, 0) == 30
+    # Exactly on a boundary is not over it.
+    assert legal.required_break_minutes(rules, 9.5, 30) == 30
+    assert legal.required_break_minutes(rules, 6.5, 30) == 0
     assert legal.rules_for("none") is None
 
 
