@@ -51,6 +51,21 @@ pub struct HolidayConfig {
     pub url: String,
     /// Two-letter state code, e.g. `by` (Bavaria).
     pub state: String,
+    /// Days after which an already fetched year is fetched again in the
+    /// background, picking up corrections and newly declared holidays. `0`
+    /// (the default) never refreshes by itself; a year is then fetched once,
+    /// or when someone calls `POST /holidays/sync`.
+    /// Env: `SHIFT_HOLIDAYS__REFRESH_INTERVAL_DAYS`.
+    #[serde(default)]
+    pub refresh_interval_days: u32,
+    /// How many years after the current one the refresh covers (the current
+    /// year always is). At most 3. Env: `SHIFT_HOLIDAYS__REFRESH_YEARS_AHEAD`.
+    #[serde(default = "default_refresh_years_ahead")]
+    pub refresh_years_ahead: u32,
+}
+
+fn default_refresh_years_ahead() -> u32 {
+    1
 }
 
 impl Default for HolidayConfig {
@@ -59,6 +74,8 @@ impl Default for HolidayConfig {
             enabled: true,
             url: "https://get.api-feiertage.de".to_string(),
             state: "by".to_string(),
+            refresh_interval_days: 0,
+            refresh_years_ahead: default_refresh_years_ahead(),
         }
     }
 }
@@ -361,4 +378,27 @@ pub struct CliArgs {
     pub otel_endpoint: Option<String>,
     pub otel_protocol: Option<String>,
     pub otel_service_name: Option<String>,
+}
+#[cfg(test)]
+mod holiday_config_tests {
+    use super::*;
+
+    #[test]
+    fn the_refresh_is_off_by_default_and_a_config_without_it_still_loads() {
+        let defaults = HolidayConfig::default();
+        assert_eq!(defaults.refresh_interval_days, 0);
+        assert_eq!(defaults.refresh_years_ahead, 1);
+
+        // A config file written before these options existed.
+        let old: HolidayConfig =
+            serde_json::from_str(r#"{"enabled":true,"url":"https://x.test","state":"by"}"#).unwrap();
+        assert_eq!(old.refresh_interval_days, 0);
+        assert_eq!(old.refresh_years_ahead, 1);
+
+        let set: HolidayConfig = serde_json::from_str(
+            r#"{"enabled":true,"url":"https://x.test","state":"by","refresh_interval_days":30,"refresh_years_ahead":2}"#,
+        )
+        .unwrap();
+        assert_eq!((set.refresh_interval_days, set.refresh_years_ahead), (30, 2));
+    }
 }

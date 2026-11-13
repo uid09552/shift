@@ -225,6 +225,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let addr = format!("{}:{}", config.server.listen, config.server.port).parse::<SocketAddr>()?;
             shift::services::wish_schedule::spawn(state.clone());
             shift::services::auto_plan::spawn(state.clone());
+            shift::services::holiday::spawn(state.clone());
             server::start_server(state, addr).await?;
 
             // Flush whatever is still batched before the process goes away.

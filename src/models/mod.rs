@@ -45,7 +45,7 @@ pub use task_result_dto::{TaskResultDto, PlanningPeriodResult, DaySchedule, Shif
 pub use unavailability::{NewUnavailability, Unavailability};
 pub use wish_settings::{NewWishSettings, WishScheduleChangeset, WishSettings};
 pub use personal_limits::{NewPersonalLimits, PersonalLimits};
-pub use public_holiday::{NewPublicHoliday, PublicHoliday};
+pub use public_holiday::{HolidaySync, NewPublicHoliday, PublicHoliday};
 pub use workstation::{NewWorkstation, Workstation};
 pub use workstation_required_capabilities::{NewWorkstationRequiredCapability, WorkstationRequiredCapability};
 pub use workstation_unavailability::{NewWorkstationUnavailability, WorkstationUnavailability};

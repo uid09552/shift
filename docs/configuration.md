@@ -114,7 +114,8 @@ source configured, every request is refused.
 
 Public holidays, fetched as JSON from an [api-feiertage.de](https://get.api-feiertage.de)
 compatible API and stored per tenant (years are fetched on first use;
-`POST /api/v1/holidays/sync` refreshes them). A holiday runs on its shifts'
+`POST /api/v1/holidays/sync` refreshes them by hand, and `refresh_interval_days`
+below does it on its own). A holiday runs on its shifts'
 **Sunday** times and counts as a weekend day for the optimizer, the plan
 check and the fairness figures.
 
@@ -123,6 +124,24 @@ check and the fairness figures.
 | `enabled` | `true` | `false`: nothing is fetched, the planner sees no holidays. Env: `SHIFT_HOLIDAYS__ENABLED` |
 | `url` | `https://get.api-feiertage.de` | Source; called with `?states=<state>&years=<year>`. Env: `SHIFT_HOLIDAYS__URL` |
 | `state` | `by` | Two-letter German state code. Env: `SHIFT_HOLIDAYS__STATE` |
+| `refresh_interval_days` | `0` | Days after which a year that was fetched before is fetched again in the background, picking up corrections and newly declared holidays. `0` never refreshes by itself — a year is then fetched once, or when someone calls `POST /api/v1/holidays/sync`. Env: `SHIFT_HOLIDAYS__REFRESH_INTERVAL_DAYS` |
+| `refresh_years_ahead` | `1` | How many years after the current one the refresh covers; the current year always is. At most `3`. Env: `SHIFT_HOLIDAYS__REFRESH_YEARS_AHEAD` |
+
+**How the refresh works.** With `refresh_interval_days` above `0`, the backend
+checks hourly, for every tenant that has holidays, whether the last successful
+fetch of a covered year is that old. Only a year that was fetched before is
+refreshed; a year never fetched is still fetched on first use. The time of each
+fetch is kept in the database (`holiday_syncs`), so the interval survives a
+restart, and several backend instances share one claim per year instead of all
+fetching. Each automatic refresh is written to the audit log as `holidays.sync`
+by the actor `holiday-sync`.
+
+**A failing API is not asked on every request.** After a failed fetch — by the
+refresh, by first use or by `POST /holidays/sync` — the year is left alone for
+15 minutes, then 30, 60, … up to a day, and the next success resets that. This
+also stops `GET /api/v1/holidays` and plan preparation from waiting out the
+10-second timeout on every call while the API is down. Holidays already stored
+stay in use meanwhile.
 
 ### `build`
 
