@@ -95,7 +95,9 @@ real behavior the gateway and backend are expected to uphold.
 | Manage organization users and roles | ❌ | ❌ | ✅ |
 | Create / delete own shift wishes | ✅ (own employee only) | ✅ (anyone) | ✅ (anyone) |
 | Trigger optimizer runs / plan tasks | ❌ | ✅ | ✅ |
-| Read optimizer results / fairness / analysis | ✅ | ✅ | ✅ |
+| Read optimizer results | ✅ | ✅ | ✅ |
+| Read the roster-based analysis (`/analysis/fairness`, `staffing-per-day`, `planned-*-per-day-per-workstation`) | ✅ published and locked months only | ✅ | ✅ |
+| Read the Analytics page's facts (`/analysis/roster-facts`, `change-facts`, `audit-activity`, `planning-runs`) | ❌ | ✅ | ✅ |
 | Reset or change solver settings | ❌ | ✅ | ✅ |
 | Access `/self` and identity endpoints | ✅ | ✅ | ✅ |
 
