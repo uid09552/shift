@@ -692,10 +692,12 @@ pub struct PlanningRunDomain {
 
 #[async_trait]
 pub trait AnalysisRepository {
-    async fn get_planned_hours_per_day_per_workstation(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<WorkstationDailyHoursDomain>, AppError>;
-    async fn get_planned_employees_per_day_per_workstation(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<WorkstationDailyEmployeesDomain>, AppError>;
-    async fn get_staffing_per_day(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<DailyStaffingDomain>, AppError>;
-    async fn get_fairness(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<EmployeeFairnessDomain>, AppError>;
+    /// `published_only` leaves out months that are still a draft — what a
+    /// `shift-viewer` may see, as for the confirmed roster itself.
+    async fn get_planned_hours_per_day_per_workstation(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate, published_only: bool) -> Result<Vec<WorkstationDailyHoursDomain>, AppError>;
+    async fn get_planned_employees_per_day_per_workstation(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate, published_only: bool) -> Result<Vec<WorkstationDailyEmployeesDomain>, AppError>;
+    async fn get_staffing_per_day(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate, published_only: bool) -> Result<Vec<DailyStaffingDomain>, AppError>;
+    async fn get_fairness(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate, published_only: bool) -> Result<Vec<EmployeeFairnessDomain>, AppError>;
     async fn get_roster_facts(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<RosterFactsDomain, AppError>;
     /// Notices created between the two dates, inclusive, oldest first.
     async fn get_change_facts(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<ChangeFactDomain>, AppError>;

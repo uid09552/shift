@@ -34,7 +34,9 @@ summary below is the product contract for the API.
 
 | Endpoint group | `shift-viewer` | `shift-planner` | `shift-admin` |
 |---|---|---|---|
-| Read-only data (`/employees`, `/shifts`, `/workstations`, `/analysis/*`, `/info`) | ✅ read | ✅ read/write | ✅ read/write |
+| Read-only data (`/employees`, `/shifts`, `/workstations`, `/info`) | ✅ read | ✅ read/write | ✅ read/write |
+| Roster analysis (`/analysis/fairness`, `/analysis/staffing-per-day`, `/analysis/planned-*-per-day-per-workstation`) | ✅ published and locked months only | ✅ read | ✅ read |
+| Analytics facts (`/analysis/roster-facts`, `change-facts`, `audit-activity`, `planning-runs`) | ❌ | ✅ read | ✅ read |
 | Write data (`POST/PUT/PATCH/DELETE` on master data) | ❌ | ✅ | ✅ |
 | `/shift-wishes` | ✅ own records only | ✅ any record | ✅ any record |
 | `/wish-settings` | ✅ read only | ✅ read only | ✅ read/write |
