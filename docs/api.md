@@ -58,7 +58,7 @@ The grant model is intentionally simple:
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` `POST` | `/employees` | List / create |
-| `GET` `PUT` `DELETE` | `/employees/{id}` | Read / update / delete |
+| `GET` `PUT` `DELETE` | `/employees/{id}` | Read / update / delete — delete: 409 while a published or locked month's roster uses it |
 | `GET` | `/employees/email/{email}` | Look up by email |
 | `GET` | `/employees/template` | XLSX import template |
 | `POST` | `/employees/import` | Bulk import (multipart) |
@@ -92,7 +92,7 @@ plan check, the replacement ranking and `/analysis/fairness`.
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` `POST` | `/shifts` | List / create |
-| `GET` `PUT` `DELETE` | `/shifts/{id}` | Read / update / delete |
+| `GET` `PUT` `DELETE` | `/shifts/{id}` | Read / update / delete — delete: 409 while a published or locked month's roster uses it |
 | `POST` | `/shifts/{id}/weekday-times` | Set times, staffing band and rest days for a weekday |
 | `DELETE` | `/shifts/{id}/weekday-times/{weekday}` | Remove a weekday — the shift stops running that day |
 | `GET` | `/shifts/template` | XLSX template |
@@ -112,7 +112,7 @@ plan check, the replacement ranking and `/analysis/fairness`.
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` `POST` | `/workstations` | List / create |
-| `GET` `PUT` `DELETE` | `/workstations/{id}` | Read / update / delete |
+| `GET` `PUT` `DELETE` | `/workstations/{id}` | Read / update / delete — delete: 409 while a published or locked month's roster uses it |
 | `PUT` | `/workstations/{id}/availability` | Set availability |
 | `PATCH` | `/workstations/{id}/enable` | Include in planning |
 | `PATCH` | `/workstations/{id}/disable` | Exclude from planning |

@@ -164,6 +164,10 @@ backend/
   changed employee-day becomes a **change notice** (`roster_change_notices`) in
   the same transaction. The reason is the `X-Change-Reason` header
   (URL-encoded); without one the answer is 428 `reason_required`
+- Deleting a shift, employee or workstation is refused (409) while a published
+  or locked month's roster uses it; draft entries go with it (a workstation's
+  are detached) via `rostertracking::release_roster_entries`, in the delete's
+  transaction. The foreign keys are `RESTRICT`, so nothing cascades
 - A draft month is *due* `publish_lead_days` (28) before it starts — a
   warning, nothing is blocked
 
