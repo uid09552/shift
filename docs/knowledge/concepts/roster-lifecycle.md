@@ -50,6 +50,12 @@ Every roster write follows these rules, whatever made it: a manual edit,
 a [short-notice replacement](/guide/short-notice-replacement.md). A write that
 touches several months is refused as a whole if one of them refuses it.
 
+Deleting a shift, an employee or a workstation is a roster write too. It is
+refused with **409** while the roster of a published or locked month uses it —
+the message names the months and the number of entries; change those entries
+first, or have an admin unpublish or unlock the months. Entries in draft months
+go with it (a workstation's lose only the workstation), in the same transaction.
+
 A change to a published or locked month also becomes a
 [change notice](/concepts/roster-change-notice.md) for each affected
 employee-day — the people concerned are told.

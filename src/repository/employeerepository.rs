@@ -4,6 +4,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 use crate::telemetry;
 use crate::errors::AppError;
+use crate::repository::rostertracking::{self, RosterReference};
 use diesel::result::{Error as DieselError, DatabaseErrorKind};
 
 use crate::database::DbPool;
@@ -390,14 +391,26 @@ impl EmployeeRepository for DieselEmployeeRepository {
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
-            diesel::delete(
-                employees::table
+            conn.transaction::<_, AppError, _>(|conn| {
+                let Some(name) = employees::table
                     .filter(employees::id.eq(id))
-                    .filter(employees::tenant_id.eq(&tenant_id)),
-            )
-                .execute(&mut conn)
-                .map_err(|_| AppError::DbError)?;
-            Ok(())
+                    .filter(employees::tenant_id.eq(&tenant_id))
+                    .select(employees::name)
+                    .for_update()
+                    .first::<String>(conn)
+                    .optional()?
+                else {
+                    return Ok(());
+                };
+                rostertracking::release_roster_entries(conn, RosterReference::Employee, id, &name)?;
+                diesel::delete(
+                    employees::table
+                        .filter(employees::id.eq(id))
+                        .filter(employees::tenant_id.eq(&tenant_id)),
+                )
+                .execute(conn)?;
+                Ok(())
+            })
         })
         .await.map_err(|_| AppError::Internal)?
     }
@@ -912,23 +925,32 @@ impl crate::repository::domain::WorkstationRepository for DieselWorkstationRepos
         let pool: Arc<DbPool> = Arc::clone(&self.pool);
         telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
-            // First delete all required capabilities for this workstation
-            diesel::delete(
-                workstation_required_capabilities::table
-                    .filter(workstation_required_capabilities::workstation_id.eq(id))
-                    .filter(workstation_required_capabilities::tenant_id.eq(&tenant_id)),
-            )
-                .execute(&mut conn)
-                .map_err(|_| AppError::DbError)?;
-            // Then delete the workstation itself
-            diesel::delete(
-                workstations::table
+            conn.transaction::<_, AppError, _>(|conn| {
+                let Some(name) = workstations::table
                     .filter(workstations::id.eq(id))
-                    .filter(workstations::tenant_id.eq(&tenant_id)),
-            )
-                .execute(&mut conn)
-                .map_err(|_| AppError::DbError)?;
-            Ok(())
+                    .filter(workstations::tenant_id.eq(&tenant_id))
+                    .select(workstations::name)
+                    .for_update()
+                    .first::<String>(conn)
+                    .optional()?
+                else {
+                    return Ok(());
+                };
+                rostertracking::release_roster_entries(conn, RosterReference::Workstation, id, &name)?;
+                diesel::delete(
+                    workstation_required_capabilities::table
+                        .filter(workstation_required_capabilities::workstation_id.eq(id))
+                        .filter(workstation_required_capabilities::tenant_id.eq(&tenant_id)),
+                )
+                .execute(conn)?;
+                diesel::delete(
+                    workstations::table
+                        .filter(workstations::id.eq(id))
+                        .filter(workstations::tenant_id.eq(&tenant_id)),
+                )
+                .execute(conn)?;
+                Ok(())
+            })
         })
         .await.map_err(|_| AppError::Internal)?
     }

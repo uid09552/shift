@@ -148,3 +148,96 @@ pub fn period_cells(employees: &[Uuid], from: NaiveDate, to: NaiveDate) -> Vec<C
     }
     cells
 }
+
+/// Master data a roster entry points at.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RosterReference {
+    Employee,
+    Shift,
+    Workstation,
+}
+
+impl RosterReference {
+    /// The `confirmed_shift_plans` column; a fixed name, never user input.
+    fn column(self) -> &'static str {
+        match self {
+            RosterReference::Employee => "employee_id",
+            RosterReference::Shift => "shift_id",
+            RosterReference::Workstation => "workstation_id",
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            RosterReference::Employee => "Employee",
+            RosterReference::Shift => "Shift",
+            RosterReference::Workstation => "Workstation",
+        }
+    }
+}
+
+#[derive(QueryableByName)]
+struct MonthUsage {
+    #[diesel(sql_type = diesel::sql_types::Text)]
+    tenant_id: String,
+    #[diesel(sql_type = diesel::sql_types::Date)]
+    month: NaiveDate,
+    #[diesel(sql_type = diesel::sql_types::BigInt)]
+    entries: i64,
+}
+
+/// Clears the roster for deleting the employee, shift or workstation `id`
+/// (called `name`): refuses with 409 while a published or locked month uses it,
+/// otherwise removes the draft entries that use it (a workstation's are only
+/// detached). Its foreign keys are `RESTRICT`, so the delete itself fails if
+/// anything is left. Call it inside the delete's transaction after locking the
+/// item's row `FOR UPDATE`: no new entry can point at it then, and the months
+/// read here stay `FOR SHARE` until the delete commits, as in `guarded`.
+pub fn release_roster_entries(
+    conn: &mut PgConnection,
+    reference: RosterReference,
+    id: Uuid,
+    name: &str,
+) -> Result<(), AppError> {
+    let column = reference.column();
+    let usage: Vec<MonthUsage> = diesel::sql_query(format!(
+        "SELECT tenant_id, date_trunc('month', date)::date AS month, COUNT(*) AS entries \
+         FROM confirmed_shift_plans WHERE {column} = $1 GROUP BY 1, 2"
+    ))
+    .bind::<diesel::sql_types::Uuid, _>(id)
+    .load(conn)?;
+
+    let today = crate::services::roster_guard::today();
+    let mut blocked = BTreeSet::new();
+    let mut entries = 0;
+    let tenants: BTreeSet<&str> = usage.iter().map(|u| u.tenant_id.as_str()).collect();
+    for tenant in tenants {
+        let months: BTreeSet<NaiveDate> = usage.iter().filter(|u| u.tenant_id == tenant).map(|u| u.month).collect();
+        for (month, status) in month_statuses(conn, tenant, &months, today)? {
+            if status != MonthStatus::Draft {
+                blocked.insert(month);
+                entries += usage.iter().filter(|u| u.tenant_id == tenant && u.month == month).map(|u| u.entries).sum::<i64>();
+            }
+        }
+    }
+    if !blocked.is_empty() {
+        let months: Vec<String> = blocked.iter().map(|m| m.format("%Y-%m").to_string()).collect();
+        let entries = if entries == 1 { "1 entry".to_string() } else { format!("{entries} entries") };
+        return Err(AppError::Conflict(format!(
+            "{} '{name}' is used in the published or locked roster of {} ({entries}). \
+             Change those entries first, or have an admin unpublish or unlock the months.",
+            reference.label(),
+            months.join(", "),
+        )));
+    }
+
+    if usage.is_empty() {
+        return Ok(());
+    }
+    let statement = match reference {
+        RosterReference::Workstation => format!("UPDATE confirmed_shift_plans SET {column} = NULL WHERE {column} = $1"),
+        _ => format!("DELETE FROM confirmed_shift_plans WHERE {column} = $1"),
+    };
+    diesel::sql_query(statement).bind::<diesel::sql_types::Uuid, _>(id).execute(conn)?;
+    Ok(())
+}

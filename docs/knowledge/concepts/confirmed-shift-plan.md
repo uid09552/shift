@@ -35,6 +35,11 @@ dashboard and the `/analysis/*` endpoints all query it.
 rather than an assignment (migration 13). `workstation_id` was added in migration
 8 — plans record *where*, not just *when*.
 
+The foreign keys to `employees`, `shifts` and `workstations` are `ON DELETE
+RESTRICT` (migration 39): deleting one of them never takes roster rows along
+behind the [roster guard](/concepts/roster-lifecycle.md)'s back. The backend
+clears draft rows itself and refuses while a published or locked month uses it.
+
 # How rows get here
 
 Two paths, and they interact:
