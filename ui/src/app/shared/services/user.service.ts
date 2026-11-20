@@ -11,6 +11,8 @@ export interface UserInfo {
   family_name?: string;
   /** Realm roles the request carries: `shift-planner`, `shift-admin`, `shift-viewer`. */
   roles?: string[];
+  /** The caller's own employee in their tenant; null when nothing matches. */
+  employee_id?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })

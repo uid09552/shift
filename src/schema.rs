@@ -343,6 +343,109 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    leave_requests (id) {
+        id -> Uuid,
+        tenant_id -> Varchar,
+        employee_id -> Uuid,
+        start_date -> Date,
+        end_date -> Date,
+        note -> Nullable<Text>,
+        status -> Varchar,
+        decided_by -> Nullable<Varchar>,
+        decision_comment -> Nullable<Text>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    leave_request_days (leave_request_id, unavailability_id) {
+        leave_request_id -> Uuid,
+        unavailability_id -> Uuid,
+        date -> Date,
+    }
+}
+
+diesel::table! {
+    leave_blackouts (id) {
+        id -> Uuid,
+        tenant_id -> Varchar,
+        start_date -> Date,
+        end_date -> Date,
+        reason -> Nullable<Varchar>,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    leave_limits (tenant_id, capability_id) {
+        tenant_id -> Varchar,
+        capability_id -> Uuid,
+        max_absent -> Int4,
+    }
+}
+
+diesel::table! {
+    notification_preferences (employee_id) {
+        employee_id -> Uuid,
+        tenant_id -> Varchar,
+        email_enabled -> Bool,
+        muted_events -> Array<Text>,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    notification_outbox (id) {
+        id -> Uuid,
+        tenant_id -> Varchar,
+        employee_id -> Nullable<Uuid>,
+        recipient -> Varchar,
+        event -> Varchar,
+        subject -> Varchar,
+        body -> Text,
+        status -> Varchar,
+        attempts -> Int4,
+        next_attempt_at -> Timestamptz,
+        last_error -> Nullable<Text>,
+        created_at -> Timestamptz,
+        sent_at -> Nullable<Timestamptz>,
+    }
+}
+
+diesel::table! {
+    roster_notice_deliveries (notice_id) {
+        notice_id -> Uuid,
+        queued_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    open_shifts (id) {
+        id -> Uuid,
+        tenant_id -> Varchar,
+        date -> Date,
+        shift_id -> Uuid,
+        workstation_id -> Nullable<Uuid>,
+        note -> Nullable<Text>,
+        status -> Varchar,
+        assigned_employee_id -> Nullable<Uuid>,
+        created_by -> Nullable<Varchar>,
+        decided_by -> Nullable<Varchar>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    open_shift_volunteers (open_shift_id, employee_id) {
+        open_shift_id -> Uuid,
+        employee_id -> Uuid,
+        created_at -> Timestamptz,
+    }
+}
+
 diesel::joinable!(planning_tasks -> optimized_shift_results (result_id));
 diesel::joinable!(employee_available_shifts -> employees (employee_id));
 diesel::joinable!(employee_available_shifts -> shifts (shift_id));
@@ -363,6 +466,14 @@ diesel::joinable!(confirmed_shift_plans -> shifts (shift_id));
 diesel::joinable!(confirmed_shift_plans -> workstations (workstation_id));
 diesel::joinable!(employee_personal_limits -> employees (employee_id));
 diesel::joinable!(roster_change_notices -> employees (employee_id));
+diesel::joinable!(leave_requests -> employees (employee_id));
+diesel::joinable!(leave_request_days -> leave_requests (leave_request_id));
+diesel::joinable!(leave_limits -> capabilities (capability_id));
+diesel::joinable!(notification_preferences -> employees (employee_id));
+diesel::joinable!(roster_notice_deliveries -> roster_change_notices (notice_id));
+diesel::joinable!(open_shift_volunteers -> open_shifts (open_shift_id));
+diesel::joinable!(open_shift_volunteers -> employees (employee_id));
+diesel::joinable!(open_shifts -> shifts (shift_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     capabilities,
@@ -388,4 +499,13 @@ diesel::allow_tables_to_appear_in_same_query!(
     shift_swap_requests,
     roster_months,
     roster_change_notices,
+    leave_requests,
+    leave_request_days,
+    leave_blackouts,
+    leave_limits,
+    notification_preferences,
+    notification_outbox,
+    roster_notice_deliveries,
+    open_shifts,
+    open_shift_volunteers,
 );

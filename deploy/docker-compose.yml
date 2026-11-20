@@ -83,6 +83,14 @@ services:
       SHIFT_KEYCLOAK__CLIENT_SECRET: ${MCP_OAUTH_CLIENT_SECRET:-shift-gateway-secret}
       # The agent, asked for the rule warnings a planner sees on a shift swap.
       SHIFT_AGENT__URL: ${SHIFT_AGENT__URL:-http://agent:8899}
+      # Notification e-mails. Off while SHIFT_SMTP__HOST is empty.
+      SHIFT_SMTP__HOST: ${SHIFT_SMTP__HOST:-}
+      SHIFT_SMTP__PORT: ${SHIFT_SMTP__PORT:-587}
+      SHIFT_SMTP__USERNAME: ${SHIFT_SMTP__USERNAME:-}
+      SHIFT_SMTP__PASSWORD: ${SHIFT_SMTP__PASSWORD:-}
+      SHIFT_SMTP__FROM: ${SHIFT_SMTP__FROM:-Shift <noreply@localhost>}
+      SHIFT_SMTP__TLS: ${SHIFT_SMTP__TLS:-starttls}
+      SHIFT_SMTP__APP_URL: ${SHIFT_SMTP__APP_URL:-}
     ports:
       - "8081:8080"
     depends_on:

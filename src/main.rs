@@ -222,8 +222,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             }
             state.keycloak = keycloak_settings(&config.keycloak)
                 .map(|settings| Arc::new(KeycloakAdmin::new(settings)));
+            // Notification e-mails: off without smtp.host; a setting that cannot work stops the start.
+            state.mailer = shift::services::notifier::SmtpMailer::from_config(&config.smtp)
+                .map_err(|e| format!("smtp: {e}"))?
+                .map(|m| Arc::new(m) as Arc<dyn shift::services::notifier::Mailer>);
+            state.app_url = config.smtp.app_url.trim().to_string();
             let addr = format!("{}:{}", config.server.listen, config.server.port).parse::<SocketAddr>()?;
             shift::services::wish_schedule::spawn(state.clone());
+            shift::services::notifier::spawn(state.clone());
             shift::services::auto_plan::spawn(state.clone());
             shift::services::holiday::spawn(state.clone());
             server::start_server(state, addr).await?;

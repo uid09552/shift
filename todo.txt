@@ -12,14 +12,17 @@ HIGH VALUE
     - After publish: every change is tracked and shown to the people affected
     - Re-solve after publish penalises changes against the published roster
       (keep things stable, change as few people as possible)
-[ ] Leave / vacation requests with approval (planner/admin)
-    - Max people absent at once per workstation/capability, blackout periods
+[x] Leave / vacation requests with approval (planner/admin)  -- #174
+    - Max people absent at once per capability (a warning, never a block), blackout periods
     - Approved leave becomes unavailability; the optimizer sees pending leave as soft
-    - Annual leave planning view (whole year, per team)
-[ ] Open shifts / shift bidding
-    - Short slots (from message / staffing gaps) posted as open shifts
+    - Annual leave planning view (whole year, per person, filter by capability)
+    - Not done: limits per workstation (a capability limit covers the same people)
+[x] Open shifts / shift bidding  -- #176
+    - Short slots (staffing gaps below a ward's minimum, or by hand) posted as open shifts
     - Qualified, rule-compliant employees volunteer; planner assigns
-    - Reuses the agent's replacement ranking
+    - Not done: the agent's replacement ranking (volunteers are checked by the
+      backend's own rules: absence, availability, capabilities, rest; labor law and
+      personal limits are left to the plan check)
 [ ] Skill-mix rules per shift/workstation
     - "at least 1 x level >= 3 per shift", "max 2 trainees"
     - Trainee must be paired with a mentor (same shift + workstation)
@@ -28,8 +31,9 @@ HIGH VALUE
     - Max 10 h/day, 48 h/week average over N weeks, breaks
     - Special groups: minors (JArbSchG), pregnancy (MuSchG: no nights/Sundays)
     - Plan check reports legal violations separately from soft goals
-[ ] Notifications: email / push for roster published, changes to my shifts,
-    swap/leave status, open shift offered
+[x] Notifications: e-mail for roster published, changes to my shifts,  -- #175
+    swap/leave status, open shift offered (per-employee preferences, outbox with retries)
+    - Not done: web push (needs the PWA), a daily digest
 
 PLANNING QUALITY
 ----------------

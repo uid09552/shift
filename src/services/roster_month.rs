@@ -13,11 +13,12 @@ use serde_json::json;
 
 use crate::errors::AppError;
 use crate::repository::domain::{
-    effective_status, month_end, month_start, months_between, MonthStatus, PlannerSettingsRepository, RosterMonth,
+    ConfirmedShiftPlanRepository, effective_status, month_end, month_start, months_between, MonthStatus, PlannerSettingsRepository, RosterMonth,
     RosterMonthRepository, RosterMonthTransition,
 };
 use crate::repository::AppState;
 use crate::services::audit_log;
+use crate::services::notifier;
 use crate::services::roster_guard::{today, RosterChange};
 use crate::services::tenant::TenantContext;
 
@@ -252,8 +253,45 @@ async fn transition(
     )
     .await;
 
+    if matches!(action, Action::Publish) {
+        announce_publication(state, &tenant.0, month).await;
+    }
+
     let lead = lead_days(state, &tenant.0).await?;
     Ok(Json(response(month, Some(&saved), today, lead)))
+}
+
+/// Tells everyone with a shift in the month that its roster is out. Best effort:
+/// the month is published whether or not the mail can be queued.
+async fn announce_publication(state: &AppState, tenant_id: &str, month: NaiveDate) {
+    if state.mailer.is_none() {
+        return;
+    }
+    let rows = match state
+        .confirmed_shift_plan_repo
+        .get_confirmed_shift_plans_for_date_range(tenant_id, month, month_end(month), None, None, false)
+        .await
+    {
+        Ok(rows) => rows,
+        Err(e) => {
+            tracing::warn!("could not list who works in {}: {e}", format_month(month));
+            return;
+        }
+    };
+    let mut people: Vec<uuid::Uuid> = rows.iter().filter(|r| r.is_working()).map(|r| r.employee_id).collect();
+    people.sort();
+    people.dedup();
+    let name = month.format("%B %Y").to_string();
+    notifier::notify(
+        state,
+        tenant_id,
+        notifier::EVENT_ROSTER_PUBLISHED,
+        &people,
+        &format!("Roster published: {name}"),
+        &format!("The roster for {name} is published. You can see your shifts now."),
+        Some("kalender"),
+    )
+    .await;
 }
 
 #[cfg(test)]

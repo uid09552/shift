@@ -37,10 +37,11 @@ use crate::errors::AppError;
 use crate::repository::AppState;
 use crate::repository::domain::{
     effective_status, month_start, swap_roster_conflict, swap_status, ChangeSource, ConfirmedShiftPlanRepository,
-    Employee, EmployeeRepository, MonthStatus, RosterMonthRepository, ShiftSwapRepository, ShiftSwapRequest,
-    SwapApproval, SwapSide,
+    Employee, EmployeeRepository, MonthStatus, RosterMonthRepository, ShiftRepository, ShiftSwapRepository,
+    ShiftSwapRequest, SwapApproval, SwapSide,
 };
 use crate::services::audit_log::{self, AuditActor};
+use crate::services::notifier;
 use crate::services::roster_guard::RosterChange;
 use crate::services::tenant::{RoleContext, TenantContext, UserContext};
 
@@ -64,13 +65,13 @@ pub struct CreateShiftSwap {
 
 pub struct ShiftSwapService;
 
-fn today() -> NaiveDate {
+pub(crate) fn today() -> NaiveDate {
     Local::now().date_naive()
 }
 
 /// Who decided, for `decided_by` and the audit log: the gateway's user info if
 /// present, else the token's own identity.
-fn actor_name(actor: &AuditActor, user: &UserContext) -> Option<String> {
+pub(crate) fn actor_name(actor: &AuditActor, user: &UserContext) -> Option<String> {
     actor
         .0
         .clone()
@@ -93,7 +94,7 @@ pub(crate) async fn caller_employee(
     Ok(None)
 }
 
-async fn employee(state: &AppState, tenant: &TenantContext, id: Uuid) -> Result<Employee, AppError> {
+pub(crate) async fn employee(state: &AppState, tenant: &TenantContext, id: Uuid) -> Result<Employee, AppError> {
     state
         .employee_repo
         .get_employee(&tenant.0, id)
@@ -155,7 +156,7 @@ fn side_from_roster(
 }
 
 /// Fails unless the caller is the employee `id`.
-async fn ensure_is(
+pub(crate) async fn ensure_is(
     state: &AppState,
     tenant: &TenantContext,
     user: &UserContext,
@@ -170,7 +171,7 @@ async fn ensure_is(
     }
 }
 
-fn ensure_planner(roles: &RoleContext) -> Result<(), AppError> {
+pub(crate) fn ensure_planner(roles: &RoleContext) -> Result<(), AppError> {
     if roles.can_write() {
         Ok(())
     } else {
@@ -224,6 +225,18 @@ async fn record(
         audit_changes(swap, extra),
     )
     .await;
+}
+
+/// Tells `who` about a swap's progress. Best effort, like every notification.
+async fn tell(state: &AppState, tenant: &TenantContext, who: &[Uuid], subject: &str, message: &str) {
+    notifier::notify(state, &tenant.0, notifier::EVENT_SWAP_UPDATE, who, subject, message, Some("kalender")).await;
+}
+
+/// "Ben's Early shift on 2026-12-03" — the shift swapped, from either side.
+async fn side_text(state: &AppState, tenant: &TenantContext, side: &SwapSide) -> String {
+    let shift = state.shift_repo.get_shift(&tenant.0, side.shift_id).await.ok().flatten();
+    let name = shift.map(|s| s.name).unwrap_or_else(|| "shift".to_string());
+    format!("{name} on {}", side.date)
 }
 
 /// The rule violations the exchange would cause, per employee, from the agent's
@@ -371,6 +384,15 @@ impl ShiftSwapService {
 
         let swap = state.shift_swap_repo.create_swap(&tenant.0, mine, theirs).await?;
         record(&state, &tenant, actor_name(&actor, &user), "shift_swap.create", &swap, None).await;
+        let (offered, wanted) = (side_text(&state, &tenant, &swap.requester).await, side_text(&state, &tenant, &swap.colleague).await);
+        tell(
+            &state,
+            &tenant,
+            &[colleague.id],
+            &format!("{} asks to swap shifts", requester.name),
+            &format!("{} offers their {offered} for your {wanted}. Accept or decline in the app.", requester.name),
+        )
+        .await;
         Ok(Json(serde_json::to_value(swap).unwrap()))
     }
 
@@ -409,6 +431,20 @@ impl ShiftSwapService {
         ensure_is(&state, &tenant, &user, swap.colleague.employee_id, "Only the colleague asked may answer this request").await?;
         let swap = transition(&state, &tenant, &swap, &[swap_status::PENDING_COLLEAGUE], to, actor_name(&actor, &user)).await?;
         record(&state, &tenant, actor_name(&actor, &user), action, &swap, None).await;
+        let (verb, next) = if to == swap_status::REJECTED {
+            ("declined", "The roster stays as it is.")
+        } else {
+            ("accepted", "It now waits for a planner's decision.")
+        };
+        let offered = side_text(&state, &tenant, &swap.requester).await;
+        tell(
+            &state,
+            &tenant,
+            &[swap.requester.employee_id],
+            &format!("Your shift swap was {verb}"),
+            &format!("Your colleague {verb} the swap of your {offered}. {next}"),
+        )
+        .await;
         Ok(Json(serde_json::to_value(swap).unwrap()))
     }
 
@@ -440,6 +476,15 @@ impl ShiftSwapService {
         let swap = load(&state, &tenant, id).await?;
         let swap = transition(&state, &tenant, &swap, &[swap_status::PENDING_PLANNER], swap_status::REJECTED, actor_name(&actor, &user)).await?;
         record(&state, &tenant, actor_name(&actor, &user), "shift_swap.reject", &swap, None).await;
+        let offered = side_text(&state, &tenant, &swap.requester).await;
+        tell(
+            &state,
+            &tenant,
+            &[swap.requester.employee_id, swap.colleague.employee_id],
+            "A shift swap was rejected",
+            &format!("A planner rejected the swap of the {offered}. The roster stays as it is."),
+        )
+        .await;
         Ok(Json(serde_json::to_value(swap).unwrap()))
     }
 
@@ -469,6 +514,15 @@ impl ShiftSwapService {
         match state.shift_swap_repo.approve_swap(&tenant.0, id, decided_by.clone(), &ctx).await? {
             SwapApproval::Approved(swap) => {
                 record(&state, &tenant, decided_by, "shift_swap.approve", &swap, Some(("warnings", warnings))).await;
+                let (a, b) = (side_text(&state, &tenant, &swap.requester).await, side_text(&state, &tenant, &swap.colleague).await);
+                tell(
+                    &state,
+                    &tenant,
+                    &[swap.requester.employee_id, swap.colleague.employee_id],
+                    "A shift swap was approved",
+                    &format!("A planner approved the swap: the {a} and the {b} changed hands. Your roster is updated."),
+                )
+                .await;
                 Ok(Json(serde_json::to_value(swap).unwrap()))
             }
             SwapApproval::Stale(swap, reason) => {

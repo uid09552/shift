@@ -209,6 +209,35 @@ impl OptimizerService {
             }
         }
 
+        // Pending leave: the employee would rather be off. A soft signal like any
+        // preferred day off — it never blocks, and approval turns it into a hard
+        // absence. Only the days inside the period are sent.
+        let period_from = start_date.and_then(|d| d.parse::<chrono::NaiveDate>().ok());
+        let period_to = end_date.and_then(|d| d.parse::<chrono::NaiveDate>().ok());
+        let pending_leave = state
+            .leave_repo
+            .list_leave(
+                tenant_id,
+                crate::repository::domain::LeaveFilter {
+                    statuses: vec![crate::repository::domain::leave_status::PENDING.to_string()],
+                    from: period_from,
+                    to: period_to,
+                    ..Default::default()
+                },
+            )
+            .await?;
+        for leave in pending_leave {
+            for day in crate::repository::leaverepository::days_of(leave.start_date, leave.end_date) {
+                if period_from.is_some_and(|f| day < f) || period_to.is_some_and(|t| day > t) {
+                    continue;
+                }
+                preferred_off_map.entry(leave.employee_id).or_default().push(PreferredOffTask {
+                    date: day.to_string(),
+                    shift_id: None,
+                });
+            }
+        }
+
         let all_wishes = state.shift_wish_repo.list_shift_wishes(tenant_id).await?;
         let mut wish_map: std::collections::HashMap<Uuid, Vec<ShiftWishTask>> = std::collections::HashMap::new();
         for w in all_wishes {

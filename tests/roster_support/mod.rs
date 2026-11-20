@@ -20,9 +20,10 @@ use shift::database::DbPool;
 use shift::models::{NewConfirmedShiftPlan, NewEmployee, NewShift};
 use shift::repository::AppState;
 use shift::schema::{
-    audit_logs, confirmed_shift_plans, employees, planner_settings, roster_change_notices, roster_months,
-    shift_swap_requests, shifts, unavailabilities,
+    audit_logs, confirmed_shift_plans, employees, leave_blackouts, leave_limits, notification_outbox, planner_settings,
+    roster_change_notices, roster_months, shift_swap_requests, shifts, unavailabilities,
 };
+use shift::services::notifier::RecordingMailer;
 
 const DEFAULT_DATABASE_URL: &str = "postgresql://postgres:postgres@localhost:5432/shift";
 
@@ -40,6 +41,8 @@ pub struct TestApp {
     pub early: Uuid,
     pub late: Uuid,
     pub pool: DbPool,
+    /// The state the server runs on, for calling the notification worker directly.
+    pub state: AppState,
 }
 
 /// `offset` days from today.
@@ -58,6 +61,12 @@ pub fn ym(date: NaiveDate) -> String {
 
 impl TestApp {
     pub async fn spawn(label: &str) -> Option<Self> {
+        Self::spawn_with_mailer(label, None).await
+    }
+
+    /// With notifications on: queued mail is delivered to `mailer` (see
+    /// `shift::services::notifier::deliver_due`).
+    pub async fn spawn_with_mailer(label: &str, mailer: Option<Arc<RecordingMailer>>) -> Option<Self> {
         let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| DEFAULT_DATABASE_URL.to_string());
         let pool: DbPool = match Pool::builder()
             .max_size(4)
@@ -97,7 +106,9 @@ impl TestApp {
         let keys = TestKeys::serve().await;
         let mut state = AppState::new(Arc::new(pool.clone()));
         state.token_verifier = Some(keys.verifier());
-        let app = shift::server::create_router(state);
+        state.mailer = mailer.map(|m| m as Arc<dyn shift::services::notifier::Mailer>);
+        state.app_url = "https://shift.test".to_string();
+        let app = shift::server::create_router(state.clone());
         let listener = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .await
             .expect("bind");
@@ -115,6 +126,7 @@ impl TestApp {
             early,
             late,
             pool,
+            state,
         })
     }
 
@@ -249,6 +261,9 @@ impl TestApp {
     pub fn cleanup(&self) {
         let mut conn = self.pool.get().expect("connection");
         let t = &self.tenant;
+        let _ = diesel::delete(notification_outbox::table.filter(notification_outbox::tenant_id.eq(t))).execute(&mut conn);
+        let _ = diesel::delete(leave_blackouts::table.filter(leave_blackouts::tenant_id.eq(t))).execute(&mut conn);
+        let _ = diesel::delete(leave_limits::table.filter(leave_limits::tenant_id.eq(t))).execute(&mut conn);
         let _ = diesel::delete(roster_change_notices::table.filter(roster_change_notices::tenant_id.eq(t))).execute(&mut conn);
         let _ = diesel::delete(roster_months::table.filter(roster_months::tenant_id.eq(t))).execute(&mut conn);
         let _ = diesel::delete(shift_swap_requests::table.filter(shift_swap_requests::tenant_id.eq(t))).execute(&mut conn);

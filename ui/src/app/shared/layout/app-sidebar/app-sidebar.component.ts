@@ -62,6 +62,7 @@ export class AppSidebarComponent {
         { name: "nav.plannerSettings", path: "/planner-settings", pro: false },
         { name: "nav.wishSettings", path: "/wish-settings", pro: false, adminOnly: true },
         { name: "nav.users", path: "/users", pro: false, adminOnly: true },
+        { name: "nav.notifications", path: "/notifications", pro: false },
         { name: "nav.auditLog", path: "/audit-log", pro: false }
       ],
     },
@@ -71,6 +72,8 @@ export class AppSidebarComponent {
       subItems: [
         { name: "nav.schedule", path: "/kalender", pro: false },
         { name: "nav.changes", path: "/changes", pro: false },
+        { name: "nav.leave", path: "/leave", pro: false },
+        { name: "nav.openShifts", path: "/open-shifts", pro: false },
         { name: "nav.employeeCalendar", path: "/employee-calendar", pro: false },
         { name: "nav.rotations", path: "/rotations", pro: false },
         { name: "nav.scheduleOptimizer", path: "/scheduler", pro: false },

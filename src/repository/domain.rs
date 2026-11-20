@@ -1544,6 +1544,144 @@ pub trait RosterChangeNoticeRepository {
     async fn acknowledge_notices(&self, tenant_id: &str, employee_id: Uuid, ids: Option<Vec<Uuid>>) -> Result<usize, AppError>;
 }
 
+// ---------------------------------------------------------------------------
+// Leave requests, notifications, open shifts
+//
+// These three read and write their own tables, so the repositories hand back
+// the `models` rows (already serializable) instead of a parallel domain type.
+// ---------------------------------------------------------------------------
+
+use crate::models::{
+    LeaveBlackout, LeaveLimit, LeaveRequest, NewLeaveBlackout, NewLeaveRequest, NewOpenShift, NewOutboxMessage,
+    NotificationPreference, OpenShift, OpenShiftVolunteer, OutboxMessage,
+};
+
+pub mod leave_status {
+    pub const PENDING: &str = "pending";
+    pub const APPROVED: &str = "approved";
+    pub const REJECTED: &str = "rejected";
+    pub const CANCELLED: &str = "cancelled";
+    pub const REVOKED: &str = "revoked";
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct LeaveFilter {
+    pub employee_id: Option<Uuid>,
+    /// Any of these; empty = every status.
+    pub statuses: Vec<String>,
+    /// Requests overlapping `from`…`to` (either may be left open).
+    pub from: Option<NaiveDate>,
+    pub to: Option<NaiveDate>,
+}
+
+#[async_trait]
+pub trait LeaveRepository {
+    async fn create_leave(&self, tenant_id: &str, leave: NewLeaveRequest) -> Result<LeaveRequest, AppError>;
+    async fn get_leave(&self, tenant_id: &str, id: Uuid) -> Result<Option<LeaveRequest>, AppError>;
+    /// Newest first.
+    async fn list_leave(&self, tenant_id: &str, filter: LeaveFilter) -> Result<Vec<LeaveRequest>, AppError>;
+    async fn count_leave_with_status(&self, tenant_id: &str, status: &str) -> Result<i64, AppError>;
+    /// Moves a request from one of `from` to `to` in one statement; `None` when
+    /// it is not in one of those states (someone else got there first).
+    async fn transition_leave(
+        &self,
+        tenant_id: &str,
+        id: Uuid,
+        from: &[&str],
+        to: &str,
+        decided_by: Option<String>,
+        comment: Option<String>,
+    ) -> Result<Option<LeaveRequest>, AppError>;
+    /// Approves a pending request: one hard unavailability per day (skipping
+    /// days that already have one) and its roster mirror, all in one guarded
+    /// transaction. `Conflict` when it is not pending.
+    async fn approve_leave(
+        &self,
+        tenant_id: &str,
+        id: Uuid,
+        decided_by: Option<String>,
+        comment: Option<String>,
+        ctx: &RosterChangeCtx,
+    ) -> Result<LeaveRequest, AppError>;
+    /// Revokes an approved request: removes the absences it created from
+    /// `ctx.today` on. `Conflict` when it is not approved.
+    async fn revoke_leave(
+        &self,
+        tenant_id: &str,
+        id: Uuid,
+        decided_by: Option<String>,
+        comment: Option<String>,
+        ctx: &RosterChangeCtx,
+    ) -> Result<LeaveRequest, AppError>;
+    async fn list_blackouts(&self, tenant_id: &str) -> Result<Vec<LeaveBlackout>, AppError>;
+    async fn create_blackout(&self, tenant_id: &str, blackout: NewLeaveBlackout) -> Result<LeaveBlackout, AppError>;
+    async fn delete_blackout(&self, tenant_id: &str, id: Uuid) -> Result<bool, AppError>;
+    async fn list_limits(&self, tenant_id: &str) -> Result<Vec<LeaveLimit>, AppError>;
+    async fn replace_limits(&self, tenant_id: &str, limits: Vec<LeaveLimit>) -> Result<Vec<LeaveLimit>, AppError>;
+    /// `(employee, day)` of every hard whole-day unavailability of `employees` in `from`…`to`.
+    async fn absences_in_range(&self, tenant_id: &str, employees: &[Uuid], from: NaiveDate, to: NaiveDate) -> Result<Vec<(Uuid, NaiveDate)>, AppError>;
+}
+
+/// A roster change notice, grouped for one e-mail.
+#[derive(Debug, Clone)]
+pub struct NoticeDigest {
+    pub tenant_id: String,
+    pub employee_id: Uuid,
+    pub notices: Vec<crate::models::RosterChangeNotice>,
+}
+
+#[async_trait]
+pub trait NotificationRepository {
+    async fn get_preference(&self, tenant_id: &str, employee_id: Uuid) -> Result<Option<NotificationPreference>, AppError>;
+    async fn preferences_for(&self, tenant_id: &str, employee_ids: &[Uuid]) -> Result<Vec<NotificationPreference>, AppError>;
+    async fn save_preference(&self, tenant_id: &str, employee_id: Uuid, email_enabled: bool, muted_events: Vec<String>) -> Result<NotificationPreference, AppError>;
+    async fn enqueue(&self, messages: Vec<NewOutboxMessage>) -> Result<usize, AppError>;
+    /// Takes up to `limit` messages that are due at `now` and holds them for
+    /// `lease` so a second worker does not send them too.
+    async fn claim_due(&self, now: NaiveDateTime, limit: i64, lease: chrono::Duration) -> Result<Vec<OutboxMessage>, AppError>;
+    async fn mark_sent(&self, id: Uuid, now: NaiveDateTime) -> Result<(), AppError>;
+    /// Records a failed attempt: retried at `retry_at`, or given up (`failed`) when `None`.
+    async fn mark_attempt_failed(&self, id: Uuid, error: &str, retry_at: Option<NaiveDateTime>) -> Result<(), AppError>;
+    /// Roster change notices nobody has been mailed about yet, grouped per
+    /// employee. Every one is marked as handled; those created before `since`
+    /// are dropped rather than returned.
+    async fn sweep_roster_notices(&self, since: NaiveDateTime, limit: i64) -> Result<Vec<NoticeDigest>, AppError>;
+    /// The outbox of one tenant, newest first.
+    async fn list_outbox(&self, tenant_id: &str, limit: i64) -> Result<Vec<OutboxMessage>, AppError>;
+}
+
+pub mod open_shift_status {
+    pub const OPEN: &str = "open";
+    pub const FILLED: &str = "filled";
+    pub const CLOSED: &str = "closed";
+}
+
+#[async_trait]
+pub trait OpenShiftRepository {
+    /// `Duplicate` when that slot already has an open offer.
+    async fn create_open_shift(&self, tenant_id: &str, open_shift: NewOpenShift) -> Result<OpenShift, AppError>;
+    async fn get_open_shift(&self, tenant_id: &str, id: Uuid) -> Result<Option<OpenShift>, AppError>;
+    /// Soonest first; `from` leaves out earlier dates.
+    async fn list_open_shifts(&self, tenant_id: &str, statuses: &[String], from: Option<NaiveDate>) -> Result<Vec<OpenShift>, AppError>;
+    async fn count_open_shifts(&self, tenant_id: &str) -> Result<i64, AppError>;
+    async fn list_volunteers(&self, tenant_id: &str, open_shift_ids: &[Uuid]) -> Result<Vec<OpenShiftVolunteer>, AppError>;
+    /// `Conflict` once the offer is no longer open.
+    async fn add_volunteer(&self, tenant_id: &str, open_shift_id: Uuid, employee_id: Uuid) -> Result<(), AppError>;
+    async fn remove_volunteer(&self, tenant_id: &str, open_shift_id: Uuid, employee_id: Uuid) -> Result<bool, AppError>;
+    /// open → closed; `None` when it was not open.
+    async fn close_open_shift(&self, tenant_id: &str, id: Uuid, decided_by: Option<String>) -> Result<Option<OpenShift>, AppError>;
+    /// Writes the shift into `employee_id`'s confirmed roster (guarded like
+    /// any roster write) and marks the offer filled, in one transaction.
+    async fn fill_open_shift(
+        &self,
+        tenant_id: &str,
+        id: Uuid,
+        employee_id: Uuid,
+        decided_by: Option<String>,
+        ctx: &RosterChangeCtx,
+    ) -> Result<OpenShift, AppError>;
+}
+
 #[cfg(test)]
 mod roster_month_tests {
     use super::*;

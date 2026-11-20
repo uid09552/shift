@@ -84,6 +84,9 @@ One service per backend resource, in `ui/src/app/shared/services/`:
 | `shift-wish.service.ts` | `/shift-wishes` |
 | `shift-swap.service.ts` | `/shift-swaps` — list, request, accept/decline/cancel/approve/reject, pending count |
 | `swap-notification.service.ts` | Polls `/shift-swaps/pending-count` every minute for the header bell — planners and admins only |
+| `leave.service.ts` | `/leave-requests`, `/leave-blackouts`, `/leave-limits` — plus `leaveDays()` |
+| `open-shift.service.ts` | `/open-shifts` — list, count, gaps, offer, volunteer/withdraw, assign, close |
+| `notification-preferences.service.ts` | `/notification-preferences` — the caller's own e-mail choices |
 | `wish-settings.service.ts` | `/wish-settings` — plus `wishAllowedOn()`, the client-side mirror of the window check |
 | `confirmed-shift-plan.service.ts` | `/confirmed-shift-plans` |
 | `rotation.service.ts` | `/rotation-patterns`, `/rotation-patterns/{id}/apply` |
@@ -162,6 +165,32 @@ employee matched to your e-mail):
 - **The header bell** shows a count and an entry linking to
   `/kalender?swaps=open` for planners and admins only, polled every minute by
   `SwapNotificationService`.
+
+## Leave, open shifts and notifications
+
+Three pages under *Planner* (the last under *Configuration*), each different for
+employees and planners (`UserService.canPlan()`):
+
+- **Leave** (`/leave`, `LeaveComponent`). An employee sends a request (the form
+  shows a blackout period before the server refuses, and the limit warnings that
+  come back) and sees their own with what became of them. A planner gets tabs:
+  *Requests* (the queue with limit warnings, an optional comment, *Approve* /
+  *Reject*; approved leave that has not ended can be *Revoked*), *Year overview*
+  (days per person and month, approved and pending, filterable by capability,
+  with the most people away on one day per month underneath) and *Rules*
+  (blackout periods and per-capability limits).
+- **Open shifts** (`/open-shifts`, `OpenShiftsComponent`). An employee sees each
+  slot and whether they may take it — with every reason when they may not — and
+  volunteers or withdraws. A planner offers a slot, finds the gaps below a ward's
+  minimum and offers them in one click, sees the volunteers (each with the same
+  check) and assigns one, or withdraws the offer.
+- **Notifications** (`/notifications`, `NotificationSettingsComponent`). The
+  channel and the five events as switches, saved as they are made; a banner says
+  when the installation has no mail server.
+
+A change that needs a reason (a published month inside the freeze window, a
+locked one) is asked for by `reasonRequiredInterceptor` and retried — approving,
+revoking and assigning need no code of their own for it.
 
 ## The day view
 

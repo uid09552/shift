@@ -22,6 +22,59 @@ pub struct Config {
     /// The agent, asked for rule warnings on shift swaps. Env: `SHIFT_AGENT__URL`.
     #[serde(default)]
     pub agent: AgentConfig,
+    /// Outgoing mail for notifications. Env: `SHIFT_SMTP__HOST` …
+    #[serde(default)]
+    pub smtp: SmtpConfig,
+}
+
+/// Where notification e-mails are sent through. An empty `host` switches
+/// notifications off: nothing is queued and the server starts as before.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SmtpConfig {
+    #[serde(default)]
+    pub host: String,
+    #[serde(default = "default_smtp_port")]
+    pub port: u16,
+    #[serde(default)]
+    pub username: String,
+    #[serde(default)]
+    pub password: String,
+    /// The sender, e.g. `Shift <shift@example.org>`.
+    #[serde(default = "default_smtp_from")]
+    pub from: String,
+    /// `starttls` (port 587), `tls` (implicit TLS, port 465) or `none`
+    /// (plain, for a local relay or a test server only).
+    #[serde(default = "default_smtp_tls")]
+    pub tls: String,
+    /// The UI's public address; mails link to it. Empty = no links.
+    #[serde(default)]
+    pub app_url: String,
+}
+
+fn default_smtp_port() -> u16 {
+    587
+}
+
+fn default_smtp_from() -> String {
+    "Shift <noreply@localhost>".to_string()
+}
+
+fn default_smtp_tls() -> String {
+    "starttls".to_string()
+}
+
+impl Default for SmtpConfig {
+    fn default() -> Self {
+        Self {
+            host: String::new(),
+            port: default_smtp_port(),
+            username: String::new(),
+            password: String::new(),
+            from: default_smtp_from(),
+            tls: default_smtp_tls(),
+            app_url: String::new(),
+        }
+    }
 }
 
 /// Where the agent's REST API is (e.g. `http://agent:8899`). Empty: shift swaps
@@ -265,6 +318,7 @@ impl Default for Config {
             holidays: HolidayConfig::default(),
             auth: AuthConfig::default(),
             agent: AgentConfig::default(),
+            smtp: SmtpConfig::default(),
         }
     }
 }
