@@ -34,7 +34,9 @@ summary below is the product contract for the API.
 
 | Endpoint group | `shift-viewer` | `shift-planner` | `shift-admin` |
 |---|---|---|---|
-| Read-only data (`/employees`, `/shifts`, `/workstations`, `/analysis/*`, `/info`) | ✅ read | ✅ read/write | ✅ read/write |
+| Read-only data (`/employees`, `/shifts`, `/workstations`, `/info`) | ✅ read | ✅ read/write | ✅ read/write |
+| Roster analysis (`/analysis/fairness`, `/analysis/staffing-per-day`, `/analysis/planned-*-per-day-per-workstation`) | ✅ published and locked months only | ✅ read | ✅ read |
+| Analytics facts (`/analysis/roster-facts`, `change-facts`, `audit-activity`, `planning-runs`) | ❌ | ✅ read | ✅ read |
 | Write data (`POST/PUT/PATCH/DELETE` on master data) | ❌ | ✅ | ✅ |
 | `/shift-wishes` | ✅ own records only | ✅ any record | ✅ any record |
 | `/wish-settings` | ✅ read only | ✅ read only | ✅ read/write |
@@ -63,7 +65,7 @@ The grant model is intentionally simple:
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` `POST` | `/employees` | List / create |
-| `GET` `PUT` `DELETE` | `/employees/{id}` | Read / update / delete |
+| `GET` `PUT` `DELETE` | `/employees/{id}` | Read / update / delete — delete: 409 while a published or locked month's roster uses it |
 | `GET` | `/employees/email/{email}` | Look up by email |
 | `GET` | `/employees/template` | XLSX import template |
 | `POST` | `/employees/import` | Bulk import (multipart) |
@@ -97,7 +99,7 @@ plan check, the replacement ranking and `/analysis/fairness`.
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` `POST` | `/shifts` | List / create |
-| `GET` `PUT` `DELETE` | `/shifts/{id}` | Read / update / delete |
+| `GET` `PUT` `DELETE` | `/shifts/{id}` | Read / update / delete — delete: 409 while a published or locked month's roster uses it |
 | `POST` | `/shifts/{id}/weekday-times` | Set times, staffing band and rest days for a weekday |
 | `DELETE` | `/shifts/{id}/weekday-times/{weekday}` | Remove a weekday — the shift stops running that day |
 | `GET` | `/shifts/template` | XLSX template |
@@ -117,7 +119,7 @@ plan check, the replacement ranking and `/analysis/fairness`.
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` `POST` | `/workstations` | List / create |
-| `GET` `PUT` `DELETE` | `/workstations/{id}` | Read / update / delete |
+| `GET` `PUT` `DELETE` | `/workstations/{id}` | Read / update / delete — delete: 409 while a published or locked month's roster uses it |
 | `PUT` | `/workstations/{id}/availability` | Set availability |
 | `PATCH` | `/workstations/{id}/enable` | Include in planning |
 | `PATCH` | `/workstations/{id}/disable` | Exclude from planning |

@@ -62,9 +62,9 @@ no separate migrate command in normal operation.
 | 31 | `add_public_holidays` | public holidays per tenant |
 | 32 | `add_shift_swap_requests` | employee shift swap requests |
 | 33 | `weekly_working_hours` | contracted hours per week, optional; tenant default (40 h) on `planner_settings` |
-| 38 | `add_leave_requests` | leave requests, the absences an approval created, blackout periods, per-capability limits |
-| 39 | `add_notifications` | notification preferences, the mail outbox, which roster change notices were mailed |
-| 40 | `add_open_shifts` | open shifts and their volunteers |
+| 40 | `add_leave_requests` | leave requests, the absences an approval created, blackout periods, per-capability limits |
+| 41 | `add_notifications` | notification preferences, the mail outbox, which roster change notices were mailed |
+| 42 | `add_open_shifts` | open shifts and their volunteers |
 
 ### Working with Diesel
 

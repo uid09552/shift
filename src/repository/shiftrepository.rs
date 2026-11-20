@@ -9,6 +9,7 @@ use crate::schema::shift_weekday_times;
 use crate::database::DbPool;
 use uuid::Uuid;
 use crate::errors::AppError;
+use crate::repository::rostertracking::{self, RosterReference};
 
 #[derive(Clone)]
 pub struct DieselShiftRepository {
@@ -202,23 +203,33 @@ impl ShiftRepository for DieselShiftRepository {
         let pool = Arc::clone(&self.pool);
         telemetry::db_blocking(move || {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
-            // First delete all weekday times for this shift
-            diesel::delete(
-                shift_weekday_times::table
-                    .filter(shift_weekday_times::shift_id.eq(id))
-                    .filter(shift_weekday_times::tenant_id.eq(&tenant_id)),
-            )
-                .execute(&mut conn)
-                .map_err(|_| AppError::DbError)?;
-            // Then delete the shift itself
-            diesel::delete(
-                shifts::table
+            // One transaction: a refused or failed delete leaves the shift whole.
+            conn.transaction::<_, AppError, _>(|conn| {
+                let Some(name) = shifts::table
                     .filter(shifts::id.eq(id))
-                    .filter(shifts::tenant_id.eq(&tenant_id)),
-            )
-                .execute(&mut conn)
-                .map_err(|_| AppError::DbError)?;
-            Ok(())
+                    .filter(shifts::tenant_id.eq(&tenant_id))
+                    .select(shifts::name)
+                    .for_update()
+                    .first::<String>(conn)
+                    .optional()?
+                else {
+                    return Ok(());
+                };
+                rostertracking::release_roster_entries(conn, RosterReference::Shift, id, &name)?;
+                diesel::delete(
+                    shift_weekday_times::table
+                        .filter(shift_weekday_times::shift_id.eq(id))
+                        .filter(shift_weekday_times::tenant_id.eq(&tenant_id)),
+                )
+                .execute(conn)?;
+                diesel::delete(
+                    shifts::table
+                        .filter(shifts::id.eq(id))
+                        .filter(shifts::tenant_id.eq(&tenant_id)),
+                )
+                .execute(conn)?;
+                Ok(())
+            })
         })
         .await.map_err(|_| AppError::Internal)?
     }

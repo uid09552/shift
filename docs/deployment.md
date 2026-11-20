@@ -417,7 +417,7 @@ reference; this is the overview.
 
 | Workflow | Runs on | What it does | GitLab counterpart |
 |---|---|---|---|
-| `ci.yml` | push, pull request, nightly, manual | Builds the four images, scans them with Trivy, uploads SARIF to code scanning and pushes to `ghcr.io/<owner>/<repo>/<component>`. Also scans the committed lockfiles (`sbom-source`) and, nightly or on demand, re-scans the images already published (`scan-published`). | build and scan stages |
+| `ci.yml` | push, pull request, nightly, manual | Builds the four images, scans them with Trivy, uploads SARIF to code scanning and pushes to `ghcr.io/<owner>/<repo>/<component>` — and, when the GitLab token is set, to the GitLab registry too (see [below](#also-pushing-to-the-gitlab-registry)). Also scans the committed lockfiles (`sbom-source`) and, nightly or on demand, re-scans the images already published (`scan-published`). | build and scan stages |
 | `docs.yml` | pull request touching `docs/` or `mkdocs.yml`, push to `main`, manual | `mkdocs build --strict`; on `main` it deploys to GitHub Pages, on a pull request it keeps the built site as an artifact for seven days. | `docs:build`, `pages` |
 | `renovate.yml` | weekdays 03:00 UTC, manual | Runs Renovate against `renovate.json5` and opens one pull request per update or bundle. Nothing is merged automatically. | `renovate` |
 
@@ -442,6 +442,32 @@ Pull requests build and scan but never push.
 4. **Package visibility:** new ghcr.io packages start private. Make them public
    under the package's settings if `release/` should pull without
    `docker login ghcr.io`.
+
+### Also pushing to the GitLab registry
+
+The `build` job can push the image it has just built and scanned to the GitLab
+container registry as well, so a change merged on GitHub reaches
+`registry.gitlab.com/uid09552/shift/<component>` — the images `release/` and
+`deploy/Makefile` pull — without waiting for GitLab CI. It tags exactly as the
+GHCR push does: `:<short sha>` on every push, plus `:<tag>` on a git tag, and
+`:latest` on the default branch or a tag. Pull requests never push. The image
+is the one that was already scanned, retagged, not built a second time, so an
+enabled scan gate (`SCAN_EXIT_CODE=1`) keeps a failing image out of both
+registries.
+
+Nothing is hard-coded; set these under Settings › Secrets and variables ›
+Actions:
+
+| Name | Kind | Default | Meaning |
+|---|---|---|---|
+| `GITLAB_REGISTRY_USER` | secret | — | The token's user, e.g. a deploy token's username. |
+| `GITLAB_REGISTRY_TOKEN` | secret | — | A GitLab deploy token or project access token with `write_registry`. |
+| `GITLAB_REGISTRY` | variable | `registry.gitlab.com` | The registry host `docker login` is sent to — change it for a self-managed GitLab. |
+| `GITLAB_REGISTRY_IMAGE` | variable | `registry.gitlab.com/uid09552/shift` | The image path prefix, i.e. GitLab's `$CI_REGISTRY_IMAGE`; `/<component>` is appended, lowercased. |
+
+Without `GITLAB_REGISTRY_USER` and `GITLAB_REGISTRY_TOKEN` the step logs a
+notice and is skipped, so forks and repositories without the token still build
+green.
 
 ### Re-scanning on demand
 

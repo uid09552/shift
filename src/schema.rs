@@ -284,6 +284,17 @@ diesel::table! {
 }
 
 diesel::table! {
+    holiday_syncs (tenant_id, year, state) {
+        tenant_id -> Varchar,
+        year -> Int4,
+        state -> Varchar,
+        last_synced_at -> Nullable<Timestamptz>,
+        last_attempt_at -> Timestamptz,
+        consecutive_failures -> Int4,
+    }
+}
+
+diesel::table! {
     shift_swap_requests (id) {
         id -> Uuid,
         tenant_id -> Varchar,

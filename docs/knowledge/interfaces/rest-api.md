@@ -50,7 +50,7 @@ spec is the territory. See
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` `POST` | `/employees` | List / create |
-| `GET` `PUT` `DELETE` | `/employees/{id}` | Read / update / delete |
+| `GET` `PUT` `DELETE` | `/employees/{id}` | Read / update / delete — delete: 409 while a published or locked month's roster uses it |
 | `GET` | `/employees/email/{email}` | Look up by email |
 | `GET` `POST` | `/employees/template`, `/employees/import` | XLSX template / bulk import |
 | `GET` `POST` | `/employees/{id}/capabilities` | List / grant a capability |
@@ -70,7 +70,7 @@ refused with 400. Targets for a period are weekly × days ÷ 7. See
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` `POST` | `/shifts` | List / create |
-| `GET` `PUT` `DELETE` | `/shifts/{id}` | Read / update / delete |
+| `GET` `PUT` `DELETE` | `/shifts/{id}` | Read / update / delete — delete: 409 while a published or locked month's roster uses it |
 | `POST` | `/shifts/{id}/weekday-times` | Set times, staffing band and rest days for a weekday |
 | `DELETE` | `/shifts/{id}/weekday-times/{weekday}` | Remove a weekday — the shift stops running that day |
 | `GET` `POST` | `/shifts/template`, `/shifts/import` | XLSX |
@@ -85,7 +85,7 @@ refused with 400. Targets for a period are weekly × days ÷ 7. See
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` `POST` | `/workstations` | List / create |
-| `GET` `PUT` `DELETE` | `/workstations/{id}` | Read / update / delete |
+| `GET` `PUT` `DELETE` | `/workstations/{id}` | Read / update / delete — delete: 409 while a published or locked month's roster uses it |
 | `PUT` | `/workstations/{id}/availability` | Set availability |
 | `PATCH` | `/workstations/{id}/enable` \| `/disable` | Include in / exclude from planning |
 | `GET` `POST` | `/workstations/{id}/required-capabilities` | List / add a requirement |

@@ -120,6 +120,28 @@ def test_a_short_break_is_reported_once_per_shift():
     assert breaks[0]["statute"] == "ArbZG §4"
 
 
+def test_a_break_that_covers_the_working_time_is_not_reported():
+    """07:00-16:30 with 30 min is 9 h of work, which ArbZG §4 meets with 30 min.
+    The 9.5 h span used to be read as needing 45."""
+    rules = _rules([_emp("anna")])
+    rules["shifts"] = [*SHIFTS, _shift("nine", "07:00", "16:30", break_minutes=30)]
+    rules["workstations"][0]["operating_shifts"].append("nine")
+    report = validate(rules, _plan(("anna", 0, "nine"), ("anna", 2, "nine")))
+
+    assert "legal_break" not in _rules_in(report["legal"])
+    assert report["legal"]["compliant"] is True
+
+
+def test_a_break_just_under_the_working_time_tier_is_reported():
+    """07:00-16:45 with 30 min is 9.25 h of work: over 9 h, so 45 min are due."""
+    rules = _rules([_emp("anna")])
+    rules["shifts"] = [*SHIFTS, _shift("long9", "07:00", "16:45", break_minutes=30)]
+    rules["workstations"][0]["operating_shifts"].append("long9")
+    report = validate(rules, _plan(("anna", 0, "long9")))
+
+    assert "legal_break" in _rules_in(report["legal"])
+
+
 def test_protected_groups_are_named_by_law_never_by_reason():
     mia = _emp("mia", maternity_protection=True)
     tim = _emp("tim", date_of_birth="2010-03-01")

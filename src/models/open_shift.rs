@@ -1,4 +1,4 @@
-//! Open shifts and their volunteers (see migration 40).
+//! Open shifts and their volunteers (see migration 42).
 
 use chrono::{NaiveDate, NaiveDateTime};
 use diesel::prelude::*;

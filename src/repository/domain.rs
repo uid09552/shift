@@ -692,10 +692,12 @@ pub struct PlanningRunDomain {
 
 #[async_trait]
 pub trait AnalysisRepository {
-    async fn get_planned_hours_per_day_per_workstation(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<WorkstationDailyHoursDomain>, AppError>;
-    async fn get_planned_employees_per_day_per_workstation(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<WorkstationDailyEmployeesDomain>, AppError>;
-    async fn get_staffing_per_day(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<DailyStaffingDomain>, AppError>;
-    async fn get_fairness(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<EmployeeFairnessDomain>, AppError>;
+    /// `published_only` leaves out months that are still a draft — what a
+    /// `shift-viewer` may see, as for the confirmed roster itself.
+    async fn get_planned_hours_per_day_per_workstation(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate, published_only: bool) -> Result<Vec<WorkstationDailyHoursDomain>, AppError>;
+    async fn get_planned_employees_per_day_per_workstation(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate, published_only: bool) -> Result<Vec<WorkstationDailyEmployeesDomain>, AppError>;
+    async fn get_staffing_per_day(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate, published_only: bool) -> Result<Vec<DailyStaffingDomain>, AppError>;
+    async fn get_fairness(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate, published_only: bool) -> Result<Vec<EmployeeFairnessDomain>, AppError>;
     async fn get_roster_facts(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<RosterFactsDomain, AppError>;
     /// Notices created between the two dates, inclusive, oldest first.
     async fn get_change_facts(&self, tenant_id: &str, from_date: NaiveDate, to_date: NaiveDate) -> Result<Vec<ChangeFactDomain>, AppError>;
@@ -1328,6 +1330,25 @@ pub trait HolidayRepository {
     async fn count_holidays(&self, tenant_id: &str, from: NaiveDate, to: NaiveDate, state: &str) -> Result<i64, AppError>;
     /// Replaces everything stored in `from..=to` with `holidays`.
     async fn replace_holidays(&self, tenant_id: &str, from: NaiveDate, to: NaiveDate, holidays: Vec<HolidayDomain>) -> Result<(), AppError>;
+    /// Every tenant that has holidays stored — the ones a refresh is about.
+    async fn list_holiday_tenants(&self) -> Result<Vec<String>, AppError>;
+    /// When `year` was last fetched for this tenant and state, if ever tried.
+    async fn get_holiday_sync(&self, tenant_id: &str, year: i32, state: &str) -> Result<Option<HolidaySyncDomain>, AppError>;
+    /// Writes the outcome of one fetch: a success stamps `last_synced_at` and
+    /// clears the failure count, a failure counts up.
+    async fn record_holiday_sync(&self, tenant_id: &str, year: i32, state: &str, ok: bool, now: NaiveDateTime) -> Result<(), AppError>;
+    /// Takes the right to fetch `year` now: true for exactly one caller when
+    /// `last_attempt_at` still equals `expected` (`None` = never tried). The
+    /// background refresh asks before fetching, so instances do not double up.
+    async fn claim_holiday_sync(&self, tenant_id: &str, year: i32, state: &str, expected: Option<NaiveDateTime>, now: NaiveDateTime) -> Result<bool, AppError>;
+}
+
+/// The fetch history of one tenant's holidays for one year and state. Times are UTC.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct HolidaySyncDomain {
+    pub last_synced_at: Option<NaiveDateTime>,
+    pub last_attempt_at: NaiveDateTime,
+    pub consecutive_failures: i32,
 }
 
 // ---------------------------------------------------------------------------

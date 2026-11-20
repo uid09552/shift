@@ -1,4 +1,4 @@
-//! E-mail notification preferences and the outbox (see migration 39).
+//! E-mail notification preferences and the outbox (see migration 41).
 
 use chrono::NaiveDateTime;
 use diesel::prelude::*;

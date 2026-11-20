@@ -246,6 +246,31 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+    delete:
+      tags:
+        - Employees
+      summary: Delete an employee
+      description: |
+        Refused with 409 while the confirmed roster of a published or locked
+        month uses it; the message names the months and the number of entries.
+        Change those entries first, or have an admin unpublish or unlock the
+        months. Entries in draft months are removed with the employee in the same transaction.
+      operationId: deleteEmployee
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Deleted
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /employees/email/{email}:
     get:
       tags:
@@ -674,6 +699,31 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+    delete:
+      tags:
+        - Shifts
+      summary: Delete a shift
+      description: |
+        Refused with 409 while the confirmed roster of a published or locked
+        month uses it; the message names the months and the number of entries.
+        Change those entries first, or have an admin unpublish or unlock the
+        months. Entries in draft months that use the shift are removed with it in the same transaction.
+      operationId: deleteShift
+      parameters:
+        - name: shiftId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Deleted
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /shifts/{shiftId}/weekday-times:
     post:
       tags:
@@ -1068,6 +1118,31 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Workstations
+      summary: Delete a workstation
+      description: |
+        Refused with 409 while the confirmed roster of a published or locked
+        month uses it; the message names the months and the number of entries.
+        Change those entries first, or have an admin unpublish or unlock the
+        months. Entries in draft months keep their shift and lose the workstation in the same transaction.
+      operationId: deleteWorkstation
+      parameters:
+        - name: workstationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Deleted
+        '409':
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -8281,7 +8356,8 @@ components:
     Conflict:
       description: >
         The request does not fit the current state — e.g. a shift swap no longer
-        awaiting that decision, or whose roster rows changed since it was made.
+        awaiting that decision, or whose roster rows changed since it was made,
+        or a shift, employee or workstation still used in a published roster.
       content:
         application/json:
           schema:

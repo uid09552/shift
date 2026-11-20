@@ -231,6 +231,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             shift::services::wish_schedule::spawn(state.clone());
             shift::services::notifier::spawn(state.clone());
             shift::services::auto_plan::spawn(state.clone());
+            shift::services::holiday::spawn(state.clone());
             server::start_server(state, addr).await?;
 
             // Flush whatever is still batched before the process goes away.

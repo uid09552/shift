@@ -27,7 +27,7 @@ async-trait = "0.1"
 r2d2 = "0.8"
 
 # Message broker
-async-nats = "0.51"
+async-nats = "0.53"
 
 # HTTP client. Kept on the same version as opentelemetry-otlp's own client
 # (0.13) and with TLS enabled deliberately: otlp pulls reqwest in with
@@ -39,7 +39,7 @@ async-nats = "0.51"
 reqwest = { version = "0.13", default-features = false, features = ["json", "blocking", "rustls", "http2", "query", "form"] }
 base64 = "0.23"
 futures-util = "0.3.32"
-rust_xlsxwriter = "0.102.0"
+rust_xlsxwriter = "0.103.0"
 calamine = "0.38.0"
 # Observability (OpenTelemetry traces + metrics over OTLP, off unless configured)
 tracing = "0.1"
@@ -52,7 +52,7 @@ opentelemetry-semantic-conventions = "0.32"
 opentelemetry-http = "0.32"
 # E-mail notifications (services/notifier.rs): SMTP over rustls, async on tokio.
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "hostname", "tokio1", "tokio1-rustls", "aws-lc-rs", "webpki-roots"] }
-jsonwebtoken = { version = "11.1.0", default-features = false, features = ["rust_crypto", "use_pem"] }
+jsonwebtoken = { version = "12.0.0", default-features = false, features = ["rust_crypto", "use_pem"] }
 
 
 [dev-dependencies]

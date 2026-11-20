@@ -1,4 +1,4 @@
-//! Leave requests, blackout periods and absence limits (see migration 38).
+//! Leave requests, blackout periods and absence limits (see migration 40).
 
 use chrono::{NaiveDate, NaiveDateTime};
 use diesel::prelude::*;

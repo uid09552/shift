@@ -154,10 +154,17 @@ def group_label(person: PersonRules) -> str:
     return "protected-group rule"
 
 
-def required_break_minutes(rules: LegalRules, gross_hours: float) -> int:
-    """Break the law asks for a shift of `gross_hours` (span incl. the break)."""
+def required_break_minutes(rules: LegalRules, gross_hours: float, break_minutes: int | None = 0) -> int:
+    """Break the law asks for a shift of `gross_hours` (its span, incl. the break).
+
+    ArbZG §4 ties the tiers to the working time, which does not include the
+    break (§2 (1)) — so they apply to the hours left once the shift's own
+    `break_minutes` is taken off. 07:00–16:30 with 30 minutes is 9 h of work and
+    needs 30, not the 45 its 9.5 h span would suggest. Without `break_minutes`
+    the span is taken as the working time."""
+    working = net_hours(gross_hours, break_minutes)
     for above, minutes in rules.break_tiers:
-        if gross_hours > above:
+        if working > above:
             return minutes
     return 0
 

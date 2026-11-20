@@ -1075,7 +1075,7 @@ class _Validator:
             worst = None
             for wt in shift.get("weekday_times") or []:
                 gross = _duration_hours(wt)
-                need = legal.required_break_minutes(self.legal, gross)
+                need = legal.required_break_minutes(self.legal, gross, shift.get("break_minutes"))
                 if need > (shift.get("break_minutes") or 0) and (worst is None or gross > worst[0]):
                     worst = (gross, need)
             if worst:

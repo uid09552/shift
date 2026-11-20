@@ -18,7 +18,7 @@ use crate::schema::shift_wishes;
 use crate::schema::shifts;
 use crate::schema::workstations;
 
-use super::domain::{
+use super::domain::{month_start, 
     effective_weekly_hours, period_target_hours,
     AnalysisRepository, AnalyticsCapabilityDomain, AuditActivityGroupDomain, ChangeFactDomain, PlanningRunDomain, RosterEntry, AnalyticsClosureDomain, AnalyticsEmployeeDomain,
     AnalyticsMonthDomain, AnalyticsShiftDomain, AnalyticsWeekdayRuleDomain, AnalyticsWorkstationDomain,
@@ -123,6 +123,25 @@ pub struct DieselAnalysisRepository {
     pub pool: Arc<DbPool>,
 }
 
+/// The month starts in `from..=to` that are published or locked — all a
+/// `shift-viewer` may read of the roster. A month with no row is a draft.
+fn visible_months(
+    conn: &mut PgConnection,
+    tenant_id: &str,
+    from: NaiveDate,
+    to: NaiveDate,
+) -> Result<HashSet<NaiveDate>, AppError> {
+    use crate::schema::roster_months;
+    roster_months::table
+        .filter(roster_months::tenant_id.eq(tenant_id))
+        .filter(roster_months::month.between(month_start(from), month_start(to)))
+        .filter(roster_months::status.ne("draft"))
+        .select(roster_months::month)
+        .load::<NaiveDate>(conn)
+        .map(|months| months.into_iter().collect())
+        .map_err(|_| AppError::Internal)
+}
+
 #[async_trait]
 impl AnalysisRepository for DieselAnalysisRepository {
     async fn get_planned_hours_per_day_per_workstation(
@@ -130,6 +149,7 @@ impl AnalysisRepository for DieselAnalysisRepository {
         tenant_id: &str,
         from_date: NaiveDate,
         to_date: NaiveDate,
+        published_only: bool,
     ) -> Result<Vec<WorkstationDailyHoursDomain>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
@@ -137,7 +157,7 @@ impl AnalysisRepository for DieselAnalysisRepository {
             let mut conn = pool.get().map_err(|_| AppError::Internal)?;
 
             // Fetch confirmed shift plans in range where employee is present and workstation is assigned
-            let plans: Vec<models::ConfirmedShiftPlan> = confirmed_shift_plans::table
+            let mut plans: Vec<models::ConfirmedShiftPlan> = confirmed_shift_plans::table
                 .filter(confirmed_shift_plans::tenant_id.eq(&tenant_id))
                 .filter(confirmed_shift_plans::is_present.eq(true))
                 .filter(confirmed_shift_plans::workstation_id.is_not_null())
@@ -145,6 +165,10 @@ impl AnalysisRepository for DieselAnalysisRepository {
                 .filter(confirmed_shift_plans::date.le(to_date))
                 .load::<models::ConfirmedShiftPlan>(&mut conn)
                 .map_err(|_| AppError::Internal)?;
+            if published_only {
+                let visible = visible_months(&mut conn, &tenant_id, from_date, to_date)?;
+                plans.retain(|p| visible.contains(&month_start(p.date)));
+            }
 
             if plans.is_empty() {
                 return Ok(Vec::new());
@@ -212,6 +236,7 @@ impl AnalysisRepository for DieselAnalysisRepository {
         tenant_id: &str,
         from_date: NaiveDate,
         to_date: NaiveDate,
+        published_only: bool,
     ) -> Result<Vec<WorkstationDailyEmployeesDomain>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
@@ -219,7 +244,7 @@ impl AnalysisRepository for DieselAnalysisRepository {
             let mut conn = pool.get().map_err(|_| AppError::Internal)?;
 
             // Fetch confirmed shift plans in range where employee is present and workstation is assigned
-            let plans: Vec<models::ConfirmedShiftPlan> = confirmed_shift_plans::table
+            let mut plans: Vec<models::ConfirmedShiftPlan> = confirmed_shift_plans::table
                 .filter(confirmed_shift_plans::tenant_id.eq(&tenant_id))
                 .filter(confirmed_shift_plans::is_present.eq(true))
                 .filter(confirmed_shift_plans::workstation_id.is_not_null())
@@ -227,6 +252,10 @@ impl AnalysisRepository for DieselAnalysisRepository {
                 .filter(confirmed_shift_plans::date.le(to_date))
                 .load::<models::ConfirmedShiftPlan>(&mut conn)
                 .map_err(|_| AppError::Internal)?;
+            if published_only {
+                let visible = visible_months(&mut conn, &tenant_id, from_date, to_date)?;
+                plans.retain(|p| visible.contains(&month_start(p.date)));
+            }
 
             if plans.is_empty() {
                 return Ok(Vec::new());
@@ -276,6 +305,7 @@ impl AnalysisRepository for DieselAnalysisRepository {
         tenant_id: &str,
         from_date: NaiveDate,
         to_date: NaiveDate,
+        published_only: bool,
     ) -> Result<Vec<DailyStaffingDomain>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
@@ -285,13 +315,17 @@ impl AnalysisRepository for DieselAnalysisRepository {
             // Everyone marked present, workstation or not — a nurse rostered
             // without one is still working. Absences (is_present false) are the
             // rest of the roster and are excluded.
-            let plans: Vec<models::ConfirmedShiftPlan> = confirmed_shift_plans::table
+            let mut plans: Vec<models::ConfirmedShiftPlan> = confirmed_shift_plans::table
                 .filter(confirmed_shift_plans::tenant_id.eq(&tenant_id))
                 .filter(confirmed_shift_plans::is_present.eq(true))
                 .filter(confirmed_shift_plans::date.ge(from_date))
                 .filter(confirmed_shift_plans::date.le(to_date))
                 .load::<models::ConfirmedShiftPlan>(&mut conn)
                 .map_err(|_| AppError::Internal)?;
+            if published_only {
+                let visible = visible_months(&mut conn, &tenant_id, from_date, to_date)?;
+                plans.retain(|p| visible.contains(&month_start(p.date)));
+            }
 
             if plans.is_empty() {
                 return Ok(Vec::new());
@@ -420,6 +454,7 @@ impl AnalysisRepository for DieselAnalysisRepository {
         tenant_id: &str,
         from_date: NaiveDate,
         to_date: NaiveDate,
+        published_only: bool,
     ) -> Result<Vec<EmployeeFairnessDomain>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
@@ -430,22 +465,34 @@ impl AnalysisRepository for DieselAnalysisRepository {
                 .filter(employees::tenant_id.eq(&tenant_id))
                 .load(&mut conn)
                 .map_err(|_| AppError::Internal)?;
-            let plans: Vec<models::ConfirmedShiftPlan> = confirmed_shift_plans::table
+            let mut plans: Vec<models::ConfirmedShiftPlan> = confirmed_shift_plans::table
                 .filter(confirmed_shift_plans::tenant_id.eq(&tenant_id))
                 .filter(confirmed_shift_plans::date.ge(from_date))
                 .filter(confirmed_shift_plans::date.le(to_date))
                 .load(&mut conn)
                 .map_err(|_| AppError::Internal)?;
+            let visible = if published_only {
+                Some(visible_months(&mut conn, &tenant_id, from_date, to_date)?)
+            } else {
+                None
+            };
+            if let Some(visible) = &visible {
+                plans.retain(|p| visible.contains(&month_start(p.date)));
+            }
             let times: Vec<models::ShiftWeekdayTime> = shift_weekday_times::table
                 .filter(shift_weekday_times::tenant_id.eq(&tenant_id))
                 .load(&mut conn)
                 .map_err(|_| AppError::Internal)?;
-            let wishes: Vec<models::ShiftWish> = shift_wishes::table
+            let mut wishes: Vec<models::ShiftWish> = shift_wishes::table
                 .filter(shift_wishes::tenant_id.eq(&tenant_id))
                 .filter(shift_wishes::wish_date.ge(from_date))
                 .filter(shift_wishes::wish_date.le(to_date))
                 .load(&mut conn)
                 .map_err(|_| AppError::Internal)?;
+            if let Some(visible) = &visible {
+                // A wish for a month nobody may see yet would show who asked for what.
+                wishes.retain(|w| visible.contains(&month_start(w.wish_date)));
+            }
 
             let holidays = load_holidays(&mut conn, &tenant_id, from_date, to_date)?;
             // No settings row yet means the shipped default.
