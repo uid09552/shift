@@ -27,6 +27,9 @@ use crate::services::{
     shift_assignment::ShiftAssignmentService,
     shift_wish::ShiftWishService,
     shift_swap::ShiftSwapService,
+    leave::LeaveService,
+    notifier::NotificationService,
+    open_shift::OpenShiftService,
     tenant,
     unavailability::UnavailabilityService,
     user_management::UserManagementService,
@@ -162,6 +165,32 @@ pub fn create_router(state: AppState) -> Router {
         .route("/shift-swaps/:swap_id/cancel", post(ShiftSwapService::cancel_shift_swap))
         .route("/shift-swaps/:swap_id/approve", post(ShiftSwapService::approve_shift_swap))
         .route("/shift-swaps/:swap_id/reject", post(ShiftSwapService::reject_shift_swap))
+        // Leave requests: an employee asks, a planner decides. Blackouts refuse a
+        // request, limits only warn.
+        .route("/leave-requests", get(LeaveService::list_leave_requests).post(LeaveService::create_leave_request))
+        .route("/leave-requests/pending-count", get(LeaveService::pending_count))
+        .route("/leave-requests/:leave_id", get(LeaveService::get_leave_request))
+        .route("/leave-requests/:leave_id/cancel", post(LeaveService::cancel_leave_request))
+        .route("/leave-requests/:leave_id/approve", post(LeaveService::approve_leave_request))
+        .route("/leave-requests/:leave_id/reject", post(LeaveService::reject_leave_request))
+        .route("/leave-requests/:leave_id/revoke", post(LeaveService::revoke_leave_request))
+        .route("/leave-blackouts", get(LeaveService::list_blackouts).post(LeaveService::create_blackout))
+        .route("/leave-blackouts/:blackout_id", delete(LeaveService::delete_blackout))
+        .route("/leave-limits", get(LeaveService::list_limits).put(LeaveService::update_limits))
+        // Open shifts: a planner offers a slot, qualified employees volunteer, a planner assigns
+        .route("/open-shifts", get(OpenShiftService::list_open_shifts).post(OpenShiftService::create_open_shift))
+        .route("/open-shifts/count", get(OpenShiftService::open_count))
+        .route("/open-shifts/gaps", get(OpenShiftService::gaps))
+        .route("/open-shifts/:open_shift_id/volunteer", post(OpenShiftService::volunteer))
+        .route("/open-shifts/:open_shift_id/withdraw", post(OpenShiftService::withdraw))
+        .route("/open-shifts/:open_shift_id/assign", post(OpenShiftService::assign))
+        .route("/open-shifts/:open_shift_id/close", post(OpenShiftService::close))
+        // E-mail notifications: the caller's own preferences, and the outbox for planners
+        .route(
+            "/notification-preferences",
+            get(NotificationService::get_preferences).put(NotificationService::update_preferences),
+        )
+        .route("/notification-outbox", get(NotificationService::outbox))
         // Shift wish window (readable by everyone, writable by shift-admin only)
         .route(
             "/wish-settings",

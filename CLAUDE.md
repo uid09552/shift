@@ -87,6 +87,8 @@ backend/
 │       │   │   ├── kalender/        # Weekly schedule view
 │       │   │   ├── day-view/        # Hourly Gantt of one day — the Schedule page's Day view
 │       │   │   ├── scheduler/       # Optimizer, in tabs: Calculate · Proposal · Check & fix · Compare · Runs
+│       │   │   ├── leave/           # Leave requests; planners: queue · year overview · blackouts & limits
+│       │   │   ├── open-shifts/     # Open shifts: volunteer / offer, assign, gaps
 │       │   │   └── employee-calendar/
 │       │   ├── reports/
 │       │   │   ├── ontology/        # Who can work where: d3 network, optional roster layer; read-only
@@ -95,6 +97,7 @@ backend/
 │       │       ├── shifts/
 │       │       ├── workstations/
 │       │       ├── capabilities/
+│       │       ├── notifications/   # The caller's own e-mail notification choices
 │       │       ├── audit-log/       # Who changed what, with a diff per entry
 │       │       └── users/           # Organization users & role assignment
 │       │   # Add/edit forms are pages of their own (`<list>/new`, `<list>/:id/edit`):
@@ -203,6 +206,44 @@ backend/
 - The window binds **every** role, `shift-admin` included — it is a lock, not a
   self-service policy. Only `shift-admin` may change it
 
+### Leave requests
+- An employee asks for a date range off (`/leave-requests`, the Leave page); a
+  planner or admin approves, rejects or — for approved leave — revokes it.
+  Planners cannot request, they decide
+- Approving writes one hard unavailability per day plus its roster mirror
+  (`absence_type: unavailable`) in one guarded transaction: a day that already
+  has a whole-day unavailability is left alone, a day marked sick keeps its entry,
+  a planned shift or free day makes way. It is a normal roster write (freeze
+  window → reason, locked → admin, change notice). `leave_request_days` remembers
+  which absences an approval created, so a revoke removes exactly those
+- A **blackout period** refuses a request; a per-capability **limit** (at most N
+  people with the capability away on one day) only warns the employee and whoever
+  decides, never blocks
+- Pending leave reaches the optimizer as `preferred_off` (soft); approved leave
+  is a hard absence
+
+### Open shifts
+- A slot nobody is planned on, offered by a planner (`/open-shifts`, the Open
+  shifts page; `/open-shifts/gaps` lists slots below a ward's minimum). Employees
+  who may take it volunteer, a planner assigns one — which writes the roster
+  under the roster guard
+- Who may take a slot is one function, `services::open_shift::ineligible_reasons`:
+  not working or absent that day, no hard unavailability, shift available to them,
+  the ward's capabilities (or a higher level of the same skill group), minimum rest
+  to the neighbouring days. A failing employee is told every reason; a planner
+  cannot assign them either. Labor law and personal limits are left to the plan
+  check
+
+### Notifications
+- E-mail, off unless `smtp.host` is set (nothing is queued then). Events write to
+  `notification_outbox`; `services/notifier.rs` delivers them with retries (2, 4,
+  8, 16 min, then `failed`), so a mail problem never fails the action behind it
+- Events: `roster_published`, `shift_changed` (a sweep of `roster_change_notices`
+  every 30 s, one mail per employee; older than a day is never mailed),
+  `swap_update`, `leave_update`, `open_shift_offered`. Employees switch the
+  channel or single events off (`/notification-preferences`); all on by default
+- Mails never carry a legal-rule reason or protected-group data
+
 ### Users and roles
 - A user is a **Keycloak** account, not a row in this database; a tenant is a
   Keycloak **organization**, and belonging to one is organization membership
@@ -260,6 +301,13 @@ Base URL: `http://localhost:8080/api/v1`
   assignments in a period (per employee: `/employees/{id}/shift-assignments`)
 - `GET/POST /rotation-patterns`, `POST /rotation-patterns/{id}/apply` - Rotation
   patterns; apply writes fixed assignments (`dry_run` = preview)
+- `GET/POST /leave-requests` - Leave requests (`/pending-count`; `/cancel` by the
+  requester, `/approve` `/reject` `/revoke` by planner/admin); `GET/POST
+  /leave-blackouts`, `GET/PUT /leave-limits` for the rules
+- `GET/POST /open-shifts` - Open shifts (`/count`, `/gaps`; `/volunteer`
+  `/withdraw` by an employee, `/assign` `/close` by planner/admin)
+- `GET/PUT /notification-preferences` - The caller's e-mail choices;
+  `GET /notification-outbox` (planner/admin) shows recent mails and how they went
 - `GET/POST /confirmed-shift-plans` - Confirmed monthly plans (viewers: published
   and locked months only; writes follow the month status, see *Roster lifecycle*)
 - `GET /roster-months` - Month statuses and publish deadlines;
@@ -520,6 +568,14 @@ keycloak:
 
 optimizer:
   url: "http://optimizer:8000"
+
+# Notification e-mails; empty host = off, nothing is queued
+smtp:
+  host: ""
+  port: 587
+  from: "Shift <noreply@localhost>"
+  tls: "starttls"     # starttls | tls | none
+  app_url: ""         # mails link to it
 ```
 
 ## Testing

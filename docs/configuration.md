@@ -110,6 +110,21 @@ source configured, every request is refused.
 |---|---|---|
 | `url` | `""` | The agent's REST API, e.g. `http://agent:8899`. Asked for the rule warnings a planner sees on a shift swap, with the planner's own token. Empty: swaps are shown without warnings. Env: `SHIFT_AGENT__URL` |
 
+### `smtp`
+
+Outgoing mail for [notifications](api.md#notifications). An empty `host` switches
+them off: nothing is queued and the server starts as before. A setting that cannot
+work (a `from` that is not an address, an unknown `tls` mode) stops the start.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `host` | `""` | The mail server. Empty: notifications are off. Env: `SHIFT_SMTP__HOST` |
+| `port` | `587` | Env: `SHIFT_SMTP__PORT` |
+| `username`, `password` | `""` | Sent when `username` is set. Env: `SHIFT_SMTP__USERNAME`, `SHIFT_SMTP__PASSWORD` |
+| `from` | `Shift <noreply@localhost>` | The sender. Env: `SHIFT_SMTP__FROM` |
+| `tls` | `starttls` | `starttls` (587), `tls` (implicit, 465) or `none` (a local relay only). Env: `SHIFT_SMTP__TLS` |
+| `app_url` | `""` | The UI's public address; mails link to it and to where they can be turned off. Env: `SHIFT_SMTP__APP_URL` |
+
 ### `holidays`
 
 Public holidays, fetched as JSON from an [api-feiertage.de](https://get.api-feiertage.de)

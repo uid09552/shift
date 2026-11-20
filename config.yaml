@@ -64,3 +64,17 @@ build:
   version: ""
   commit: ""
   date: ""
+
+# Notification e-mails (roster published, my shifts changed, swap / leave /
+# open-shift decisions). Leave `host` empty to switch them off: nothing is
+# queued. Mails go through an outbox and are retried, so a mail problem never
+# fails the action behind it.
+# Env: SHIFT_SMTP__HOST, SHIFT_SMTP__PORT, SHIFT_SMTP__USERNAME, SHIFT_SMTP__PASSWORD …
+smtp:
+  host: ""
+  port: 587
+  username: ""
+  password: ""          # SHIFT_SMTP__PASSWORD in a real deployment
+  from: "Shift <noreply@localhost>"
+  tls: "starttls"       # starttls | tls | none
+  app_url: ""           # e.g. https://shift.example.org — mails link to it

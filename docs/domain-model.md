@@ -145,6 +145,41 @@ workstation — as they stood when the request was made.
 Rules (rest, recovery, streaks, limits, qualification) are warnings for the
 planner, never a refusal. See [API → Shift swaps](api.md#shift-swaps).
 
+## Leave request
+
+An employee's request for a date range off (`leave_requests`).
+
+| Status | Meaning |
+|---|---|
+| `pending` | A planner or admin decides; the optimizer sees it as a soft wish to be off |
+| `approved` | Every day is now a hard absence (an unavailability and its roster mirror) |
+| `rejected` | Turned down; nothing was written |
+| `cancelled` | Withdrawn by the requester while pending |
+| `revoked` | A planner took an approved request back; its absences from today on are removed |
+
+A **blackout period** (`leave_blackouts`) refuses a request that touches it. A
+**limit** (`leave_limits`: at most N people with a capability absent on one day)
+only warns the employee asking and whoever decides. See
+[API → Leave requests](api.md#leave-requests).
+
+## Open shift
+
+A slot nobody is planned on, offered to the people who may take it
+(`open_shifts`, with `open_shift_volunteers`). Statuses: `open`, `filled` (a
+planner assigned someone, which wrote the roster) and `closed` (the offer was
+withdrawn). Who may take a slot is one rule set — not already working or absent,
+no hard unavailability, the shift available to them, the ward's capabilities,
+minimum rest — and an employee who fails it is told every reason. See
+[API → Open shifts](api.md#open-shifts).
+
+## Notification
+
+E-mail about roster publication, changes to someone's published shifts, swaps,
+leave decisions and open shifts. An event writes a row to `notification_outbox`;
+a worker delivers it, retrying with a growing delay. Each employee can switch
+the channel or single events off (`notification_preferences`). See
+[API → Notifications](api.md#notifications).
+
 ## Optimized shift result
 
 A raw solver result, stored as JSONB in `optimized_shift_results`. Kept

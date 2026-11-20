@@ -16,6 +16,9 @@ pub mod personallimitsrepository;
 pub mod holidayrepository;
 pub mod rosterrepository;
 pub mod rostertracking;
+pub mod leaverepository;
+pub mod notificationrepository;
+pub mod openshiftrepository;
 
 use std::sync::Arc;
 use crate::database::DbPool;
@@ -43,6 +46,9 @@ use self::rotationpatternrepository::DieselRotationPatternRepository;
 use self::personallimitsrepository::DieselPersonalLimitsRepository;
 use self::holidayrepository::DieselHolidayRepository;
 use self::rosterrepository::{DieselRosterChangeNoticeRepository, DieselRosterMonthRepository};
+use self::leaverepository::DieselLeaveRepository;
+use self::notificationrepository::DieselNotificationRepository;
+use self::openshiftrepository::DieselOpenShiftRepository;
 use crate::config::HolidayConfig;
 
 #[derive(Clone)]
@@ -68,6 +74,9 @@ pub struct AppState {
     pub holiday_repo: DieselHolidayRepository,
     pub roster_month_repo: DieselRosterMonthRepository,
     pub roster_notice_repo: DieselRosterChangeNoticeRepository,
+    pub leave_repo: DieselLeaveRepository,
+    pub notification_repo: DieselNotificationRepository,
+    pub open_shift_repo: DieselOpenShiftRepository,
     /// Where and for which state holidays are fetched.
     pub holiday_config: HolidayConfig,
     pub pool: Arc<DbPool>,
@@ -77,6 +86,11 @@ pub struct AppState {
     /// The agent's base URL (e.g. `http://agent:5000`), asked for the rule
     /// warnings on a shift swap. Empty: swaps are shown without warnings.
     pub agent_url: String,
+    /// Sends the queued e-mails. `None` (no `smtp.host`): notifications are
+    /// switched off and nothing is queued.
+    pub mailer: Option<Arc<dyn crate::services::notifier::Mailer>>,
+    /// The UI's public address, for the links in e-mails (`smtp.app_url`).
+    pub app_url: String,
     pub dev_mode: bool,
     pub default_tenant_id: String,
     /// Keycloak admin connection backing the user-management endpoints. `None`
@@ -111,12 +125,17 @@ impl AppState {
             holiday_repo: DieselHolidayRepository { pool: Arc::clone(&pool) },
             roster_month_repo: DieselRosterMonthRepository { pool: Arc::clone(&pool) },
             roster_notice_repo: DieselRosterChangeNoticeRepository { pool: Arc::clone(&pool) },
+            leave_repo: DieselLeaveRepository { pool: Arc::clone(&pool) },
+            notification_repo: DieselNotificationRepository { pool: Arc::clone(&pool) },
+            open_shift_repo: DieselOpenShiftRepository { pool: Arc::clone(&pool) },
             holiday_config: HolidayConfig::default(),
             pool,
             nats_client: None,
             jetstream_status: JetStreamStatus::Unavailable,
             optimizer_url: "http://localhost:8888".to_string(),
             agent_url: String::new(),
+            mailer: None,
+            app_url: String::new(),
             dev_mode: false,
             default_tenant_id: "0".to_string(),
             keycloak: None,
@@ -147,12 +166,17 @@ impl AppState {
             holiday_repo: DieselHolidayRepository { pool: Arc::clone(&pool) },
             roster_month_repo: DieselRosterMonthRepository { pool: Arc::clone(&pool) },
             roster_notice_repo: DieselRosterChangeNoticeRepository { pool: Arc::clone(&pool) },
+            leave_repo: DieselLeaveRepository { pool: Arc::clone(&pool) },
+            notification_repo: DieselNotificationRepository { pool: Arc::clone(&pool) },
+            open_shift_repo: DieselOpenShiftRepository { pool: Arc::clone(&pool) },
             holiday_config: HolidayConfig::default(),
             pool,
             nats_client: Some(nats_client),
             jetstream_status,
             optimizer_url,
             agent_url: String::new(),
+            mailer: None,
+            app_url: String::new(),
             dev_mode: false,
             default_tenant_id: "0".to_string(),
             keycloak: None,

@@ -1,0 +1,53 @@
+<app-page-breadcrumb pageTitle="nav.notifications" />
+
+<div class="space-y-5" data-testid="notifications-page">
+  <app-error-notice [message]="error" (dismiss)="error = null" />
+
+  <section class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+    @if (loading) {
+      <p class="px-6 py-10 text-center text-sm text-gray-400">{{ 'common.loading' | t }}</p>
+    } @else if (loadError) {
+      <app-load-error [message]="loadError" (retry)="load()" />
+    } @else if (prefs) {
+      @if (!prefs.email_configured) {
+        <p class="m-5 rounded-lg border border-warning-200 bg-warning-50 px-4 py-2.5 text-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400 sm:m-6" data-testid="notifications-not-configured">
+          {{ 'notifications.notConfigured' | t }}
+        </p>
+      }
+      @if (unavailable) {
+        <p class="px-6 py-10 text-center text-sm text-gray-500 dark:text-gray-400" data-testid="notifications-no-employee">{{ 'notifications.noEmployee' | t }}</p>
+      } @else {
+        <div class="flex items-center justify-between gap-4 border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
+          <div>
+            <p class="text-sm font-medium text-gray-800 dark:text-white/90" id="notify-channel">{{ 'notifications.channel' | t }}</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">{{ 'notifications.channelHelp' | t }}</p>
+          </div>
+          <button type="button" role="switch" [attr.aria-checked]="prefs.email_enabled" aria-labelledby="notify-channel" (click)="toggleChannel()" [disabled]="saving" data-testid="notifications-channel"
+            class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 disabled:opacity-60"
+            [class.bg-brand-500]="prefs.email_enabled" [class.bg-gray-300]="!prefs.email_enabled" [class.dark:bg-gray-700]="!prefs.email_enabled">
+            <span class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform" [class.translate-x-5]="prefs.email_enabled" [class.translate-x-0.5]="!prefs.email_enabled"></span>
+          </button>
+        </div>
+
+        <ul class="divide-y divide-gray-100 dark:divide-white/[0.05]" [class.opacity-50]="!prefs.email_enabled">
+          @for (event of prefs.events; track event) {
+            <li class="flex items-center justify-between gap-4 px-5 py-4 sm:px-6">
+              <div>
+                <p class="text-sm font-medium text-gray-800 dark:text-white/90" [id]="'notify-' + event">{{ ('notifications.event.' + event) | t }}</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">{{ ('notifications.event.' + event + '.help') | t }}</p>
+              </div>
+              <button type="button" role="switch" [attr.aria-checked]="isOn(event)" [attr.aria-labelledby]="'notify-' + event" (click)="toggleEvent(event)" [disabled]="saving || !prefs.email_enabled" [attr.data-testid]="'notifications-event-' + event"
+                class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 disabled:cursor-not-allowed"
+                [class.bg-brand-500]="isOn(event)" [class.bg-gray-300]="!isOn(event)" [class.dark:bg-gray-700]="!isOn(event)">
+                <span class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform" [class.translate-x-5]="isOn(event)" [class.translate-x-0.5]="!isOn(event)"></span>
+              </button>
+            </li>
+          }
+        </ul>
+        <p class="border-t border-gray-100 px-5 py-3 text-xs text-gray-500 dark:border-white/[0.05] dark:text-gray-400 sm:px-6" role="status" aria-live="polite">
+          @if (saved) { {{ 'notifications.saved' | t }} } @else { {{ 'notifications.autosave' | t }} }
+        </p>
+      }
+    }
+  </section>
+</div>

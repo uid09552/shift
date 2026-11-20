@@ -1,0 +1,292 @@
+<app-page-breadcrumb pageTitle="nav.leave" />
+
+<div class="space-y-5" data-testid="leave-page">
+  @if (canPlan) {
+    <div class="inline-flex items-center rounded-lg border border-gray-200 p-0.5 dark:border-gray-700" role="group" [attr.aria-label]="'leave.show' | t">
+      @for (option of ['requests', 'overview', 'rules']; track option) {
+        <button
+          type="button"
+          (click)="setTab($any(option))"
+          [attr.aria-pressed]="tab === option"
+          [attr.data-testid]="'leave-tab-' + option"
+          class="rounded-md px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+          [class.bg-brand-500]="tab === option"
+          [class.text-white]="tab === option"
+          [class.text-gray-600]="tab !== option"
+          [class.dark:text-gray-400]="tab !== option"
+        >
+          {{ ('leave.tab.' + option) | t }}
+        </button>
+      }
+    </div>
+  }
+
+  <app-error-notice [message]="error" (dismiss)="error = null" />
+
+  @if (loading) {
+    <p class="py-10 text-center text-sm text-gray-400">{{ 'common.loading' | t }}</p>
+  } @else if (loadError) {
+    <div class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+      <app-load-error [message]="loadError" (retry)="load()" />
+    </div>
+  } @else if (tab === 'requests') {
+    <!-- Request form: employees only — a planner decides, an employee asks. -->
+    @if (!canPlan) {
+      <section class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] sm:p-6" data-testid="leave-form">
+        <h2 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'leave.request.title' | t }}</h2>
+        @if (!myEmployeeId) {
+          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ 'leave.request.noEmployee' | t }}</p>
+        } @else {
+          <form class="mt-4 grid gap-4 sm:grid-cols-2" (ngSubmit)="submit()" #form="ngForm">
+            <div>
+              <label for="leave-start" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ 'leave.request.from' | t }}</label>
+              <input id="leave-start" name="start" type="date" [min]="minDate" [(ngModel)]="start" required data-testid="leave-start"
+                class="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90" />
+            </div>
+            <div>
+              <label for="leave-end" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ 'leave.request.to' | t }}</label>
+              <input id="leave-end" name="end" type="date" [min]="start || minDate" [(ngModel)]="end" required data-testid="leave-end"
+                class="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90" />
+            </div>
+            <div class="sm:col-span-2">
+              <label for="leave-note" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ 'leave.request.note' | t }}</label>
+              <input id="leave-note" name="note" type="text" maxlength="500" [(ngModel)]="note" data-testid="leave-note"
+                [placeholder]="'leave.request.notePlaceholder' | t"
+                class="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30" />
+            </div>
+            @if (blackoutHit; as hit) {
+              <p class="sm:col-span-2 rounded-lg border border-warning-200 bg-warning-50 px-4 py-2.5 text-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400" role="alert" data-testid="leave-blackout-hit">
+                {{ 'leave.request.blackout' | t: { from: dateLabel(hit.start_date), to: dateLabel(hit.end_date) } }}
+                @if (hit.reason) { — {{ hit.reason }} }
+              </p>
+            }
+            <div class="sm:col-span-2 flex items-center justify-end">
+              <button type="submit" [disabled]="!formValid || busy" data-testid="leave-submit"
+                class="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white shadow-theme-xs transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-brand-300">
+                {{ 'leave.request.submit' | t }}
+              </button>
+            </div>
+          </form>
+          @for (warning of lastWarnings; track warning.capability_id) {
+            <p class="mt-3 rounded-lg border border-warning-200 bg-warning-50 px-4 py-2.5 text-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400" data-testid="leave-warning">
+              {{ warningText(warning) }}
+            </p>
+          }
+        }
+      </section>
+    }
+
+    @if (canPlan) {
+      <section class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]" data-testid="leave-pending">
+        <h2 class="border-b border-gray-100 px-5 py-4 text-base font-semibold text-gray-800 dark:border-white/[0.05] dark:text-white/90 sm:px-6">
+          {{ 'leave.pending.title' | t }}
+          @if (pending.length) { <span class="ml-1 text-sm font-normal text-gray-500">({{ pending.length }})</span> }
+        </h2>
+        @if (pending.length === 0) {
+          <p class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400" data-testid="leave-pending-empty">{{ 'leave.pending.empty' | t }}</p>
+        } @else {
+          <ul class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+            @for (r of pending; track r.id) {
+              <li class="space-y-3 px-5 py-4 sm:px-6" [attr.data-testid]="'leave-request-' + r.id">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p class="text-sm font-medium text-gray-800 dark:text-white/90">{{ employeeName(r.employee_id) }}</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-300">
+                      {{ rangeLabel(r) }} · {{ 'leave.days' | t: { count: days(r) } }}
+                    </p>
+                    @if (r.note) { <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">“{{ r.note }}”</p> }
+                  </div>
+                </div>
+                @for (w of warnings.get(r.id) ?? []; track w.capability_id) {
+                  <p class="rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">{{ warningText(w) }}</p>
+                }
+                <div class="flex flex-wrap items-center gap-2">
+                  <input type="text" maxlength="500" [ngModel]="comments[r.id] ?? ''" (ngModelChange)="comments[r.id] = $event" [attr.aria-label]="'leave.comment' | t"
+                    [placeholder]="'leave.comment' | t" [attr.data-testid]="'leave-comment-' + r.id"
+                    class="h-9 min-w-48 flex-1 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30" />
+                  <button type="button" (click)="act(r, 'approve')" [disabled]="busy" [attr.data-testid]="'leave-approve-' + r.id"
+                    class="rounded-lg bg-brand-500 px-3.5 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand-600 disabled:opacity-50">{{ 'leave.approve' | t }}</button>
+                  <button type="button" (click)="act(r, 'reject')" [disabled]="busy" [attr.data-testid]="'leave-reject-' + r.id"
+                    class="rounded-lg border border-gray-200 px-3.5 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.05]">{{ 'leave.reject' | t }}</button>
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      @if (upcoming.length) {
+        <section class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]" data-testid="leave-upcoming">
+          <h2 class="border-b border-gray-100 px-5 py-4 text-base font-semibold text-gray-800 dark:border-white/[0.05] dark:text-white/90 sm:px-6">{{ 'leave.upcoming.title' | t }}</h2>
+          <ul class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+            @for (r of upcoming; track r.id) {
+              <li class="flex flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-6" [attr.data-testid]="'leave-request-' + r.id">
+                <p class="text-sm text-gray-800 dark:text-white/90">
+                  <span class="font-medium">{{ employeeName(r.employee_id) }}</span>
+                  <span class="text-gray-400"> · </span>{{ rangeLabel(r) }}
+                </p>
+                <button type="button" (click)="act(r, 'revoke')" [disabled]="busy" [attr.data-testid]="'leave-revoke-' + r.id"
+                  class="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.05]">{{ 'leave.revoke' | t }}</button>
+              </li>
+            }
+          </ul>
+        </section>
+      }
+    }
+
+    <!-- Employees: all of their own requests. Planners: the recent decisions. -->
+    <section class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]" data-testid="leave-history">
+      <h2 class="border-b border-gray-100 px-5 py-4 text-base font-semibold text-gray-800 dark:border-white/[0.05] dark:text-white/90 sm:px-6">
+        {{ (canPlan ? 'leave.history.title' : 'leave.mine.title') | t }}
+      </h2>
+      @if ((canPlan ? history : mine).length === 0) {
+        <div class="px-6 py-10 text-center" data-testid="leave-empty">
+          <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ 'leave.empty.title' | t }}</p>
+          <p class="mx-auto mt-1 max-w-sm text-sm text-gray-500 dark:text-gray-400">{{ 'leave.empty.text' | t }}</p>
+        </div>
+      } @else {
+        <ul class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+          @for (r of (canPlan ? history : mine); track r.id) {
+            <li class="flex flex-wrap items-start justify-between gap-3 px-5 py-3.5 sm:px-6" [attr.data-testid]="'leave-request-' + r.id">
+              <div class="min-w-0">
+                <p class="text-sm text-gray-800 dark:text-white/90">
+                  @if (canPlan) { <span class="font-medium">{{ employeeName(r.employee_id) }}</span><span class="text-gray-400"> · </span> }
+                  {{ rangeLabel(r) }} · {{ 'leave.days' | t: { count: days(r) } }}
+                </p>
+                @if (r.note) { <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">“{{ r.note }}”</p> }
+                @if (r.decision_comment) {
+                  <p class="mt-0.5 text-sm text-gray-600 dark:text-gray-300">{{ 'leave.decisionComment' | t: { comment: r.decision_comment } }}</p>
+                }
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="rounded-full px-2.5 py-0.5 text-xs font-medium" [ngClass]="statusClass(r.status)" [attr.data-testid]="'leave-status-' + r.id">
+                  {{ ('leave.status.' + r.status) | t }}
+                </span>
+                @if (!canPlan && r.status === 'pending') {
+                  <button type="button" (click)="act(r, 'cancel')" [disabled]="busy" [attr.data-testid]="'leave-cancel-' + r.id"
+                    class="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.05]">{{ 'leave.cancel' | t }}</button>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  } @else if (tab === 'overview') {
+    <section class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]" data-testid="leave-overview">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-white/[0.05] sm:px-6">
+        <div class="flex items-center gap-2">
+          <button type="button" (click)="shiftYear(-1)" [attr.aria-label]="'leave.overview.previous' | t" data-testid="leave-year-prev"
+            class="rounded-lg border border-gray-200 px-2.5 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.05]">‹</button>
+          <span class="min-w-14 text-center text-base font-semibold tabular-nums text-gray-800 dark:text-white/90" data-testid="leave-year">{{ year }}</span>
+          <button type="button" (click)="shiftYear(1)" [attr.aria-label]="'leave.overview.next' | t" data-testid="leave-year-next"
+            class="rounded-lg border border-gray-200 px-2.5 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.05]">›</button>
+        </div>
+        <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+          {{ 'leave.overview.team' | t }}
+          <select [(ngModel)]="overviewCapability" data-testid="leave-team"
+            class="h-9 rounded-lg border border-gray-300 bg-transparent px-2.5 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+            <option value="">{{ 'leave.overview.everyone' | t }}</option>
+            @for (c of capabilities; track c.id) { <option [value]="c.id">{{ c.name }}</option> }
+          </select>
+        </label>
+      </div>
+      @if (overviewLoading) {
+        <p class="px-6 py-10 text-center text-sm text-gray-400">{{ 'common.loading' | t }}</p>
+      } @else if (overviewRows.length === 0) {
+        <p class="px-6 py-10 text-center text-sm text-gray-500 dark:text-gray-400">{{ 'leave.overview.empty' | t }}</p>
+      } @else {
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[44rem] text-sm">
+            <caption class="sr-only">{{ 'leave.overview.caption' | t: { year: year } }}</caption>
+            <thead>
+              <tr class="text-xs text-gray-500 dark:text-gray-400">
+                <th scope="col" class="px-5 py-2 text-left font-medium sm:px-6">{{ 'leave.overview.person' | t }}</th>
+                @for (m of months; track m) { <th scope="col" class="px-1 py-2 text-center font-medium capitalize">{{ monthLabel(m) }}</th> }
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+              @for (row of overviewRows; track row.employee.id) {
+                <tr [attr.data-testid]="'leave-row-' + row.employee.id">
+                  <th scope="row" class="whitespace-nowrap px-5 py-2 text-left font-medium text-gray-800 dark:text-white/90 sm:px-6">{{ row.employee.name }}</th>
+                  @for (cell of row.months; track $index) {
+                    <td class="px-1 py-1.5 text-center tabular-nums">
+                      @if (cell.approved || cell.pending) {
+                        <span class="inline-flex min-w-8 items-center justify-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs"
+                          [ngClass]="cell.approved ? 'bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400' : 'bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400'"
+                          [attr.title]="('leave.overview.cell' | t: { approved: cell.approved, pending: cell.pending })">
+                          {{ cell.approved + cell.pending }}@if (cell.pending) {<span aria-hidden="true">*</span>}
+                        </span>
+                      } @else { <span class="text-gray-300 dark:text-gray-700" aria-hidden="true">·</span> }
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr class="border-t border-gray-200 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                <th scope="row" class="px-5 py-2 text-left font-medium sm:px-6">{{ 'leave.overview.peak' | t }}</th>
+                @for (peak of peaks; track $index) { <td class="px-1 py-2 text-center tabular-nums" [class.font-semibold]="peak > 0" [class.text-gray-800]="peak > 0" [class.dark:text-white]="peak > 0">{{ peak || '·' }}</td> }
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <p class="border-t border-gray-100 px-5 py-3 text-xs text-gray-500 dark:border-white/[0.05] dark:text-gray-400 sm:px-6">{{ 'leave.overview.legend' | t }}</p>
+      }
+    </section>
+  } @else {
+    <section class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] sm:p-6" data-testid="leave-blackouts">
+      <h2 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'leave.blackouts.title' | t }}</h2>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ 'leave.blackouts.help' | t }}</p>
+      @if (blackouts.length) {
+        <ul class="mt-4 divide-y divide-gray-100 dark:divide-white/[0.05]">
+          @for (b of blackouts; track b.id) {
+            <li class="flex flex-wrap items-center justify-between gap-3 py-2.5" [attr.data-testid]="'leave-blackout-' + b.id">
+              <p class="text-sm text-gray-800 dark:text-white/90">
+                {{ dateLabel(b.start_date) }} – {{ dateLabel(b.end_date) }}
+                @if (b.reason) { <span class="text-gray-500 dark:text-gray-400"> · {{ b.reason }}</span> }
+              </p>
+              <button type="button" (click)="removeBlackout(b)" [disabled]="busy" [attr.data-testid]="'leave-blackout-delete-' + b.id"
+                class="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.05]">{{ 'common.delete' | t }}</button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="mt-4 text-sm text-gray-500 dark:text-gray-400">{{ 'leave.blackouts.empty' | t }}</p>
+      }
+      <form class="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_2fr_auto]" (ngSubmit)="addBlackout()">
+        <input type="date" name="bstart" [(ngModel)]="blackoutStart" [attr.aria-label]="'leave.request.from' | t" data-testid="leave-blackout-start"
+          class="h-10 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:text-white/90" />
+        <input type="date" name="bend" [(ngModel)]="blackoutEnd" [min]="blackoutStart" [attr.aria-label]="'leave.request.to' | t" data-testid="leave-blackout-end"
+          class="h-10 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:text-white/90" />
+        <input type="text" name="breason" maxlength="200" [(ngModel)]="blackoutReason" [placeholder]="'leave.blackouts.reason' | t" data-testid="leave-blackout-reason"
+          class="h-10 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30" />
+        <button type="submit" [disabled]="!blackoutValid || busy" data-testid="leave-blackout-add"
+          class="h-10 rounded-lg bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-brand-300">{{ 'leave.blackouts.add' | t }}</button>
+      </form>
+    </section>
+
+    <section class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] sm:p-6" data-testid="leave-limits">
+      <h2 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'leave.limits.title' | t }}</h2>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ 'leave.limits.help' | t }}</p>
+      @if (capabilities.length === 0) {
+        <p class="mt-4 text-sm text-gray-500 dark:text-gray-400">{{ 'leave.limits.empty' | t }}</p>
+      } @else {
+        <ul class="mt-4 divide-y divide-gray-100 dark:divide-white/[0.05]">
+          @for (c of capabilities; track c.id) {
+            <li class="flex items-center justify-between gap-3 py-2">
+              <label [for]="'limit-' + c.id" class="text-sm text-gray-800 dark:text-white/90">{{ c.name }}</label>
+              <input [id]="'limit-' + c.id" type="number" min="0" step="1" [ngModel]="limitInputs[c.id] ?? ''" (ngModelChange)="limitInputs[c.id] = $event" [name]="'limit-' + c.id"
+                [placeholder]="'leave.limits.none' | t" [attr.data-testid]="'leave-limit-' + c.id"
+                class="h-9 w-28 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30" />
+            </li>
+          }
+        </ul>
+        <div class="mt-4 flex justify-end">
+          <button type="button" (click)="saveLimits()" [disabled]="busy" data-testid="leave-limits-save"
+            class="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50">{{ 'common.save' | t }}</button>
+        </div>
+      }
+    </section>
+  }
+</div>

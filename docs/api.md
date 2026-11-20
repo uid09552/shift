@@ -39,6 +39,12 @@ summary below is the product contract for the API.
 | `/shift-wishes` | ✅ own records only | ✅ any record | ✅ any record |
 | `/wish-settings` | ✅ read only | ✅ read only | ✅ read/write |
 | `/shift-swaps` | ✅ request, answer, cancel — own only | ✅ read all, approve/reject | ✅ read all, approve/reject |
+| `/leave-requests` | ✅ request, cancel — own only | ✅ read all, approve/reject/revoke | ✅ read all, approve/reject/revoke |
+| `/leave-blackouts` | ✅ read only | ✅ read/write | ✅ read/write |
+| `/leave-limits` | ❌ | ✅ read/write | ✅ read/write |
+| `/open-shifts` | ✅ read, volunteer, withdraw — own only | ✅ read all, offer/assign/close | ✅ read all, offer/assign/close |
+| `/notification-preferences` | ✅ own only | ✅ own only | ✅ own only |
+| `/notification-outbox` | ❌ | ✅ read | ✅ read |
 | `/users` and `/users/{id}/roles` | ❌ | ❌ | ✅ |
 | `/planner/*` | ❌ | ✅ | ✅ |
 | `/planner-settings` | ✅ read only | ✅ read/write | ✅ read/write |
@@ -46,8 +52,9 @@ summary below is the product contract for the API.
 
 The grant model is intentionally simple:
 
-- `shift-viewer`: read access everywhere, plus writes only on `shift-wishes` and
-  `shift-swaps` for the caller's own employee record.
+- `shift-viewer`: read access everywhere, plus writes only on `shift-wishes`,
+  `shift-swaps`, `leave-requests`, `open-shifts` (volunteering) and
+  `notification-preferences` for the caller's own employee record.
 - `shift-planner`: all write operations except the admin-only actions.
 - `shift-admin`: everything above, plus user-management and wish-window changes.
 
@@ -201,6 +208,108 @@ curl -X POST http://localhost:8081/api/v1/shift-swaps \
 Every step leaves an audit entry (`shift_swap.create`, `.accept`, `.decline`,
 `.cancel`, `.reject`, `.approve`, `.stale`). Swaps touch only the confirmed
 roster; the optimizer sees them only as `history`.
+
+## Leave requests
+
+An employee asks for a date range off; a planner approves or rejects it.
+Approving writes the days as absences; revoking takes them back.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` `POST` | `/leave-requests` | List (`status` comma-separated, `from`/`to` overlap; planners also `employee_id`) / request |
+| `GET` | `/leave-requests/pending-count` | How many await a decision (**planner/admin only**) |
+| `GET` | `/leave-requests/{id}` | Read — while pending, with limit `warnings` |
+| `POST` | `/leave-requests/{id}/cancel` | The requester withdraws it while pending |
+| `POST` | `/leave-requests/{id}/approve`, `/reject` | **`shift-planner` / `shift-admin`** decide; body `{"comment": "…"}` optional |
+| `POST` | `/leave-requests/{id}/revoke` | **`shift-planner` / `shift-admin`** take an approved request back |
+| `GET` `POST` | `/leave-blackouts` | Periods in which no leave can be requested (everyone reads, planners add) |
+| `DELETE` | `/leave-blackouts/{id}` | Remove one (**planner/admin**) |
+| `GET` `PUT` | `/leave-limits` | At most N people with a capability absent on one day; `PUT` replaces all (**planner/admin**) |
+
+```text
+pending ─approve─▶ approved ─revoke─▶ revoked
+   │ reject            (pending: cancel → cancelled)
+   ▼
+rejected
+```
+
+- **Who.** The requester must be the caller (matched by e-mail); planners and
+  admins may not request leave, they decide on it. Viewers see only their own.
+- **At request time.** At most 366 days, not starting in the past, no overlap with
+  the employee's own pending or approved leave, and **no touch of a blackout
+  period** (400 with the reason). A **limit** is never a refusal: a request that
+  would put more people with a capability out than allowed comes back with
+  `warnings`, and the planner who decides sees the same.
+- **Approval** writes, in one transaction, a hard whole-day unavailability per day
+  and its roster mirror (`absence_type: unavailable`). A day that already has a
+  whole-day unavailability is left as it is (and so is never removed by a revoke);
+  a day already marked sick or another absence keeps its entry; a planned shift
+  or a free day makes way. It follows the month's status like every roster write —
+  **428** `reason_required` inside the freeze window of a published month, an
+  admin with a reason for a locked one — and each changed day becomes a change
+  notice for the employee.
+- **Revoke** removes the absences the approval created from today on; days that
+  have passed stay.
+- **The optimizer.** Pending leave reaches it as `preferred_off` (a soft wish to be
+  off, never a block); approved leave is a hard absence like any other.
+
+Every step leaves an audit entry (`leave_request.create`, `.cancel`, `.reject`,
+`.approve`, `.revoke`; `leave_blackout.create`/`.delete`; `leave_limits.update`).
+
+## Open shifts
+
+A slot nobody is planned on, offered to the people who may take it. Qualified
+employees volunteer; a planner assigns one, which writes the roster.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` `POST` | `/open-shifts` | List (`open` from today on; `status`, `from`) / offer a slot (**planner/admin**) |
+| `GET` | `/open-shifts/count` | How many offers are open from today on |
+| `GET` | `/open-shifts/gaps?from&to` | Slots below their ward's minimum with no offer yet (**planner/admin**, ≤ 92 days) |
+| `POST` | `/open-shifts/{id}/volunteer`, `/withdraw` | The caller volunteers / takes it back |
+| `POST` | `/open-shifts/{id}/assign` | `{"employee_id": …}` — writes the shift into the roster (**planner/admin**) |
+| `POST` | `/open-shifts/{id}/close` | Withdraw the offer (**planner/admin**) |
+
+- **Who may take a slot** is one rule set: not already working or absent that
+  day, no hard unavailability, the shift among their available shifts, the
+  ward's required capabilities (or a higher level of the same skill group), and
+  the planner setting `min_rest_hours` to the shifts on the days around it. An
+  employee who fails any is refused with **every** reason; the list endpoint tells
+  each employee whether *they* may (`eligible`, `reasons`) and a planner the same
+  for each volunteer. A planner cannot assign someone who may not either. What the
+  rules do not know — the labor-law profile, personal limits — the plan check
+  reports once the shift is in the roster.
+- **Assigning** writes the shift (replacing a free day) and marks the offer
+  `filled` in one transaction; it follows the month's status like every roster
+  write (**428** inside the freeze window of a published month without
+  `X-Change-Reason`, an admin for a locked one) and leaves a change notice.
+- One open offer per slot (409 for a second). A closed or filled slot can be
+  offered again.
+
+Audit entries: `open_shift.create`, `.volunteer`, `.withdraw`, `.assign`, `.close`.
+
+## Notifications
+
+E-mail, off unless the backend has an `smtp.host` (see
+[Configuration](configuration.md#smtp)). Events write to an outbox and a worker
+delivers them with retries — a mail problem never fails the action behind it.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` `PUT` | `/notification-preferences` | The caller's own: `email_enabled` and `muted_events`; everything is on until changed |
+| `GET` | `/notification-outbox` | Recent mails and how they went (**planner/admin**) |
+
+| Event | Who is told |
+|---|---|
+| `roster_published` | everyone with a shift in the month |
+| `shift_changed` | an employee whose published roster changed — one mail per sweep (every 30 s), not per day; never for changes older than a day |
+| `swap_update` | the people in a swap, as it moves |
+| `leave_update` | the requester, when their leave is approved, rejected or revoked |
+| `open_shift_offered` | employees who may take a new open shift, and the one it is assigned to |
+
+A message is tried five times, 2, 4, 8 and 16 minutes apart, then marked `failed`
+with the last error. Mails name the shift, the date and the status — never a
+protected-group reason behind a legal rule.
 
 ### The wish window
 

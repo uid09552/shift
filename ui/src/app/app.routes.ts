@@ -22,6 +22,9 @@ import { WishSettingsComponent } from './pages/configuration/wish-settings/wish-
 import { AuditLogComponent } from './pages/configuration/audit-log/audit-log.component';
 import { UsersComponent } from './pages/configuration/users/users.component';
 import { ChangesComponent } from './pages/planner/changes/changes.component';
+import { LeaveComponent } from './pages/planner/leave/leave.component';
+import { OpenShiftsComponent } from './pages/planner/open-shifts/open-shifts.component';
+import { NotificationSettingsComponent } from './pages/configuration/notifications/notification-settings.component';
 
 export const routes: Routes = [
   {
@@ -62,6 +65,25 @@ export const routes: Routes = [
         path:'changes',
         component:ChangesComponent,
         title:'title.changes'
+      },
+      {
+        // Employees ask for leave and see what became of it; planners decide,
+        // see the year per person and set blackout periods and limits.
+        path:'leave',
+        component:LeaveComponent,
+        title:'title.leave'
+      },
+      {
+        // Slots nobody is planned on: employees who may take one volunteer, a planner assigns.
+        path:'open-shifts',
+        component:OpenShiftsComponent,
+        title:'title.openShifts'
+      },
+      {
+        // The signed-in person's own e-mail notification choices.
+        path:'notifications',
+        component:NotificationSettingsComponent,
+        title:'title.notifications'
       },
       {
         path:'rotations',

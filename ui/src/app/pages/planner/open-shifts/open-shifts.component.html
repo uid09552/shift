@@ -1,0 +1,185 @@
+<app-page-breadcrumb pageTitle="nav.openShifts" />
+
+<div class="space-y-5" data-testid="open-shifts-page">
+  <app-error-notice [message]="error" (dismiss)="error = null" />
+
+  @if (canPlan) {
+    <section class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] sm:p-6" data-testid="open-shift-form">
+      <h2 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'openShifts.offer.title' | t }}</h2>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ 'openShifts.offer.help' | t }}</p>
+      <form class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" (ngSubmit)="offer()">
+        <div>
+          <label for="os-date" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ 'openShifts.offer.date' | t }}</label>
+          <input id="os-date" name="date" type="date" [min]="minDate" [(ngModel)]="date" required data-testid="open-shift-date"
+            class="h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:text-white/90" />
+        </div>
+        <div>
+          <label for="os-shift" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ 'openShifts.offer.shift' | t }}</label>
+          <select id="os-shift" name="shift" [(ngModel)]="shiftId" required data-testid="open-shift-shift"
+            class="h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+            <option value="" disabled>{{ 'openShifts.offer.pick' | t }}</option>
+            @for (s of shifts; track s.id) { <option [value]="s.id">{{ s.name }}</option> }
+          </select>
+        </div>
+        <div>
+          <label for="os-ward" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ 'openShifts.offer.ward' | t }}</label>
+          <select id="os-ward" name="ward" [(ngModel)]="workstationId" data-testid="open-shift-ward"
+            class="h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+            <option value="">{{ 'openShifts.offer.anyWard' | t }}</option>
+            @for (w of wardChoices; track w.id) { <option [value]="w.id">{{ w.name }}</option> }
+          </select>
+        </div>
+        <div>
+          <label for="os-note" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ 'openShifts.offer.note' | t }}</label>
+          <input id="os-note" name="note" type="text" maxlength="500" [(ngModel)]="note" data-testid="open-shift-note"
+            class="h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:text-white/90" />
+        </div>
+        <div class="sm:col-span-2 lg:col-span-4 flex justify-end">
+          <button type="submit" [disabled]="!formValid || busy" data-testid="open-shift-submit"
+            class="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-brand-300">{{ 'openShifts.offer.submit' | t }}</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] sm:p-6" data-testid="open-shift-gaps">
+      <h2 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'openShifts.gaps.title' | t }}</h2>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ 'openShifts.gaps.help' | t }}</p>
+      <div class="mt-4 flex flex-wrap items-end gap-3">
+        <div>
+          <label for="gap-from" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ 'openShifts.gaps.from' | t }}</label>
+          <input id="gap-from" type="date" [(ngModel)]="gapFrom" name="gapFrom" data-testid="open-shift-gap-from"
+            class="h-10 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:text-white/90" />
+        </div>
+        <div>
+          <label for="gap-to" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ 'openShifts.gaps.to' | t }}</label>
+          <input id="gap-to" type="date" [(ngModel)]="gapTo" [min]="gapFrom" name="gapTo" data-testid="open-shift-gap-to"
+            class="h-10 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:text-white/90" />
+        </div>
+        <button type="button" (click)="findGaps()" [disabled]="gapsLoading" data-testid="open-shift-find-gaps"
+          class="h-10 rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.05]">{{ 'openShifts.gaps.find' | t }}</button>
+      </div>
+      @if (gapsLoaded) {
+        @if (gaps.length === 0) {
+          <p class="mt-4 text-sm text-gray-500 dark:text-gray-400" data-testid="open-shift-gaps-empty">{{ 'openShifts.gaps.none' | t }}</p>
+        } @else {
+          <ul class="mt-4 divide-y divide-gray-100 dark:divide-white/[0.05]">
+            @for (g of gaps; track g.date + g.shift_id + g.workstation_id) {
+              <li class="flex flex-wrap items-center justify-between gap-3 py-2.5" data-testid="open-shift-gap">
+                <p class="text-sm text-gray-800 dark:text-white/90">
+                  <span class="font-medium tabular-nums">{{ dayLabel(g.date) }}</span>
+                  <span class="text-gray-400"> · </span>{{ shift(g.shift_id)?.name ?? '—' }}
+                  <span class="text-gray-400"> · </span>{{ wardName(g.workstation_id) }}
+                  <span class="ml-2 rounded-full bg-warning-50 px-2 py-0.5 text-xs font-medium text-warning-700 dark:bg-warning-500/15 dark:text-warning-400">{{ 'openShifts.gaps.short' | t: { count: g.short } }}</span>
+                </p>
+                <button type="button" (click)="offerGap(g)" [disabled]="busy"
+                  class="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.05]">{{ 'openShifts.gaps.offer' | t }}</button>
+              </li>
+            }
+          </ul>
+        }
+      }
+    </section>
+  }
+
+  <section class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]" data-testid="open-shift-list">
+    <h2 class="border-b border-gray-100 px-5 py-4 text-base font-semibold text-gray-800 dark:border-white/[0.05] dark:text-white/90 sm:px-6">{{ 'openShifts.list.title' | t }}</h2>
+    @if (loading) {
+      <p class="px-6 py-10 text-center text-sm text-gray-400">{{ 'common.loading' | t }}</p>
+    } @else if (loadError) {
+      <app-load-error [message]="loadError" (retry)="load()" />
+    } @else if (offers.length === 0) {
+      <div class="px-6 py-12 text-center" data-testid="open-shift-empty">
+        <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ 'openShifts.empty.title' | t }}</p>
+        <p class="mx-auto mt-1 max-w-sm text-sm text-gray-500 dark:text-gray-400">{{ (canPlan ? 'openShifts.empty.planner' : 'openShifts.empty.text') | t }}</p>
+      </div>
+    } @else {
+      <ul class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+        @for (o of offers; track o.id) {
+          <li class="space-y-3 px-5 py-4 sm:px-6" [attr.data-testid]="'open-shift-' + o.id">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p class="flex flex-wrap items-center gap-x-2 text-sm text-gray-800 dark:text-white/90">
+                  <span class="font-medium tabular-nums">{{ dayLabel(o.date) }}</span>
+                  @if (shift(o.shift_id); as s) {
+                    <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium text-white" [style.background-color]="s.color">{{ s.name }}</span>
+                  }
+                  @if (wardName(o.workstation_id); as ward) { <span class="text-gray-500 dark:text-gray-400">· {{ ward }}</span> }
+                </p>
+                @if (o.note) { <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">“{{ o.note }}”</p> }
+              </div>
+
+              @if (!canPlan) {
+                @if (o.volunteered) {
+                  <button type="button" (click)="withdraw(o)" [disabled]="busy" [attr.data-testid]="'open-shift-withdraw-' + o.id"
+                    class="rounded-lg border border-gray-200 px-3.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.05]">{{ 'openShifts.withdraw' | t }}</button>
+                } @else {
+                  <button type="button" (click)="volunteer(o)" [disabled]="busy || !o.eligible" [attr.data-testid]="'open-shift-volunteer-' + o.id"
+                    class="rounded-lg bg-brand-500 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-brand-300">{{ 'openShifts.volunteer' | t }}</button>
+                }
+              } @else {
+                <button type="button" (click)="close(o)" [disabled]="busy" [attr.data-testid]="'open-shift-close-' + o.id"
+                  class="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.05]">{{ 'openShifts.close' | t }}</button>
+              }
+            </div>
+
+            @if (!canPlan) {
+              @if (o.volunteered) {
+                <p class="text-sm text-success-700 dark:text-success-400" data-testid="open-shift-volunteered">{{ 'openShifts.volunteered' | t }}</p>
+              } @else if (!o.eligible) {
+                <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-white/[0.03] dark:text-gray-400" data-testid="open-shift-reasons">
+                  <p class="font-medium">{{ 'openShifts.cannot' | t }}</p>
+                  <ul class="mt-1 list-disc pl-4">@for (r of o.reasons ?? []; track r) { <li>{{ r }}</li> }</ul>
+                </div>
+              }
+            } @else {
+              <div>
+                <p class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ 'openShifts.volunteers' | t: { count: o.volunteers?.length ?? 0 } }}</p>
+                @if (o.volunteers?.length) {
+                  <ul class="mt-2 space-y-1.5">
+                    @for (v of o.volunteers; track v.employee_id) {
+                      <li class="flex flex-wrap items-center justify-between gap-2 text-sm" [attr.data-testid]="'open-shift-volunteer-row-' + v.employee_id">
+                        <span class="text-gray-800 dark:text-white/90">
+                          {{ employeeName(v.employee_id) }}
+                          @if (!v.eligible) { <span class="ml-1 text-xs text-warning-700 dark:text-warning-400">({{ v.reasons.join('; ') }})</span> }
+                        </span>
+                        <button type="button" (click)="assign(o, v.employee_id)" [disabled]="busy || !v.eligible" [attr.data-testid]="'open-shift-assign-' + o.id + '-' + v.employee_id"
+                          class="rounded-lg bg-brand-500 px-3 py-1 text-xs font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-brand-300">{{ 'openShifts.assign' | t }}</button>
+                      </li>
+                    }
+                  </ul>
+                }
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                  <select [ngModel]="assignTo[o.id] ?? ''" (ngModelChange)="assignTo[o.id] = $event" [name]="'assign-' + o.id" [attr.aria-label]="'openShifts.assignOther' | t" [attr.data-testid]="'open-shift-other-' + o.id"
+                    class="h-9 min-w-44 rounded-lg border border-gray-300 bg-transparent px-2.5 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+                    <option value="">{{ 'openShifts.assignOther' | t }}</option>
+                    @for (e of employees; track e.id) { <option [value]="e.id">{{ e.name }}</option> }
+                  </select>
+                  <button type="button" (click)="assign(o, assignTo[o.id])" [disabled]="busy || !assignTo[o.id]"
+                    class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.05]">{{ 'openShifts.assign' | t }}</button>
+                </div>
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </section>
+
+  @if (canPlan && decided.length) {
+    <section class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]" data-testid="open-shift-decided">
+      <h2 class="border-b border-gray-100 px-5 py-4 text-base font-semibold text-gray-800 dark:border-white/[0.05] dark:text-white/90 sm:px-6">{{ 'openShifts.decided.title' | t }}</h2>
+      <ul class="divide-y divide-gray-100 dark:divide-white/[0.05]">
+        @for (o of decided; track o.id) {
+          <li class="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm sm:px-6">
+            <span class="text-gray-800 dark:text-white/90">
+              <span class="font-medium tabular-nums">{{ dayLabel(o.date) }}</span> · {{ shift(o.shift_id)?.name ?? '—' }}
+              @if (o.status === 'filled') { <span class="text-gray-500 dark:text-gray-400"> → {{ employeeName(o.assigned_employee_id) }}</span> }
+            </span>
+            <span class="rounded-full px-2.5 py-0.5 text-xs font-medium"
+              [ngClass]="o.status === 'filled' ? 'bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400' : 'bg-gray-100 text-gray-600 dark:bg-white/[0.06] dark:text-gray-400'">{{ ('openShifts.status.' + o.status) | t }}</span>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+</div>

@@ -62,6 +62,9 @@ no separate migrate command in normal operation.
 | 31 | `add_public_holidays` | public holidays per tenant |
 | 32 | `add_shift_swap_requests` | employee shift swap requests |
 | 33 | `weekly_working_hours` | contracted hours per week, optional; tenant default (40 h) on `planner_settings` |
+| 38 | `add_leave_requests` | leave requests, the absences an approval created, blackout periods, per-capability limits |
+| 39 | `add_notifications` | notification preferences, the mail outbox, which roster change notices were mailed |
+| 40 | `add_open_shifts` | open shifts and their volunteers |
 
 ### Working with Diesel
 
@@ -111,6 +114,15 @@ diesel migration redo                  # verify down.sql actually reverses it
 | `optimized_shift_results` | `result` (JSONB), `creation_date` |
 | `planning_tasks` | `status`, `payload` (JSONB), `result_id?`, `error_message?` |
 | `shift_swap_requests` | `requester_id`, `requester_date`, `requester_shift_id`, `requester_workstation_id?`, the same four for `colleague_*`, `status`, `decided_by?` — roster rows referenced by value, so approval can tell when they changed |
+| `leave_requests` | `employee_id`, `start_date`, `end_date`, `note?`, `status`, `decided_by?`, `decision_comment?` |
+| `leave_request_days` | `leave_request_id`, `unavailability_id`, `date` — the absences an approval created, so a revoke removes exactly those |
+| `leave_blackouts` | `start_date`, `end_date`, `reason?` |
+| `leave_limits` | `capability_id`, `max_absent` — one per capability per tenant |
+| `open_shifts` | `date`, `shift_id`, `workstation_id?`, `note?`, `status`, `assigned_employee_id?` — one `open` offer per slot (partial unique index) |
+| `open_shift_volunteers` | `open_shift_id`, `employee_id` |
+| `notification_preferences` | `employee_id`, `email_enabled`, `muted_events` |
+| `notification_outbox` | `recipient`, `event`, `subject`, `body`, `status` (`pending`/`sent`/`failed`), `attempts`, `next_attempt_at`, `last_error?` |
+| `roster_notice_deliveries` | `notice_id` — the change notices already turned into mail |
 
 ### Operations
 

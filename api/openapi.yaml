@@ -29,6 +29,15 @@ tags:
     description: The tenant's shift-wish window — whether, and for which dates, employees may place wishes themselves (shift-admin only to change)
   - name: Shift Swaps
     description: Employee-initiated exchange of two confirmed shifts — the colleague consents, a planner approves or rejects
+  - name: Leave
+    description: >
+      Leave (vacation) requests — an employee asks, a planner approves or rejects
+      (approval writes the absences) — plus blackout periods that refuse a request
+      and per-capability limits that only warn
+  - name: Open Shifts
+    description: Slots nobody is planned on, offered to the people who may take them — employees volunteer, a planner assigns
+  - name: Notifications
+    description: E-mail notifications — the caller's preferences and the outbox (off without `smtp.host`)
   - name: Planner
     description: Shift scheduling planner endpoints
   - name: Shift Assignments
@@ -1884,6 +1893,660 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
+
+  /leave-requests:
+    get:
+      tags:
+        - Leave
+      summary: List leave requests
+      description: >
+        Newest first. A `shift-planner` or `shift-admin` sees every request of the
+        tenant (optionally those of one `employee_id`); everyone else only their own,
+        matched by e-mail. `from` / `to` keep the requests that overlap that range.
+      operationId: listLeaveRequests
+      parameters:
+        - name: status
+          in: query
+          description: Comma-separated `LeaveStatus` values
+          schema:
+            type: string
+            example: pending,approved
+        - name: employee_id
+          in: query
+          description: Planners and admins only — ignored for everyone else
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: The visible requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeaveRequest'
+    post:
+      tags:
+        - Leave
+      summary: Request leave
+      description: >
+        An employee asks for `start_date` … `end_date` off (at most 366 days, not
+        starting in the past). The requester must be the caller; planners and admins
+        may not request leave, they decide on it. Refused (400) when the range
+        touches a blackout period, and (409) when the employee already has a pending
+        or approved request in it. Breaches of a leave limit are not a refusal: they
+        come back as `warnings`.
+      operationId: createLeaveRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLeaveRequest'
+      responses:
+        '200':
+          description: Request created, `pending`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveRequest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /leave-requests/pending-count:
+    get:
+      tags:
+        - Leave
+      summary: Number of leave requests awaiting a decision
+      description: "`shift-planner` / `shift-admin` only."
+      operationId: countPendingLeaveRequests
+      responses:
+        '200':
+          description: The count
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count]
+                properties:
+                  count:
+                    type: integer
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /leave-requests/{leaveId}:
+    get:
+      tags:
+        - Leave
+      summary: Get one leave request
+      description: >
+        Planners any request, everyone else their own (404 otherwise). While the
+        request is pending the answer carries `warnings`: the leave limits it would exceed.
+      operationId: getLeaveRequest
+      parameters:
+        - $ref: '#/components/parameters/LeaveId'
+      responses:
+        '200':
+          description: The request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /leave-requests/{leaveId}/cancel:
+    post:
+      tags:
+        - Leave
+      summary: The requester withdraws a pending request
+      description: Only the requester, only while `pending`. Nothing was written, so nothing is undone.
+      operationId: cancelLeaveRequest
+      parameters:
+        - $ref: '#/components/parameters/LeaveId'
+      responses:
+        '200':
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /leave-requests/{leaveId}/approve:
+    post:
+      tags:
+        - Leave
+      summary: A planner approves
+      description: >
+        `shift-planner` / `shift-admin` only, on a `pending` request. In one
+        transaction every day gets a hard unavailability and its roster mirror
+        (`absence_type: unavailable`); a day that already has a whole-day
+        unavailability is left as it is, and a day already marked sick (or any
+        other absence) keeps its entry. A planned shift or a free day makes way.
+        The write follows the months' status like any roster change: 403 in a
+        locked month unless `shift-admin` with a reason, 428 inside the freeze
+        window of a published month without `X-Change-Reason` — the request then
+        stays `pending`. The employee gets a change notice for each changed day.
+        Limit warnings never stop it; the ones present go to the audit entry
+        (`leave_request.approve`).
+      operationId: approveLeaveRequest
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/LeaveId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveDecision'
+      responses:
+        '428':
+          $ref: '#/components/responses/ReasonRequired'
+        '200':
+          description: Approved; the absences are written
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /leave-requests/{leaveId}/reject:
+    post:
+      tags:
+        - Leave
+      summary: A planner rejects
+      description: "`shift-planner` / `shift-admin` only. `pending` → `rejected`; nothing is written."
+      operationId: rejectLeaveRequest
+      parameters:
+        - $ref: '#/components/parameters/LeaveId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveDecision'
+      responses:
+        '200':
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /leave-requests/{leaveId}/revoke:
+    post:
+      tags:
+        - Leave
+      summary: A planner takes an approved request back
+      description: >
+        `shift-planner` / `shift-admin` only, on an `approved` request. The
+        absences it created are removed from today on (days that have passed stay);
+        absences someone entered by hand, or that existed already, are never
+        touched. Follows the months' status like approval (403 / 428).
+      operationId: revokeLeaveRequest
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/LeaveId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveDecision'
+      responses:
+        '428':
+          $ref: '#/components/responses/ReasonRequired'
+        '200':
+          description: Revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /leave-blackouts:
+    get:
+      tags:
+        - Leave
+      summary: List blackout periods
+      description: Readable by every role — the request form shows them.
+      operationId: listLeaveBlackouts
+      responses:
+        '200':
+          description: Blackout periods, earliest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeaveBlackout'
+    post:
+      tags:
+        - Leave
+      summary: Add a blackout period
+      description: "`shift-planner` / `shift-admin` only. No leave can be requested in it."
+      operationId: createLeaveBlackout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [start_date, end_date]
+              properties:
+                start_date:
+                  type: string
+                  format: date
+                end_date:
+                  type: string
+                  format: date
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveBlackout'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /leave-blackouts/{blackoutId}:
+    delete:
+      tags:
+        - Leave
+      summary: Remove a blackout period
+      description: "`shift-planner` / `shift-admin` only."
+      operationId: deleteLeaveBlackout
+      parameters:
+        - name: blackoutId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Removed
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /leave-limits:
+    get:
+      tags:
+        - Leave
+      summary: List the absence limits
+      description: "`shift-planner` / `shift-admin` only."
+      operationId: listLeaveLimits
+      responses:
+        '200':
+          description: One limit per capability that has one
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeaveLimit'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    put:
+      tags:
+        - Leave
+      summary: Replace the absence limits
+      description: >
+        `shift-planner` / `shift-admin` only. At most `max_absent` people holding
+        the capability may be absent on one day. A limit is a warning to whoever asks
+        and whoever decides, never a refusal. Absences counted are whole-day hard
+        unavailabilities, so approved leave and hand-entered absences both count.
+      operationId: updateLeaveLimits
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [limits]
+              properties:
+                limits:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/LeaveLimit'
+      responses:
+        '200':
+          description: The limits as saved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeaveLimit'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /open-shifts:
+    get:
+      tags:
+        - Open Shifts
+      summary: List open shifts
+      description: >
+        Soonest first; `open` ones from today on unless `status` / `from` say otherwise.
+        Everyone gets `volunteer_count`. An employee also gets whether *they* may take
+        the slot (`eligible`, with `reasons` when not) and whether they volunteered —
+        never who else did. A planner gets the `volunteers`, each with the same check.
+      operationId: listOpenShifts
+      parameters:
+        - name: status
+          in: query
+          description: Comma-separated `OpenShiftStatus` values; `open` when absent
+          schema:
+            type: string
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: The offers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OpenShift'
+    post:
+      tags:
+        - Open Shifts
+      summary: Offer a shift
+      description: >
+        `shift-planner` / `shift-admin` only. Offers a slot (today or later) that
+        nobody is planned on. A slot has one open offer at a time (409). A ward must
+        run the shift. With notifications on, every employee who may take it is
+        e-mailed.
+      operationId: createOpenShift
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOpenShift'
+      responses:
+        '200':
+          description: Offered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenShift'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /open-shifts/count:
+    get:
+      tags:
+        - Open Shifts
+      summary: Number of open offers from today on
+      operationId: countOpenShifts
+      responses:
+        '200':
+          description: The count
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count]
+                properties:
+                  count:
+                    type: integer
+
+  /open-shifts/gaps:
+    get:
+      tags:
+        - Open Shifts
+      summary: Slots below their ward's minimum staffing
+      description: >
+        `shift-planner` / `shift-admin` only; at most 92 days. For every available
+        ward with a minimum, every shift it runs on a day that shift runs and the ward
+        is not closed: how many confirmed shifts are missing to reach the minimum,
+        unless that slot already has an open offer.
+      operationId: listOpenShiftGaps
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: The gaps, earliest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OpenShiftGap'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /open-shifts/{openShiftId}/volunteer:
+    post:
+      tags:
+        - Open Shifts
+      summary: Volunteer for an open shift
+      description: >
+        The caller (matched by e-mail), never a planner or admin. Refused (400,
+        with every reason) unless they may take the slot: not already working or
+        absent that day, no hard unavailability, available for the shift, holding the
+        ward's required capabilities (or a higher level of the same skill group), and
+        the planner's minimum rest to the days around it. Volunteering twice is once.
+      operationId: volunteerForOpenShift
+      parameters:
+        - $ref: '#/components/parameters/OpenShiftId'
+      responses:
+        '200':
+          description: Volunteered
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /open-shifts/{openShiftId}/withdraw:
+    post:
+      tags:
+        - Open Shifts
+      summary: Take a volunteering back
+      operationId: withdrawFromOpenShift
+      parameters:
+        - $ref: '#/components/parameters/OpenShiftId'
+      responses:
+        '200':
+          description: Withdrawn
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /open-shifts/{openShiftId}/assign:
+    post:
+      tags:
+        - Open Shifts
+      summary: A planner assigns the shift
+      description: >
+        `shift-planner` / `shift-admin` only, on an `open` offer, to a volunteer or
+        anyone else who may take it (the same rules as volunteering; 400 otherwise).
+        The shift is written into the person's confirmed roster — replacing a free
+        day — and the offer becomes `filled`, in one transaction. The write follows
+        the months' status like any roster change: 403 in a locked month unless
+        `shift-admin` with a reason, 428 inside the freeze window of a published month
+        without `X-Change-Reason` (the offer then stays `open`). The employee gets a
+        change notice and, with notifications on, an e-mail.
+      operationId: assignOpenShift
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/OpenShiftId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employee_id]
+              properties:
+                employee_id:
+                  type: string
+                  format: uuid
+      responses:
+        '428':
+          $ref: '#/components/responses/ReasonRequired'
+        '200':
+          description: Assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenShift'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /open-shifts/{openShiftId}/close:
+    post:
+      tags:
+        - Open Shifts
+      summary: A planner withdraws the offer
+      description: "`shift-planner` / `shift-admin` only. `open` → `closed`; the slot can be offered again."
+      operationId: closeOpenShift
+      parameters:
+        - $ref: '#/components/parameters/OpenShiftId'
+      responses:
+        '200':
+          description: Closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenShift'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /notification-preferences:
+    get:
+      tags:
+        - Notifications
+      summary: The caller's e-mail notification choices
+      description: >
+        Everything is on until the employee turns it off. `email_configured` is false
+        while the deployment has no `smtp.host`: nothing is sent whatever is chosen.
+        `employee_id` is null when no employee matches the caller's account.
+      operationId: getNotificationPreferences
+      responses:
+        '200':
+          description: The preferences
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+    put:
+      tags:
+        - Notifications
+      summary: Change the caller's e-mail notification choices
+      operationId: updateNotificationPreferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email_enabled]
+              properties:
+                email_enabled:
+                  type: boolean
+                muted_events:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/NotificationEvent'
+      responses:
+        '200':
+          description: The preferences as saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /notification-outbox:
+    get:
+      tags:
+        - Notifications
+      summary: Recent notification e-mails and how they went
+      description: >
+        `shift-planner` / `shift-admin` only (it shows addresses). The newest 100
+        mails of the tenant. A mail is `pending` until sent, retried with a growing
+        delay, and `failed` after five attempts, with the last error.
+      operationId: listNotificationOutbox
+      responses:
+        '200':
+          description: The mails
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OutboxMessage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /wish-settings:
     get:
@@ -7233,6 +7896,305 @@ components:
           description: Number of results skipped
           example: 0
 
+    LeaveStatus:
+      type: string
+      enum: [pending, approved, rejected, cancelled, revoked]
+
+    LeaveWarning:
+      type: object
+      description: A leave limit the request would exceed.
+      required: [kind, capability_id, max_absent, dates]
+      properties:
+        kind:
+          type: string
+          enum: [limit]
+        capability_id:
+          type: string
+          format: uuid
+        capability:
+          type: string
+          nullable: true
+        max_absent:
+          type: integer
+        dates:
+          type: array
+          description: The days on which one more absent person would exceed the limit
+          items:
+            type: string
+            format: date
+
+    LeaveRequest:
+      type: object
+      required: [id, employee_id, start_date, end_date, status, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        employee_id:
+          type: string
+          format: uuid
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        note:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/LeaveStatus'
+        decided_by:
+          type: string
+          nullable: true
+        decision_comment:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        warnings:
+          type: array
+          description: Only while pending, on create and on a single read
+          items:
+            $ref: '#/components/schemas/LeaveWarning'
+
+    CreateLeaveRequest:
+      type: object
+      required: [employee_id, start_date, end_date]
+      properties:
+        employee_id:
+          type: string
+          format: uuid
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        note:
+          type: string
+          maxLength: 500
+
+    LeaveDecision:
+      type: object
+      properties:
+        comment:
+          type: string
+
+    LeaveBlackout:
+      type: object
+      required: [id, start_date, end_date, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    LeaveLimit:
+      type: object
+      required: [capability_id, max_absent]
+      properties:
+        capability_id:
+          type: string
+          format: uuid
+        max_absent:
+          type: integer
+          minimum: 0
+
+    OpenShiftStatus:
+      type: string
+      enum: [open, filled, closed]
+
+    OpenShiftVolunteer:
+      type: object
+      required: [employee_id, created_at, eligible, reasons]
+      properties:
+        employee_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        eligible:
+          type: boolean
+        reasons:
+          type: array
+          items:
+            type: string
+
+    OpenShift:
+      type: object
+      required: [id, date, shift_id, status, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        shift_id:
+          type: string
+          format: uuid
+        workstation_id:
+          type: string
+          format: uuid
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/OpenShiftStatus'
+        assigned_employee_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_by:
+          type: string
+          nullable: true
+        decided_by:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        volunteer_count:
+          type: integer
+          description: On the list
+        eligible:
+          type: boolean
+          description: On the list, for an employee — whether they may take the slot
+        reasons:
+          type: array
+          description: On the list, for an employee — why they may not
+          items:
+            type: string
+        volunteered:
+          type: boolean
+          description: On the list, for an employee
+        volunteers:
+          type: array
+          description: On the list, for a planner
+          items:
+            $ref: '#/components/schemas/OpenShiftVolunteer'
+
+    CreateOpenShift:
+      type: object
+      required: [date, shift_id]
+      properties:
+        date:
+          type: string
+          format: date
+        shift_id:
+          type: string
+          format: uuid
+        workstation_id:
+          type: string
+          format: uuid
+          nullable: true
+        note:
+          type: string
+          maxLength: 500
+
+    OpenShiftGap:
+      type: object
+      required: [date, shift_id, workstation_id, short, min_employees]
+      properties:
+        date:
+          type: string
+          format: date
+        shift_id:
+          type: string
+          format: uuid
+        workstation_id:
+          type: string
+          format: uuid
+        short:
+          type: integer
+          description: How many more are needed to reach the minimum
+        min_employees:
+          type: integer
+
+    NotificationEvent:
+      type: string
+      enum: [roster_published, shift_changed, swap_update, leave_update, open_shift_offered]
+
+    NotificationPreferences:
+      type: object
+      required: [employee_id, email_enabled, muted_events, events, email_configured]
+      properties:
+        employee_id:
+          type: string
+          format: uuid
+          nullable: true
+        email_enabled:
+          type: boolean
+        muted_events:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationEvent'
+        events:
+          type: array
+          description: Every event there is
+          items:
+            $ref: '#/components/schemas/NotificationEvent'
+        email_configured:
+          type: boolean
+
+    OutboxMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        employee_id:
+          type: string
+          format: uuid
+          nullable: true
+        recipient:
+          type: string
+        event:
+          $ref: '#/components/schemas/NotificationEvent'
+        subject:
+          type: string
+        body:
+          type: string
+        status:
+          type: string
+          enum: [pending, sent, failed]
+        attempts:
+          type: integer
+        next_attempt_at:
+          type: string
+          format: date-time
+        last_error:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        sent_at:
+          type: string
+          format: date-time
+          nullable: true
+
   parameters:
     Month:
       name: month
@@ -7286,6 +8248,22 @@ components:
 
     SwapId:
       name: swapId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    LeaveId:
+      name: leaveId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    OpenShiftId:
+      name: openShiftId
       in: path
       required: true
       schema:
