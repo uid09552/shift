@@ -30,6 +30,8 @@ use crate::services::{
     leave::LeaveService,
     notifier::NotificationService,
     open_shift::OpenShiftService,
+    calendar_feed::CalendarFeedService,
+    staffing_rules::StaffingRuleService,
     tenant,
     unavailability::UnavailabilityService,
     user_management::UserManagementService,
@@ -191,6 +193,22 @@ pub fn create_router(state: AppState) -> Router {
             get(NotificationService::get_preferences).put(NotificationService::update_preferences),
         )
         .route("/notification-outbox", get(NotificationService::outbox))
+        // Skill-mix and pairing rules: who has to, or may not, work alongside whom
+        .route(
+            "/skill-mix-rules",
+            get(StaffingRuleService::list_skill_mix_rules).post(StaffingRuleService::create_skill_mix_rule),
+        )
+        .route("/skill-mix-rules/:rule_id", delete(StaffingRuleService::delete_skill_mix_rule))
+        .route(
+            "/pairing-rules",
+            get(StaffingRuleService::list_pairing_rules).post(StaffingRuleService::create_pairing_rule),
+        )
+        .route("/pairing-rules/:rule_id", delete(StaffingRuleService::delete_pairing_rule))
+        // The caller's own calendar feed link (self-service)
+        .route(
+            "/calendar-feed",
+            get(CalendarFeedService::get_feed).post(CalendarFeedService::create_feed).delete(CalendarFeedService::delete_feed),
+        )
         // Shift wish window (readable by everyone, writable by shift-admin only)
         .route(
             "/wish-settings",
@@ -281,7 +299,10 @@ pub fn create_router(state: AppState) -> Router {
         // Resolve the request's tenant and roles from the x-access-token JWT (or the
         // default tenant and full access in dev mode) before any handler runs, and
         // reject methods the caller's roles do not cover.
-        .layer(middleware::from_fn_with_state(state.clone(), tenant::authenticate));
+        .layer(middleware::from_fn_with_state(state.clone(), tenant::authenticate))
+        // Added after the layer, so it is not wrapped by it: calendar apps
+        // cannot sign in, the token in the path is the key.
+        .route("/calendar-feeds/:file", get(CalendarFeedService::serve_feed));
 
     Router::new()
         .route("/health", get(health_check))

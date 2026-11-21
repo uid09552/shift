@@ -415,6 +415,9 @@ impl OptimizerService {
             employee_tasks.len(),
         );
 
+        let (skill_mix_rules, pairing_rules) =
+            crate::services::staffing_rules::rules_for_planning(state, tenant_id).await?;
+
         Ok(TaskDTO {
             planning_period: PlanningPeriod {
                 start_date: period_start.to_string(),
@@ -427,6 +430,8 @@ impl OptimizerService {
             history,
             holidays,
             published_roster,
+            skill_mix_rules,
+            pairing_rules,
             constraints,
         })
     }

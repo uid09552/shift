@@ -1,0 +1,46 @@
+<section class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] sm:p-6" data-testid="calendar-feed">
+  <h2 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'calendarFeed.title' | t }}</h2>
+  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ 'calendarFeed.help' | t }}</p>
+
+  <app-error-notice class="mt-4" [message]="error" (dismiss)="error = null" />
+
+  @if (loading) {
+    <p class="mt-4 text-sm text-gray-400">{{ 'common.loading' | t }}</p>
+  } @else if (feed && feed.employee_id === null) {
+    <p class="mt-4 text-sm text-gray-500 dark:text-gray-400" data-testid="calendar-feed-no-employee">{{ 'calendarFeed.noEmployee' | t }}</p>
+  } @else if (feed) {
+    @if (urls) {
+      <div class="mt-4 rounded-lg border border-success-200 bg-success-50 p-4 dark:border-success-500/30 dark:bg-success-500/10" data-testid="calendar-feed-link">
+        <p class="text-sm font-medium text-success-700 dark:text-success-400">{{ 'calendarFeed.once' | t }}</p>
+        <div class="mt-2 flex flex-wrap items-center gap-2">
+          <input type="text" readonly [value]="urls.https" [attr.aria-label]="'calendarFeed.link' | t" data-testid="calendar-feed-url"
+            (focus)="$any($event.target).select()"
+            class="h-10 min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3 font-mono text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90" />
+          <button type="button" (click)="copy()" data-testid="calendar-feed-copy"
+            class="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+            {{ (copied ? 'calendarFeed.copied' : 'calendarFeed.copy') | t }}
+          </button>
+          <a [href]="urls.webcal" data-testid="calendar-feed-subscribe"
+            class="inline-flex h-10 items-center rounded-lg bg-brand-500 px-3 text-sm font-medium text-white hover:bg-brand-600">{{ 'calendarFeed.subscribe' | t }}</a>
+        </div>
+      </div>
+    } @else if (feed.active) {
+      <p class="mt-4 text-sm text-gray-700 dark:text-gray-300" data-testid="calendar-feed-active">
+        {{ 'calendarFeed.active' | t: { date: (feed.created_at + 'Z' | date: 'mediumDate') ?? '' } }}
+        @if (feed.last_fetched_at) { {{ 'calendarFeed.lastFetched' | t: { date: (feed.last_fetched_at + 'Z' | date: 'short') ?? '' } }} }
+      </p>
+    }
+    <div class="mt-4 flex flex-wrap gap-2">
+      <button type="button" (click)="create()" [disabled]="busy" data-testid="calendar-feed-create"
+        class="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50">
+        {{ (feed.active ? 'calendarFeed.replace' : 'calendarFeed.create') | t }}
+      </button>
+      @if (feed.active) {
+        <button type="button" (click)="remove()" [disabled]="busy" data-testid="calendar-feed-remove"
+          class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.05]">
+          {{ 'calendarFeed.remove' | t }}
+        </button>
+      }
+    </div>
+  }
+</section>

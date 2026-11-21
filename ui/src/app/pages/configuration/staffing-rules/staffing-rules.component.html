@@ -1,0 +1,180 @@
+<app-page-breadcrumb pageTitle="nav.staffingRules" />
+
+<div class="space-y-5" data-testid="staffing-rules-page">
+  <p class="text-sm text-gray-500 dark:text-gray-400">{{ 'staffingRules.intro' | t }}</p>
+  <app-error-notice [message]="error" (dismiss)="error = null" />
+
+  @if (loading) {
+    <p class="py-10 text-center text-sm text-gray-400">{{ 'common.loading' | t }}</p>
+  } @else if (loadError) {
+    <div class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+      <app-load-error [message]="loadError" (retry)="load()" />
+    </div>
+  } @else {
+    <!-- Skill mix -->
+    <section class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] sm:p-6" data-testid="skill-mix-rules">
+      <h2 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'staffingRules.mix.title' | t }}</h2>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ 'staffingRules.mix.help' | t }}</p>
+
+      @if (mixRules.length) {
+        <ul class="mt-4 divide-y divide-gray-100 dark:divide-white/[0.05]">
+          @for (r of mixRules; track r.id) {
+            <li class="flex flex-wrap items-center justify-between gap-3 py-2.5" [attr.data-testid]="'skill-mix-rule-' + r.id">
+              <p class="text-sm text-gray-800 dark:text-white/90">
+                {{ describeMix(r) }}
+                <span class="ml-2 rounded-full px-2 py-0.5 text-xs font-medium"
+                  [ngClass]="r.mode === 'hard' ? 'bg-gray-100 text-gray-700 dark:bg-white/[0.06] dark:text-gray-300' : 'bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400'">{{ ('staffingRules.mode.' + r.mode) | t }}</span>
+              </p>
+              <button type="button" (click)="removeMixRule(r)" [disabled]="busy" [attr.data-testid]="'skill-mix-delete-' + r.id"
+                class="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.05]">{{ 'common.delete' | t }}</button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="mt-4 text-sm text-gray-500 dark:text-gray-400" data-testid="skill-mix-empty">{{ 'staffingRules.mix.empty' | t }}</p>
+      }
+
+      <form class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" (ngSubmit)="addMixRule()">
+        <label class="text-sm text-gray-700 dark:text-gray-300">
+          <span class="mb-1.5 block font-medium">{{ 'staffingRules.mix.kind' | t }}</span>
+          <select name="mixKind" [(ngModel)]="mixKind" data-testid="skill-mix-kind"
+            class="h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+            <option value="at_least">{{ 'staffingRules.mix.atLeast' | t }}</option>
+            <option value="at_most">{{ 'staffingRules.mix.atMost' | t }}</option>
+          </select>
+        </label>
+        <label class="text-sm text-gray-700 dark:text-gray-300">
+          <span class="mb-1.5 block font-medium">{{ 'staffingRules.mix.count' | t }}</span>
+          <input name="mixCount" type="number" min="0" max="50" step="1" [(ngModel)]="mixCount" data-testid="skill-mix-count"
+            class="h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:text-white/90" />
+        </label>
+        @if (whoChoices.length > 1) {
+          <label class="text-sm text-gray-700 dark:text-gray-300">
+            <span class="mb-1.5 block font-medium">{{ 'staffingRules.mix.who' | t }}</span>
+            <select name="who" [(ngModel)]="who" data-testid="skill-mix-who"
+              class="h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+              <option value="capability">{{ 'staffingRules.mix.byCapability' | t }}</option>
+              <option value="group">{{ 'staffingRules.mix.byGroup' | t }}</option>
+            </select>
+          </label>
+        }
+        @if (mixKind === 'at_most' || who === 'capability') {
+          <label class="text-sm text-gray-700 dark:text-gray-300">
+            <span class="mb-1.5 block font-medium">{{ 'staffingRules.mix.capability' | t }}</span>
+            <select name="capability" [(ngModel)]="capabilityId" data-testid="skill-mix-capability"
+              class="h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+              <option value="" disabled>{{ 'staffingRules.pick' | t }}</option>
+              @for (c of capabilities; track c.id) { <option [value]="c.id">{{ c.name }}</option> }
+            </select>
+          </label>
+        } @else {
+          <label class="text-sm text-gray-700 dark:text-gray-300">
+            <span class="mb-1.5 block font-medium">{{ 'staffingRules.mix.group' | t }}</span>
+            <select name="group" [(ngModel)]="skillGroup" data-testid="skill-mix-group"
+              class="h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+              <option value="" disabled>{{ 'staffingRules.pick' | t }}</option>
+              @for (g of groups; track g) { <option [value]="g">{{ g }}</option> }
+            </select>
+          </label>
+          <label class="text-sm text-gray-700 dark:text-gray-300">
+            <span class="mb-1.5 block font-medium">{{ 'staffingRules.mix.minLevel' | t }}</span>
+            <input name="minLevel" type="number" min="1" step="1" [(ngModel)]="minLevel" data-testid="skill-mix-level"
+              class="h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:text-white/90" />
+          </label>
+        }
+        <label class="text-sm text-gray-700 dark:text-gray-300">
+          <span class="mb-1.5 block font-medium">{{ 'staffingRules.mix.shift' | t }}</span>
+          <select name="shift" [(ngModel)]="shiftId" data-testid="skill-mix-shift"
+            class="h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+            <option value="">{{ 'staffingRules.everyShift' | t }}</option>
+            @for (s of shifts; track s.id) { <option [value]="s.id">{{ s.name }}</option> }
+          </select>
+        </label>
+        <label class="text-sm text-gray-700 dark:text-gray-300">
+          <span class="mb-1.5 block font-medium">{{ 'staffingRules.mix.ward' | t }}</span>
+          <select name="ward" [(ngModel)]="workstationId" data-testid="skill-mix-ward"
+            class="h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+            <option value="">{{ 'staffingRules.allWards' | t }}</option>
+            @for (w of workstations; track w.id) { <option [value]="w.id">{{ w.name }}</option> }
+          </select>
+        </label>
+        <label class="text-sm text-gray-700 dark:text-gray-300">
+          <span class="mb-1.5 block font-medium">{{ 'staffingRules.modeLabel' | t }}</span>
+          <select name="mixMode" [(ngModel)]="mixMode" data-testid="skill-mix-mode"
+            class="h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+            <option value="hard">{{ 'staffingRules.mode.hard' | t }}</option>
+            <option value="soft">{{ 'staffingRules.mode.soft' | t }}</option>
+          </select>
+        </label>
+        <div class="flex items-end">
+          <button type="submit" [disabled]="!mixValid || busy" data-testid="skill-mix-add"
+            class="h-10 w-full rounded-lg bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-brand-300">{{ 'staffingRules.add' | t }}</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Pairing -->
+    <section class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] sm:p-6" data-testid="pairing-rules">
+      <h2 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ 'staffingRules.pair.title' | t }}</h2>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ 'staffingRules.pair.help' | t }}</p>
+
+      @if (pairRules.length) {
+        <ul class="mt-4 divide-y divide-gray-100 dark:divide-white/[0.05]">
+          @for (r of pairRules; track r.id) {
+            <li class="flex flex-wrap items-center justify-between gap-3 py-2.5" [attr.data-testid]="'pairing-rule-' + r.id">
+              <p class="text-sm text-gray-800 dark:text-white/90">
+                {{ describePair(r) }}
+                <span class="ml-2 rounded-full px-2 py-0.5 text-xs font-medium"
+                  [ngClass]="r.mode === 'hard' ? 'bg-gray-100 text-gray-700 dark:bg-white/[0.06] dark:text-gray-300' : 'bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400'">{{ ('staffingRules.mode.' + r.mode) | t }}</span>
+              </p>
+              <button type="button" (click)="removePairRule(r)" [disabled]="busy" [attr.data-testid]="'pairing-delete-' + r.id"
+                class="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.05]">{{ 'common.delete' | t }}</button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="mt-4 text-sm text-gray-500 dark:text-gray-400" data-testid="pairing-empty">{{ 'staffingRules.pair.empty' | t }}</p>
+      }
+
+      <form class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5" (ngSubmit)="addPairRule()">
+        <label class="text-sm text-gray-700 dark:text-gray-300">
+          <span class="mb-1.5 block font-medium">{{ 'staffingRules.pair.kind' | t }}</span>
+          <select name="pairKind" [(ngModel)]="pairKind" data-testid="pairing-kind"
+            class="h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+            <option value="mentor">{{ 'staffingRules.pair.kind.mentor' | t }}</option>
+            <option value="together">{{ 'staffingRules.pair.kind.together' | t }}</option>
+            <option value="apart">{{ 'staffingRules.pair.kind.apart' | t }}</option>
+          </select>
+        </label>
+        <label class="text-sm text-gray-700 dark:text-gray-300">
+          <span class="mb-1.5 block font-medium">{{ (pairKind === 'mentor' ? 'staffingRules.pair.trainee' : 'staffingRules.pair.first') | t }}</span>
+          <select name="employee" [(ngModel)]="employeeId" data-testid="pairing-employee"
+            class="h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+            <option value="" disabled>{{ 'staffingRules.pick' | t }}</option>
+            @for (e of employees; track e.id) { <option [value]="e.id">{{ e.name }}</option> }
+          </select>
+        </label>
+        <label class="text-sm text-gray-700 dark:text-gray-300">
+          <span class="mb-1.5 block font-medium">{{ (pairKind === 'mentor' ? 'staffingRules.pair.mentor' : 'staffingRules.pair.second') | t }}</span>
+          <select name="partner" [(ngModel)]="partnerId" data-testid="pairing-partner"
+            class="h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+            <option value="" disabled>{{ 'staffingRules.pick' | t }}</option>
+            @for (e of employees; track e.id) { @if (e.id !== employeeId) { <option [value]="e.id">{{ e.name }}</option> } }
+          </select>
+        </label>
+        <label class="text-sm text-gray-700 dark:text-gray-300">
+          <span class="mb-1.5 block font-medium">{{ 'staffingRules.modeLabel' | t }}</span>
+          <select name="pairMode" [(ngModel)]="pairMode" data-testid="pairing-mode"
+            class="h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+            <option value="hard">{{ 'staffingRules.mode.hard' | t }}</option>
+            <option value="soft">{{ 'staffingRules.mode.soft' | t }}</option>
+          </select>
+        </label>
+        <div class="flex items-end">
+          <button type="submit" [disabled]="!pairValid || busy" data-testid="pairing-add"
+            class="h-10 w-full rounded-lg bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-brand-300">{{ 'staffingRules.add' | t }}</button>
+        </div>
+      </form>
+    </section>
+  }
+</div>

@@ -1682,6 +1682,37 @@ pub trait OpenShiftRepository {
     ) -> Result<OpenShift, AppError>;
 }
 
+
+/// An employee's calendar feed, as stored: only the token's hash.
+#[derive(Debug, Clone)]
+pub struct CalendarFeedDomain {
+    pub employee_id: Uuid,
+    pub tenant_id: String,
+    pub created_at: NaiveDateTime,
+    pub last_fetched_at: Option<NaiveDateTime>,
+}
+
+#[async_trait]
+pub trait CalendarFeedRepository {
+    async fn get_feed(&self, tenant_id: &str, employee_id: Uuid) -> Result<Option<CalendarFeedDomain>, AppError>;
+    /// Stores `token_hash` as the employee's only feed, replacing an older one.
+    async fn replace_feed(&self, tenant_id: &str, employee_id: Uuid, token_hash: &str) -> Result<CalendarFeedDomain, AppError>;
+    async fn delete_feed(&self, tenant_id: &str, employee_id: Uuid) -> Result<bool, AppError>;
+    /// The feed with this token hash, marked as fetched now.
+    async fn touch_feed_by_hash(&self, token_hash: &str) -> Result<Option<CalendarFeedDomain>, AppError>;
+}
+
+
+#[async_trait]
+pub trait StaffingRuleRepository {
+    async fn list_skill_mix_rules(&self, tenant_id: &str) -> Result<Vec<crate::models::SkillMixRule>, AppError>;
+    async fn create_skill_mix_rule(&self, rule: crate::models::NewSkillMixRule) -> Result<crate::models::SkillMixRule, AppError>;
+    async fn delete_skill_mix_rule(&self, tenant_id: &str, id: Uuid) -> Result<bool, AppError>;
+    async fn list_pairing_rules(&self, tenant_id: &str) -> Result<Vec<crate::models::PairingRule>, AppError>;
+    async fn create_pairing_rule(&self, rule: crate::models::NewPairingRule) -> Result<crate::models::PairingRule, AppError>;
+    async fn delete_pairing_rule(&self, tenant_id: &str, id: Uuid) -> Result<bool, AppError>;
+}
+
 #[cfg(test)]
 mod roster_month_tests {
     use super::*;

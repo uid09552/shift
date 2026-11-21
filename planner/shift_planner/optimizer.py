@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 
 from ortools.sat.python import cp_model
 
-from shift_planner import legal, telemetry
+from shift_planner import legal, skill_mix, telemetry
 from shift_planner.models import (
     DailyPlanEntry,
     DaySchedule,
@@ -185,6 +185,9 @@ class ShiftPlanner:
         self._parse_entities(data)
         self._parse_config(data)
         self._load_capability_catalog(data)
+        # Skill-mix and pairing rules (skill_mix.py): hard ones are
+        # constraints, soft ones breach terms minimised right after coverage.
+        self.mix_rules, self.pair_rules = skill_mix.parse(data)
         self._build_lookups()
         self._load_history()
         self._load_published_roster()
@@ -224,6 +227,9 @@ class ShiftPlanner:
         # each 1 when it does. Minimised right after the personal limits —
         # see _track_changes_vs_published and _solve.
         self.change_terms: list = []
+        # Soft skill-mix / pairing breaches as (IntVar, upper bound), in the
+        # same tier as the soft personal limits — see _solve.
+        self.rule_breaches: list = []
 
     # ---- Input parsing -----------------------------------------------------
 
@@ -517,6 +523,7 @@ class ShiftPlanner:
         catalog = data.get("capabilities", [])
         self.cap_level = {c["id"]: c.get("level", 1) for c in catalog}
         self.cap_group = {c["id"]: c.get("skill_group") for c in catalog}
+        self.mix_catalog = skill_mix.catalog_of(data)
 
     # ---- Small per-entity helpers ------------------------------------------
 
@@ -667,6 +674,92 @@ class ShiftPlanner:
         self._limit_consecutive_days()
         self._limit_personal_nights_and_weekends()
         self._add_legal_hour_limits()
+        self._add_skill_mix_rules()
+        self._add_pairing_rules()
+
+    def _rule_breach(self, name: str, upper: int, hard: bool):
+        """A soft rule's breach variable (0 … upper), or None for a hard rule."""
+        if hard:
+            return None
+        var = self.model.NewIntVar(0, upper, name)
+        self.rule_breaches.append((var, upper))
+        return var
+
+    def _add_skill_mix_rules(self) -> None:
+        """Skill mix per slot (skill_mix.py): a staffed slot needs at least
+        `count` people who count toward an at_least rule, and may hold at most
+        `count` toward an at_most one. A slot is a (day, shift) at one
+        workstation, or summed over all of them when the rule names none."""
+        for r_idx, rule in enumerate(self.mix_rules):
+            slots: dict = {}
+            for (e_idx, d_idx, s_idx, w_idx), var in self.x.items():
+                sid = self.shifts[s_idx]["id"]
+                wid = self.workstations[w_idx]["id"]
+                if not skill_mix.applies(rule, sid, wid):
+                    continue
+                key = (d_idx, s_idx, w_idx) if rule.workstation_id else (d_idx, s_idx)
+                everyone, matching = slots.setdefault(key, ([], []))
+                everyone.append(var)
+                eid = self.employees[e_idx]["id"]
+                if skill_mix.counts_toward(rule, self.emp_skills[eid], self.mix_catalog):
+                    matching.append(var)
+            for key, (everyone, matching) in slots.items():
+                name = f"mix_{r_idx}_" + "_".join(map(str, key))
+                if rule.kind == skill_mix.AT_MOST:
+                    if len(matching) <= rule.count:
+                        continue
+                    over = self._rule_breach(name, len(matching) - rule.count, rule.hard)
+                    self.model.Add(sum(matching) <= rule.count + (over if over is not None else 0))
+                elif rule.count > 0:
+                    staffed = self.model.NewBoolVar(name + "_staffed")
+                    self.model.AddMaxEquality(staffed, everyone)
+                    short = self._rule_breach(name, rule.count, rule.hard)
+                    self.model.Add(sum(matching) + (short if short is not None else 0) >= rule.count * staffed)
+        if self.mix_rules:
+            logger.info("Skill-mix rules: %d (%d soft breach terms)", len(self.mix_rules), len(self.rule_breaches))
+
+    def _add_pairing_rules(self) -> None:
+        """Pairing (skill_mix.py): a trainee only where their mentor is, two
+        people on the same shift whenever both work, or never on the same one."""
+        index = {e["id"]: i for i, e in enumerate(self.employees)}
+        for r_idx, rule in enumerate(self.pair_rules):
+            a, b = index.get(rule.employee_id), index.get(rule.partner_id)
+            if a is None or b is None:
+                continue
+            if rule.kind == skill_mix.MENTOR:
+                for (e_idx, d_idx, s_idx, w_idx), var in self.x.items():
+                    if e_idx != a:
+                        continue
+                    mentor = self.x.get((b, d_idx, s_idx, w_idx))
+                    slack = self._rule_breach(f"mentor_{r_idx}_{d_idx}_{s_idx}_{w_idx}", 1, rule.hard)
+                    self.model.Add(var <= (mentor if mentor is not None else 0) + (slack if slack is not None else 0))
+            elif rule.kind == skill_mix.APART:
+                for d_idx in range(self.num_days):
+                    for s_idx in range(self.num_shifts):
+                        both = (self._works_var(a, d_idx, s_idx), self._works_var(b, d_idx, s_idx))
+                        if any(v is None for v in both):
+                            continue
+                        slack = self._rule_breach(f"apart_{r_idx}_{d_idx}_{s_idx}", 1, rule.hard)
+                        self.model.Add(both[0] + both[1] <= 1 + (slack if slack is not None else 0))
+            elif rule.kind == skill_mix.TOGETHER:
+                for d_idx in range(self.num_days):
+                    day_a = self.vars_by_emp_day.get((a, d_idx))
+                    day_b = self.vars_by_emp_day.get((b, d_idx))
+                    if not day_a or not day_b:
+                        continue
+                    works_a, works_b = sum(day_a), sum(day_b)
+                    slack = self._rule_breach(f"together_{r_idx}_{d_idx}", 1, rule.hard)
+                    extra = slack if slack is not None else 0
+                    for s_idx in range(self.num_shifts):
+                        on_a = self._works_var(a, d_idx, s_idx)
+                        on_b = self._works_var(b, d_idx, s_idx)
+                        if on_a is None and on_b is None:
+                            continue
+                        on_a = on_a if on_a is not None else 0
+                        on_b = on_b if on_b is not None else 0
+                        # Both working that day ⇒ the same shift.
+                        self.model.Add(on_a - on_b <= 1 - works_b + extra)
+                        self.model.Add(on_b - on_a <= 1 - works_a + extra)
 
     def _pin_locked_assignments(self) -> None:
         """0) Assignments the caller fixed: solve around them, don't re-decide them.
@@ -1513,14 +1606,17 @@ class ShiftPlanner:
         fallback = None  # phase-1 plan, if phase 2 finds nothing in time
         coverage_proven = True
 
-        if self.shortfall_vars or self.fixed_terms or self.personal_excess or self.change_terms:
+        if self.shortfall_vars or self.fixed_terms or self.personal_excess or self.change_terms or self.rule_breaches:
             # Fixed assignments first, then coverage, then personal limits,
             # then stability: each tier's weight exceeds the largest total the
             # tiers below it can reach, so the order is strict.
             changes = sum(self.change_terms)
             excess_weight = len(self.change_terms) + 1
-            excess = excess_weight * sum(v for v, _ub in self.personal_excess) + changes
-            coverage_weight = excess_weight * (sum(ub for _v, ub in self.personal_excess) + 1)
+            # Soft personal limits and soft skill-mix / pairing rules share a
+            # tier: the ward's own soft rules, broken only for coverage.
+            soft_rules = self.personal_excess + self.rule_breaches
+            excess = excess_weight * sum(v for v, _ub in soft_rules) + changes
+            coverage_weight = excess_weight * (sum(ub for _v, ub in soft_rules) + 1)
             shortfall = sum(w * v for v, w, _ub in self.shortfall_vars)
             fixed_weight = coverage_weight * (
                 sum(w * ub for _v, w, ub in self.shortfall_vars) + 1
@@ -1585,7 +1681,35 @@ class ShiftPlanner:
                 "they are enforced as given, so a set of them that cannot "
                 "coexist makes the whole plan infeasible."
             )
+        hard_rules = sum(1 for r in self.mix_rules if r.hard) + sum(1 for r in self.pair_rules if r.hard)
+        if hard_rules:
+            hint += (
+                f" {hard_rules} skill-mix or pairing rule(s) are hard; making "
+                "them soft lets the solver break them where staffing needs it."
+            )
         return "No feasible schedule found. Relax constraints or add more employees." + hint
+
+    def _rule_breaches_in(self, assigned: dict) -> list[str]:
+        """The skill-mix and pairing breaches of the plan, in words."""
+        if not self.mix_rules and not self.pair_rules:
+            return []
+        rows = [
+            (
+                self.employees[e_idx]["id"],
+                self.days[d_idx].isoformat(),
+                self.shifts[s_idx]["id"],
+                self.workstations[w_idx]["id"],
+            )
+            for (e_idx, d_idx), (s_idx, w_idx) in assigned.items()
+        ]
+        names = {e["id"]: e.get("name") or e["id"] for e in self.employees}
+        shift_names = {s["id"]: s.get("name") or s["id"] for s in self.shifts}
+        ws_names = {w["id"]: w.get("name") or w["id"] for w in self.workstations}
+        breaches = skill_mix.check(
+            self.mix_rules, self.pair_rules, rows, self.emp_skills, self.mix_catalog,
+            lambda e: names.get(e, e), lambda s: shift_names.get(s, s), lambda w: ws_names.get(w, w),
+        )
+        return [b.text for b in breaches]
 
     def _infeasible_output(self, message: str) -> SchedulingOutput:
         return SchedulingOutput(
@@ -1757,6 +1881,7 @@ class ShiftPlanner:
             _listing("Ignored locked assignment(s)", self.lock_warnings),
             _listing("Below minimum staffing", gaps),
             _listing("Personal limit(s) exceeded", self._personal_limits_exceeded(assigned)),
+            _listing("Skill-mix or pairing rule(s) not met", self._rule_breaches_in(assigned)),
             note,
         ]
         return SchedulingOutput(

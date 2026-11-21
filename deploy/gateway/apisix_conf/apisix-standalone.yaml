@@ -267,6 +267,28 @@ routes:
   # the gateway only validates the JWT — no redirect needed.
   # ===========================================
 
+  # ===========================================
+  # Calendar feeds — no auth. Phone calendar apps cannot sign in; the secret
+  # token in the path is the key (only its hash is stored by the backend).
+  # ===========================================
+
+  - uri: /api/v1/calendar-feeds/*
+    name: calendar-feeds
+    priority: 20
+    methods: [GET, HEAD]
+    plugins:
+      response-rewrite:
+        headers:
+          set:
+            X-Content-Type-Options: nosniff
+            Referrer-Policy: no-referrer
+            Cache-Control: "private, max-age=300"
+            Strict-Transport-Security: "max-age=31536000; includeSubDomains"
+    upstream:
+      type: roundrobin
+      nodes:
+        backend:8080: 1
+
   - uri: /api/*
     name: api-session
     priority: 10

@@ -22,6 +22,8 @@ pub mod shift_swap;
 pub mod leave;
 pub mod notifier;
 pub mod open_shift;
+pub mod calendar_feed;
+pub mod staffing_rules;
 pub mod wish_settings;
 pub mod auto_plan;
 pub mod wish_schedule;

@@ -19,6 +19,8 @@ pub mod rostertracking;
 pub mod leaverepository;
 pub mod notificationrepository;
 pub mod openshiftrepository;
+pub mod calendarfeedrepository;
+pub mod staffingrulerepository;
 
 use std::sync::Arc;
 use crate::database::DbPool;
@@ -49,6 +51,8 @@ use self::rosterrepository::{DieselRosterChangeNoticeRepository, DieselRosterMon
 use self::leaverepository::DieselLeaveRepository;
 use self::notificationrepository::DieselNotificationRepository;
 use self::openshiftrepository::DieselOpenShiftRepository;
+use self::calendarfeedrepository::DieselCalendarFeedRepository;
+use self::staffingrulerepository::DieselStaffingRuleRepository;
 use crate::config::HolidayConfig;
 
 #[derive(Clone)]
@@ -77,6 +81,8 @@ pub struct AppState {
     pub leave_repo: DieselLeaveRepository,
     pub notification_repo: DieselNotificationRepository,
     pub open_shift_repo: DieselOpenShiftRepository,
+    pub calendar_feed_repo: DieselCalendarFeedRepository,
+    pub staffing_rule_repo: DieselStaffingRuleRepository,
     /// Where and for which state holidays are fetched.
     pub holiday_config: HolidayConfig,
     pub pool: Arc<DbPool>,
@@ -128,6 +134,8 @@ impl AppState {
             leave_repo: DieselLeaveRepository { pool: Arc::clone(&pool) },
             notification_repo: DieselNotificationRepository { pool: Arc::clone(&pool) },
             open_shift_repo: DieselOpenShiftRepository { pool: Arc::clone(&pool) },
+            calendar_feed_repo: DieselCalendarFeedRepository { pool: Arc::clone(&pool) },
+            staffing_rule_repo: DieselStaffingRuleRepository { pool: Arc::clone(&pool) },
             holiday_config: HolidayConfig::default(),
             pool,
             nats_client: None,
@@ -169,6 +177,8 @@ impl AppState {
             leave_repo: DieselLeaveRepository { pool: Arc::clone(&pool) },
             notification_repo: DieselNotificationRepository { pool: Arc::clone(&pool) },
             open_shift_repo: DieselOpenShiftRepository { pool: Arc::clone(&pool) },
+            calendar_feed_repo: DieselCalendarFeedRepository { pool: Arc::clone(&pool) },
+            staffing_rule_repo: DieselStaffingRuleRepository { pool: Arc::clone(&pool) },
             holiday_config: HolidayConfig::default(),
             pool,
             nats_client: Some(nats_client),

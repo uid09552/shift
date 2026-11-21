@@ -46,6 +46,9 @@ summary below is the product contract for the API.
 | `/leave-limits` | ❌ | ✅ read/write | ✅ read/write |
 | `/open-shifts` | ✅ read, volunteer, withdraw — own only | ✅ read all, offer/assign/close | ✅ read all, offer/assign/close |
 | `/notification-preferences` | ✅ own only | ✅ own only | ✅ own only |
+| `/calendar-feed` | ✅ own only | ✅ own only | ✅ own only |
+| `/calendar-feeds/<token>.ics` | no sign-in — the token is the key | | |
+| `/skill-mix-rules`, `/pairing-rules` | ❌ | ✅ read/write | ✅ read/write |
 | `/notification-outbox` | ❌ | ✅ read | ✅ read |
 | `/users` and `/users/{id}/roles` | ❌ | ❌ | ✅ |
 | `/planner/*` | ❌ | ✅ | ✅ |
@@ -312,6 +315,41 @@ delivers them with retries — a mail problem never fails the action behind it.
 A message is tried five times, 2, 4, 8 and 16 minutes apart, then marked `failed`
 with the last error. Mails name the shift, the date and the status — never a
 protected-group reason behind a legal rule.
+
+## Calendar feed
+
+A personal iCal link per employee, for the calendar on their phone.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/calendar-feed` | Whether the caller has a link (never the link: only its hash is stored) |
+| `POST` | `/calendar-feed` | A new link — `token` and `path` in this answer only; any older link stops working |
+| `DELETE` | `/calendar-feed` | Remove the link |
+| `GET` | `/calendar-feeds/<token>.ics` | The feed, **no sign-in** (outside the auth middleware; its own gateway route) |
+
+The feed holds the employee's confirmed shifts in **published and locked**
+months, a month back and a year ahead, as RFC 5545 events at the shift's times
+(floating local time — the hospital's clock) or as whole days for a shift without
+times. Draft months and absences are never in it. An unknown token is a 404.
+
+## Staffing rules
+
+Who has to — or may not — work alongside whom. Planners and admins only; the
+rules go to the solver and the agent with every planning input.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` `POST` | `/skill-mix-rules` | `at_least` / `at_most` N with a capability (or a skill group from a level), per shift, at one workstation or all |
+| `DELETE` | `/skill-mix-rules/{id}` | Remove one |
+| `GET` `POST` | `/pairing-rules` | `mentor` (trainee only where the mentor is), `together`, `apart` |
+| `DELETE` | `/pairing-rules/{id}` | Remove one |
+
+Each rule is `hard` (never broken) or `soft` (broken only where a shift would
+otherwise stay short, and named in the result). The plan check reports breaches
+as `skill_mix` / `pairing` findings (hard: error, soft: warning); repair,
+short-notice replacement and the swap check refuse a move that breaks a hard
+pairing or at-most rule. The same rule twice, or two people both paired and kept
+apart, is a 409.
 
 ### The wish window
 

@@ -87,6 +87,8 @@ One service per backend resource, in `ui/src/app/shared/services/`:
 | `leave.service.ts` | `/leave-requests`, `/leave-blackouts`, `/leave-limits` — plus `leaveDays()` |
 | `open-shift.service.ts` | `/open-shifts` — list, count, gaps, offer, volunteer/withdraw, assign, close |
 | `notification-preferences.service.ts` | `/notification-preferences` — the caller's own e-mail choices |
+| `calendar-feed.service.ts` | `/calendar-feed` — make, replace, remove the caller's iCal link; `feedUrls()` |
+| `staffing-rules.service.ts` | `/skill-mix-rules`, `/pairing-rules` |
 | `wish-settings.service.ts` | `/wish-settings` — plus `wishAllowedOn()`, the client-side mirror of the window check |
 | `confirmed-shift-plan.service.ts` | `/confirmed-shift-plans` |
 | `rotation.service.ts` | `/rotation-patterns`, `/rotation-patterns/{id}/apply` |
@@ -186,7 +188,12 @@ employees and planners (`UserService.canPlan()`):
   check) and assigns one, or withdraws the offer.
 - **Notifications** (`/notifications`, `NotificationSettingsComponent`). The
   channel and the five events as switches, saved as they are made; a banner says
-  when the installation has no mail server.
+  when the installation has no mail server. Below it the **calendar
+  subscription** (`CalendarFeedCardComponent`): the link is shown once, right
+  after it is made, with *Copy* and a `webcal://` *Subscribe*; a lost one is
+  replaced, never shown again.
+- **Staffing rules** (`/staffing-rules`, `StaffingRulesComponent`, planners and
+  admins): skill-mix and pairing rules in words, with forms to add them.
 
 A change that needs a reason (a published month inside the freeze window, a
 locked one) is asked for by `reasonRequiredInterceptor` and retried — approving,

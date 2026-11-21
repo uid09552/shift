@@ -36,6 +36,10 @@ tags:
       and per-capability limits that only warn
   - name: Open Shifts
     description: Slots nobody is planned on, offered to the people who may take them — employees volunteer, a planner assigns
+  - name: Calendar
+    description: A personal iCal feed of the caller's published shifts, for the calendar on their phone
+  - name: Staffing Rules
+    description: Skill-mix and pairing rules — who has to, or may not, work alongside whom (planners and admins)
   - name: Notifications
     description: E-mail notifications — the caller's preferences and the outbox (off without `smtp.host`)
   - name: Planner
@@ -2622,6 +2626,203 @@ paths:
                   $ref: '#/components/schemas/OutboxMessage'
         '403':
           $ref: '#/components/responses/Forbidden'
+
+  /calendar-feed:
+    get:
+      tags: [Calendar]
+      summary: Whether the caller has a calendar feed
+      description: Never the link itself — only its hash is stored. `employee_id` is null when no employee matches the caller.
+      operationId: getCalendarFeed
+      responses:
+        '200':
+          description: The feed's state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalendarFeed'
+    post:
+      tags: [Calendar]
+      summary: Make a new calendar link
+      description: >
+        The answer carries `token` and `path` — the only time they are shown. Any
+        older link of the caller stops working. 400 when no employee matches the caller.
+      operationId: createCalendarFeed
+      responses:
+        '200':
+          description: The new link
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalendarFeed'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    delete:
+      tags: [Calendar]
+      summary: Remove the calendar link
+      operationId: deleteCalendarFeed
+      responses:
+        '200':
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalendarFeed'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /calendar-feeds/{file}:
+    get:
+      tags: [Calendar]
+      summary: The calendar feed (iCal)
+      description: >
+        No sign-in — calendar apps cannot; the token is the key. The caller's
+        confirmed shifts in **published and locked** months, from a month back to
+        a year ahead, as RFC 5545 events at the shift's times (floating local
+        time) or as whole days for a shift without times. Draft months and
+        absences are never in it. An unknown or malformed token is a 404.
+      operationId: getCalendarFeedFile
+      security: []
+      parameters:
+        - name: file
+          in: path
+          required: true
+          description: "`<token>.ics`"
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The calendar
+          content:
+            text/calendar:
+              schema:
+                type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /skill-mix-rules:
+    get:
+      tags: [Staffing Rules]
+      summary: List the skill-mix rules
+      description: "`shift-planner` / `shift-admin` only."
+      operationId: listSkillMixRules
+      responses:
+        '200':
+          description: The rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SkillMixRule'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Staffing Rules]
+      summary: Add a skill-mix rule
+      description: >
+        `shift-planner` / `shift-admin` only. `at_least` — of the people on a
+        staffed slot, at least `count` hold `capability_id` (or a higher level of
+        its skill group), or any capability of `skill_group` at `min_level` or
+        above. `at_most` — at most `count` hold `capability_id`. A slot is a day
+        and shift (`shift_id`, or every shift) at `workstation_id`, or summed over
+        all workstations. `hard`: the solver may not break it (it leaves a slot
+        empty rather than staff it wrongly); `soft`: broken only where coverage
+        needs it, and named in the result.
+      operationId: createSkillMixRule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewSkillMixRule'
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillMixRule'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /skill-mix-rules/{ruleId}:
+    delete:
+      tags: [Staffing Rules]
+      summary: Remove a skill-mix rule
+      operationId: deleteSkillMixRule
+      parameters:
+        - $ref: '#/components/parameters/RuleId'
+      responses:
+        '200':
+          description: Removed
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /pairing-rules:
+    get:
+      tags: [Staffing Rules]
+      summary: List the pairing rules
+      description: "`shift-planner` / `shift-admin` only — who works with whom is about people."
+      operationId: listPairingRules
+      responses:
+        '200':
+          description: The rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PairingRule'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Staffing Rules]
+      summary: Add a pairing rule
+      description: >
+        `shift-planner` / `shift-admin` only. `mentor` — `employee_id` (the
+        trainee) works only on a shift and at a workstation where `partner_id`
+        (the mentor) works too. `together` — on a day both work, the same shift.
+        `apart` — never the same shift on the same day. The same rule twice, or
+        two people both kept apart and paired, is a 409.
+      operationId: createPairingRule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewPairingRule'
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairingRule'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /pairing-rules/{ruleId}:
+    delete:
+      tags: [Staffing Rules]
+      summary: Remove a pairing rule
+      operationId: deletePairingRule
+      parameters:
+        - $ref: '#/components/parameters/RuleId'
+      responses:
+        '200':
+          description: Removed
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /wish-settings:
     get:
@@ -6068,8 +6269,152 @@ components:
             minimises the employee-days it changes right after coverage, ahead of
             balance, wishes and fatigue. Days without a roster row are not listed.
             Omitted for a draft-only period.
+        skill_mix_rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillMixRuleTask'
+          description: The ward's skill-mix rules (planner/shift_planner/skill_mix.py). Omitted when there are none.
+        pairing_rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/PairingRuleTask'
+          description: The ward's pairing rules. Omitted when there are none.
         constraints:
           $ref: '#/components/schemas/ConstraintTask'
+
+    CalendarFeed:
+      type: object
+      required: [employee_id, active]
+      properties:
+        employee_id:
+          type: string
+          format: uuid
+          nullable: true
+        active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_fetched_at:
+          type: string
+          format: date-time
+          nullable: true
+        token:
+          type: string
+          description: Only in the answer that made the link
+        path:
+          type: string
+          description: Only in the answer that made the link, e.g. /api/v1/calendar-feeds/<token>.ics
+
+    NewSkillMixRule:
+      type: object
+      required: [kind, count]
+      properties:
+        kind:
+          type: string
+          enum: [at_least, at_most]
+        count:
+          type: integer
+          minimum: 0
+          maximum: 50
+        capability_id:
+          type: string
+          format: uuid
+          nullable: true
+        skill_group:
+          type: string
+          nullable: true
+          description: With min_level, instead of a capability (at_least only)
+        min_level:
+          type: integer
+          minimum: 1
+          nullable: true
+        shift_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Null — every shift
+        workstation_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Null — summed over every workstation running the shift
+        mode:
+          type: string
+          enum: [hard, soft]
+          default: hard
+
+    SkillMixRule:
+      allOf:
+        - $ref: '#/components/schemas/NewSkillMixRule'
+        - type: object
+          required: [id, created_at]
+          properties:
+            id:
+              type: string
+              format: uuid
+            created_at:
+              type: string
+              format: date-time
+
+    NewPairingRule:
+      type: object
+      required: [kind, employee_id, partner_id]
+      properties:
+        kind:
+          type: string
+          enum: [mentor, together, apart]
+        employee_id:
+          type: string
+          format: uuid
+          description: For a mentor rule, the trainee
+        partner_id:
+          type: string
+          format: uuid
+          description: For a mentor rule, the mentor
+        mode:
+          type: string
+          enum: [hard, soft]
+          default: hard
+
+    PairingRule:
+      allOf:
+        - $ref: '#/components/schemas/NewPairingRule'
+        - type: object
+          required: [id, created_at]
+          properties:
+            id:
+              type: string
+              format: uuid
+            created_at:
+              type: string
+              format: date-time
+
+    SkillMixRuleTask:
+      type: object
+      description: A skill-mix rule as the solver reads it — the capability by name, like employees' skills.
+      required: [id, kind, count, mode]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [at_least, at_most] }
+        count: { type: integer }
+        capability: { type: string }
+        skill_group: { type: string }
+        min_level: { type: integer }
+        shift_id: { type: string }
+        workstation_id: { type: string }
+        mode: { type: string, enum: [hard, soft] }
+
+    PairingRuleTask:
+      type: object
+      required: [id, kind, employee_id, partner_id, mode]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [mentor, together, apart] }
+        employee_id: { type: string }
+        partner_id: { type: string }
+        mode: { type: string, enum: [hard, soft] }
 
     PublishedShiftTask:
       type: object
@@ -8323,6 +8668,14 @@ components:
 
     SwapId:
       name: swapId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    RuleId:
+      name: ruleId
       in: path
       required: true
       schema:

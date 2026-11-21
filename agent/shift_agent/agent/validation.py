@@ -37,7 +37,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Callable
 
 
-from shift_agent.agent import legal
+from shift_agent.agent import legal, skill_mix
 
 logger = logging.getLogger(__name__)
 
@@ -426,6 +426,8 @@ class _Validator:
         self.shifts = {s["id"]: s for s in rules.get("shifts") or []}
         self.workstations = {w["id"]: w for w in rules.get("workstations") or []}
         self.capabilities = {c["id"]: c for c in rules.get("capabilities") or []}
+        # The ward's skill-mix and pairing rules (skill_mix.py, shared with the solver).
+        self.mix_rules, self.pair_rules = skill_mix.parse(rules)
 
         self.shift_wt = {
             (s["id"], wt["weekday"]): wt
@@ -506,6 +508,7 @@ class _Validator:
         self._check_eligibility()
         self._check_skills()
         self._check_staffing()
+        self._check_skill_mix()
         self._check_recovery_days()
         self._check_weekly_days()
         self._check_min_rest()
@@ -666,6 +669,31 @@ class _Validator:
                     "tied up where a lower level would do.",
                     self._where(a),
                 )
+
+    def _check_skill_mix(self) -> None:
+        """The ward's skill-mix and pairing rules: hard ones are errors (the
+        solver would never break them), soft ones warnings (it breaks them only
+        to fill a slot)."""
+        if not self.mix_rules and not self.pair_rules:
+            return
+        skills = {eid: set(e.get("skills") or []) for eid, e in self.employees.items()}
+        rows = [(a.employee_id, a.day.isoformat(), a.shift_id, a.workstation_id) for a in self.assignments]
+        for breach in skill_mix.check(
+            self.mix_rules, self.pair_rules, rows, skills, skill_mix.catalog_of(self.rules),
+            self._emp_name, self._shift_name, lambda w: self._ws_name(w) if w else "",
+        ):
+            pairing = breach.kind in skill_mix.PAIR_KINDS
+            rule = ("pairing" if pairing else "skill_mix") + ("" if breach.hard else "_soft")
+            title = (
+                ("Pairing rule broken" if pairing else "Skill mix not met")
+                + ("" if breach.hard else " (soft rule)")
+            )
+            detail = (
+                "Who works with whom: a trainee beside their mentor, two people together or apart."
+                if pairing else
+                "Who has to be on a shift: enough of one qualification, or not too many of another."
+            )
+            self.findings.add(rule, SEVERITY_ERROR if breach.hard else SEVERITY_WARNING, title, detail, breach.text)
 
     def _check_staffing(self) -> None:
         """Per-shift and per-workstation staffing bands.

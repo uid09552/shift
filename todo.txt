@@ -23,10 +23,11 @@ HIGH VALUE
     - Not done: the agent's replacement ranking (volunteers are checked by the
       backend's own rules: absence, availability, capabilities, rest; labor law and
       personal limits are left to the plan check)
-[ ] Skill-mix rules per shift/workstation
+[x] Skill-mix rules per shift/workstation  -- #178
     - "at least 1 x level >= 3 per shift", "max 2 trainees"
     - Trainee must be paired with a mentor (same shift + workstation)
     - Must / must-not work together (pairing constraints)
+    - Hard or soft each; solver, plan check, repair, replacement and swap check
 [ ] Labor-law rule set (ArbZG) as a selectable profile
     - Max 10 h/day, 48 h/week average over N weeks, breaks
     - Special groups: minors (JArbSchG), pregnancy (MuSchG: no nights/Sundays)
@@ -60,6 +61,6 @@ CERTIFICATIONS
 
 OUTPUT / SELF-SERVICE
 ---------------------
-[ ] iCal feed per employee (subscribe in phone calendar)
+[x] iCal feed per employee (subscribe in phone calendar)  -- #177
 [ ] PDF / Excel export of the roster (per ward, wall print layout)
 [ ] Mobile-friendly "my shifts" view: next shifts, open shifts, swaps, leave

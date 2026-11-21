@@ -49,7 +49,7 @@ from datetime import date, timedelta
 from typing import Any, Callable, Iterator
 
 
-from shift_agent.agent import legal
+from shift_agent.agent import legal, skill_mix
 from shift_agent.agent.validation import (
     ValidationError,
     _assignments,
@@ -370,6 +370,11 @@ class _Rules:
         self.workstations = {w["id"]: w for w in rules.get("workstations") or []}
         self.capabilities = {c["id"]: c for c in rules.get("capabilities") or []}
         self.capability_names = capability_names or {}
+        # Skill-mix and pairing rules (skill_mix.py): the hard ones a single
+        # move can break are refused like any other hard rule.
+        self.mix_rules, self.pair_rules = skill_mix.parse(rules)
+        self.mix_catalog = skill_mix.catalog_of(rules)
+        self.skills = {eid: set(e.get("skills") or []) for eid, e in self.employees.items()}
 
         self.shift_wt = {
             (s["id"], wt["weekday"]): wt
@@ -674,6 +679,22 @@ class _Rules:
         reason = self._legal_window_reason(employee_id, day, shift_id, plan)
         if reason:
             yield reason
+
+        if self.mix_rules or self.pair_rules:
+            def cell_of(other: str, iso: str) -> Cell | None:
+                return plan.get(other, date.fromisoformat(iso))
+
+            def slot_people(iso: str, slot_shift: str, slot_ws: str | None) -> list[str]:
+                on = date.fromisoformat(iso)
+                return [
+                    who for (who, d), (s, w) in plan.cells.items()
+                    if d == on and s == slot_shift and (slot_ws is None or w == slot_ws)
+                ]
+
+            yield from skill_mix.placement_reasons(
+                self.mix_rules, self.pair_rules, employee_id, day.isoformat(), shift_id, workstation_id,
+                cell_of, slot_people, self.skills, self.mix_catalog, self.employee_name,
+            )
 
         # Working days per seven-day block, counted from the start of the
         # period exactly as the solver buckets them.
