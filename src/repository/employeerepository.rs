@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use chrono::NaiveDate;
 use diesel::prelude::*;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -107,13 +108,13 @@ impl EmployeeRepository for DieselEmployeeRepository {
                         .filter(employee_capabilities::employee_id.eq(id))
                         .filter(employee_capabilities::tenant_id.eq(&tenant_id))
                         .inner_join(capabilities::table)
-                        .select(capabilities::all_columns)
-                        .load::<models::Capability>(&mut conn)
+                        .select((capabilities::all_columns, employee_capabilities::valid_until))
+                        .load::<(models::Capability, Option<NaiveDate>)>(&mut conn)
                         .map_err(|_| AppError::DbError)?;
 
                     let capabilities = capabilities
                         .into_iter()
-                        .map(|c| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone() })
+                        .map(|(c, valid_until)| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone(), valid_until })
                         .collect();
 
                     Ok(Some(Employee {
@@ -165,13 +166,13 @@ impl EmployeeRepository for DieselEmployeeRepository {
                         .filter(employee_capabilities::employee_id.eq(e.id))
                         .filter(employee_capabilities::tenant_id.eq(&tenant_id))
                         .inner_join(capabilities::table)
-                        .select(capabilities::all_columns)
-                         .load::<models::Capability>(&mut conn)
+                        .select((capabilities::all_columns, employee_capabilities::valid_until))
+                         .load::<(models::Capability, Option<NaiveDate>)>(&mut conn)
                          .map_err(|_| AppError::DbError)?;
 
                     let capabilities = capabilities
                         .into_iter()
-                        .map(|c| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone() })
+                        .map(|(c, valid_until)| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone(), valid_until })
                         .collect();
 
                     Ok(Some(Employee {
@@ -227,13 +228,13 @@ impl EmployeeRepository for DieselEmployeeRepository {
                     .filter(employee_capabilities::employee_id.eq(e.id))
                     .filter(employee_capabilities::tenant_id.eq(&tenant_id))
                     .inner_join(capabilities::table)
-                    .select(capabilities::all_columns)
-                     .load::<models::Capability>(&mut conn)
+                    .select((capabilities::all_columns, employee_capabilities::valid_until))
+                     .load::<(models::Capability, Option<NaiveDate>)>(&mut conn)
                      .map_err(|_| AppError::DbError)?;
 
                 let capabilities = capabilities
                     .into_iter()
-                    .map(|c| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone() })
+                    .map(|(c, valid_until)| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone(), valid_until })
                     .collect();
 
                 result.push(Employee {
@@ -284,13 +285,13 @@ impl EmployeeRepository for DieselEmployeeRepository {
                     .filter(employee_capabilities::employee_id.eq(e.id))
                     .filter(employee_capabilities::tenant_id.eq(&tenant_id))
                     .inner_join(capabilities::table)
-                    .select(capabilities::all_columns)
-                    .load::<models::Capability>(&mut conn)
+                    .select((capabilities::all_columns, employee_capabilities::valid_until))
+                    .load::<(models::Capability, Option<NaiveDate>)>(&mut conn)
                     .map_err(|_| AppError::DbError)?;
 
                 let capabilities = capabilities
                     .into_iter()
-                    .map(|c| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone() })
+                    .map(|(c, valid_until)| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone(), valid_until })
                     .collect();
 
                 result.push(Employee {
@@ -332,11 +333,11 @@ impl EmployeeRepository for DieselEmployeeRepository {
                 .filter(employee_capabilities::employee_id.eq(employee_id))
                 .filter(employee_capabilities::tenant_id.eq(&tenant_id))
                 .inner_join(capabilities::table)
-                .select(capabilities::all_columns)
-                .load::<models::Capability>(&mut conn)
+                .select((capabilities::all_columns, employee_capabilities::valid_until))
+                .load::<(models::Capability, Option<NaiveDate>)>(&mut conn)
                 .map_err(|_| AppError::DbError)?
                 .into_iter()
-                .map(|c| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone() })
+                .map(|(c, valid_until)| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone(), valid_until })
                 .collect();
 
             Ok(capabilities)
@@ -355,6 +356,49 @@ impl EmployeeRepository for DieselEmployeeRepository {
                 .execute(&mut conn)
                 .map_err(|_| AppError::DbError)?;
             Ok(())
+        })
+        .await.map_err(|_| AppError::Internal)?
+    }
+
+    async fn set_capability_valid_until(&self, tenant_id: &str, employee_id: Uuid, capability_id: Uuid, valid_until: Option<NaiveDate>) -> Result<bool, AppError> {
+        let tenant_id = tenant_id.to_string();
+        let pool: Arc<DbPool> = Arc::clone(&self.pool);
+        telemetry::db_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            diesel::update(
+                employee_capabilities::table
+                    .filter(employee_capabilities::tenant_id.eq(&tenant_id))
+                    .filter(employee_capabilities::employee_id.eq(employee_id))
+                    .filter(employee_capabilities::capability_id.eq(capability_id)),
+            )
+            .set(employee_capabilities::valid_until.eq(valid_until))
+            .execute(&mut conn)
+            .map(|n| n > 0)
+            .map_err(|_| AppError::DbError)
+        })
+        .await.map_err(|_| AppError::Internal)?
+    }
+
+    async fn list_capability_expiries(&self, tenant_id: &str, until: NaiveDate) -> Result<Vec<crate::repository::domain::CapabilityExpiry>, AppError> {
+        let tenant_id = tenant_id.to_string();
+        let pool: Arc<DbPool> = Arc::clone(&self.pool);
+        telemetry::db_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            let rows: Vec<(Uuid, String, Uuid, String, Option<NaiveDate>)> = employee_capabilities::table
+                .inner_join(employees::table)
+                .inner_join(capabilities::table)
+                .filter(employee_capabilities::tenant_id.eq(&tenant_id))
+                .filter(employee_capabilities::valid_until.le(until))
+                .order((employee_capabilities::valid_until.asc(), employees::name.asc()))
+                .select((employees::id, employees::name, capabilities::id, capabilities::name, employee_capabilities::valid_until))
+                .load(&mut conn)
+                .map_err(|_| AppError::DbError)?;
+            Ok(rows
+                .into_iter()
+                .filter_map(|(employee_id, employee_name, capability_id, capability_name, valid_until)| {
+                    Some(crate::repository::domain::CapabilityExpiry { employee_id, employee_name, capability_id, capability_name, valid_until: valid_until? })
+                })
+                .collect())
         })
         .await.map_err(|_| AppError::Internal)?
     }
@@ -475,7 +519,7 @@ impl CapabilityRepository for DieselCapabilityRepository {
             diesel::insert_into(capabilities::table)
                 .values(&new_capability)
                 .get_result::<models::Capability>(&mut conn)
-                .map(|c| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone() })
+                .map(|c| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone(), valid_until: None })
                 .map_err(|e| match e {
                     DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => AppError::Duplicate,
                     _ => AppError::DbError,
@@ -494,7 +538,7 @@ impl CapabilityRepository for DieselCapabilityRepository {
                 .filter(capabilities::tenant_id.eq(&tenant_id))
                 .first::<models::Capability>(&mut conn)
                 .optional()
-                .map(|c: Option<models::Capability>| c.map(|c| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone() }))
+                .map(|c: Option<models::Capability>| c.map(|c| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone(), valid_until: None }))
                 .map_err(|_| AppError::DbError)
         })
         .await.map_err(|_| AppError::Internal)?
@@ -508,7 +552,7 @@ impl CapabilityRepository for DieselCapabilityRepository {
             capabilities::table
                 .filter(capabilities::tenant_id.eq(&tenant_id))
                 .load::<models::Capability>(&mut conn)
-                .map(|caps: Vec<models::Capability>| caps.into_iter().map(|c| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone() }).collect())
+                .map(|caps: Vec<models::Capability>| caps.into_iter().map(|c| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone(), valid_until: None }).collect())
                 .map_err(|_| AppError::DbError)
         })
         .await.map_err(|_| AppError::Internal)?
@@ -532,7 +576,7 @@ impl CapabilityRepository for DieselCapabilityRepository {
                     capabilities::skill_group.eq(&skill_group),
                 ))
                 .get_result::<models::Capability>(&mut conn)
-                .map(|c| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone() })
+                .map(|c| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone(), valid_until: None })
                 .map_err(|e| match e {
                     DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => AppError::Duplicate,
                     DieselError::NotFound => AppError::NotFound,
@@ -752,7 +796,7 @@ impl crate::repository::domain::WorkstationRepository for DieselWorkstationRepos
 
                     let required_capabilities = required_capabilities
                         .into_iter()
-                        .map(|c| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone() })
+                        .map(|c| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone(), valid_until: None })
                         .collect();
 
                     Ok(Some(Workstation {
@@ -794,7 +838,7 @@ impl crate::repository::domain::WorkstationRepository for DieselWorkstationRepos
 
                 let required_capabilities = required_capabilities
                     .into_iter()
-                    .map(|c| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone() })
+                    .map(|c| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone(), valid_until: None })
                     .collect();
 
                 result.push(Workstation {
@@ -914,7 +958,7 @@ impl crate::repository::domain::WorkstationRepository for DieselWorkstationRepos
                 .inner_join(capabilities::table)
                 .select(capabilities::all_columns)
                 .load::<models::Capability>(&mut conn)
-                .map(|caps: Vec<models::Capability>| caps.into_iter().map(|c| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone() }).collect())
+                .map(|caps: Vec<models::Capability>| caps.into_iter().map(|c| Capability { id: c.id, name: c.name, level: c.level, skill_group: c.skill_group.clone(), valid_until: None }).collect())
                 .map_err(|_| AppError::DbError)
         })
         .await.map_err(|_| AppError::Internal)?

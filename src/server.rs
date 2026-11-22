@@ -30,6 +30,9 @@ use crate::services::{
     leave::LeaveService,
     notifier::NotificationService,
     open_shift::OpenShiftService,
+    calendar_feed::CalendarFeedService,
+    staffing_rules::StaffingRuleService,
+    availability::AvailabilityService,
     tenant,
     unavailability::UnavailabilityService,
     user_management::UserManagementService,
@@ -81,6 +84,21 @@ pub fn create_router(state: AppState) -> Router {
             "/employees/:employee_id/capabilities",
             get(EmployeeService::get_employee_capabilities).post(EmployeeService::add_employee_capability),
         )
+        .route(
+            "/employees/:employee_id/capabilities/:capability_id",
+            put(EmployeeService::set_capability_expiry),
+        )
+        .route("/capability-expiries", get(EmployeeService::list_capability_expiries))
+        // Recurring availability: "only early shifts", "never Wednesdays", fixed days
+        .route(
+            "/employees/:employee_id/availability-rules",
+            get(AvailabilityService::list_for_employee).post(AvailabilityService::create),
+        )
+        .route(
+            "/employees/:employee_id/availability-rules/:rule_id",
+            delete(AvailabilityService::delete),
+        )
+        .route("/availability-rules", get(AvailabilityService::list_all))
         .route(
             "/employees/:employee_id/available-shifts",
             get(EmployeeService::get_employee_available_shifts).post(EmployeeService::add_employee_available_shift),
@@ -191,6 +209,22 @@ pub fn create_router(state: AppState) -> Router {
             get(NotificationService::get_preferences).put(NotificationService::update_preferences),
         )
         .route("/notification-outbox", get(NotificationService::outbox))
+        // Skill-mix and pairing rules: who has to, or may not, work alongside whom
+        .route(
+            "/skill-mix-rules",
+            get(StaffingRuleService::list_skill_mix_rules).post(StaffingRuleService::create_skill_mix_rule),
+        )
+        .route("/skill-mix-rules/:rule_id", delete(StaffingRuleService::delete_skill_mix_rule))
+        .route(
+            "/pairing-rules",
+            get(StaffingRuleService::list_pairing_rules).post(StaffingRuleService::create_pairing_rule),
+        )
+        .route("/pairing-rules/:rule_id", delete(StaffingRuleService::delete_pairing_rule))
+        // The caller's own calendar feed link (self-service)
+        .route(
+            "/calendar-feed",
+            get(CalendarFeedService::get_feed).post(CalendarFeedService::create_feed).delete(CalendarFeedService::delete_feed),
+        )
         // Shift wish window (readable by everyone, writable by shift-admin only)
         .route(
             "/wish-settings",
@@ -281,7 +315,10 @@ pub fn create_router(state: AppState) -> Router {
         // Resolve the request's tenant and roles from the x-access-token JWT (or the
         // default tenant and full access in dev mode) before any handler runs, and
         // reject methods the caller's roles do not cover.
-        .layer(middleware::from_fn_with_state(state.clone(), tenant::authenticate));
+        .layer(middleware::from_fn_with_state(state.clone(), tenant::authenticate))
+        // Added after the layer, so it is not wrapped by it: calendar apps
+        // cannot sign in, the token in the path is the key.
+        .route("/calendar-feeds/:file", get(CalendarFeedService::serve_feed));
 
     Router::new()
         .route("/health", get(health_check))

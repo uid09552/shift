@@ -35,6 +35,9 @@ describe('NotificationSettingsComponent', () => {
     fixture.detectChanges();
     http.expectOne('/api/v1/notification-preferences').flush(answer);
     fixture.detectChanges();
+    // The calendar card on the same page asks for the caller's feed; it has its own spec.
+    for (const r of http.match('/api/v1/calendar-feed')) r.flush({ employee_id: 'e1', active: false, created_at: null, last_fetched_at: null });
+    fixture.detectChanges();
   }
 
   afterEach(() => http.verify());

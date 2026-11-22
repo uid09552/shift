@@ -34,6 +34,21 @@ pub struct PaginatedResponse<T: Serialize> {
 #[derive(Deserialize)]
 pub struct AddCapabilityRequest {
     pub capability_id: Uuid,
+    /// Its last valid day, for a capability that lapses (a certificate).
+    #[serde(default)]
+    pub valid_until: Option<chrono::NaiveDate>,
+}
+
+#[derive(Deserialize)]
+pub struct CapabilityExpiryBody {
+    /// The last valid day; null clears it.
+    pub valid_until: Option<chrono::NaiveDate>,
+}
+
+#[derive(Deserialize)]
+pub struct ExpiriesQuery {
+    /// How far ahead to look, in days (default 60, at most 366). Lapsed ones are always included.
+    pub within_days: Option<i64>,
 }
 
 pub struct EmployeeService;
@@ -291,8 +306,72 @@ impl EmployeeService {
             .add_employee_capability(&tenant.0, employee_id, body.capability_id)
             .await
             .expect("Error inserting employee capability");
+        if body.valid_until.is_some() {
+            let _ = state
+                .employee_repo
+                .set_capability_valid_until(&tenant.0, employee_id, body.capability_id, body.valid_until)
+                .await;
+        }
 
         Json(serde_json::json!({ "message": "Capability added successfully" }))
+    }
+
+    /// PUT /employees/:id/capabilities/:capability_id — `{valid_until}`: the last
+    /// day a capability the employee holds is valid (null: it does not lapse).
+    /// After it the solver, the plan check and open shifts no longer count it.
+    pub async fn set_capability_expiry(
+        tenant: TenantContext,
+        actor: AuditActor,
+        Path((employee_id, capability_id)): Path<(Uuid, Uuid)>,
+        State(state): State<AppState>,
+        Json(body): Json<CapabilityExpiryBody>,
+    ) -> Result<Json<Value>, AppError> {
+        if !state
+            .employee_repo
+            .set_capability_valid_until(&tenant.0, employee_id, capability_id, body.valid_until)
+            .await?
+        {
+            return Err(AppError::NotFound);
+        }
+        audit_log::record(
+            &state,
+            &tenant.0,
+            actor.0,
+            "employee.capability_expiry",
+            "employee",
+            Some(employee_id.to_string()),
+            Some(serde_json::json!({ "capability_id": capability_id, "valid_until": body.valid_until }).to_string()),
+        )
+        .await;
+        Ok(Json(serde_json::json!({ "employee_id": employee_id, "capability_id": capability_id, "valid_until": body.valid_until })))
+    }
+
+    /// GET /capability-expiries?within_days=60 — capabilities that have lapsed
+    /// or lapse within the next days, soonest first. Planners and admins only.
+    pub async fn list_capability_expiries(
+        tenant: TenantContext,
+        roles: crate::services::tenant::RoleContext,
+        Query(q): Query<ExpiriesQuery>,
+        State(state): State<AppState>,
+    ) -> Result<Json<Value>, AppError> {
+        crate::services::shift_swap::ensure_planner(&roles)?;
+        let days = q.within_days.unwrap_or(60).clamp(0, 366);
+        let today = crate::services::roster_guard::today();
+        let rows = state
+            .employee_repo
+            .list_capability_expiries(&tenant.0, today + chrono::Duration::days(days))
+            .await?;
+        let out: Vec<Value> = rows
+            .into_iter()
+            .map(|r| {
+                let days_left = (r.valid_until - today).num_days();
+                let mut v = serde_json::to_value(&r).unwrap();
+                v["expired"] = Value::Bool(days_left < 0);
+                v["days_left"] = Value::from(days_left);
+                v
+            })
+            .collect();
+        Ok(Json(Value::Array(out)))
     }
 
     pub async fn get_employee_available_shifts(

@@ -136,10 +136,12 @@ pub fn ineligible_reasons(employee: &Employee, facts: &Facts) -> Vec<String> {
         reasons.push(format!("Not available for the {} shift", facts.shift.name));
     }
 
+    // Only what is still valid that day counts (a lapsed certificate does not).
+    let held: Vec<Capability> = employee.capabilities.iter().filter(|c| c.valid_on(facts.date)).cloned().collect();
     let missing: Vec<&str> = facts
         .required
         .iter()
-        .filter(|need| !covers(&employee.capabilities, need))
+        .filter(|need| !covers(&held, need))
         .map(|need| need.name.as_str())
         .collect();
     if !missing.is_empty() {
@@ -176,6 +178,8 @@ pub fn ineligible_reasons(employee: &Employee, facts: &Facts) -> Vec<String> {
 
 /// The world around a set of open shifts, loaded once.
 struct Surroundings {
+    /// Recurring availability per employee; a hard rule rules them out.
+    availability: HashMap<Uuid, Vec<crate::models::AvailabilityRule>>,
     shifts: HashMap<Uuid, Shift>,
     workstations: HashMap<Uuid, Vec<Capability>>,
     roster: Vec<ConfirmedShiftPlan>,
@@ -212,7 +216,14 @@ impl Surroundings {
             .filter(|u| u.unavailable_date >= from && u.unavailable_date <= to)
             .collect();
         let min_rest_hours = state.planner_settings_repo.get_or_create_planner_settings(tenant).await?.min_rest_hours;
-        Ok(Self { shifts, workstations, roster, unavailable, min_rest_hours })
+        let mut availability: HashMap<Uuid, Vec<crate::models::AvailabilityRule>> = HashMap::new();
+        {
+            use crate::repository::domain::AvailabilityRuleRepository;
+            for rule in state.staffing_rule_repo.list_availability_rules(tenant, None).await? {
+                availability.entry(rule.employee_id).or_default().push(rule);
+            }
+        }
+        Ok(Self { availability, shifts, workstations, roster, unavailable, min_rest_hours })
     }
 
     /// The reasons `employee` may not take `open`; empty when they may.
@@ -227,7 +238,7 @@ impl Surroundings {
             .unwrap_or(&[]);
         let unavailable: Vec<Unavailability> =
             self.unavailable.iter().filter(|u| u.unavailable_date == open.date).cloned().collect();
-        ineligible_reasons(
+        let mut reasons = ineligible_reasons(
             employee,
             &Facts {
                 date: open.date,
@@ -238,7 +249,12 @@ impl Surroundings {
                 unavailable: &unavailable,
                 min_rest_hours: self.min_rest_hours,
             },
-        )
+        );
+        let rules = self.availability.get(&employee.id).map(Vec::as_slice).unwrap_or(&[]);
+        if crate::services::availability::hard_block(rules, open.date, open.shift_id).is_some() {
+            reasons.push("Not available for this shift that day (standing availability)".to_string());
+        }
+        reasons
     }
 }
 
@@ -646,7 +662,7 @@ mod tests {
     }
 
     fn capability(name: &str, level: i16, group: Option<&str>) -> Capability {
-        Capability { id: Uuid::new_v4(), name: name.into(), level, skill_group: group.map(str::to_string) }
+        Capability { id: Uuid::new_v4(), name: name.into(), level, skill_group: group.map(str::to_string), valid_until: None }
     }
 
     fn person(shifts: &[&Shift], caps: &[&Capability]) -> Employee {

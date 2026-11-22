@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
+import { CalendarFeedCardComponent } from './calendar-feed-card.component';
 import { PageBreadcrumbComponent } from '../../../shared/components/common/page-breadcrumb/page-breadcrumb.component';
 import { ErrorNoticeComponent } from '../../../shared/components/ui/error-notice/error-notice.component';
 import { LoadErrorComponent } from '../../../shared/components/ui/load-error/load-error.component';
@@ -21,7 +22,7 @@ import {
 @Component({
   selector: 'app-notification-settings',
   standalone: true,
-  imports: [CommonModule, PageBreadcrumbComponent, TranslatePipe, ErrorNoticeComponent, LoadErrorComponent],
+  imports: [CommonModule, PageBreadcrumbComponent, TranslatePipe, ErrorNoticeComponent, LoadErrorComponent, CalendarFeedCardComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './notification-settings.component.html',
 })

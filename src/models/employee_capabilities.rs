@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -10,6 +11,8 @@ pub struct EmployeeCapability {
     pub employee_id: Uuid,
     pub capability_id: Uuid,
     pub tenant_id: String,
+    /// The last day it is valid; None = no expiry.
+    pub valid_until: Option<NaiveDate>,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]

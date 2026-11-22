@@ -11,6 +11,7 @@ planner/shift_planner/
 ├── cli.py           Click commands: schedule, api, nats
 ├── models.py        Pydantic input/output models and validation
 ├── optimizer.py     the CP-SAT model — constraints and objective
+├── skill_mix.py     skill-mix and pairing rules, and the check of a plan against them
 ├── server.py        Flask REST API
 └── nats_handler.py  NATS JetStream subscriber
 ```
@@ -57,7 +58,13 @@ worked example. The backend builds this payload from the database — call
 | `capabilities` | `id`, `level`, `skill_group` — for the skill-downgrade objective |
 | `locked_assignments` | `employee_id`, `date`, `shift_id`, `workstation_id` — rows the solver must keep |
 | `history` | `employee_id`, `date`, `shift_id` — the confirmed roster of the 14 days before the period, read-only (see rule 11) |
+| `skill_mix_rules` | `kind` (`at_least`/`at_most`), `count`, `capability` (name) or `skill_group` + `min_level`, `shift_id?`, `workstation_id?`, `mode` — see Skill mix and pairing below |
+| `pairing_rules` | `kind` (`mentor`/`together`/`apart`), `employee_id`, `partner_id`, `mode` |
 | `constraints` | the `ConstraintConfig` block below |
+
+Two more per-employee fields: `skill_expiry` (capability name → last valid
+day — after it the skill does not count for a workstation) and `blocked_shifts`
+(`{date, shift_id}` a hard standing availability rule takes out). Both are hard.
 
 Each `weekday_times` entry carries `weekday`, start/end times,
 `min_employees`, `max_employees` and `free_days_after_shift`. A weekday absent
@@ -122,6 +129,25 @@ Violating any of these makes a solution invalid.
     exceeded to fill a slot that would otherwise stay short; `message` names
     every limit exceeded. `preferred_days_off` (weekdays) is soft — see
     Preferences below.
+
+### Skill mix and pairing
+
+The ward's own rules (`skill_mix.py`, an identical copy in the agent):
+
+- **`at_least`** — of the people on a *staffed* slot (day + shift, at the rule's
+  workstation or summed over all), at least `count` hold `capability` or a higher
+  level of its skill group, or any capability of `skill_group` at `min_level` or
+  above. An empty slot breaks no minimum, so a hard rule that cannot hold leaves
+  the slot empty — a shortfall in `message` — rather than staffing it wrongly.
+- **`at_most`** — at most `count` people holding `capability` on a slot.
+- **`mentor`** — the trainee (`employee_id`) may only take a slot the mentor
+  (`partner_id`) is on, same shift and workstation.
+- **`together`** — on a day both work, the same shift. **`apart`** — never the
+  same shift on the same day.
+
+`hard` rules are constraints. `soft` ones are breach variables in phase 1's
+tier with the soft personal limits: broken only where coverage needs it, and
+every breach is listed in `message` ("Skill-mix or pairing rule(s) not met").
 
 Note the asymmetry on staffing bands: **maximum is hard, minimum is soft.** If
 minimum staffing were hard, a short-staffed week would return `infeasible` and

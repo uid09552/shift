@@ -49,7 +49,7 @@ from datetime import date, timedelta
 from typing import Any, Callable, Iterator
 
 
-from shift_agent.agent import legal
+from shift_agent.agent import legal, skill_mix
 from shift_agent.agent.validation import (
     ValidationError,
     _assignments,
@@ -64,6 +64,8 @@ from shift_agent.agent.validation import (
     compat_gap,
     validate,
     workstation_closed,
+    blocked_on,
+    skills_on,
 )
 from shift_agent.agent.validation import headline as validation_headline
 
@@ -370,6 +372,11 @@ class _Rules:
         self.workstations = {w["id"]: w for w in rules.get("workstations") or []}
         self.capabilities = {c["id"]: c for c in rules.get("capabilities") or []}
         self.capability_names = capability_names or {}
+        # Skill-mix and pairing rules (skill_mix.py): the hard ones a single
+        # move can break are refused like any other hard rule.
+        self.mix_rules, self.pair_rules = skill_mix.parse(rules)
+        self.mix_catalog = skill_mix.catalog_of(rules)
+        self.skills = {eid: set(e.get("skills") or []) for eid, e in self.employees.items()}
 
         self.shift_wt = {
             (s["id"], wt["weekday"]): wt
@@ -409,7 +416,9 @@ class _Rules:
         self.available_shifts = {
             eid: set(e.get("available_shifts") or []) for eid, e in self.employees.items()
         }
-        self._compat: dict[tuple[str, str], int | None] = {}
+        self._compat: dict[tuple, int | None] = {}
+        # Shifts a recurring availability rule takes out, per employee and day.
+        self.blocked = {eid: blocked_on(e) for eid, e in self.employees.items()}
 
     # -- naming ------------------------------------------------------------
 
@@ -436,13 +445,17 @@ class _Rules:
 
     # -- pieces of the question --------------------------------------------
 
-    def compat(self, employee_id: str, workstation_id: str) -> int | None:
-        key = (employee_id, workstation_id)
+    def compat(self, employee_id: str, workstation_id: str, day: date | None = None) -> int | None:
+        employee = self.employees.get(employee_id) or {}
+        # Skills that have expired by `day` change the answer; the cache key says which.
+        held = frozenset(skills_on(employee, day))
+        key = (employee_id, workstation_id, held)
         if key not in self._compat:
             self._compat[key] = compat_gap(
-                self.employees.get(employee_id) or {},
+                employee,
                 self.workstations.get(workstation_id) or {},
                 self.capabilities,
+                day,
             )
         return self._compat[key]
 
@@ -494,6 +507,8 @@ class _Rules:
             return f"does not work the {self.shift_name(shift_id)}"
         if day.isoformat() in self.unavailable.get(employee_id, set()):
             return "away that day"
+        if (day.isoformat(), shift_id) in self.blocked.get(employee_id, set()):
+            return f"does not work the {self.shift_name(shift_id)} that day"
         if (
             (self.employees.get(employee_id) or {}).get("no_night_shifts")
             and (self.shifts.get(shift_id) or {}).get("is_night_shift")
@@ -511,7 +526,12 @@ class _Rules:
             return f"{self.workstation_name(workstation_id)} does not run that shift"
         if not self.workstation_open(workstation_id, day):
             return f"{self.workstation_name(workstation_id)} is closed that day"
-        if self.compat(employee_id, workstation_id) is None:
+        if self.compat(employee_id, workstation_id, day) is None:
+            if self.compat(employee_id, workstation_id) is not None:
+                employee = self.employees.get(employee_id) or {}
+                expired = sorted(set(employee.get("skills") or []) - skills_on(employee, day))
+                names = ", ".join(self.capability_names.get(c, c) for c in expired)
+                return f"{names} expired before that day"
             missing = sorted(
                 self.capability_names.get(c, c)
                 for c in (workstation.get("required_skills") or [])
@@ -674,6 +694,22 @@ class _Rules:
         reason = self._legal_window_reason(employee_id, day, shift_id, plan)
         if reason:
             yield reason
+
+        if self.mix_rules or self.pair_rules:
+            def cell_of(other: str, iso: str) -> Cell | None:
+                return plan.get(other, date.fromisoformat(iso))
+
+            def slot_people(iso: str, slot_shift: str, slot_ws: str | None) -> list[str]:
+                on = date.fromisoformat(iso)
+                return [
+                    who for (who, d), (s, w) in plan.cells.items()
+                    if d == on and s == slot_shift and (slot_ws is None or w == slot_ws)
+                ]
+
+            yield from skill_mix.placement_reasons(
+                self.mix_rules, self.pair_rules, employee_id, day.isoformat(), shift_id, workstation_id,
+                cell_of, slot_people, self.skills, self.mix_catalog, self.employee_name,
+            )
 
         # Working days per seven-day block, counted from the start of the
         # period exactly as the solver buckets them.

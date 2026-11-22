@@ -90,8 +90,42 @@ pub struct TaskDTO {
     // must. Days without a roster row are not included and are free to plan.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub published_roster: Vec<PublishedShiftTask>,
+    // The ward's skill-mix and pairing rules (planner/shift_planner/skill_mix.py).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub skill_mix_rules: Vec<SkillMixRuleTask>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pairing_rules: Vec<PairingRuleTask>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub constraints: Option<ConstraintTask>,
+}
+
+/// Who has to be on a slot; `capability` is a capability name, like employees' skills.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct SkillMixRuleTask {
+    pub id: String,
+    pub kind: String,
+    pub count: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capability: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skill_group: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_level: Option<i16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shift_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workstation_id: Option<String>,
+    pub mode: String,
+}
+
+/// Two employees: mentor (employee = trainee), together or apart.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct PairingRuleTask {
+    pub id: String,
+    pub kind: String,
+    pub employee_id: String,
+    pub partner_id: String,
+    pub mode: String,
 }
 
 /// One employee-day of the published roster; `shift_id` null = not working.
@@ -218,6 +252,20 @@ pub struct EmployeeTask {
     pub date_of_birth: Option<String>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub maternity_protection: bool,
+    /// Capability name → its last valid day (YYYY-MM-DD), for the ones that
+    /// lapse inside the period; after it the skill no longer counts.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub skill_expiry: std::collections::BTreeMap<String, String>,
+    /// Shifts a recurring availability rule takes out on given days — hard.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blocked_shifts: Vec<BlockedShiftTask>,
+}
+
+/// One shift on one day an employee's recurring availability rules out.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct BlockedShiftTask {
+    pub date: String,
+    pub shift_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -25,6 +25,7 @@ import { ChangesComponent } from './pages/planner/changes/changes.component';
 import { LeaveComponent } from './pages/planner/leave/leave.component';
 import { OpenShiftsComponent } from './pages/planner/open-shifts/open-shifts.component';
 import { NotificationSettingsComponent } from './pages/configuration/notifications/notification-settings.component';
+import { StaffingRulesComponent } from './pages/configuration/staffing-rules/staffing-rules.component';
 
 export const routes: Routes = [
   {
@@ -78,6 +79,14 @@ export const routes: Routes = [
         path:'open-shifts',
         component:OpenShiftsComponent,
         title:'title.openShifts'
+      },
+      {
+        // Skill-mix and pairing rules — planners and admins only.
+        path:'staffing-rules',
+        component:StaffingRulesComponent,
+        canActivate:[writerGuard],
+        data:{ listPath:'/' },
+        title:'title.staffingRules'
       },
       {
         // The signed-in person's own e-mail notification choices.

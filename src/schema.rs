@@ -21,6 +21,7 @@ diesel::table! {
         employee_id -> Uuid,
         capability_id -> Uuid,
         tenant_id -> Varchar,
+        valid_until -> Nullable<Date>,
     }
 }
 
@@ -446,6 +447,60 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    calendar_feeds (employee_id) {
+        employee_id -> Uuid,
+        tenant_id -> Varchar,
+        token_hash -> Varchar,
+        created_at -> Timestamptz,
+        last_fetched_at -> Nullable<Timestamptz>,
+    }
+}
+
+diesel::table! {
+    skill_mix_rules (id) {
+        id -> Uuid,
+        tenant_id -> Varchar,
+        kind -> Varchar,
+        count -> Int4,
+        capability_id -> Nullable<Uuid>,
+        skill_group -> Nullable<Varchar>,
+        min_level -> Nullable<Int2>,
+        shift_id -> Nullable<Uuid>,
+        workstation_id -> Nullable<Uuid>,
+        mode -> Varchar,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    pairing_rules (id) {
+        id -> Uuid,
+        tenant_id -> Varchar,
+        kind -> Varchar,
+        employee_id -> Uuid,
+        partner_id -> Uuid,
+        mode -> Varchar,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    availability_rules (id) {
+        id -> Uuid,
+        tenant_id -> Varchar,
+        employee_id -> Uuid,
+        kind -> Varchar,
+        shift_ids -> Array<Uuid>,
+        weekdays -> Array<Int2>,
+        mode -> Varchar,
+        valid_from -> Nullable<Date>,
+        valid_until -> Nullable<Date>,
+        note -> Nullable<Varchar>,
+        created_at -> Timestamptz,
+    }
+}
+
 diesel::joinable!(planning_tasks -> optimized_shift_results (result_id));
 diesel::joinable!(employee_available_shifts -> employees (employee_id));
 diesel::joinable!(employee_available_shifts -> shifts (shift_id));
@@ -467,6 +522,7 @@ diesel::joinable!(confirmed_shift_plans -> workstations (workstation_id));
 diesel::joinable!(employee_personal_limits -> employees (employee_id));
 diesel::joinable!(roster_change_notices -> employees (employee_id));
 diesel::joinable!(leave_requests -> employees (employee_id));
+diesel::joinable!(calendar_feeds -> employees (employee_id));
 diesel::joinable!(leave_request_days -> leave_requests (leave_request_id));
 diesel::joinable!(leave_limits -> capabilities (capability_id));
 diesel::joinable!(notification_preferences -> employees (employee_id));
@@ -508,4 +564,8 @@ diesel::allow_tables_to_appear_in_same_query!(
     roster_notice_deliveries,
     open_shifts,
     open_shift_volunteers,
+    calendar_feeds,
+    skill_mix_rules,
+    pairing_rules,
+    availability_rules,
 );

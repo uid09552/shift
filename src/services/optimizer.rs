@@ -238,6 +238,32 @@ impl OptimizerService {
             }
         }
 
+        // Recurring availability, expanded over the period into the terms the
+        // solver already knows (see services::availability::expand).
+        let mut blocked_map: std::collections::HashMap<Uuid, Vec<crate::models::BlockedShiftTask>> = std::collections::HashMap::new();
+        if let (Some(from), Some(to)) = (period_from, period_to) {
+            use crate::repository::domain::AvailabilityRuleRepository;
+            let shift_ids: Vec<Uuid> = shifts.iter().map(|s| s.id).collect();
+            let mut by_employee: std::collections::HashMap<Uuid, Vec<crate::models::AvailabilityRule>> = std::collections::HashMap::new();
+            for rule in state.staffing_rule_repo.list_availability_rules(tenant_id, None).await? {
+                by_employee.entry(rule.employee_id).or_default().push(rule);
+            }
+            for (employee_id, rules) in by_employee {
+                let out = crate::services::availability::expand(&rules, &shift_ids, from, to);
+                let days = unavail_map.entry(employee_id).or_default();
+                days.extend(out.unavailable.iter().map(|d| d.to_string()));
+                days.sort();
+                days.dedup();
+                blocked_map.entry(employee_id).or_default().extend(
+                    out.blocked.iter().map(|(d, s)| crate::models::BlockedShiftTask { date: d.to_string(), shift_id: s.to_string() }),
+                );
+                preferred_off_map.entry(employee_id).or_default().extend(out.preferred_off.iter().map(|(d, s)| PreferredOffTask {
+                    date: d.to_string(),
+                    shift_id: s.map(|s| s.to_string()),
+                }));
+            }
+        }
+
         let all_wishes = state.shift_wish_repo.list_shift_wishes(tenant_id).await?;
         let mut wish_map: std::collections::HashMap<Uuid, Vec<ShiftWishTask>> = std::collections::HashMap::new();
         for w in all_wishes {
@@ -381,7 +407,24 @@ impl OptimizerService {
                 EmployeeTask {
                     id: emp.id.to_string(),
                     name: emp.name,
-                    skills: emp.capabilities.iter().map(|c| c.name.clone()).collect(),
+                    // A capability that lapsed before the period is not held at
+                    // all; one that lapses inside it carries its last day.
+                    skills: emp
+                        .capabilities
+                        .iter()
+                        .filter(|c| period_from.is_none_or(|from| c.valid_on(from)))
+                        .map(|c| c.name.clone())
+                        .collect(),
+                    skill_expiry: emp
+                        .capabilities
+                        .iter()
+                        .filter(|c| period_from.is_none_or(|from| c.valid_on(from)))
+                        .filter_map(|c| {
+                            let last = c.valid_until?;
+                            period_to.is_none_or(|to| last < to).then(|| (c.name.clone(), last.to_string()))
+                        })
+                        .collect(),
+                    blocked_shifts: blocked_map.remove(&emp.id).unwrap_or_default(),
                     available_shifts: emp.available_shifts.iter().map(|s| s.id.to_string()).collect(),
                     unavailability,
                     weekly_working_hours: crate::repository::domain::effective_weekly_hours(emp.weekly_working_hours, default_weekly),
@@ -415,6 +458,9 @@ impl OptimizerService {
             employee_tasks.len(),
         );
 
+        let (skill_mix_rules, pairing_rules) =
+            crate::services::staffing_rules::rules_for_planning(state, tenant_id).await?;
+
         Ok(TaskDTO {
             planning_period: PlanningPeriod {
                 start_date: period_start.to_string(),
@@ -427,6 +473,8 @@ impl OptimizerService {
             history,
             holidays,
             published_roster,
+            skill_mix_rules,
+            pairing_rules,
             constraints,
         })
     }

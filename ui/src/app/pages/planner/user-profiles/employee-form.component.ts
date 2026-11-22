@@ -1,3 +1,5 @@
+import { AvailabilityRulesCardComponent } from './availability-rules-card.component';
+import { CapabilityExpiryCardComponent } from './capability-expiry-card.component';
 import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -66,6 +68,8 @@ function noLimits(): PersonalLimits {
     LabelComponent,
     DateRangePickerComponent,
     TranslatePipe,
+    CapabilityExpiryCardComponent,
+    AvailabilityRulesCardComponent,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
@@ -160,6 +164,8 @@ function noLimits(): PersonalLimits {
         }
       </div>
 
+      <app-capability-expiry-card [employeeId]="editingId" />
+
       <!-- Shifts (only in edit mode) -->
       <div class="mb-5">
         <app-label className="mb-2">{{ 'userProfiles.availableShifts' | t }}</app-label>
@@ -181,6 +187,8 @@ function noLimits(): PersonalLimits {
           </div>
         }
       </div>
+
+      <app-availability-rules-card [employeeId]="editingId" />
 
       <!-- Personal limits (only in edit mode) -->
       <div class="mb-5 rounded-lg border border-gray-200 p-4 dark:border-gray-700" data-testid="personal-limits">

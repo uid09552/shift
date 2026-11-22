@@ -149,6 +149,13 @@ class FixedShift(BaseModel):
     shift_id: Optional[str] = None
 
 
+class BlockedShift(BaseModel):
+    """A shift a recurring availability rule takes out on one day — hard."""
+
+    date: date
+    shift_id: str = Field(..., min_length=1)
+
+
 class Employee(BaseModel):
     """Employee definition with skills and availability."""
 
@@ -176,6 +183,11 @@ class Employee(BaseModel):
     # labor_law_profile "none".
     date_of_birth: Optional[date] = None
     maternity_protection: bool = False
+    # Capability name → its last valid day (a certificate that lapses): after it
+    # the skill does not count for a workstation.
+    skill_expiry: Dict[str, date] = Field(default_factory=dict)
+    # Shifts a recurring availability rule takes out on given days — hard.
+    blocked_shifts: List[BlockedShift] = Field(default_factory=list)
 
 
 class LockedAssignment(BaseModel):
@@ -356,6 +368,33 @@ class ConstraintConfig(BaseModel):
     solver_num_workers: int = Field(default=8, ge=1, le=64)
 
 
+class SkillMixRule(BaseModel):
+    """Who has to be on a slot (see skill_mix.py): at least / at most `count`
+    people with a capability (or a skill group at a level), per shift — at one
+    workstation, or summed over all of them."""
+
+    id: str = Field(..., min_length=1)
+    kind: Literal["at_least", "at_most"]
+    count: int = Field(..., ge=0)
+    capability: Optional[str] = None
+    skill_group: Optional[str] = None
+    min_level: Optional[int] = Field(default=None, ge=1)
+    shift_id: Optional[str] = None
+    workstation_id: Optional[str] = None
+    mode: Literal["hard", "soft"] = "hard"
+
+
+class PairingRule(BaseModel):
+    """Two employees: a trainee with their mentor, two who work together, or
+    two who never share a shift (see skill_mix.py)."""
+
+    id: str = Field(..., min_length=1)
+    kind: Literal["mentor", "together", "apart"]
+    employee_id: str = Field(..., min_length=1)
+    partner_id: str = Field(..., min_length=1)
+    mode: Literal["hard", "soft"] = "hard"
+
+
 class SchedulingInput(BaseModel):
     """Root model for scheduling input data."""
 
@@ -374,6 +413,8 @@ class SchedulingInput(BaseModel):
     holidays: List[date] = Field(default_factory=list)
     # The published roster of the period's days — see PublishedShift.
     published_roster: List[PublishedShift] = Field(default_factory=list)
+    skill_mix_rules: List[SkillMixRule] = Field(default_factory=list)
+    pairing_rules: List[PairingRule] = Field(default_factory=list)
     constraints: ConstraintConfig = Field(default_factory=ConstraintConfig)
 
     @field_validator("shifts", "workstations", "employees")

@@ -65,6 +65,10 @@ no separate migrate command in normal operation.
 | 40 | `add_leave_requests` | leave requests, the absences an approval created, blackout periods, per-capability limits |
 | 41 | `add_notifications` | notification preferences, the mail outbox, which roster change notices were mailed |
 | 42 | `add_open_shifts` | open shifts and their volunteers |
+| 43 | `add_calendar_feeds` | one iCal feed per employee — the token's SHA-256 only |
+| 44 | `add_skill_mix_rules` | skill-mix and pairing rules |
+| 45 | `capability_valid_until` | `employee_capabilities.valid_until` — when a held capability lapses |
+| 46 | `add_availability_rules` | standing availability per employee |
 
 ### Working with Diesel
 
@@ -120,6 +124,10 @@ diesel migration redo                  # verify down.sql actually reverses it
 | `leave_limits` | `capability_id`, `max_absent` — one per capability per tenant |
 | `open_shifts` | `date`, `shift_id`, `workstation_id?`, `note?`, `status`, `assigned_employee_id?` — one `open` offer per slot (partial unique index) |
 | `open_shift_volunteers` | `open_shift_id`, `employee_id` |
+| `calendar_feeds` | `employee_id`, `token_hash`, `created_at`, `last_fetched_at?` |
+| `skill_mix_rules` | `kind`, `count`, `capability_id?` or `skill_group` + `min_level`, `shift_id?`, `workstation_id?`, `mode` |
+| `pairing_rules` | `kind`, `employee_id`, `partner_id`, `mode` |
+| `availability_rules` | `employee_id`, `kind`, `shift_ids[]`, `weekdays[]`, `mode`, `valid_from?`, `valid_until?`, `note?` |
 | `notification_preferences` | `employee_id`, `email_enabled`, `muted_events` |
 | `notification_outbox` | `recipient`, `event`, `subject`, `body`, `status` (`pending`/`sent`/`failed`), `attempts`, `next_attempt_at`, `last_error?` |
 | `roster_notice_deliveries` | `notice_id` — the change notices already turned into mail |

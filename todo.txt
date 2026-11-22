@@ -23,10 +23,11 @@ HIGH VALUE
     - Not done: the agent's replacement ranking (volunteers are checked by the
       backend's own rules: absence, availability, capabilities, rest; labor law and
       personal limits are left to the plan check)
-[ ] Skill-mix rules per shift/workstation
+[x] Skill-mix rules per shift/workstation  -- #178
     - "at least 1 x level >= 3 per shift", "max 2 trainees"
     - Trainee must be paired with a mentor (same shift + workstation)
     - Must / must-not work together (pairing constraints)
+    - Hard or soft each; solver, plan check, repair, replacement and swap check
 [ ] Labor-law rule set (ArbZG) as a selectable profile
     - Max 10 h/day, 48 h/week average over N weeks, breaks
     - Special groups: minors (JArbSchG), pregnancy (MuSchG: no nights/Sundays)
@@ -39,7 +40,7 @@ PLANNING QUALITY
 ----------------
 [ ] Long-horizon fairness: carry night/weekend/holiday counts across months
     (history beyond 14 days), alternate Christmas / New Year fairly
-[ ] Recurring availability (not just wishes): "only early shifts", "never Wednesdays",
+[x] Recurring availability (not just wishes): "only early shifts", "never Wednesdays",  -- #180
     part-time on fixed days; hard or soft per employee
 [ ] Time-of-day demand: staffing curve per hour instead of per shift;
     optimizer chooses shift types / split and overlap shifts to cover it
@@ -55,11 +56,12 @@ PLANNING QUALITY
 
 CERTIFICATIONS
 --------------
-[ ] Capabilities with expiry dates (e.g. resuscitation training); warn in advance,
+[x] Capabilities with expiry dates (e.g. resuscitation training); warn in advance,  -- #179
     the optimizer stops using an expired capability
+    - Not done: a notification e-mail before a capability lapses
 
 OUTPUT / SELF-SERVICE
 ---------------------
-[ ] iCal feed per employee (subscribe in phone calendar)
+[x] iCal feed per employee (subscribe in phone calendar)  -- #177
 [ ] PDF / Excel export of the roster (per ward, wall print layout)
 [ ] Mobile-friendly "my shifts" view: next shifts, open shifts, swaps, leave

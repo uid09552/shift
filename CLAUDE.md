@@ -97,7 +97,8 @@ backend/
 │       │       ├── shifts/
 │       │       ├── workstations/
 │       │       ├── capabilities/
-│       │       ├── notifications/   # The caller's own e-mail notification choices
+│       │       ├── notifications/   # The caller's own e-mail choices and calendar link
+│       │       ├── staffing-rules/  # Skill-mix and pairing rules (planners)
 │       │       ├── audit-log/       # Who changed what, with a diff per entry
 │       │       └── users/           # Organization users & role assignment
 │       │   # Add/edit forms are pages of their own (`<list>/new`, `<list>/:id/edit`):
@@ -133,6 +134,13 @@ backend/
 - Skills or qualifications required for workstations
 - Examples: "Intensive Care", "Emergency Room", "Surgery"
 - Assigned to employees and required by workstations
+- One an employee holds may lapse: `employee_capabilities.valid_until`, its last
+  valid day (`PUT /employees/{id}/capabilities/{capability_id}`). A lapse before
+  a planning period drops it from the employee's `skills`; one inside it goes to
+  the solver as `skill_expiry`, and the solver, the plan check
+  (`capability_expired`), repair, replacement and open shifts stop counting it
+  after that day. Planners see what lapses within 60 days above the Employees list
+  (`/capability-expiries`)
 
 ### Workstations
 - Hospital units/departments
@@ -248,6 +256,44 @@ backend/
   channel or single events off (`/notification-preferences`); all on by default
 - Mails never carry a legal-rule reason or protected-group data
 
+### Standing availability
+- Per employee, `/employees/{id}/availability-rules` (on the employee's page;
+  planners keep them, an employee reads their own): `only_shifts`, `not_shifts`,
+  `only_weekdays`, `not_weekdays` (0 = Monday), `hard` or `soft`, optionally
+  between two dates
+- `services::availability::expand` turns them over a planning period into what
+  the solver and agent already read: hard weekday rules → whole-day
+  `unavailability`, hard shift rules → `blocked_shifts` (`{date, shift_id}`, the
+  one new input field), soft ones → `preferred_off`. Open shifts ask
+  `availability::hard_block`
+
+### Calendar feed
+- Each employee can make a personal iCal link (`/calendar-feed`, on the
+  Notifications page) and subscribe to it on their phone. The feed,
+  `GET /api/v1/calendar-feeds/<token>.ics`, sits outside the auth middleware (and
+  has its own gateway route): calendar apps cannot sign in, the token is the key
+- Only the token's SHA-256 is stored, so the link is shown once; a new one
+  revokes the old. The feed holds the employee's confirmed shifts in published and
+  locked months only (a month back, a year ahead), never draft months or absences
+
+### Skill-mix and pairing rules
+- The ward's rules of who has to — or may not — work alongside whom
+  (`/skill-mix-rules`, `/pairing-rules`, the Staffing rules page; planners and
+  admins only). Sent with every planning input as `skill_mix_rules` /
+  `pairing_rules`, capabilities by name
+- Skill mix, per slot (day + shift, at one workstation or summed over all):
+  `at_least` N holding a capability (or a higher level of its group) or a skill
+  group from a level; `at_most` N holding a capability. An empty slot breaks no
+  minimum. Pairing: `mentor` (trainee only where the mentor is), `together`
+  (same shift when both work), `apart` (never the same shift)
+- Each rule is `hard` or `soft`. Soft breaches sit in the solver's tier with the
+  soft personal limits — broken only for coverage — and are named in `message`
+- What a rule means lives in `planner/shift_planner/skill_mix.py`, copied
+  byte-for-byte to `agent/shift_agent/agent/skill_mix.py` (a test fails on
+  drift): the plan check reports breaches (`skill_mix`, `pairing`; hard = error,
+  soft = warning); repair, replacement and the swap check refuse a placement that
+  breaks a hard pairing or at-most rule
+
 ### Users and roles
 - A user is a **Keycloak** account, not a row in this database; a tenant is a
   Keycloak **organization**, and belonging to one is organization membership
@@ -310,6 +356,14 @@ Base URL: `http://localhost:8080/api/v1`
   /leave-blackouts`, `GET/PUT /leave-limits` for the rules
 - `GET/POST /open-shifts` - Open shifts (`/count`, `/gaps`; `/volunteer`
   `/withdraw` by an employee, `/assign` `/close` by planner/admin)
+- `PUT /employees/{id}/capabilities/{capability_id}` - `{valid_until}`: when a
+  held capability lapses; `GET /capability-expiries?within_days=60` (planner/admin)
+- `GET/POST /employees/{id}/availability-rules` (+ `DELETE …/{rule_id}`),
+  `GET /availability-rules` - Standing availability
+- `GET/POST/DELETE /calendar-feed` - The caller's iCal link (shown once);
+  `GET /calendar-feeds/<token>.ics` - the feed itself, no sign-in
+- `GET/POST /skill-mix-rules`, `GET/POST /pairing-rules` (+ `DELETE …/{id}`) -
+  Staffing rules (planner/admin)
 - `GET/PUT /notification-preferences` - The caller's e-mail choices;
   `GET /notification-outbox` (planner/admin) shows recent mails and how they went
 - `GET/POST /confirmed-shift-plans` - Confirmed monthly plans (viewers: published
