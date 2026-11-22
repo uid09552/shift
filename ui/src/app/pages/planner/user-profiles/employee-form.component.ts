@@ -416,7 +416,7 @@ function noLimits(): PersonalLimits {
                         >{{ 'userProfiles.soft' | t }}</span>
                       }
                     </div>
-                    <button
+                    <button [attr.aria-label]="'common.delete' | t"
                       type="button"
                       (click)="deleteLeaveEntry(entry)"
                       class="ml-2 shrink-0 text-gray-400 hover:text-red-500 dark:hover:text-red-400"

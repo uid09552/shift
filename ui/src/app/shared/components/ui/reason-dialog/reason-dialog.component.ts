@@ -2,11 +2,12 @@ import { ChangeDetectionStrategy, Component, ElementRef, ViewChild } from '@angu
 import { FormsModule } from '@angular/forms';
 import { ReasonDialogService, ReasonState } from './reason-dialog.service';
 import { TranslatePipe } from '../../../i18n/translate.pipe';
+import { FocusTrapDirective } from '../../../a11y/focus-trap.directive';
 
 @Component({
   selector: 'app-reason-dialog',
   standalone: true,
-  imports: [FormsModule, TranslatePipe],
+  imports: [FormsModule, TranslatePipe, FocusTrapDirective],
   changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './reason-dialog.component.html',
 })
@@ -40,8 +41,6 @@ export class ReasonDialogComponent {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       this.submit();
-    } else if (event.key === 'Escape') {
-      this.cancel();
     }
   }
 }

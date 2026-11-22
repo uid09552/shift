@@ -23,6 +23,8 @@ pub mod leave;
 pub mod notifier;
 pub mod open_shift;
 pub mod calendar_feed;
+pub mod saved_view;
+pub mod setup;
 pub mod staffing_rules;
 pub mod availability;
 pub mod wish_settings;

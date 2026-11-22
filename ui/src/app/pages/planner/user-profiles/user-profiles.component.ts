@@ -96,7 +96,7 @@ import { PlannerSettingsService } from '../../../shared/services/planner-setting
                 </ul>
               }
             </div>
-            <button type="button" (click)="importResult = null" class="shrink-0 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-300">
+            <button [attr.aria-label]="'common.close' | t" type="button" (click)="importResult = null" class="shrink-0 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-300">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>
@@ -204,6 +204,7 @@ import { PlannerSettingsService } from '../../../shared/services/planner-setting
           <div class="flex items-center gap-2">
             <select
               [value]="pageSize"
+              [attr.aria-label]="'common.perPage' | t"
               (change)="onPageSizeChange($event)"
               class="h-8 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
             >
@@ -212,7 +213,7 @@ import { PlannerSettingsService } from '../../../shared/services/planner-setting
               <option value="25">25</option>
               <option value="50">50</option>
             </select>
-            <button
+            <button [attr.aria-label]="'common.previousPage' | t"
               (click)="previousPage()"
               [disabled]="currentPage === 1"
               class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
@@ -222,7 +223,7 @@ import { PlannerSettingsService } from '../../../shared/services/planner-setting
             <span class="text-sm text-gray-700 dark:text-gray-300">
               {{ currentPage }} / {{ totalPages }}
             </span>
-            <button
+            <button [attr.aria-label]="'common.nextPage' | t"
               (click)="nextPage()"
               [disabled]="currentPage === totalPages"
               class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"

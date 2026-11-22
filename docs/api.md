@@ -48,6 +48,9 @@ summary below is the product contract for the API.
 | `/notification-preferences` | ✅ own only | ✅ own only | ✅ own only |
 | `/calendar-feed` | ✅ own only | ✅ own only | ✅ own only |
 | `/calendar-feeds/<token>.ics` | no sign-in — the token is the key | | |
+| `/saved-views` | ✅ own only (sharing ❌) | ✅ own, may share | ✅ own, may share; changes and deletes shared ones |
+| `/setup-status` | ✅ read | ✅ read | ✅ read |
+| `/setup/sample-data` | ❌ | ❌ | ✅ empty organization only |
 | `/skill-mix-rules`, `/pairing-rules` | ❌ | ✅ read/write | ✅ read/write |
 | `/notification-outbox` | ❌ | ✅ read | ✅ read |
 | `/users` and `/users/{id}/roles` | ❌ | ❌ | ✅ |
@@ -344,6 +347,32 @@ between `valid_from` and `valid_until`. Over each planning period the backend
 expands them into what the solver and the agent already read: hard weekday rules
 into whole-day `unavailability`, hard shift rules into `blocked_shifts`, soft
 ones into `preferred_off`. Open shifts refuse a volunteer a hard rule keeps out.
+
+## Saved views
+
+Named filter sets per user and page (only `schedule` so far), so the Schedule
+page opens the way each user left it, on any device. A user is a Keycloak
+account, so views are keyed by the token's subject.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/saved-views?page=schedule` | The caller's views plus everyone's shared ones, `default_view_id`, `last_view_id` |
+| `POST` | `/saved-views` | `{page, name, filters, shared?}` — 409 on a name the caller already uses there (any case); `shared` is planners'/admins' |
+| `PUT` | `/saved-views/{id}` | Rename, new filters, share/unshare — the owner, or an admin for a shared view |
+| `DELETE` | `/saved-views/{id}` | The same; a default or last view pointing at it is cleared |
+| `PUT` | `/saved-views/preferences` | `{page, default_view_id, last_view_id}` — both replaced, `null` clears |
+
+`filters` is a JSON object (≤ 8 KiB) the page reads back; the backend does not
+interpret it. The Schedule page stores `view`, `group`, `wishesOnly` and the id
+lists `workstations`, `capabilities`, `employees`. Someone else's private view
+is a 404; a view that is no longer shared stops being anyone else's default.
+
+## First-run setup
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/setup-status` | `steps` in order — `shifts` (with weekday times), `capabilities`, `workstations`, `employees`, `planner_settings` (saved once), `first_plan` (a plan run or a confirmed entry) — each `{id, count, done}`; `complete`; `sample_data_available` |
+| `POST` | `/setup/sample-data` | `shift-admin`: three shifts, two capabilities, two workstations, eight employees — only into an organization with none of those (409 otherwise), in one transaction |
 
 ## Calendar feed
 

@@ -1137,7 +1137,7 @@
           <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ selectedCellDetail.rowName }}</h3>
           <p class="text-sm text-gray-500 dark:text-gray-400">{{ formatModalDate(selectedCellDetail.date) }}</p>
         </div>
-        <button (click)="closeCellDetail()" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800">
+        <button [attr.aria-label]="'common.close' | t" (click)="closeCellDetail()" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800">
           <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
@@ -1176,7 +1176,7 @@
           <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'scheduler.editAssignment' | t }}</h3>
           <p class="text-sm text-gray-500 dark:text-gray-400">{{ editingAssignment.employeeName }} · {{ editingAssignment.date }}</p>
         </div>
-        <button (click)="closeEditAssignment()" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800">
+        <button [attr.aria-label]="'common.close' | t" (click)="closeEditAssignment()" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800">
           <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>

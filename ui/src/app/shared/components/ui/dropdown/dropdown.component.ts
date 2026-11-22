@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input, Output, EventEmitter, ElementRef, ViewChild, AfterViewInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ElementRef, ViewChild, AfterViewInit, OnDestroy, ChangeDetectionStrategy, HostListener } from '@angular/core';
 
 @Component({
   selector: 'app-dropdown',
@@ -25,6 +25,15 @@ export class DropdownComponent implements AfterViewInit, OnDestroy {
       this.close.emit();
     }
   };
+
+  /** Escape closes the menu and hands focus back to its toggle. */
+  @HostListener('document:keydown.escape')
+  onEscape() {
+    if (!this.isOpen) return;
+    const toggle = this.dropdownRef?.nativeElement.closest('app-dropdown')?.parentElement?.querySelector<HTMLElement>('.dropdown-toggle');
+    this.close.emit();
+    toggle?.focus();
+  }
 
   ngAfterViewInit() {
     document.addEventListener('mousedown', this.handleClickOutside);

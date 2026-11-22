@@ -65,3 +65,12 @@ OUTPUT / SELF-SERVICE
 [x] iCal feed per employee (subscribe in phone calendar)  -- #177
 [ ] PDF / Excel export of the roster (per ward, wall print layout)
 [ ] Mobile-friendly "my shifts" view: next shifts, open shifts, swaps, leave
+
+UX
+--
+[x] First-run setup guide with sample data  -- #195
+    - Not done: the dismissal is per browser (localStorage), not per account
+[x] Accessibility pass (WCAG 2.1 AA): focus trap in dialogs, labels, table semantics,  -- #196
+    axe-core checks in light and dark theme (ui/src/app/a11y.spec.ts)
+[x] Command palette, Ctrl+K / Cmd+K: people, pages, dates, quick actions by role  -- #197
+[x] Saved filters and views on the Schedule page, per user on the server, shareable  -- #198

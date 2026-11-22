@@ -38,6 +38,10 @@ tags:
     description: Slots nobody is planned on, offered to the people who may take them — employees volunteer, a planner assigns
   - name: Calendar
     description: A personal iCal feed of the caller's published shifts, for the calendar on their phone
+  - name: Saved Views
+    description: Named filter sets per user and page (the Schedule page), kept on the server; planners share them with the organization
+  - name: Setup
+    description: The first-run checklist and sample data for an empty organization
   - name: Staffing Rules
     description: Skill-mix and pairing rules — who has to, or may not, work alongside whom (planners and admins)
   - name: Notifications
@@ -2669,6 +2673,180 @@ paths:
                 $ref: '#/components/schemas/CalendarFeed'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /saved-views:
+    get:
+      tags: [Saved Views]
+      summary: The caller's views of a page, and the shared ones
+      description: >
+        The caller's own views plus everyone's shared ones, by name, with the
+        caller's default view (what the page opens with) and the one applied last.
+        A view that is no longer shared is nobody else's default.
+      operationId: listSavedViews
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [schedule]
+            default: schedule
+      responses:
+        '200':
+          description: Views and the caller's choices
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedViewList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    post:
+      tags: [Saved Views]
+      summary: Save a view
+      description: >
+        A new view of the caller's. `filters` is a JSON object (at most 8 KiB)
+        the page reads back; the backend does not interpret it. Only planners and
+        admins may set `shared`. 409 when the caller already has a view of that
+        name (any case) on the page.
+      operationId: createSavedView
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSavedView'
+      responses:
+        '200':
+          description: The new view
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /saved-views/preferences:
+    put:
+      tags: [Saved Views]
+      summary: Set the caller's default and last-used view of a page
+      description: Replaces both; `null` clears one. Each must be a view the caller can see on that page.
+      operationId: updateSavedViewPreferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavedViewPreferences'
+      responses:
+        '200':
+          description: The stored choices
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedViewPreferences'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /saved-views/{view_id}:
+    parameters:
+      - name: view_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      tags: [Saved Views]
+      summary: Rename a view, change its filters or share it
+      description: Its owner, or an admin for a shared view. Someone else's private view is a 404.
+      operationId: updateSavedView
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSavedView'
+      responses:
+        '200':
+          description: The changed view
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags: [Saved Views]
+      summary: Delete a view
+      description: Its owner, or an admin for a shared view. Whoever had it as default or last view falls back to none.
+      operationId: deleteSavedView
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: string
+                    format: uuid
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /setup-status:
+    get:
+      tags: [Setup]
+      summary: How far the organization is towards a first plan
+      description: >
+        The first-run checklist, in order: shifts (with weekday times), capabilities,
+        workstations, employees, planner settings (saved once), a first plan (a plan
+        run or a confirmed roster entry). `sample_data_available` while the
+        organization has none of the first four.
+      operationId: getSetupStatus
+      responses:
+        '200':
+          description: The checklist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetupStatus'
+
+  /setup/sample-data:
+    post:
+      tags: [Setup]
+      summary: Fill an empty organization with sample data
+      description: >
+        `shift-admin` only. Three shifts (Early, Late, Night, every day), two
+        capabilities, two workstations and eight employees, enough to calculate a
+        plan. 409 once the organization has any shifts, capabilities, workstations
+        or employees: sample data never mixes with real data.
+      operationId: loadSampleData
+      responses:
+        '200':
+          description: The checklist after loading
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetupStatus'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
 
   /calendar-feeds/{file}:
     get:
@@ -6452,6 +6630,121 @@ components:
         constraints:
           $ref: '#/components/schemas/ConstraintTask'
 
+    SavedView:
+      type: object
+      required: [id, page, name, filters, shared, mine]
+      properties:
+        id:
+          type: string
+          format: uuid
+        page:
+          type: string
+          enum: [schedule]
+        name:
+          type: string
+          maxLength: 80
+        filters:
+          type: object
+          additionalProperties: true
+          description: >
+            What the page shows. The Schedule page stores `view` (day/week/month),
+            `group`, `wishesOnly`, and `workstations`, `capabilities`, `employees`
+            (ids; empty = all).
+        shared:
+          type: boolean
+        mine:
+          type: boolean
+          description: The caller's own view
+        owner_name:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    SavedViewList:
+      type: object
+      required: [page, views]
+      properties:
+        page:
+          type: string
+        views:
+          type: array
+          items:
+            $ref: '#/components/schemas/SavedView'
+        default_view_id:
+          type: string
+          format: uuid
+          nullable: true
+        last_view_id:
+          type: string
+          format: uuid
+          nullable: true
+    CreateSavedView:
+      type: object
+      required: [page, name]
+      properties:
+        page:
+          type: string
+          enum: [schedule]
+        name:
+          type: string
+          maxLength: 80
+        filters:
+          type: object
+          additionalProperties: true
+        shared:
+          type: boolean
+          default: false
+    UpdateSavedView:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 80
+        filters:
+          type: object
+          additionalProperties: true
+        shared:
+          type: boolean
+    SavedViewPreferences:
+      type: object
+      required: [page]
+      properties:
+        page:
+          type: string
+          enum: [schedule]
+        default_view_id:
+          type: string
+          format: uuid
+          nullable: true
+        last_view_id:
+          type: string
+          format: uuid
+          nullable: true
+    SetupStatus:
+      type: object
+      required: [steps, complete, sample_data_available]
+      properties:
+        steps:
+          type: array
+          items:
+            type: object
+            required: [id, count, done]
+            properties:
+              id:
+                type: string
+                enum: [shifts, capabilities, workstations, employees, planner_settings, first_plan]
+              count:
+                type: integer
+              done:
+                type: boolean
+        complete:
+          type: boolean
+        sample_data_available:
+          type: boolean
     CalendarFeed:
       type: object
       required: [employee_id, active]

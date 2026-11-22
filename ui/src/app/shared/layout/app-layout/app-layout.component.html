@@ -1,3 +1,4 @@
+<a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-999999 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-brand-700 focus:shadow-theme-lg dark:focus:bg-gray-900 dark:focus:text-brand-300" (click)="skipToMain($event)">{{ 'a11y.skipToContent' | t }}</a>
 <div class="min-h-screen xl:flex">
   <div>
     <app-sidebar></app-sidebar>
@@ -18,8 +19,10 @@
     <!-- app header start -->
     <app-header/>
     <!-- app header end -->
-    <div class="p-4 md:p-6">
+    <main id="main-content" class="p-4 md:p-6" tabindex="-1">
       <router-outlet></router-outlet>
-    </div>
+    </main>
   </div>
 </div>
+<!-- Ctrl+K / ⌘K from every page -->
+<app-command-palette />

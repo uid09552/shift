@@ -69,6 +69,7 @@ no separate migrate command in normal operation.
 | 44 | `add_skill_mix_rules` | skill-mix and pairing rules |
 | 45 | `capability_valid_until` | `employee_capabilities.valid_until` — when a held capability lapses |
 | 46 | `add_availability_rules` | standing availability per employee |
+| 47 | `add_saved_views` | saved filter views per user and page, and each user's default / last-used view |
 
 ### Working with Diesel
 
@@ -128,6 +129,8 @@ diesel migration redo                  # verify down.sql actually reverses it
 | `skill_mix_rules` | `kind`, `count`, `capability_id?` or `skill_group` + `min_level`, `shift_id?`, `workstation_id?`, `mode` |
 | `pairing_rules` | `kind`, `employee_id`, `partner_id`, `mode` |
 | `availability_rules` | `employee_id`, `kind`, `shift_ids[]`, `weekdays[]`, `mode`, `valid_from?`, `valid_until?`, `note?` |
+| `saved_views` | `owner_subject` (Keycloak `sub`), `owner_name?`, `page`, `name` (unique per owner and page, any case), `filters` (JSONB), `shared` |
+| `saved_view_preferences` | `user_subject`, `page`, `default_view_id?`, `last_view_id?` — `ON DELETE SET NULL` to `saved_views` |
 | `notification_preferences` | `employee_id`, `email_enabled`, `muted_events` |
 | `notification_outbox` | `recipient`, `event`, `subject`, `body`, `status` (`pending`/`sent`/`failed`), `attempts`, `next_attempt_at`, `last_error?` |
 | `roster_notice_deliveries` | `notice_id` — the change notices already turned into mail |

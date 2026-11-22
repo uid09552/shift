@@ -24,7 +24,7 @@ const ROLE_VIEWER: &str = "shift-viewer";
 /// verifying ownership against the caller's identity (`UserContext`) — and, for
 /// shift swaps, that only a planner or admin approves or rejects. Roster change
 /// notices are acknowledged by the employee they are about.
-const SELF_SERVICE_SEGMENTS: [&str; 7] = [
+const SELF_SERVICE_SEGMENTS: [&str; 8] = [
     "shift-wishes",
     "shift-swaps",
     "roster-change-notices",
@@ -32,6 +32,7 @@ const SELF_SERVICE_SEGMENTS: [&str; 7] = [
     "open-shifts",
     "notification-preferences",
     "calendar-feed",
+    "saved-views",
 ];
 
 /// The tenant a request is scoped to. Every repository call takes this so a request

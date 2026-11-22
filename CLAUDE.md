@@ -100,6 +100,7 @@ backend/
 │       │       ├── notifications/   # The caller's own e-mail choices and calendar link
 │       │       ├── staffing-rules/  # Skill-mix and pairing rules (planners)
 │       │       ├── audit-log/       # Who changed what, with a diff per entry
+│       │       ├── setup/           # First-run setup guide (admins), sample data
 │       │       └── users/           # Organization users & role assignment
 │       │   # Add/edit forms are pages of their own (`<list>/new`, `<list>/:id/edit`):
 │       │   # `*-form.component.ts` next to each list, on `shared/components/form/form-page`
@@ -294,6 +295,30 @@ backend/
   soft = warning); repair, replacement and the swap check refuse a placement that
   breaks a hard pairing or at-most rule
 
+### Saved views
+- Named filter sets per user and page (`/saved-views`, the Schedule page's Views
+  menu): `filters` is the page's JSON (`view`, `group`, `wishesOnly`,
+  `workstations`, `capabilities`, `employees`), kept on the server per Keycloak
+  subject so they follow the user across devices
+- Per user and page a default view (what the page opens with) and the last-used
+  one (`/saved-views/preferences`); a link naming a view, month or day wins over it
+- Planners and admins may share a view with the tenant; only its owner — or an
+  admin — changes or deletes a shared view
+
+### First-run setup
+- `/setup-status`: shifts (with times) → capabilities → workstations → employees →
+  planner settings (saved once) → first plan (a run or a confirmed entry)
+- Admins see a banner on the overview while it is incomplete, can hide it, and
+  reopen the guide (`/setup`) from the user menu. `POST /setup/sample-data`
+  (admin) fills an **empty** organization only; 409 otherwise
+
+### Command palette and accessibility
+- Ctrl+K / ⌘K on every page (`shared/components/command-palette/`): people,
+  workstations, shifts, capabilities, pages and role-filtered actions, and dates
+  (`next Monday`, `24.12.`) that open the Schedule page on that day
+- Dialogs trap and return focus (`shared/a11y/focus-trap.directive.ts`); axe-core
+  checks key pages in both themes in `ui/src/app/a11y.spec.ts`
+
 ### Users and roles
 - A user is a **Keycloak** account, not a row in this database; a tenant is a
   Keycloak **organization**, and belonging to one is organization membership
@@ -383,6 +408,10 @@ Base URL: `http://localhost:8080/api/v1`
   delete's `changes` holds `{"name": …}` of what was deleted; creates and updates
   hold the new state, so the Audit log page diffs against the item's previous entry
 - `GET /audit-logs/facets` - The actions, item types and actors on record
+- `GET/POST /saved-views` (+ `PUT/DELETE …/{id}`), `PUT /saved-views/preferences` -
+  The caller's saved views of a page (self-service; sharing: planners/admins)
+- `GET /setup-status`, `POST /setup/sample-data` (admin, empty tenant only) -
+  First-run checklist
 - `GET /info` - Version, commit and build date of the running backend (baked in
   by GitLab CI, overridable by the `build` config section; see `services/info.rs`)
 

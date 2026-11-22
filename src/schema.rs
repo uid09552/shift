@@ -501,6 +501,32 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    saved_views (id) {
+        id -> Uuid,
+        tenant_id -> Varchar,
+        owner_subject -> Varchar,
+        owner_name -> Nullable<Varchar>,
+        page -> Varchar,
+        name -> Varchar,
+        filters -> Jsonb,
+        shared -> Bool,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    saved_view_preferences (tenant_id, user_subject, page) {
+        tenant_id -> Varchar,
+        user_subject -> Varchar,
+        page -> Varchar,
+        default_view_id -> Nullable<Uuid>,
+        last_view_id -> Nullable<Uuid>,
+        updated_at -> Timestamptz,
+    }
+}
+
 diesel::joinable!(planning_tasks -> optimized_shift_results (result_id));
 diesel::joinable!(employee_available_shifts -> employees (employee_id));
 diesel::joinable!(employee_available_shifts -> shifts (shift_id));
@@ -568,4 +594,6 @@ diesel::allow_tables_to_appear_in_same_query!(
     skill_mix_rules,
     pairing_rules,
     availability_rules,
+    saved_views,
+    saved_view_preferences,
 );

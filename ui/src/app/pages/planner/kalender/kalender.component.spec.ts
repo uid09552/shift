@@ -139,4 +139,84 @@ describe('KalenderComponent', () => {
     open({ date: '2026-02-30' });
     expect(fixture.componentInstance.viewMode).toBe('week');
   });
+
+  describe('saved views and filters', () => {
+    const ben = { ...anna, id: 'e2', name: 'Ben Ott', email: 'ben@clinic.test', capabilities: [{ id: 'c1', name: 'ICU care' }] };
+    const plan = (employee_id: string, date: string, workstation_id: string) => ({
+      id: `${employee_id}-${date}`, employee_id, date, shift_id: 's1', workstation_id, is_present: true, absence_type: null, creation_type: 'manual',
+    });
+
+    function openWithTwo(queryParams: Record<string, string> = {}) {
+      const params = convertToParamMap(queryParams);
+      TestBed.configureTestingModule({
+        providers: [
+          provideRouter([]),
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: params }, queryParamMap: of(params) } },
+        ],
+      });
+      http = TestBed.inject(HttpTestingController);
+      fixture = TestBed.createComponent(KalenderComponent);
+      fixture.detectChanges();
+      pending('/employees').forEach((r) => r.flush({ data: [anna, ben], total: 2 }));
+      pending('/shifts').forEach((r) => r.flush([{ id: 's1', name: 'Early', short_name: 'E', color: '#3B82F6', weekday_times: [] }]));
+      pending('/workstations').forEach((r) => r.flush([
+        { id: 'w1', name: 'ICU', available: true, active_shift_ids: ['s1'], priority: 'high', min_employees: 1, max_employees: null },
+        { id: 'w2', name: 'Ward A', available: true, active_shift_ids: ['s1'], priority: 'low', min_employees: 1, max_employees: null },
+      ]));
+      fixture.detectChanges();
+      const monday = fixture.componentInstance.formatDate(fixture.componentInstance.days[0].date);
+      answerRoster([plan('e1', monday, 'w1'), plan('e2', monday, 'w2')]);
+      fixture.detectChanges();
+    }
+    const names = () => fixture.componentInstance.employees.map((e) => e.name);
+
+    it("opens with the user's default view and narrows the grid to it", () => {
+      openWithTwo();
+      expect(names()).toEqual(['Anna Berg', 'Ben Ott']);
+      pending('/saved-views').forEach((r) =>
+        r.flush({
+          page: 'schedule',
+          views: [{ id: 'v1', page: 'schedule', name: 'Ward A', shared: false, mine: true, owner_name: null, filters: { workstations: ['w2'] }, created_at: '', updated_at: '' }],
+          default_view_id: 'v1',
+          last_view_id: null,
+        }),
+      );
+      fixture.detectChanges();
+      expect(names()).toEqual(['Ben Ott']);
+      expect(query('[data-testid="schedule-views"]')!.textContent).toContain('Ward A');
+    });
+
+    it('filters by capability, together with the header search', () => {
+      openWithTwo();
+      fixture.componentInstance.applyViewState({ ...fixture.componentInstance.viewState, capabilities: ['c1'] });
+      expect(names()).toEqual(['Ben Ott']);
+      fixture.componentInstance.filterEmployees('anna');
+      expect(names()).toEqual([]);
+      fixture.componentInstance.applyViewState({ ...fixture.componentInstance.viewState, capabilities: [] });
+      expect(names()).toEqual(['Anna Berg']);
+    });
+
+    it('does not let a saved default override a link that names the view', () => {
+      openWithTwo({ view: 'month' });
+      pending('/saved-views').forEach((r) =>
+        r.flush({
+          page: 'schedule',
+          views: [{ id: 'v1', page: 'schedule', name: 'Ward A', shared: false, mine: true, owner_name: null, filters: { workstations: ['w2'] }, created_at: '', updated_at: '' }],
+          default_view_id: 'v1',
+          last_view_id: null,
+        }),
+      );
+      fixture.detectChanges();
+      expect(fixture.componentInstance.viewMode).toBe('month');
+      expect(fixture.componentInstance.filters.workstations).toEqual([]);
+    });
+
+    it("opens the replacement dialog for the command palette's link", () => {
+      openWithTwo({ replace: 'e2', on: '2026-11-18' });
+      expect(fixture.componentInstance.replacementRequest).toEqual({ employeeId: 'e2', date: '2026-11-18' });
+      expect(fixture.componentInstance.formatDate(fixture.componentInstance.anchorDate)).toBe('2026-11-18');
+    });
+  });
 });

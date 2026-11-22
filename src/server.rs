@@ -31,6 +31,8 @@ use crate::services::{
     notifier::NotificationService,
     open_shift::OpenShiftService,
     calendar_feed::CalendarFeedService,
+    saved_view::SavedViewService,
+    setup::SetupService,
     staffing_rules::StaffingRuleService,
     availability::AvailabilityService,
     tenant,
@@ -225,6 +227,13 @@ pub fn create_router(state: AppState) -> Router {
             "/calendar-feed",
             get(CalendarFeedService::get_feed).post(CalendarFeedService::create_feed).delete(CalendarFeedService::delete_feed),
         )
+        // Saved views: named filter sets per user and page (self-service)
+        .route("/saved-views", get(SavedViewService::list).post(SavedViewService::create))
+        .route("/saved-views/preferences", put(SavedViewService::update_preferences))
+        .route("/saved-views/:view_id", put(SavedViewService::update).delete(SavedViewService::delete))
+        // First-run setup checklist, and sample data for an empty tenant (admin)
+        .route("/setup-status", get(SetupService::status))
+        .route("/setup/sample-data", post(SetupService::sample_data))
         // Shift wish window (readable by everyone, writable by shift-admin only)
         .route(
             "/wish-settings",

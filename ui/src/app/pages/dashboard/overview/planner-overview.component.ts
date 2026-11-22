@@ -1,3 +1,4 @@
+import { SetupBannerComponent } from './setup-banner.component';
 import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
@@ -32,7 +33,7 @@ const GRID_DAYS = 7;
 @Component({
   selector: 'app-planner-overview',
   standalone: true,
-  imports: [CommonModule, RouterLink, MyDayComponent, TranslatePipe],
+  imports: [CommonModule, RouterLink, MyDayComponent, SetupBannerComponent, TranslatePipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './planner-overview.component.html',
 })

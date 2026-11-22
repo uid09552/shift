@@ -1,4 +1,6 @@
 import { CommonModule } from '@angular/common';
+import { FocusTrapDirective } from '../../../a11y/focus-trap.directive';
+import { TranslatePipe } from '../../../i18n/translate.pipe';
 import {
   Component,
   ElementRef,
@@ -13,6 +15,8 @@ import {
   selector: 'app-modal',
   imports: [
     CommonModule,
+    FocusTrapDirective,
+    TranslatePipe,
   ],
   templateUrl: './modal.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -25,6 +29,10 @@ export class ModalComponent {
   @Input() className = '';
   @Input() showCloseButton = true;
   @Input() isFullscreen = false;
+  /** The dialog's accessible name, when it has no heading to point at. */
+  @Input() ariaLabel: string | null = null;
+  /** The id of the element that names the dialog (usually its heading). */
+  @Input() ariaLabelledby: string | null = null;
 
   constructor(private el: ElementRef) {}
 
@@ -40,14 +48,7 @@ export class ModalComponent {
 
   ngOnChanges() {
     document.body.style.overflow = this.isOpen ? 'hidden' : 'unset';
-    if (this.isOpen) {
-      // Move focus into the dialog so keyboard users do not keep tabbing behind it.
-      setTimeout(() =>
-        this.el.nativeElement
-          .querySelector('[role="dialog"] input, [role="dialog"] select, [role="dialog"] textarea')
-          ?.focus(),
-      );
-    }
+    // Focus moves in, stays in and comes back: see FocusTrapDirective on the dialog.
   }
 
   onBackdropClick(event: MouseEvent) {
@@ -60,10 +61,14 @@ export class ModalComponent {
     event.stopPropagation();
   }
 
- @HostListener('document:keydown.escape')
-  onEscape() {
-    if (this.isOpen) {
-      this.close.emit();
-    }
+  /** Escape closes the topmost dialog only: a confirm on top of a modal closes first. */
+  @HostListener('document:keydown.escape', ['$event'])
+  onEscape(event?: Event) {
+    if (!this.isOpen || event?.defaultPrevented) return;
+    const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+    const mine = this.el.nativeElement.querySelector('[role="dialog"]');
+    if (dialogs.length && dialogs[dialogs.length - 1] !== mine) return;
+    event?.preventDefault();
+    this.close.emit();
   }
 }

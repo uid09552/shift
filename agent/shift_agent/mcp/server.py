@@ -149,6 +149,8 @@ KNOWN_PAGES = {
     "analytics": "/analytics",
     # Organization users and their roles (admins).
     "users": "/users",
+    # The first-run setup guide (admins).
+    "setup": "/setup",
 }
 
 

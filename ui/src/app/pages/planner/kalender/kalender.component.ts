@@ -40,6 +40,8 @@ import { ShiftSwapService } from '../../../shared/services/shift-swap.service';
 import { SwapNotificationService } from '../../../shared/services/swap-notification.service';
 import { UserService } from '../../../shared/services/user.service';
 import { GroupedPlanViewComponent } from './grouped-plan-view.component';
+import { FilterOption, ScheduleViewsComponent } from './schedule-views.component';
+import { EMPTY_FILTERS, filterPeople, sameViewState, ScheduleView, ScheduleViewState } from './schedule-view-state';
 import { DayViewComponent } from '../day-view/day-view.component';
 import { LoadErrorComponent } from '../../../shared/components/ui/load-error/load-error.component';
 import { ErrorNoticeComponent } from '../../../shared/components/ui/error-notice/error-notice.component';
@@ -66,9 +68,17 @@ interface CellData {
 }
 
 /** Day: one day hour by hour. Week: the default, editable grid. Month: the overview. */
-export type ScheduleView = 'day' | 'week' | 'month';
+export type { ScheduleView } from './schedule-view-state';
 
 const SCHEDULE_VIEWS: readonly ScheduleView[] = ['day', 'week', 'month'];
+
+/** `YYYY-MM-DD` as a local date, if it is a real day. */
+function parseIsoDay(value: string | null): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? '');
+  if (!m) return null;
+  const day = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return day.getMonth() === Number(m[2]) - 1 && day.getDate() === Number(m[3]) ? day : null;
+}
 
 interface SwapSide {
   date: string;
@@ -115,6 +125,7 @@ interface WishCellData {
     ReplacementDialogComponent,
     SwapRequestsDialogComponent,
     RosterMonthStatusComponent,
+    ScheduleViewsComponent,
     LoadErrorComponent,
     ErrorNoticeComponent,
     TranslatePipe,
@@ -199,6 +210,17 @@ export class KalenderComponent implements OnInit, OnDestroy {
 
   /** Planners and admins edit the roster and decide on swaps; everyone else requests them. */
   canPlan = false;
+  isAdmin = false;
+
+  /** Which workstations, capabilities and people the grid shows (empty = all); a saved view sets them. */
+  filters: Pick<ScheduleViewState, 'workstations' | 'capabilities' | 'employees'> = { ...EMPTY_FILTERS };
+  /** The header's free-text search. */
+  private searchTerm = '';
+  /** The address named a view, month or day: a saved default view must not override a link. */
+  linkedView = false;
+  workstationOptions: FilterOption[] = [];
+  capabilityOptions: FilterOption[] = [];
+  employeeOptions: FilterOption[] = [];
   /** The employee the signed-in user is (matched by e-mail), if any. */
   meId: string | null = null;
   swapRequestsOpen = false;
@@ -225,6 +247,8 @@ export class KalenderComponent implements OnInit, OnDestroy {
     // `?view=day|month` opens that view (old /day-view links redirect here);
     // anything else, or nothing, is the week.
     const view = this.route.snapshot.queryParamMap.get('view');
+    const params = this.route.snapshot.queryParamMap;
+    this.linkedView = ['view', 'month', 'date'].some((key) => params.has(key));
     if (SCHEDULE_VIEWS.includes(view as ScheduleView)) {
       this.viewMode = view as ScheduleView;
     }
@@ -248,10 +272,55 @@ export class KalenderComponent implements OnInit, OnDestroy {
     this.loadIdentity();
     // `?swaps=open` — the header notification's link — opens the requests panel,
     // also when the link is followed while the page is already open.
+    let first = true;
+    // Only a changed `date` / `month` is a new request: the page's own view switches keep them in the URL.
+    let lastDate = this.route.snapshot.queryParamMap.get('date');
+    let lastMonth = this.route.snapshot.queryParamMap.get('month');
     this.swapsParamSub = this.route.queryParamMap.subscribe((params) => {
       if (params.get('swaps') === 'open') {
         this.swapRequestsOpen = true;
       }
+      // The command palette's "find replacement for …": that person's day, in its week.
+      const replace = params.get('replace');
+      const on = parseIsoDay(params.get('on')) ?? this.normalizeDate(new Date());
+      if (replace) {
+        if (this.viewMode === 'day') this.setViewMode('week');
+        this.anchorDate = on;
+        this.computeDays();
+        if (!first) this.loadPeriod();
+        this.replacementRequest = { employeeId: replace, date: this.formatDate(on) };
+        this.router.navigate([], { relativeTo: this.route, queryParams: { replace: null, on: null }, queryParamsHandling: 'merge', replaceUrl: true });
+      }
+      // A day or month picked from the palette while the page is already open.
+      const dateChanged = params.get('date') !== lastDate;
+      const monthChanged = params.get('month') !== lastMonth;
+      lastDate = params.get('date');
+      lastMonth = params.get('month');
+      if (!first) {
+        const day = dateChanged ? parseIsoDay(params.get('date')) : null;
+        if (day && (this.viewMode !== 'day' || day.getTime() !== this.anchorDate.getTime())) {
+          this.anchorDate = day;
+          if (this.viewMode === 'day') {
+            this.computeDays();
+          } else {
+            this.setViewMode('day');
+          }
+        }
+        const month = monthChanged ? /^(\d{4})-(\d{2})$/.exec(params.get('month') ?? '') : null;
+        if (month) {
+          const start = new Date(Number(month[1]), Number(month[2]) - 1, 1);
+          if (this.viewMode !== 'month' || start.getTime() !== new Date(this.anchorDate.getFullYear(), this.anchorDate.getMonth(), 1).getTime()) {
+            this.anchorDate = start;
+            if (this.viewMode === 'month') {
+              this.computeDays();
+              this.loadPeriod();
+            } else {
+              this.setViewMode('month');
+            }
+          }
+        }
+      }
+      first = false;
     });
 
     this.searchSub = this.globalSearchService.searchTerm.subscribe((term) => {
@@ -265,17 +334,42 @@ export class KalenderComponent implements OnInit, OnDestroy {
   }
 
   filterEmployees(term: string): void {
-    const q = term.trim().toLowerCase();
-    if (!q) {
-      this.employees = [...this.allEmployees];
-    } else {
-      this.employees = this.allEmployees.filter((emp) =>
-        emp.name.toLowerCase().includes(q),
-      );
-    }
-    // The grouped lenses show the same people the employee grid does, so a
-    // search narrows them too.
+    this.searchTerm = term;
+    this.applyFilters();
+  }
+
+  /**
+   * The people the grid shows: the search, then the filters. The workstation
+   * filter keeps whoever is planned there in the visible period, so it follows
+   * the loaded plans. The grouped lenses show the same people, so they follow too.
+   */
+  applyFilters(): void {
+    this.employees = filterPeople(this.allEmployees, this.filters, this.searchTerm, (employeeId) => {
+      const at = new Set<string>();
+      for (const plan of this.planMap.get(employeeId)?.values() ?? []) {
+        if (plan.is_present && plan.workstation_id) at.add(plan.workstation_id);
+      }
+      return at;
+    });
     this.buildGroups();
+  }
+
+  /** What a saved view would store now. */
+  get viewState(): ScheduleViewState {
+    const next: ScheduleViewState = { view: this.viewMode, group: this.groupMode, wishesOnly: this.wishesOnly, ...this.filters };
+    // The same object while nothing changed, so the binding stays stable between checks.
+    if (!this.lastViewState || !sameViewState(this.lastViewState, next)) this.lastViewState = next;
+    return this.lastViewState;
+  }
+  private lastViewState?: ScheduleViewState;
+
+  /** Shows a saved view, or the filter panel's change. */
+  applyViewState(state: ScheduleViewState): void {
+    this.filters = { workstations: state.workstations, capabilities: state.capabilities, employees: state.employees };
+    this.setViewMode(state.view);
+    if (this.viewMode === 'week') this.setGroupMode(state.group);
+    if (this.viewMode === 'month' && this.wishesOnly !== state.wishesOnly) this.toggleWishesOnly();
+    this.applyFilters();
   }
 
   // ── Week / month navigation ─────────────────────────────────────
@@ -465,9 +559,14 @@ export class KalenderComponent implements OnInit, OnDestroy {
     }).subscribe({
       next: ({ employees, shifts, workstations }) => {
         this.allEmployees = employees.data;
-        this.employees = [...this.allEmployees];
         this.shifts = shifts;
         this.workstations = workstations;
+        this.workstationOptions = workstations.map((w) => ({ id: w.id, name: w.name }));
+        const capabilities = new Map<string, string>();
+        for (const e of this.allEmployees) for (const c of e.capabilities ?? []) capabilities.set(c.id, c.name);
+        this.capabilityOptions = [...capabilities].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+        this.employeeOptions = this.allEmployees.map((e) => ({ id: e.id, name: e.name }));
+        this.applyFilters();
         this.loadPeriod();
       },
       error: (err) => {
@@ -565,7 +664,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
       }
       inner.set(p.date, p);
     }
-    this.buildGroups();
+    this.applyFilters();
   }
 
   buildWishMap(wishes: ShiftWish[]): void {
@@ -822,7 +921,8 @@ export class KalenderComponent implements OnInit, OnDestroy {
    */
   private buildWorkstationRows(byDate: Map<string, AssignedPerson[]>): WorkstationRow[] {
     const rows: WorkstationRow[] = [];
-    const stations: (Workstation | null)[] = [...this.workstations];
+    const picked = this.filters.workstations;
+    const stations: (Workstation | null)[] = this.workstations.filter((w) => !picked.length || picked.includes(w.id));
     const hasUnassigned = [...byDate.values()].some((people) =>
       people.some((p) => !p.workstation),
     );
@@ -1050,6 +1150,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
   /** Who is looking: a planner, or which employee — that decides what the swap tools do. */
   private loadIdentity(): void {
     this.userService.canPlan().subscribe((canPlan) => (this.canPlan = canPlan));
+    this.userService.isAdmin().subscribe((isAdmin) => (this.isAdmin = isAdmin));
     this.userService
       .getSelf()
       .pipe(
