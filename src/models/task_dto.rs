@@ -252,6 +252,20 @@ pub struct EmployeeTask {
     pub date_of_birth: Option<String>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub maternity_protection: bool,
+    /// Capability name → its last valid day (YYYY-MM-DD), for the ones that
+    /// lapse inside the period; after it the skill no longer counts.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub skill_expiry: std::collections::BTreeMap<String, String>,
+    /// Shifts a recurring availability rule takes out on given days — hard.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blocked_shifts: Vec<BlockedShiftTask>,
+}
+
+/// One shift on one day an employee's recurring availability rules out.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct BlockedShiftTask {
+    pub date: String,
+    pub shift_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

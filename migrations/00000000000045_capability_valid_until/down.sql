@@ -1,0 +1,2 @@
+DROP INDEX idx_employee_capabilities_valid_until;
+ALTER TABLE employee_capabilities DROP COLUMN valid_until;

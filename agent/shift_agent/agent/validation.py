@@ -346,7 +346,32 @@ def _assignments(result: dict) -> list[Assignment]:
     return rows
 
 
-def compat_gap(employee: dict, workstation: dict, capabilities: dict) -> int | None:
+def skills_on(employee: dict, day: date | None = None) -> set[str]:
+    """The capabilities an employee holds on ``day``: their ``skills`` without
+    those whose ``skill_expiry`` (last valid date, like the solver's) has passed.
+    Without a day, every skill they hold."""
+    held = set(employee.get("skills") or [])
+    if day is None:
+        return held
+    for skill, last in (employee.get("skill_expiry") or {}).items():
+        try:
+            if day > _parse_date(last):
+                held.discard(skill)
+        except (TypeError, ValueError):
+            continue
+    return held
+
+
+def blocked_on(employee: dict) -> set[tuple[str, str]]:
+    """``(date, shift_id)`` pairs the employee's recurring availability rules out."""
+    return {
+        (row.get("date"), row.get("shift_id"))
+        for row in employee.get("blocked_shifts") or []
+        if isinstance(row, dict)
+    }
+
+
+def compat_gap(employee: dict, workstation: dict, capabilities: dict, day: date | None = None) -> int | None:
     """Skill match between one employee and one workstation, with the solver's
     downgrade rule.
 
@@ -357,7 +382,7 @@ def compat_gap(employee: dict, workstation: dict, capabilities: dict) -> int | N
     is a hard breach. Shared with repair.py, which has to ask the same question
     about assignments that do not exist yet.
     """
-    held = set(employee.get("skills") or [])
+    held = skills_on(employee, day)
     total_gap = 0
     for required in workstation.get("required_skills") or []:
         if required in held:
@@ -603,6 +628,14 @@ class _Validator:
                     self._where(a),
                 )
 
+            if (a.day.isoformat(), a.shift_id) in blocked_on(employee):
+                self.findings.add(
+                    "shift_blocked", SEVERITY_ERROR,
+                    "Assigned to a shift the employee does not work that day",
+                    "The employee's recurring availability rules this shift out on this day.",
+                    self._where(a),
+                )
+
             if a.day.isoformat() in set(employee.get("unavailability") or []):
                 self.findings.add(
                     "employee_unavailable", SEVERITY_ERROR,
@@ -631,11 +664,12 @@ class _Validator:
                     self._where(a),
                 )
 
-    def _compat_gap(self, employee_id: str, workstation_id: str) -> int | None:
+    def _compat_gap(self, employee_id: str, workstation_id: str, day: date | None = None) -> int | None:
         return compat_gap(
             self.employees.get(employee_id) or {},
             self.workstations.get(workstation_id) or {},
             self.capabilities,
+            day,
         )
 
     def _check_skills(self) -> None:
@@ -646,8 +680,18 @@ class _Validator:
                 continue
             if a.employee_id not in self.employees:
                 continue
-            gap = self._compat_gap(a.employee_id, a.workstation_id)
-            if gap is None:
+            gap = self._compat_gap(a.employee_id, a.workstation_id, a.day)
+            if gap is None and self._compat_gap(a.employee_id, a.workstation_id) is not None:
+                employee = self.employees[a.employee_id]
+                expired = sorted(set(employee.get("skills") or []) - skills_on(employee, a.day))
+                self.findings.add(
+                    "capability_expired", SEVERITY_ERROR,
+                    "Relies on a qualification that has expired",
+                    "The employee held what the workstation requires, but it was only "
+                    "valid until a date before this one (e.g. a lapsed certificate).",
+                    f"{self._where(a)} — {', '.join(self._capability_name(c) for c in expired)} expired",
+                )
+            elif gap is None:
                 held = set(self.employees[a.employee_id].get("skills") or [])
                 missing = sorted(
                     self._capability_name(c)

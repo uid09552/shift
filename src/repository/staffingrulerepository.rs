@@ -5,9 +5,9 @@ use uuid::Uuid;
 
 use crate::database::DbPool;
 use crate::errors::AppError;
-use crate::models::{NewPairingRule, NewSkillMixRule, PairingRule, SkillMixRule};
-use crate::repository::domain::StaffingRuleRepository;
-use crate::schema::{pairing_rules, skill_mix_rules};
+use crate::models::{AvailabilityRule, NewAvailabilityRule, NewPairingRule, NewSkillMixRule, PairingRule, SkillMixRule};
+use crate::repository::domain::{AvailabilityRuleRepository, StaffingRuleRepository};
+use crate::schema::{availability_rules, pairing_rules, skill_mix_rules};
 use crate::telemetry;
 
 #[derive(Clone)]
@@ -88,6 +88,46 @@ impl StaffingRuleRepository for DieselStaffingRuleRepository {
                 pairing_rules::table
                     .filter(pairing_rules::id.eq(id))
                     .filter(pairing_rules::tenant_id.eq(&tenant_id)),
+            )
+            .execute(conn)?
+                > 0)
+        })
+        .await
+    }
+}
+
+#[async_trait]
+impl AvailabilityRuleRepository for DieselStaffingRuleRepository {
+    async fn list_availability_rules(&self, tenant_id: &str, employee_id: Option<Uuid>) -> Result<Vec<AvailabilityRule>, AppError> {
+        let tenant_id = tenant_id.to_string();
+        with_conn(&self.pool, move |conn| {
+            let mut query = availability_rules::table
+                .filter(availability_rules::tenant_id.eq(&tenant_id))
+                .order(availability_rules::created_at.asc())
+                .into_boxed();
+            if let Some(employee_id) = employee_id {
+                query = query.filter(availability_rules::employee_id.eq(employee_id));
+            }
+            Ok(query.load::<AvailabilityRule>(conn)?)
+        })
+        .await
+    }
+
+    async fn create_availability_rule(&self, rule: NewAvailabilityRule) -> Result<AvailabilityRule, AppError> {
+        with_conn(&self.pool, move |conn| {
+            Ok(diesel::insert_into(availability_rules::table).values(&rule).get_result::<AvailabilityRule>(conn)?)
+        })
+        .await
+    }
+
+    async fn delete_availability_rule(&self, tenant_id: &str, employee_id: Uuid, id: Uuid) -> Result<bool, AppError> {
+        let tenant_id = tenant_id.to_string();
+        with_conn(&self.pool, move |conn| {
+            Ok(diesel::delete(
+                availability_rules::table
+                    .filter(availability_rules::id.eq(id))
+                    .filter(availability_rules::employee_id.eq(employee_id))
+                    .filter(availability_rules::tenant_id.eq(&tenant_id)),
             )
             .execute(conn)?
                 > 0)

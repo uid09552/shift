@@ -2824,6 +2824,169 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /employees/{employeeId}/capabilities/{capabilityId}:
+    put:
+      tags:
+        - Employees
+      summary: When a capability the employee holds lapses
+      description: >
+        `shift-planner` / `shift-admin`. `valid_until` is the last day the
+        capability is valid (a certificate); null — it does not lapse. After that
+        day the solver, the plan check and open shifts no longer count it: a
+        lapse before a planning period drops it from the employee's `skills`, one
+        inside it is sent as `skill_expiry`. 404 when the employee does not hold it.
+      operationId: setEmployeeCapabilityExpiry
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: capabilityId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [valid_until]
+              properties:
+                valid_until:
+                  type: string
+                  format: date
+                  nullable: true
+      responses:
+        '200':
+          description: Saved
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /capability-expiries:
+    get:
+      tags:
+        - Employees
+      summary: Capabilities that have lapsed or lapse soon
+      description: "`shift-planner` / `shift-admin` only. Lapsed ones are always included. Soonest first."
+      operationId: listCapabilityExpiries
+      parameters:
+        - name: within_days
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 366, default: 60 }
+      responses:
+        '200':
+          description: The capabilities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CapabilityExpiry'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /employees/{employeeId}/availability-rules:
+    get:
+      tags:
+        - Employees
+      summary: An employee's standing availability
+      description: Planners and admins any employee's, an employee their own (403 otherwise).
+      operationId: listEmployeeAvailabilityRules
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: The rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AvailabilityRule'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+        - Employees
+      summary: Add a standing availability rule
+      description: >
+        `shift-planner` / `shift-admin`. `only_shifts` / `not_shifts` (with
+        `shift_ids`), `only_weekdays` / `not_weekdays` (with `weekdays`, 0 =
+        Monday). `hard`: never planned otherwise; `soft`: a preference.
+        Optionally between `valid_from` and `valid_until`. Expanded over each
+        planning period: hard weekday rules become whole-day `unavailability`,
+        hard shift rules `blocked_shifts`, soft ones `preferred_off`.
+      operationId: createEmployeeAvailabilityRule
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewAvailabilityRule'
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailabilityRule'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /employees/{employeeId}/availability-rules/{ruleId}:
+    delete:
+      tags:
+        - Employees
+      summary: Remove a standing availability rule
+      operationId: deleteEmployeeAvailabilityRule
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/RuleId'
+      responses:
+        '200':
+          description: Removed
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /availability-rules:
+    get:
+      tags:
+        - Employees
+      summary: Everyone's standing availability
+      description: "`shift-planner` / `shift-admin` only."
+      operationId: listAvailabilityRules
+      responses:
+        '200':
+          description: The rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AvailabilityRule'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /wish-settings:
     get:
       tags:
@@ -5820,6 +5983,13 @@ components:
             Capabilities without a shared skill_group never substitute for one
             another, so leaving this null keeps the original strict-match
             behavior.
+        valid_until:
+          type: string
+          format: date
+          nullable: true
+          description: >
+            Only on a capability an employee holds (`/employees/{id}/capabilities`):
+            its last valid day. Omitted when it does not lapse.
           example: null
 
     CreateCapabilityRequest:
@@ -6416,6 +6586,50 @@ components:
         partner_id: { type: string }
         mode: { type: string, enum: [hard, soft] }
 
+    CapabilityExpiry:
+      type: object
+      required: [employee_id, employee_name, capability_id, capability_name, valid_until, days_left, expired]
+      properties:
+        employee_id: { type: string, format: uuid }
+        employee_name: { type: string }
+        capability_id: { type: string, format: uuid }
+        capability_name: { type: string }
+        valid_until: { type: string, format: date }
+        days_left: { type: integer, description: Negative once it has lapsed }
+        expired: { type: boolean }
+
+    NewAvailabilityRule:
+      type: object
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [only_shifts, not_shifts, only_weekdays, not_weekdays]
+        shift_ids:
+          type: array
+          items: { type: string, format: uuid }
+        weekdays:
+          type: array
+          description: 0 = Monday … 6 = Sunday
+          items: { type: integer, minimum: 0, maximum: 6 }
+        mode:
+          type: string
+          enum: [hard, soft]
+          default: hard
+        valid_from: { type: string, format: date, nullable: true }
+        valid_until: { type: string, format: date, nullable: true }
+        note: { type: string, nullable: true }
+
+    AvailabilityRule:
+      allOf:
+        - $ref: '#/components/schemas/NewAvailabilityRule'
+        - type: object
+          required: [id, employee_id, created_at]
+          properties:
+            id: { type: string, format: uuid }
+            employee_id: { type: string, format: uuid }
+            created_at: { type: string, format: date-time }
+
     PublishedShiftTask:
       type: object
       required: [employee_id, date]
@@ -6691,6 +6905,21 @@ components:
         maternity_protection:
           type: boolean
           description: MuSchG rules apply (no nights, Sundays or holidays; 8.5 h/day). Omitted when false
+        skill_expiry:
+          type: object
+          additionalProperties:
+            type: string
+            format: date
+          description: Capability name → its last valid day, for the ones that lapse inside the period. Omitted when none
+        blocked_shifts:
+          type: array
+          description: Shifts a hard standing availability rule takes out on given days. Omitted when none
+          items:
+            type: object
+            required: [date, shift_id]
+            properties:
+              date: { type: string, format: date }
+              shift_id: { type: string }
 
     PersonalLimits:
       type: object

@@ -1,3 +1,4 @@
+import { CapabilityExpiryWarningsComponent } from './capability-expiry-warnings.component';
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
@@ -31,11 +32,14 @@ import { PlannerSettingsService } from '../../../shared/services/planner-setting
     ImportDialogComponent,
     ErrorNoticeComponent,
     TranslatePipe,
+    CapabilityExpiryWarningsComponent,
   ],
   template: `
     <app-page-breadcrumb pageTitle="nav.userProfiles" />
 
     <app-saved-notice />
+
+    <app-capability-expiry-warnings />
 
     <!-- User Profiles Table -->
     <div class="table-card">

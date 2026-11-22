@@ -134,6 +134,13 @@ backend/
 - Skills or qualifications required for workstations
 - Examples: "Intensive Care", "Emergency Room", "Surgery"
 - Assigned to employees and required by workstations
+- One an employee holds may lapse: `employee_capabilities.valid_until`, its last
+  valid day (`PUT /employees/{id}/capabilities/{capability_id}`). A lapse before
+  a planning period drops it from the employee's `skills`; one inside it goes to
+  the solver as `skill_expiry`, and the solver, the plan check
+  (`capability_expired`), repair, replacement and open shifts stop counting it
+  after that day. Planners see what lapses within 60 days above the Employees list
+  (`/capability-expiries`)
 
 ### Workstations
 - Hospital units/departments
@@ -249,6 +256,17 @@ backend/
   channel or single events off (`/notification-preferences`); all on by default
 - Mails never carry a legal-rule reason or protected-group data
 
+### Standing availability
+- Per employee, `/employees/{id}/availability-rules` (on the employee's page;
+  planners keep them, an employee reads their own): `only_shifts`, `not_shifts`,
+  `only_weekdays`, `not_weekdays` (0 = Monday), `hard` or `soft`, optionally
+  between two dates
+- `services::availability::expand` turns them over a planning period into what
+  the solver and agent already read: hard weekday rules → whole-day
+  `unavailability`, hard shift rules → `blocked_shifts` (`{date, shift_id}`, the
+  one new input field), soft ones → `preferred_off`. Open shifts ask
+  `availability::hard_block`
+
 ### Calendar feed
 - Each employee can make a personal iCal link (`/calendar-feed`, on the
   Notifications page) and subscribe to it on their phone. The feed,
@@ -338,6 +356,10 @@ Base URL: `http://localhost:8080/api/v1`
   /leave-blackouts`, `GET/PUT /leave-limits` for the rules
 - `GET/POST /open-shifts` - Open shifts (`/count`, `/gaps`; `/volunteer`
   `/withdraw` by an employee, `/assign` `/close` by planner/admin)
+- `PUT /employees/{id}/capabilities/{capability_id}` - `{valid_until}`: when a
+  held capability lapses; `GET /capability-expiries?within_days=60` (planner/admin)
+- `GET/POST /employees/{id}/availability-rules` (+ `DELETE …/{rule_id}`),
+  `GET /availability-rules` - Standing availability
 - `GET/POST/DELETE /calendar-feed` - The caller's iCal link (shown once);
   `GET /calendar-feeds/<token>.ics` - the feed itself, no sign-in
 - `GET/POST /skill-mix-rules`, `GET/POST /pairing-rules` (+ `DELETE …/{id}`) -

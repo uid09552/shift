@@ -299,6 +299,17 @@ class ShiftPlanner:
             for e in employees
         }
         self.emp_skills = {e["id"]: set(e["skills"]) for e in employees}
+        # A capability's last valid day (a lapsed certificate): after it the
+        # skill no longer counts — see _create_variables.
+        self.emp_skill_expiry = {
+            e["id"]: {skill: parse_date(last) for skill, last in (e.get("skill_expiry") or {}).items()}
+            for e in employees
+        }
+        # (day, shift) pairs a recurring availability rule takes out — hard.
+        self.emp_blocked = {
+            e["id"]: {(parse_date(b["date"]), b["shift_id"]) for b in e.get("blocked_shifts") or []}
+            for e in employees
+        }
         self.emp_avail_shifts = {e["id"]: set(e["available_shifts"]) for e in employees}
         self.emp_preferred_off = {e["id"]: e.get("preferred_off", []) for e in employees}
         self.emp_wishes = {e["id"]: e.get("wishes", []) for e in employees}
@@ -557,23 +568,24 @@ class ShiftPlanner:
             for w in self.workstations
         )
 
-    def _compat_gap_for(self, eid: str, wid: str):
+    def _compat_gap_for(self, eid: str, wid: str, skills: set | None = None):
         """Skill compatibility & downgrade gap for one (employee, workstation)
         pair. A pair is compatible if every skill the workstation requires is
         either held directly (gap 0) or covered by a higher-level capability in
         the same skill_group (gap = level difference, penalised via
         skill_downgrade_weight rather than blocked). Requirements with no
         matching skill_group must be held directly. None = incompatible."""
+        held = self.emp_skills[eid] if skills is None else skills
         total_gap = 0
         for req_cap in self.ws_req_skills[wid]:
-            if req_cap in self.emp_skills[eid]:
+            if req_cap in held:
                 continue
             req_group = self.cap_group.get(req_cap)
             if req_group is None:
                 return None
             req_level = self.cap_level.get(req_cap, 1)
             best_gap = None
-            for e_cap in self.emp_skills[eid]:
+            for e_cap in held:
                 if self.cap_group.get(e_cap) != req_group:
                     continue
                 e_level = self.cap_level.get(e_cap, 1)
@@ -614,6 +626,21 @@ class ShiftPlanner:
                 gap = self._compat_gap_for(emp["id"], ws["id"])
                 if gap is not None:
                     self.compat_gap[e_idx, w_idx] = gap
+        # The same question for the days on which a skill has expired, asked
+        # once per distinct set of expired skills.
+        expired_compat: dict = {}
+
+        def compatible_on(e_idx: int, w_idx: int, eid: str, day) -> bool:
+            if (e_idx, w_idx) not in self.compat_gap:
+                return False
+            expired = frozenset(s for s, last in self.emp_skill_expiry[eid].items() if day > last)
+            if not expired:
+                return True
+            key = (e_idx, w_idx, expired)
+            if key not in expired_compat:
+                remaining = self.emp_skills[eid] - expired
+                expired_compat[key] = self._compat_gap_for(eid, self.workstations[w_idx]["id"], remaining) is not None
+            return expired_compat[key]
 
         for e_idx, emp in enumerate(self.employees):
             eid = emp["id"]
@@ -631,6 +658,8 @@ class ShiftPlanner:
                         continue
                     if eid in self.emp_no_nights and self.shift_is_night[sid]:
                         continue
+                    if (day, sid) in self.emp_blocked[eid]:
+                        continue
                     barred = self._legal_block(e_idx, d_idx, s_idx)
                     if barred:
                         self.legal_blocked.setdefault((d_idx, s_idx), set()).add(barred)
@@ -639,7 +668,7 @@ class ShiftPlanner:
                         wid = ws["id"]
                         if sid not in self.ws_op_shifts[wid]:
                             continue
-                        if (e_idx, w_idx) not in self.compat_gap:
+                        if not compatible_on(e_idx, w_idx, eid, day):
                             continue
                         if self._ws_unavailable_on(wid, day):
                             continue

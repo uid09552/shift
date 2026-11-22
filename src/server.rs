@@ -32,6 +32,7 @@ use crate::services::{
     open_shift::OpenShiftService,
     calendar_feed::CalendarFeedService,
     staffing_rules::StaffingRuleService,
+    availability::AvailabilityService,
     tenant,
     unavailability::UnavailabilityService,
     user_management::UserManagementService,
@@ -83,6 +84,21 @@ pub fn create_router(state: AppState) -> Router {
             "/employees/:employee_id/capabilities",
             get(EmployeeService::get_employee_capabilities).post(EmployeeService::add_employee_capability),
         )
+        .route(
+            "/employees/:employee_id/capabilities/:capability_id",
+            put(EmployeeService::set_capability_expiry),
+        )
+        .route("/capability-expiries", get(EmployeeService::list_capability_expiries))
+        // Recurring availability: "only early shifts", "never Wednesdays", fixed days
+        .route(
+            "/employees/:employee_id/availability-rules",
+            get(AvailabilityService::list_for_employee).post(AvailabilityService::create),
+        )
+        .route(
+            "/employees/:employee_id/availability-rules/:rule_id",
+            delete(AvailabilityService::delete),
+        )
+        .route("/availability-rules", get(AvailabilityService::list_all))
         .route(
             "/employees/:employee_id/available-shifts",
             get(EmployeeService::get_employee_available_shifts).post(EmployeeService::add_employee_available_shift),

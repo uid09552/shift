@@ -21,6 +21,7 @@ diesel::table! {
         employee_id -> Uuid,
         capability_id -> Uuid,
         tenant_id -> Varchar,
+        valid_until -> Nullable<Date>,
     }
 }
 
@@ -484,6 +485,22 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    availability_rules (id) {
+        id -> Uuid,
+        tenant_id -> Varchar,
+        employee_id -> Uuid,
+        kind -> Varchar,
+        shift_ids -> Array<Uuid>,
+        weekdays -> Array<Int2>,
+        mode -> Varchar,
+        valid_from -> Nullable<Date>,
+        valid_until -> Nullable<Date>,
+        note -> Nullable<Varchar>,
+        created_at -> Timestamptz,
+    }
+}
+
 diesel::joinable!(planning_tasks -> optimized_shift_results (result_id));
 diesel::joinable!(employee_available_shifts -> employees (employee_id));
 diesel::joinable!(employee_available_shifts -> shifts (shift_id));
@@ -550,4 +567,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     calendar_feeds,
     skill_mix_rules,
     pairing_rules,
+    availability_rules,
 );

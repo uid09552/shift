@@ -62,6 +62,10 @@ worked example. The backend builds this payload from the database — call
 | `pairing_rules` | `kind` (`mentor`/`together`/`apart`), `employee_id`, `partner_id`, `mode` |
 | `constraints` | the `ConstraintConfig` block below |
 
+Two more per-employee fields: `skill_expiry` (capability name → last valid
+day — after it the skill does not count for a workstation) and `blocked_shifts`
+(`{date, shift_id}` a hard standing availability rule takes out). Both are hard.
+
 Each `weekday_times` entry carries `weekday`, start/end times,
 `min_employees`, `max_employees` and `free_days_after_shift`. A weekday absent
 from the list is a weekday the shift does not run.

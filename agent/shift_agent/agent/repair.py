@@ -64,6 +64,8 @@ from shift_agent.agent.validation import (
     compat_gap,
     validate,
     workstation_closed,
+    blocked_on,
+    skills_on,
 )
 from shift_agent.agent.validation import headline as validation_headline
 
@@ -414,7 +416,9 @@ class _Rules:
         self.available_shifts = {
             eid: set(e.get("available_shifts") or []) for eid, e in self.employees.items()
         }
-        self._compat: dict[tuple[str, str], int | None] = {}
+        self._compat: dict[tuple, int | None] = {}
+        # Shifts a recurring availability rule takes out, per employee and day.
+        self.blocked = {eid: blocked_on(e) for eid, e in self.employees.items()}
 
     # -- naming ------------------------------------------------------------
 
@@ -441,13 +445,17 @@ class _Rules:
 
     # -- pieces of the question --------------------------------------------
 
-    def compat(self, employee_id: str, workstation_id: str) -> int | None:
-        key = (employee_id, workstation_id)
+    def compat(self, employee_id: str, workstation_id: str, day: date | None = None) -> int | None:
+        employee = self.employees.get(employee_id) or {}
+        # Skills that have expired by `day` change the answer; the cache key says which.
+        held = frozenset(skills_on(employee, day))
+        key = (employee_id, workstation_id, held)
         if key not in self._compat:
             self._compat[key] = compat_gap(
-                self.employees.get(employee_id) or {},
+                employee,
                 self.workstations.get(workstation_id) or {},
                 self.capabilities,
+                day,
             )
         return self._compat[key]
 
@@ -499,6 +507,8 @@ class _Rules:
             return f"does not work the {self.shift_name(shift_id)}"
         if day.isoformat() in self.unavailable.get(employee_id, set()):
             return "away that day"
+        if (day.isoformat(), shift_id) in self.blocked.get(employee_id, set()):
+            return f"does not work the {self.shift_name(shift_id)} that day"
         if (
             (self.employees.get(employee_id) or {}).get("no_night_shifts")
             and (self.shifts.get(shift_id) or {}).get("is_night_shift")
@@ -516,7 +526,12 @@ class _Rules:
             return f"{self.workstation_name(workstation_id)} does not run that shift"
         if not self.workstation_open(workstation_id, day):
             return f"{self.workstation_name(workstation_id)} is closed that day"
-        if self.compat(employee_id, workstation_id) is None:
+        if self.compat(employee_id, workstation_id, day) is None:
+            if self.compat(employee_id, workstation_id) is not None:
+                employee = self.employees.get(employee_id) or {}
+                expired = sorted(set(employee.get("skills") or []) - skills_on(employee, day))
+                names = ", ".join(self.capability_names.get(c, c) for c in expired)
+                return f"{names} expired before that day"
             missing = sorted(
                 self.capability_names.get(c, c)
                 for c in (workstation.get("required_skills") or [])

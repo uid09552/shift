@@ -61,6 +61,27 @@ pub struct Capability {
     pub level: i16,
     #[serde(default)]
     pub skill_group: Option<String>,
+    /// For a capability an employee holds: its last valid day (None = no
+    /// expiry). Always None for the catalogue itself.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub valid_until: Option<NaiveDate>,
+}
+
+impl Capability {
+    /// Whether an employee's capability still counts on `day`.
+    pub fn valid_on(&self, day: NaiveDate) -> bool {
+        self.valid_until.is_none_or(|last| day <= last)
+    }
+}
+
+/// A capability an employee holds that lapses, for the planners' warning list.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CapabilityExpiry {
+    pub employee_id: Uuid,
+    pub employee_name: String,
+    pub capability_id: Uuid,
+    pub capability_name: String,
+    pub valid_until: NaiveDate,
 }
 
 fn default_capability_level() -> i16 {
@@ -69,7 +90,7 @@ fn default_capability_level() -> i16 {
 
 impl Default for Capability {
     fn default() -> Self {
-        Self { id: Uuid::nil(), name: String::new(), level: 1, skill_group: None }
+        Self { id: Uuid::nil(), name: String::new(), level: 1, skill_group: None, valid_until: None }
     }
 }
 
@@ -258,6 +279,11 @@ use async_trait::async_trait;
         async fn count_employees(&self, tenant_id: &str) -> Result<i64, AppError>;
         async fn get_employee_capabilities(&self, tenant_id: &str, employee_id: Uuid) -> Result<Vec<Capability>, AppError>;
         async fn add_employee_capability(&self, tenant_id: &str, employee_id: Uuid, capability_id: Uuid) -> Result<(), AppError>;
+        /// Sets (or with None clears) the last valid day of a capability the
+        /// employee holds; false when they do not hold it.
+        async fn set_capability_valid_until(&self, tenant_id: &str, employee_id: Uuid, capability_id: Uuid, valid_until: Option<NaiveDate>) -> Result<bool, AppError>;
+        /// Every held capability whose last valid day is on or before `until`, soonest first.
+        async fn list_capability_expiries(&self, tenant_id: &str, until: NaiveDate) -> Result<Vec<CapabilityExpiry>, AppError>;
         async fn update_employee(&self, tenant_id: &str, employee: Employee) -> Result<(), AppError>;
         async fn delete_employee(&self, tenant_id: &str, id: Uuid) -> Result<(), AppError>;
         async fn get_employee_available_shifts(&self, tenant_id: &str, employee_id: Uuid) -> Result<Vec<Shift>, AppError>;
@@ -1702,6 +1728,14 @@ pub trait CalendarFeedRepository {
     async fn touch_feed_by_hash(&self, token_hash: &str) -> Result<Option<CalendarFeedDomain>, AppError>;
 }
 
+
+#[async_trait]
+pub trait AvailabilityRuleRepository {
+    /// Every rule of the tenant, or of one employee.
+    async fn list_availability_rules(&self, tenant_id: &str, employee_id: Option<Uuid>) -> Result<Vec<crate::models::AvailabilityRule>, AppError>;
+    async fn create_availability_rule(&self, rule: crate::models::NewAvailabilityRule) -> Result<crate::models::AvailabilityRule, AppError>;
+    async fn delete_availability_rule(&self, tenant_id: &str, employee_id: Uuid, id: Uuid) -> Result<bool, AppError>;
+}
 
 #[async_trait]
 pub trait StaffingRuleRepository {

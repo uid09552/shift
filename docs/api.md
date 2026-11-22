@@ -316,6 +316,35 @@ A message is tried five times, 2, 4, 8 and 16 minutes apart, then marked `failed
 with the last error. Mails name the shift, the date and the status — never a
 protected-group reason behind a legal rule.
 
+## Capabilities that lapse
+
+| Method | Path | Purpose |
+|---|---|---|
+| `PUT` | `/employees/{id}/capabilities/{capability_id}` | `{"valid_until": "YYYY-MM-DD" | null}` — the last valid day of a held capability (**planner/admin**) |
+| `GET` | `/capability-expiries?within_days=60` | What has lapsed or lapses soon, soonest first, with `days_left` and `expired` (**planner/admin**) |
+
+A lapse before a planning period drops the capability from the employee's
+`skills` in the solver's input; one inside the period is sent as
+`skill_expiry`, so it counts up to that day and not after. The plan check reports
+an assignment that relies on a lapsed capability as `capability_expired` (an
+error, apart from `missing_skills`); repair, short-notice replacement and open
+shifts refuse it.
+
+## Standing availability
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` `POST` | `/employees/{id}/availability-rules` | List (planners any, an employee their own) / add (**planner/admin**) |
+| `DELETE` | `/employees/{id}/availability-rules/{rule_id}` | Remove one (**planner/admin**) |
+| `GET` | `/availability-rules` | Everyone's (**planner/admin**) |
+
+Kinds: `only_shifts` / `not_shifts` (with `shift_ids`), `only_weekdays` /
+`not_weekdays` (with `weekdays`, 0 = Monday) — `hard` or `soft`, optionally
+between `valid_from` and `valid_until`. Over each planning period the backend
+expands them into what the solver and the agent already read: hard weekday rules
+into whole-day `unavailability`, hard shift rules into `blocked_shifts`, soft
+ones into `preferred_off`. Open shifts refuse a volunteer a hard rule keeps out.
+
 ## Calendar feed
 
 A personal iCal link per employee, for the calendar on their phone.

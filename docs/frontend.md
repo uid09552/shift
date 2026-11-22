@@ -89,6 +89,7 @@ One service per backend resource, in `ui/src/app/shared/services/`:
 | `notification-preferences.service.ts` | `/notification-preferences` — the caller's own e-mail choices |
 | `calendar-feed.service.ts` | `/calendar-feed` — make, replace, remove the caller's iCal link; `feedUrls()` |
 | `staffing-rules.service.ts` | `/skill-mix-rules`, `/pairing-rules` |
+| `availability-rules.service.ts` | Standing availability, held capabilities' expiry, `/capability-expiries` |
 | `wish-settings.service.ts` | `/wish-settings` — plus `wishAllowedOn()`, the client-side mirror of the window check |
 | `confirmed-shift-plan.service.ts` | `/confirmed-shift-plans` |
 | `rotation.service.ts` | `/rotation-patterns`, `/rotation-patterns/{id}/apply` |
@@ -194,6 +195,10 @@ employees and planners (`UserService.canPlan()`):
   replaced, never shown again.
 - **Staffing rules** (`/staffing-rules`, `StaffingRulesComponent`, planners and
   admins): skill-mix and pairing rules in words, with forms to add them.
+- **An employee's page** (`/user-profiles/:id/edit`) carries *Valid until* per
+  saved capability (`CapabilityExpiryCardComponent`, saved as set) and *Standing
+  availability* (`AvailabilityRulesCardComponent`). Above the Employees list,
+  planners see what lapses within 60 days (`CapabilityExpiryWarningsComponent`).
 
 A change that needs a reason (a published month inside the freeze window, a
 locked one) is asked for by `reasonRequiredInterceptor` and retried — approving,

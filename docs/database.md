@@ -67,6 +67,8 @@ no separate migrate command in normal operation.
 | 42 | `add_open_shifts` | open shifts and their volunteers |
 | 43 | `add_calendar_feeds` | one iCal feed per employee — the token's SHA-256 only |
 | 44 | `add_skill_mix_rules` | skill-mix and pairing rules |
+| 45 | `capability_valid_until` | `employee_capabilities.valid_until` — when a held capability lapses |
+| 46 | `add_availability_rules` | standing availability per employee |
 
 ### Working with Diesel
 
@@ -125,6 +127,7 @@ diesel migration redo                  # verify down.sql actually reverses it
 | `calendar_feeds` | `employee_id`, `token_hash`, `created_at`, `last_fetched_at?` |
 | `skill_mix_rules` | `kind`, `count`, `capability_id?` or `skill_group` + `min_level`, `shift_id?`, `workstation_id?`, `mode` |
 | `pairing_rules` | `kind`, `employee_id`, `partner_id`, `mode` |
+| `availability_rules` | `employee_id`, `kind`, `shift_ids[]`, `weekdays[]`, `mode`, `valid_from?`, `valid_until?`, `note?` |
 | `notification_preferences` | `employee_id`, `email_enabled`, `muted_events` |
 | `notification_outbox` | `recipient`, `event`, `subject`, `body`, `status` (`pending`/`sent`/`failed`), `attempts`, `next_attempt_at`, `last_error?` |
 | `roster_notice_deliveries` | `notice_id` — the change notices already turned into mail |

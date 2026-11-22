@@ -149,6 +149,13 @@ class FixedShift(BaseModel):
     shift_id: Optional[str] = None
 
 
+class BlockedShift(BaseModel):
+    """A shift a recurring availability rule takes out on one day — hard."""
+
+    date: date
+    shift_id: str = Field(..., min_length=1)
+
+
 class Employee(BaseModel):
     """Employee definition with skills and availability."""
 
@@ -176,6 +183,11 @@ class Employee(BaseModel):
     # labor_law_profile "none".
     date_of_birth: Optional[date] = None
     maternity_protection: bool = False
+    # Capability name → its last valid day (a certificate that lapses): after it
+    # the skill does not count for a workstation.
+    skill_expiry: Dict[str, date] = Field(default_factory=dict)
+    # Shifts a recurring availability rule takes out on given days — hard.
+    blocked_shifts: List[BlockedShift] = Field(default_factory=list)
 
 
 class LockedAssignment(BaseModel):
