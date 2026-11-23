@@ -1,5 +1,8 @@
 <div class="grid grid-cols-12 gap-4 md:gap-6" data-testid="overview-planner">
 
+  <!-- First-run setup, for admins until it is complete or hidden -->
+  <app-setup-banner class="col-span-12 empty:hidden" />
+
   <!-- Needs you — what is waiting for a planner, each item where it is handled -->
   <section class="col-span-12 rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]" data-testid="overview-needs-you">
     <div class="px-5 pt-4 sm:px-6">

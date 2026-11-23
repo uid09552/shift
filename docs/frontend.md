@@ -22,7 +22,7 @@ All application routes render inside `AppLayoutComponent` (sidebar + header):
 | Path | Page |
 |---|---|
 | `/` | Dashboard |
-| `/kalender` | Schedule: Day, Week (default) or Month — `?view=day\|month` opens one |
+| `/kalender` | Schedule: Day, Week (default) or Month — `?view=day\|month` opens one, `?month=YYYY-MM` a month, `?date=YYYY-MM-DD` a day, `?replace=<employee>&on=<date>` the replacement dialog. Filters and saved views in the toolbar; without one of these parameters it opens the user's default (or last-used) view |
 | `/day-view` | Redirects to `/kalender?view=day` |
 | `/employee-calendar` | Per-employee calendar |
 | `/workstation-calendar` | Redirects to `/kalender` — the schedule page reads by workstation itself |
@@ -39,6 +39,7 @@ All application routes render inside `AppLayoutComponent` (sidebar + header):
 | `/wish-settings` | Shift-wish window (visible to all, editable by `shift-admin`) |
 | `/users` | Organization members and their roles (`shift-admin` only) |
 | `/audit-log` | Who changed what, with a field-by-field diff per entry |
+| `/setup` | First-run setup guide: six steps with links, sample data for an empty organization (`adminGuard`; also in the user menu) |
 | `/signin`, `/signup` | Auth pages (standalone, outside the layout) |
 | `**` | Not found |
 
@@ -89,6 +90,8 @@ One service per backend resource, in `ui/src/app/shared/services/`:
 | `notification-preferences.service.ts` | `/notification-preferences` — the caller's own e-mail choices |
 | `calendar-feed.service.ts` | `/calendar-feed` — make, replace, remove the caller's iCal link; `feedUrls()` |
 | `staffing-rules.service.ts` | `/skill-mix-rules`, `/pairing-rules` |
+| `saved-view.service.ts` | `/saved-views` — the caller's views of a page, default and last-used view |
+| `setup.service.ts` | `/setup-status`, `/setup/sample-data`; whether the overview banner was hidden (local, per browser) |
 | `availability-rules.service.ts` | Standing availability, held capabilities' expiry, `/capability-expiries` |
 | `wish-settings.service.ts` | `/wish-settings` — plus `wishAllowedOn()`, the client-side mirror of the window check |
 | `confirmed-shift-plan.service.ts` | `/confirmed-shift-plans` |
@@ -203,6 +206,44 @@ employees and planners (`UserService.canPlan()`):
 A change that needs a reason (a published month inside the freeze window, a
 locked one) is asked for by `reasonRequiredInterceptor` and retried — approving,
 revoking and assigning need no code of their own for it.
+
+## Command palette, saved views, setup guide
+
+- **Command palette** (`shared/components/command-palette/`): Ctrl+K / ⌘K on
+  every page, or the search button in the header. People (their calendar),
+  workstations, shifts and capabilities (edit page for planners), every page the
+  sidebar offers the user's role (`NAV_ITEMS`, `shared/layout/app-sidebar/nav-items.ts`),
+  a day (`2026-12-24`, `24.12.`, `tomorrow`, `next Monday`, `nächsten Montag` → the
+  Schedule page on it) and quick actions by role: calculate a plan, publish this
+  or next month, find a replacement for someone today, add an employee/shift/
+  workstation; request leave and my calendar for viewers. A combobox over a
+  listbox: arrows, Enter, Escape (focus returns). Search and dates are pure
+  functions in `palette-search.ts`. The header's text field stays the per-page
+  name filter, now on `/`.
+- **Saved views** on the Schedule page (`schedule-views.component.ts`,
+  `schedule-view-state.ts`): a Filter panel (workstations — whoever is planned
+  there in the period; capabilities — whoever holds one; people) and a Views menu
+  (apply, star as default, save as…, save changes, share for planners, delete).
+- **Setup guide** (`pages/configuration/setup/`): the checklist from
+  `/setup-status`; the overview shows admins a banner while it is incomplete
+  (`setup-banner.component.ts`), which they can hide; the user menu reopens it.
+
+## Accessibility
+
+WCAG 2.1 AA is the target. What holds it in place:
+
+- `FocusTrapDirective` (`shared/a11y/`) on every dialog — the modal, confirm and
+  reason dialogs: focus moves in, Tab wraps, focus returns on close; Escape
+  closes the topmost one. Dropdowns close on Escape and refocus their toggle.
+- A skip link to `<main id="main-content">`; icon-only buttons carry an
+  `aria-label`; the Schedule grid is a table with a caption, column headers and
+  a row header per person; shift cells show the shift's code in dark text — the
+  colour is only the edge.
+- `src/app/a11y.spec.ts` runs **axe-core** over Overview, Schedule, Scheduler,
+  Employees, Settings, the palette and the dialogs, in the light and the dark
+  theme: no critical or serious findings (colour contrast checked on the
+  Schedule grid, palette and dialogs). `shared/testing/axe.ts` turns transitions
+  off while measuring, or a theme switch is caught halfway.
 
 ## The day view
 

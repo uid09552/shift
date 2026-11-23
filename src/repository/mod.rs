@@ -21,6 +21,7 @@ pub mod notificationrepository;
 pub mod openshiftrepository;
 pub mod calendarfeedrepository;
 pub mod staffingrulerepository;
+pub mod savedviewrepository;
 
 use std::sync::Arc;
 use crate::database::DbPool;
@@ -83,6 +84,7 @@ pub struct AppState {
     pub open_shift_repo: DieselOpenShiftRepository,
     pub calendar_feed_repo: DieselCalendarFeedRepository,
     pub staffing_rule_repo: DieselStaffingRuleRepository,
+    pub saved_view_repo: self::savedviewrepository::DieselSavedViewRepository,
     /// Where and for which state holidays are fetched.
     pub holiday_config: HolidayConfig,
     pub pool: Arc<DbPool>,
@@ -136,6 +138,7 @@ impl AppState {
             open_shift_repo: DieselOpenShiftRepository { pool: Arc::clone(&pool) },
             calendar_feed_repo: DieselCalendarFeedRepository { pool: Arc::clone(&pool) },
             staffing_rule_repo: DieselStaffingRuleRepository { pool: Arc::clone(&pool) },
+            saved_view_repo: self::savedviewrepository::DieselSavedViewRepository { pool: Arc::clone(&pool) },
             holiday_config: HolidayConfig::default(),
             pool,
             nats_client: None,
@@ -179,6 +182,7 @@ impl AppState {
             open_shift_repo: DieselOpenShiftRepository { pool: Arc::clone(&pool) },
             calendar_feed_repo: DieselCalendarFeedRepository { pool: Arc::clone(&pool) },
             staffing_rule_repo: DieselStaffingRuleRepository { pool: Arc::clone(&pool) },
+            saved_view_repo: self::savedviewrepository::DieselSavedViewRepository { pool: Arc::clone(&pool) },
             holiday_config: HolidayConfig::default(),
             pool,
             nats_client: Some(nats_client),

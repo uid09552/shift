@@ -5,6 +5,8 @@ import { AppSidebarComponent } from '../app-sidebar/app-sidebar.component';
 import { BackdropComponent } from '../backdrop/backdrop.component';
 import { RouterModule } from '@angular/router';
 import { AppHeaderComponent } from '../app-header/app-header.component';
+import { TranslatePipe } from '../../i18n/translate.pipe';
+import { CommandPaletteComponent } from '../../components/command-palette/command-palette.component';
 
 @Component({
   selector: 'app-layout',
@@ -13,7 +15,9 @@ import { AppHeaderComponent } from '../app-header/app-header.component';
     RouterModule,
     AppHeaderComponent,
     AppSidebarComponent,
-    BackdropComponent
+    BackdropComponent,
+    CommandPaletteComponent,
+    TranslatePipe,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './app-layout.component.html',
@@ -28,6 +32,12 @@ export class AppLayoutComponent {
     this.isExpanded$ = this.sidebarService.isExpanded$;
     this.isHovered$ = this.sidebarService.isHovered$;
     this.isMobileOpen$ = this.sidebarService.isMobileOpen$;
+  }
+
+  /** The skip link: focus the page content without changing the route's URL. */
+  skipToMain(event: Event) {
+    event.preventDefault();
+    document.getElementById('main-content')?.focus();
   }
 
   get containerClasses() {

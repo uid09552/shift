@@ -26,6 +26,7 @@ import { LeaveComponent } from './pages/planner/leave/leave.component';
 import { OpenShiftsComponent } from './pages/planner/open-shifts/open-shifts.component';
 import { NotificationSettingsComponent } from './pages/configuration/notifications/notification-settings.component';
 import { StaffingRulesComponent } from './pages/configuration/staffing-rules/staffing-rules.component';
+import { SetupComponent } from './pages/configuration/setup/setup.component';
 
 export const routes: Routes = [
   {
@@ -244,6 +245,13 @@ export const routes: Routes = [
         canActivate:[adminGuard],
         canDeactivate:[unsavedChangesGuard],
         data:{ listPath:'/users' }
+      },
+      {
+        // The first-run setup guide (admins); the overview links to it while setup is incomplete.
+        path:'setup',
+        component:SetupComponent,
+        title:'title.setup',
+        canActivate:[adminGuard],
       },
       {
         path:'audit-log',

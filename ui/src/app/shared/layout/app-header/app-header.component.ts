@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild, ChangeDetectionStrategy } from '@angular/core';
+import { Component, ElementRef, HostListener, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SidebarService } from '../../services/sidebar.service';
 import { GlobalSearchService } from '../../services/global-search.service';
@@ -9,6 +9,7 @@ import { NotificationDropdownComponent } from '../../components/header/notificat
 import { UserDropdownComponent } from '../../components/header/user-dropdown/user-dropdown.component';
 import { LanguageSwitcherComponent } from '../../components/common/language-switcher/language-switcher.component';
 import { TranslatePipe } from '../../i18n/translate.pipe';
+import { CommandPaletteService, paletteShortcut } from '../../components/command-palette/command-palette.service';
 
 @Component({
   selector: 'app-header',
@@ -29,7 +30,7 @@ export class AppHeaderComponent {
   isApplicationMenuOpen = false;
   readonly isMobileOpen$;
   searchQuery = '';
-  readonly shortcutHint = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ K' : 'Ctrl K';
+  readonly shortcutHint = paletteShortcut();
 
   @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
   @ViewChild('header') header!: ElementRef<HTMLElement>;
@@ -40,6 +41,7 @@ export class AppHeaderComponent {
   constructor(
     public sidebarService: SidebarService,
     private globalSearchService: GlobalSearchService,
+    readonly palette: CommandPaletteService,
   ) {
     this.isMobileOpen$ = this.sidebarService.isMobileOpen$;
   }
@@ -57,7 +59,6 @@ export class AppHeaderComponent {
   }
 
   ngAfterViewInit() {
-    document.addEventListener('keydown', this.handleKeyDown);
     const header = this.header.nativeElement;
     this.publishHeight(header);
     this.resizeObserver = new ResizeObserver(() => this.publishHeight(header));
@@ -65,7 +66,6 @@ export class AppHeaderComponent {
   }
 
   ngOnDestroy() {
-    document.removeEventListener('keydown', this.handleKeyDown);
     this.resizeObserver?.disconnect();
   }
 
@@ -82,10 +82,14 @@ export class AppHeaderComponent {
     this.onSearch('');
   }
 
-  handleKeyDown = (event: KeyboardEvent) => {
-    if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+  /** `/` focuses the page filter, as in many web apps; Ctrl+K is the command palette. */
+  @HostListener('document:keydown', ['$event'])
+  onSlash(event: KeyboardEvent) {
+    const target = event.target as HTMLElement | null;
+    const typing = !!target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+    if (event.key === '/' && !typing && !event.ctrlKey && !event.metaKey && !event.altKey) {
       event.preventDefault();
       this.searchInput?.nativeElement.focus();
     }
-  };
+  }
 }

@@ -59,6 +59,7 @@
     "@types/d3-selection": "^3.0.12",
     "@types/d3-zoom": "^3.0.9",
     "@types/jasmine": "~7.0.0",
+    "axe-core": "^4.10.3",
     "istanbul-lib-instrument": "^6.0.3",
     "jasmine-core": "~7.0.0",
     "karma": "~6.4.0",

@@ -96,7 +96,7 @@ const DEFAULT_BAND: { min: number; max: number } = { min: 30, max: 45 };
               : 'border-error-200 bg-error-50 text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400'"
           >
             <span>{{ message | t }}</span>
-            <button
+            <button [attr.aria-label]="'common.close' | t"
               type="button"
               (click)="message = null"
               class="shrink-0 text-current opacity-60 transition-opacity hover:opacity-100"

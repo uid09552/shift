@@ -45,7 +45,7 @@ import { ROLE_OPTIONS } from './user-roles';
           : 'border-error-200 bg-error-50 text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400'"
       >
         <span>{{ message | t }}</span>
-        <button type="button" (click)="message = null" class="shrink-0 text-current opacity-60 transition-opacity hover:opacity-100">
+        <button [attr.aria-label]="'common.close' | t" type="button" (click)="message = null" class="shrink-0 text-current opacity-60 transition-opacity hover:opacity-100">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>

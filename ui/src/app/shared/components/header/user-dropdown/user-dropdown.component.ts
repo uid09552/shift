@@ -15,6 +15,8 @@ import { clearSelection } from '../../../../pages/planner/employee-calendar/reme
 export class UserDropdownComponent implements OnInit {
   isOpen = false;
   userInfo: UserInfo = {};
+  /** Admins reopen the first-run setup guide from here. */
+  isAdmin = false;
 
   constructor(private userService: UserService) {}
 
@@ -23,6 +25,7 @@ export class UserDropdownComponent implements OnInit {
       next: (info) => (this.userInfo = info),
       error: () => {},
     });
+    this.userService.isAdmin().subscribe((isAdmin) => (this.isAdmin = isAdmin));
   }
 
   get displayName(): string {

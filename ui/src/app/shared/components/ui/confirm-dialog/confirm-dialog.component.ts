@@ -2,11 +2,12 @@ import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ConfirmDialogService, ConfirmState } from './confirm-dialog.service';
 import { TranslatePipe } from '../../../i18n/translate.pipe';
+import { FocusTrapDirective } from '../../../a11y/focus-trap.directive';
 
 @Component({
   selector: 'app-confirm-dialog',
   standalone: true,
-  imports: [CommonModule, TranslatePipe],
+  imports: [CommonModule, TranslatePipe, FocusTrapDirective],
   changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './confirm-dialog.component.html',
 })

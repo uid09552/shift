@@ -1747,6 +1747,60 @@ pub trait StaffingRuleRepository {
     async fn delete_pairing_rule(&self, tenant_id: &str, id: Uuid) -> Result<bool, AppError>;
 }
 
+
+/// A named filter set a user keeps for a page; `shared` ones are offered to the tenant.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SavedView {
+    pub id: Uuid,
+    #[serde(skip)]
+    pub tenant_id: String,
+    #[serde(skip)]
+    pub owner_subject: String,
+    pub owner_name: Option<String>,
+    pub page: String,
+    pub name: String,
+    pub filters: serde_json::Value,
+    pub shared: bool,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+/// Which view a page opens with for one user, and which was applied last.
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct SavedViewPreference {
+    pub default_view_id: Option<Uuid>,
+    pub last_view_id: Option<Uuid>,
+}
+
+#[async_trait]
+pub trait SavedViewRepository {
+    /// The caller's own views of a page plus everyone's shared ones, by name.
+    async fn list_saved_views(&self, tenant_id: &str, subject: &str, page: &str) -> Result<Vec<SavedView>, AppError>;
+    async fn get_saved_view(&self, tenant_id: &str, id: Uuid) -> Result<Option<SavedView>, AppError>;
+    /// `Duplicate` when the owner already has a view of that name on the page.
+    async fn create_saved_view(
+        &self,
+        tenant_id: &str,
+        subject: &str,
+        owner_name: Option<&str>,
+        page: &str,
+        name: &str,
+        filters: serde_json::Value,
+        shared: bool,
+    ) -> Result<SavedView, AppError>;
+    async fn update_saved_view(
+        &self,
+        tenant_id: &str,
+        id: Uuid,
+        name: Option<String>,
+        filters: Option<serde_json::Value>,
+        shared: Option<bool>,
+    ) -> Result<SavedView, AppError>;
+    async fn delete_saved_view(&self, tenant_id: &str, id: Uuid) -> Result<bool, AppError>;
+    async fn get_view_preference(&self, tenant_id: &str, subject: &str, page: &str) -> Result<SavedViewPreference, AppError>;
+    async fn set_view_preference(&self, tenant_id: &str, subject: &str, page: &str, pref: SavedViewPreference) -> Result<SavedViewPreference, AppError>;
+}
+
 #[cfg(test)]
 mod roster_month_tests {
     use super::*;
