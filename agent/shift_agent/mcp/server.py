@@ -151,6 +151,9 @@ KNOWN_PAGES = {
     "users": "/users",
     # The first-run setup guide (admins).
     "setup": "/setup",
+    # What-if scenarios and the capacity forecast (planners).
+    "scenarios": "/scenarios",
+    "forecast": "/forecast",
 }
 
 

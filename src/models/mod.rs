@@ -50,7 +50,7 @@ pub use planning_task::{PlanningTask, NewPlanningTask};
 pub use shift::{Shift, NewShift, ShiftWeekdayTime, NewShiftWeekdayTime};
 pub use shift_wish::{NewShiftWish, ShiftWish};
 pub use shift_swap_request::{NewShiftSwapRequest, ShiftSwapRequest};
-pub use task_dto::{ConstraintTask, TaskDTO, PlanningPeriod, ShiftTask, ShiftWeekdayTimeTask, WorkstationTask, WorkstationUnavailabilityRange, EmployeeTask, CapabilityTask, PreferredOffTask, ShiftWishTask, FixedShiftTask, HistoryShiftTask, PublishedShiftTask, SkillMixRuleTask, PairingRuleTask, BlockedShiftTask};
+pub use task_dto::{ConstraintTask, TaskDTO, PlanningPeriod, ShiftTask, ShiftWeekdayTimeTask, WorkstationTask, WorkstationUnavailabilityRange, EmployeeTask, CapabilityTask, PreferredOffTask, ShiftWishTask, FixedShiftTask, HistoryShiftTask, PublishedShiftTask, SkillMixRuleTask, PairingRuleTask, BlockedShiftTask, DemandCurveTask, FairnessBalanceTask};
 pub use task_result_dto::{TaskResultDto, PlanningPeriodResult, DaySchedule, ShiftSchedule, ShiftAssignment, EmployeeSummary, EmployeeShiftSummary, EmployeeDailyPlan, DailyPlanEntry};
 pub use unavailability::{NewUnavailability, Unavailability};
 pub use wish_settings::{NewWishSettings, WishScheduleChangeset, WishSettings};

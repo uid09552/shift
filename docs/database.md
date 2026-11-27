@@ -70,6 +70,7 @@ no separate migrate command in normal operation.
 | 45 | `capability_valid_until` | `employee_capabilities.valid_until` — when a held capability lapses |
 | 46 | `add_availability_rules` | standing availability per employee |
 | 47 | `add_saved_views` | saved filter views per user and page, and each user's default / last-used view |
+| 48 | `duties_fairness_demand` | `shifts.duty_type`, `employee_personal_limits.max_on_call_per_month`, on-call call-ins, `planner_settings.fairness_horizon_months` / `fairness_weight`, demand curves per workstation and weekday |
 
 ### Working with Diesel
 
@@ -129,6 +130,8 @@ diesel migration redo                  # verify down.sql actually reverses it
 | `skill_mix_rules` | `kind`, `count`, `capability_id?` or `skill_group` + `min_level`, `shift_id?`, `workstation_id?`, `mode` |
 | `pairing_rules` | `kind`, `employee_id`, `partner_id`, `mode` |
 | `availability_rules` | `employee_id`, `kind`, `shift_ids[]`, `weekdays[]`, `mode`, `valid_from?`, `valid_until?`, `note?` |
+| `on_call_call_ins` | `employee_id`, `date` (key), `minutes`, `note?`, `recorded_by?` — what an on-call duty was called in for |
+| `workstation_demand` | `workstation_id`, `weekday` (key, 0 = Monday), `hours` (24 headcounts) |
 | `saved_views` | `owner_subject` (Keycloak `sub`), `owner_name?`, `page`, `name` (unique per owner and page, any case), `filters` (JSONB), `shared` |
 | `saved_view_preferences` | `user_subject`, `page`, `default_view_id?`, `last_view_id?` — `ON DELETE SET NULL` to `saved_views` |
 | `notification_preferences` | `employee_id`, `email_enabled`, `muted_events` |

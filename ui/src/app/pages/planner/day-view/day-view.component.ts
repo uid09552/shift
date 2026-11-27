@@ -1,10 +1,12 @@
 import { Component, ElementRef, Input, OnDestroy, OnInit, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subscription, forkJoin, interval } from 'rxjs';
+import { Subscription, forkJoin, interval, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { EmployeeService, Employee } from '../../../shared/services/employee.service';
 import { ShiftService, Shift, WeekdayTime } from '../../../shared/services/shift.service';
 import { WorkstationService, Workstation } from '../../../shared/services/workstation.service';
+import { DemandService, WorkstationDemand } from '../../../shared/services/demand.service';
 import {
   ConfirmedShiftPlanService,
   ConfirmedShiftPlan,
@@ -27,6 +29,7 @@ export interface GanttBar {
   shiftName: string;
   shiftShortName: string;
   workstationName: string | null;
+  workstationId?: string | null;
   timeLabel: string;
   color: string;
   textColor: string;
@@ -51,6 +54,43 @@ export interface GanttRow {
   absence: AbsenceBand | null;
   /** Hours on duty that fall inside this day (a night shift counts only its part). */
   hours: number;
+}
+
+/** A workstation's demand curve for the day against who is planned there, hour by hour. */
+export interface DemandRow {
+  workstationId: string;
+  workstationName: string;
+  need: number[];
+  have: number[];
+  /** "07–09 (1/2)", for the label and screen readers. */
+  shortHours: string[];
+}
+
+/**
+ * Per hour, how many bars at the workstation are on duty at the hour's middle
+ * — the same rule the optimizer covers a curve with.
+ */
+export function demandRow(workstationId: string, name: string, need: number[], rows: GanttRow[]): DemandRow {
+  const have = need.map((_, h) =>
+    rows.reduce(
+      (n, row) => n + row.bars.filter((b) => b.workstationId === workstationId && b.startHour <= h + 0.5 && h + 0.5 < b.endHour).length,
+      0,
+    ),
+  );
+  const shortHours: string[] = [];
+  let h = 0;
+  while (h < 24) {
+    if (have[h] < need[h]) {
+      let end = h + 1;
+      while (end < 24 && have[end] === have[h] && need[end] === need[h]) end++;
+      const pad = (x: number) => String(x).padStart(2, '0');
+      shortHours.push(`${pad(h)}–${pad(end)} (${have[h]}/${need[h]})`);
+      h = end;
+    } else {
+      h++;
+    }
+  }
+  return { workstationId, workstationName: name, need, have, shortHours };
 }
 
 const HOUR_WIDTHS = [32, 48, 64, 96, 128];
@@ -141,6 +181,7 @@ export class DayViewComponent implements OnInit, OnDestroy {
     private employeeService: EmployeeService,
     private shiftService: ShiftService,
     private workstationService: WorkstationService,
+    private demandService: DemandService,
     private confirmedShiftPlanService: ConfirmedShiftPlanService,
     private globalSearchService: GlobalSearchService,
     private translations: TranslationService,
@@ -276,8 +317,11 @@ export class DayViewComponent implements OnInit, OnDestroy {
       employees: this.employeeService.getEmployeeProfiles(500, 0),
       shifts: this.shiftService.getShifts(),
       workstations: this.workstationService.getWorkstations(),
+      // Optional: the chart works without demand curves.
+      demand: this.demandService.all().pipe(catchError(() => of([] as WorkstationDemand[]))),
     }).subscribe({
-      next: ({ employees, shifts, workstations }) => {
+      next: ({ employees, shifts, workstations, demand }) => {
+        this.demand = demand;
         this.employees = [...(employees.data ?? [])].sort((a, b) => a.name.localeCompare(b.name));
         this.shifts = shifts;
         this.workstations = workstations;
@@ -364,6 +408,32 @@ export class DayViewComponent implements OnInit, OnDestroy {
         hours: bars.reduce((sum, b) => sum + b.hours, 0),
       };
     });
+
+    // Demand curves for this weekday (0 = Monday), against everyone planned.
+    const weekday = (this.selectedDate.getDay() + 6) % 7;
+    this.demandRows = this.demand.flatMap((d) => {
+      const curve = d.weekdays.find((w) => w.weekday === weekday);
+      const ws = workstationById.get(d.workstation_id);
+      return curve && ws ? [demandRow(ws.id, ws.name, curve.hours, this.allRows)] : [];
+    });
+  }
+
+  /** Demand rows: the curve and who is planned, per workstation with a curve today. */
+  demandRows: DemandRow[] = [];
+  private demand: WorkstationDemand[] = [];
+
+  /** SVG polyline of a demand curve, `scale` px per head. */
+  demandPath(need: number[], height: number, scale: number): string {
+    return need
+      .flatMap((n, h) => {
+        const y = height - n * scale;
+        return [`${h * this.hourWidth},${y}`, `${(h + 1) * this.hourWidth},${y}`];
+      })
+      .join(' ');
+  }
+
+  demandScale(row: DemandRow, height: number): number {
+    return (height - 4) / Math.max(1, ...row.need, ...row.have);
   }
 
   /** The part of the selected day's shift that falls inside the day itself. */
@@ -428,6 +498,7 @@ export class DayViewComponent implements OnInit, OnDestroy {
       shiftName: shift.name,
       shiftShortName: shift.short_name,
       workstationName: workstation?.name ?? null,
+      workstationId: workstation?.id ?? null,
       timeLabel: `${this.trimSeconds(time.start_time)} – ${this.trimSeconds(time.end_time)}`,
       color,
       textColor: this.textColorOn(color),

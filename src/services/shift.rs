@@ -81,11 +81,16 @@ impl ShiftService {
             .and_then(|v| v.as_i64())
             .unwrap_or(0) as i32;
         let break_minutes = parse_break_minutes(body.get("break_minutes"))?.unwrap_or(0);
+        let duty_type = parse_duty_type(body.get("duty_type"))?;
 
-        let shift = state
+        let mut shift = state
             .shift_repo
             .create_shift(&tenant.0, name, short_name, color, order, break_minutes)
             .await?;
+        if let Some(duty) = duty_type {
+            state.shift_repo.set_shift_duty_type(&tenant.0, shift.id, duty).await?;
+            shift.duty_type = duty.to_string();
+        }
 
         audit_log::record(&state, &tenant.0, actor.0, "shift.create", "shift", Some(shift.id.to_string()), Some(body.to_string())).await;
 
@@ -118,6 +123,7 @@ impl ShiftService {
         let color = body.get("color").and_then(|v| v.as_str()).map(|s| s.to_string());
         let order = body.get("order").and_then(|v| v.as_i64()).map(|o| o as i32);
         let break_minutes = parse_break_minutes(body.get("break_minutes"))?;
+        let duty_type = parse_duty_type(body.get("duty_type"))?;
 
         // Validate hex color format if color is provided
         if let Some(ref c) = color {
@@ -126,10 +132,14 @@ impl ShiftService {
             }
         }
 
-        let shift = state
+        let mut shift = state
             .shift_repo
             .update_shift(&tenant.0, shift_id, name, short_name, color, order, break_minutes)
             .await?;
+        if let Some(duty) = duty_type {
+            state.shift_repo.set_shift_duty_type(&tenant.0, shift_id, duty).await?;
+            shift.duty_type = duty.to_string();
+        }
 
         audit_log::record(&state, &tenant.0, actor.0, "shift.update", "shift", Some(shift_id.to_string()), Some(body.to_string())).await;
 
@@ -305,6 +315,18 @@ impl ShiftService {
         .await;
 
         Ok(Json(serde_json::to_value(result).unwrap()))
+    }
+}
+
+/// `duty_type` from a request body: `None` when absent, else one of `DUTY_TYPES`.
+fn parse_duty_type(value: Option<&Value>) -> Result<Option<&'static str>, AppError> {
+    match value {
+        None | Some(Value::Null) => Ok(None),
+        Some(v) => v
+            .as_str()
+            .and_then(|s| crate::models::shift::DUTY_TYPES.iter().copied().find(|d| *d == s))
+            .map(Some)
+            .ok_or_else(|| AppError::Validation("'duty_type' must be 'regular', 'standby' or 'on_call'".into())),
     }
 }
 

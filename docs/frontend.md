@@ -39,6 +39,8 @@ All application routes render inside `AppLayoutComponent` (sidebar + header):
 | `/wish-settings` | Shift-wish window (visible to all, editable by `shift-admin`) |
 | `/users` | Organization members and their roles (`shift-admin` only) |
 | `/audit-log` | Who changed what, with a field-by-field diff per entry |
+| `/scenarios` | Planner › What-if scenarios: overrides (absences, closures, hires, minimums), run, results with "compare with a proposal" (`/scheduler?tab=compare&b=<id>`) (`writerGuard`) |
+| `/forecast` | Reports › Capacity forecast: available vs required hours per month, per capability (`writerGuard`) |
 | `/setup` | First-run setup guide: six steps with links, sample data for an empty organization (`adminGuard`; also in the user menu) |
 | `/signin`, `/signup` | Auth pages (standalone, outside the layout) |
 | `**` | Not found |
@@ -91,6 +93,9 @@ One service per backend resource, in `ui/src/app/shared/services/`:
 | `calendar-feed.service.ts` | `/calendar-feed` — make, replace, remove the caller's iCal link; `feedUrls()` |
 | `staffing-rules.service.ts` | `/skill-mix-rules`, `/pairing-rules` |
 | `saved-view.service.ts` | `/saved-views` — the caller's views of a page, default and last-used view |
+| `demand.service.ts` | `/workstation-demand`, `/workstations/{id}/demand` — headcount by hour |
+| `call-in.service.ts` | `/call-ins` — minutes called in on on-call duties |
+| `forecast.service.ts` | `/analysis/capacity-forecast` |
 | `setup.service.ts` | `/setup-status`, `/setup/sample-data`; whether the overview banner was hidden (local, per browser) |
 | `availability-rules.service.ts` | Standing availability, held capabilities' expiry, `/capability-expiries` |
 | `wish-settings.service.ts` | `/wish-settings` — plus `wishAllowedOn()`, the client-side mirror of the window check |

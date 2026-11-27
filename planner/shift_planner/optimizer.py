@@ -132,6 +132,9 @@ _DEFAULT_CONSTRAINTS = {
     "change_weight": 100000,  # Penalty per employee-day changed against published_roster
     "labor_law_profile": "none",  # or "arbzg_de" — see legal.py
     "labor_law_averaging_weeks": 24,
+    "on_call_hours_factor": 0.0,  # share of an on-call span counted as hours
+    "fairness_weight": 2000,  # long-term balance of nights/weekends/holidays/on-call
+    "demand_surplus_weight": 50,  # per person-hour above a demand curve
     "solver_time_limit_seconds": 120.0,
     "solver_num_workers": 8,
 }
@@ -281,6 +284,9 @@ class ShiftPlanner:
         self.keep_fixed = cfg["keep_fixed_assignments"]
         self.personal_limits_hard = cfg["personal_limits_mode"] == "hard"
         self.change_w = cfg["change_weight"]
+        self.on_call_factor = float(cfg["on_call_hours_factor"] or 0.0)
+        self.fairness_w = cfg["fairness_weight"]
+        self.demand_surplus_w = cfg["demand_surplus_weight"]
         # Labor law (legal.py): None = no legal rule. Where the tenant's own
         # setting and the law differ, the stricter one holds — a rest setting
         # of 0 ("off") still gets the legal 11 h.
@@ -332,6 +338,9 @@ class ShiftPlanner:
         self.ws_deactivated = {w["id"] for w in workstations if w.get("available", True) is False}
 
         self.shift_is_night = {s["id"]: s["is_night_shift"] for s in shifts}
+        # regular / standby / on_call (legal.py). On call from home is rest
+        # time: no hours, no rest needed around it, no night recovery.
+        self.shift_duty = {s["id"]: legal.duty_type(s) for s in shifts}
         # Per-(shift, weekday) time/staffing configuration, keyed by weekday
         # string. A shift only operates on the weekdays present in its
         # weekday_times list.
@@ -353,11 +362,28 @@ class ShiftPlanner:
             for d_idx, wd in enumerate(self.day_wd)
             if (s["id"], wd) in self.shift_wt
         }
-        self.dur_tenths = {key: int(dur * 10) for key, dur in self.dur_hours.items()}
-        # Net of the shift's break, for the legal hour limits.
-        self.net_tenths = {
-            (s_idx, d_idx): round(legal.net_hours(dur, shifts[s_idx].get("break_minutes")) * 10)
+        # Hours for targets and balance: an on-call span counts with
+        # on_call_hours_factor (0 by default — only call-ins are work).
+        self.dur_tenths = {
+            (s_idx, d_idx): int(dur * 10 * (self.on_call_factor if self._on_call(s_idx) else 1))
             for (s_idx, d_idx), dur in self.dur_hours.items()
+        }
+        # Net of the shift's break, for the legal hour limits; on call counts 0.
+        self.net_tenths = {
+            (s_idx, d_idx): round(
+                legal.working_hours(
+                    self.shift_duty[shifts[s_idx]["id"]],
+                    legal.net_hours(dur, shifts[s_idx].get("break_minutes")),
+                ) * 10
+            )
+            for (s_idx, d_idx), dur in self.dur_hours.items()
+        }
+        # Workstation demand curves: (w_idx, weekday) -> 24 headcounts.
+        self.ws_demand = {
+            (w_idx, curve["weekday"]): list(curve["hours"])
+            for w_idx, ws in enumerate(workstations)
+            for curve in ws.get("demand") or []
+            if any(curve["hours"])
         }
 
         # The legal rules per employee and day (legal.PersonRules), where a
@@ -446,12 +472,18 @@ class ShiftPlanner:
             if sid not in shift_names:
                 continue  # a shift since deleted: it still counts as a worked day
             wday = weekday_num(day, self.holidays)
-            self.history_tenths.setdefault(e_idx, {})[days_before] = self._history_net_tenths(sid, wday)
+            duty = self.shift_duty[sid]
+            if legal.counts_as_work(duty):
+                self.history_tenths.setdefault(e_idx, {})[days_before] = self._history_net_tenths(sid, wday)
+            else:  # on call: only the minutes actually called in are work
+                self.history_tenths.setdefault(e_idx, {})[days_before] = round(
+                    legal.working_hours(duty, 0.0, row.get("called_in_minutes")) * 10
+                )
             label = f"{shift_names[sid]} on {day}"
             if (sid, wday) in self.shift_wt:
                 recovery = self._shift_recovery_days(sid, wday)
             else:  # hand-entered on a weekday the shift no longer runs
-                recovery = self.night_recovery if self.shift_is_night[sid] else 0
+                recovery = self.night_recovery if self.shift_is_night[sid] and legal.needs_rest(duty) else 0
             for d_idx in range(0, recovery - days_before + 1):
                 if d_idx < self.num_days:
                     self.history_blocked_days.setdefault(
@@ -463,7 +495,8 @@ class ShiftPlanner:
                     if (sid2, self.day_wd[0]) not in self.shift_wt:
                         continue
                     rest = self._rest_hours(sid, wday, sid2, self.day_wd[0])
-                    if rest < self._rest_for(e_idx, 0) or rest < 0:
+                    rest_needed = legal.needs_rest(duty) and legal.needs_rest(self.shift_duty[sid2])
+                    if rest < 0 or (rest_needed and rest < self._rest_for(e_idx, 0)):
                         self.history_blocked_shifts.setdefault(
                             (eid, 0, sid2), f"too little rest after {label}",
                         )
@@ -495,8 +528,9 @@ class ShiftPlanner:
         person = self.person.get((e_idx, d_idx))
         if person is None or (s_idx, d_idx) not in self.net_tenths:
             return None
-        if self.net_tenths[s_idx, d_idx] > round(person.max_day_hours * 10):
-            return f"more than {person.max_day_hours:g} h a day ({person.day_statute})"
+        limit, statute = legal.day_limit(person, self.shift_duty[self.shifts[s_idx]["id"]])
+        if self.net_tenths[s_idx, d_idx] > round(limit * 10):
+            return f"more than {limit:g} h a day ({statute})"
         if person.group is None:
             return None
         day = self.days[d_idx]
@@ -538,6 +572,9 @@ class ShiftPlanner:
 
     # ---- Small per-entity helpers ------------------------------------------
 
+    def _on_call(self, s_idx: int) -> bool:
+        return self.shift_duty[self.shifts[s_idx]["id"]] == "on_call"
+
     def _shift_min_emp(self, sid: str, wday: str) -> int:
         return self.shift_wt[(sid, wday)].get("min_employees", 1)
 
@@ -549,9 +586,11 @@ class ShiftPlanner:
         free_days_after_shift, or night_shift_recovery_days for night shifts
         (whichever is larger)."""
         wt = self.shift_wt[(sid, wday)]
+        # An overnight on-call duty is rest time: no night recovery owed.
+        night = self.shift_is_night[sid] and legal.needs_rest(self.shift_duty[sid])
         return max(
             wt.get("free_days_after_shift", 0),
-            self.night_recovery if self.shift_is_night[sid] else 0,
+            self.night_recovery if night else 0,
         )
 
     def _ws_unavailable_on(self, wid: str, day) -> bool:
@@ -697,6 +736,7 @@ class ShiftPlanner:
         self._limit_workstation_staffing()
         self._limit_one_shift_per_day()
         self._limit_shift_staffing()
+        self._cover_demand_curves()
         self._add_recovery_days()
         self._limit_weekly_days()
         self._limit_min_rest()
@@ -923,7 +963,8 @@ class ShiftPlanner:
         is always hard."""
         for (d_idx, s_idx, w_idx), terms in self.vars_by_day_shift_ws.items():
             wid = self.workstations[w_idx]["id"]
-            min_emp = self.ws_min_emp.get(wid, 1)
+            # A demand curve for this weekday replaces the per-shift minimum.
+            min_emp = 0 if (w_idx, self.day_wd[d_idx]) in self.ws_demand else self.ws_min_emp.get(wid, 1)
             max_emp = self.ws_max_emp.get(wid)
             if min_emp > 0:
                 self._require_min_staffing(
@@ -1061,7 +1102,10 @@ class ShiftPlanner:
                     if (sid2, wd2) not in self.shift_wt:
                         continue
                     rest_hours = self._rest_hours(sid1, wd1, sid2, wd2)
-                    if rest_hours < min_rest or rest_hours < 0:
+                    # On-call time is rest time: it needs no rest around it,
+                    # but nobody is on two duties at once.
+                    rest_needed = legal.needs_rest(self.shift_duty[sid1]) and legal.needs_rest(self.shift_duty[sid2])
+                    if rest_hours < 0 or (rest_needed and rest_hours < min_rest):
                         pairs.append((s1_idx, s2_idx))
             forbidden_cache[key] = pairs
             return pairs
@@ -1132,10 +1176,21 @@ class ShiftPlanner:
         to fill a slot that would otherwise stay empty.
         (no_night_shifts is handled at variable creation: always hard.)
         """
-        night_idx = [i for i, s in enumerate(self.shifts) if self.shift_is_night[s["id"]]]
+        night_idx = [i for i, s in enumerate(self.shifts) if self.shift_is_night[s["id"]] and not self._on_call(i)]
+        on_call_idx = [i for i in range(self.num_shifts) if self._on_call(i)]
         for e_idx, emp in enumerate(self.employees):
             max_nights = emp.get("max_nights_per_month")
             max_weekends = emp.get("max_weekends_per_month")
+            max_on_call = emp.get("max_on_call_per_month")
+            if max_on_call is not None and on_call_idx:
+                by_month: dict = {}
+                for d_idx, day in enumerate(self.days):
+                    for s_idx in on_call_idx:
+                        by_month.setdefault((day.year, day.month), []).extend(
+                            self.vars_by_emp_day_shift.get((e_idx, d_idx, s_idx), [])
+                        )
+                for (year, month), terms in by_month.items():
+                    self._cap_personal(terms, max_on_call, f"on_call_{e_idx}_{year}_{month}")
             if max_nights is not None and night_idx:
                 by_month: dict = {}
                 for d_idx, day in enumerate(self.days):
@@ -1240,8 +1295,10 @@ class ShiftPlanner:
         self._penalize_staffing_shortfalls()
         self._reward_coverage()
         self._penalize_skill_downgrades()
+        self._penalize_demand_surplus()
         self._compute_employee_hours()
         self._balance_workload()
+        self._balance_duties_long_term()
         self._penalize_monthly_hours_deviation()
         self._penalize_weekly_hours_band()
         self._penalize_preference_violations()
@@ -1304,6 +1361,8 @@ class ShiftPlanner:
     def _reward_coverage(self) -> None:
         """1) Coverage: reward assignments weighted by workstation priority."""
         for (e_idx, d_idx, s_idx, w_idx), var in self.x.items():
+            if (w_idx, self.day_wd[d_idx]) in self.ws_demand:
+                continue  # a demand curve says how many: more is surplus, not coverage
             wid = self.workstations[w_idx]["id"]
             weight = self.prio_weights.get(self.ws_priority[wid], 100)
             self.obj_terms.append(weight * var)
@@ -1530,6 +1589,8 @@ class ShiftPlanner:
         def _shift_fatigue_cost(s_idx: int, d_idx: int) -> int:
             dur = self.dur_hours[(s_idx, d_idx)]
             cost = dur * dur * 10  # tenths of a "fatigue point", quadratic in duration
+            if self._on_call(s_idx):
+                return int(cost * 0.25)  # at home, mostly not called in
             if self.shift_is_night[self.shifts[s_idx]["id"]]:
                 cost *= self.night_fatigue_mult
             return int(cost)
@@ -1597,6 +1658,157 @@ class ShiftPlanner:
                         )
                         self.obj_terms.append(self.shift_week_bonus * week_streak)
 
+
+    # ---- Demand curves (headcount by hour) ---------------------------------
+
+    def _covers_hour(self, s_idx: int, d_idx: int, hour: int, offset_days: int) -> bool:
+        """Whether shift s_idx, started on d_idx, is on duty at the middle of
+        `hour` of the day `offset_days` after it (0 = same day, 1 = next)."""
+        sid = self.shifts[s_idx]["id"]
+        wt = self.shift_wt.get((sid, self.day_wd[d_idx]))
+        if wt is None:
+            return False
+        start = _parse_time_minutes(wt["start_time"])
+        end = _parse_time_minutes(wt["end_time"])
+        if end <= start:
+            end += 24 * 60
+        mid = offset_days * 24 * 60 + hour * 60 + 30
+        return start <= mid < end
+
+    def _demand_cover_terms(self, d_idx: int, w_idx: int, hour: int) -> list:
+        """The assignments on duty at workstation w_idx in that hour of d_idx —
+        shifts started that day, and overnight ones started the day before."""
+        terms = []
+        for s_idx in range(self.num_shifts):
+            if self._covers_hour(s_idx, d_idx, hour, 0):
+                terms.extend(self.vars_by_day_shift_ws.get((d_idx, s_idx, w_idx), []))
+            if d_idx > 0 and self._covers_hour(s_idx, d_idx - 1, hour, 1):
+                terms.extend(self.vars_by_day_shift_ws.get((d_idx - 1, s_idx, w_idx), []))
+        return terms
+
+    def _cover_demand_curves(self) -> None:
+        """2c) A workstation's demand curve: every hour of a day with a curve
+        needs its headcount on duty — soft or hard as min_staffing_mode says,
+        in the coverage tier like any minimum. Which shift types are used to
+        get there is the solver's choice; surplus hours cost a little
+        (_penalize_demand_surplus)."""
+        self.demand_cover: list = []  # (d_idx, w_idx, hour, need, terms)
+        self.surplus_vars: list = []  # (var, upper bound), see _penalize_demand_surplus
+        for d_idx, day in enumerate(self.days):
+            for w_idx, ws in enumerate(self.workstations):
+                curve = self.ws_demand.get((w_idx, self.day_wd[d_idx]))
+                if curve is None or self._ws_unavailable_on(ws["id"], day):
+                    continue
+                weight = self.prio_weights.get(self.ws_priority[ws["id"]], 100)
+                for hour, need in enumerate(curve):
+                    terms = self._demand_cover_terms(d_idx, w_idx, hour)
+                    self.demand_cover.append((d_idx, w_idx, hour, need, terms))
+                    if need <= 0:
+                        continue
+                    if not terms:
+                        if self.min_staffing_hard:
+                            self.model.Add(0 >= need)  # nobody can: infeasible, as with any hard minimum
+                        continue
+                    self._require_min_staffing(terms, need, f"demand_{w_idx}_{d_idx}_{hour}", weight)
+        if self.demand_cover:
+            logger.info("Demand curves: %d workstation-hour(s) to cover", len(self.demand_cover))
+
+    def _penalize_demand_surplus(self) -> None:
+        """Person-hours planned above a demand curve cost demand_surplus_weight:
+        the solver prefers the shift mix that fits the curve."""
+        for d_idx, w_idx, hour, need, terms in getattr(self, "demand_cover", []):
+            if len(terms) <= need:
+                continue
+            surplus = self.model.NewIntVar(0, len(terms) - need, f"demand_surplus_{w_idx}_{d_idx}_{hour}")
+            self.model.Add(surplus >= sum(terms) - need)
+            # Minimised in _solve's first phase, below stability: otherwise the
+            # hour balance (everyone gets work) outbids it and staffs the
+            # whole team on a curve that asks for three.
+            self.surplus_vars.append((surplus, len(terms) - need))
+            if self.demand_surplus_w > 0:
+                self.obj_terms.append(-self.demand_surplus_w * surplus)
+
+    def _demand_gaps(self, assigned: dict) -> list[str]:
+        """'2026-09-01 ICU 07:00–09:00 1/2' for every run of hours a curve
+        asks more for than the plan has, merged per day and workstation."""
+        if not getattr(self, "demand_cover", None):
+            return []
+        on_duty: dict = {}
+        for (e_idx, d_idx), (s_idx, w_idx) in assigned.items():
+            on_duty.setdefault((d_idx, s_idx, w_idx), 0)
+            on_duty[d_idx, s_idx, w_idx] += 1
+        short: dict = {}
+        for d_idx, w_idx, hour, need, _terms in self.demand_cover:
+            have = 0
+            for s_idx in range(self.num_shifts):
+                if self._covers_hour(s_idx, d_idx, hour, 0):
+                    have += on_duty.get((d_idx, s_idx, w_idx), 0)
+                if d_idx > 0 and self._covers_hour(s_idx, d_idx - 1, hour, 1):
+                    have += on_duty.get((d_idx - 1, s_idx, w_idx), 0)
+            if have < need:
+                short.setdefault((d_idx, w_idx), []).append((hour, have, need))
+        lines = []
+        for (d_idx, w_idx), hours in sorted(short.items()):
+            run = [hours[0]]
+            for item in hours[1:] + [None]:
+                if item is not None and item[0] == run[-1][0] + 1 and item[1:] == run[-1][1:]:
+                    run.append(item)
+                    continue
+                first, last = run[0][0], run[-1][0] + 1
+                lines.append(
+                    f"{self.days[d_idx]} {self.workstations[w_idx]['name']} "
+                    f"{first:02d}:00–{last:02d}:00 {run[0][1]}/{run[0][2]}"
+                )
+                if item is not None:
+                    run = [item]
+        return lines
+
+    # ---- Long-term fairness ------------------------------------------------
+
+    def _balance_duties_long_term(self) -> None:
+        """Nights, weekend days, public-holiday shifts and on-call duties, each
+        balanced per contract hour across employees — counting what they
+        already did over the fairness horizon (`fairness_balance`, from the
+        backend), so whoever carried the unpopular duties lately gets fewer
+        now. Only when the backend sent balances; fairness_weight 0 = off."""
+        if self.fairness_w <= 0 or not any(e.get("fairness_balance") is not None for e in self.employees):
+            return
+        categories = {
+            "nights": lambda d_idx, s_idx: self.shift_is_night[self.shifts[s_idx]["id"]] and not self._on_call(s_idx),
+            "weekend_days": lambda d_idx, s_idx: self.days[d_idx].weekday() >= 5 and not self._on_call(s_idx),
+            "holiday_shifts": lambda d_idx, s_idx: self.days[d_idx] in self.holidays and not self._on_call(s_idx),
+            "on_call": lambda d_idx, s_idx: self._on_call(s_idx),
+        }
+        for name, counts in categories.items():
+            scaled_totals = []
+            any_terms = False
+            for e_idx, emp in enumerate(self.employees):
+                hours = emp.get("weekly_working_hours") or 0
+                if hours <= 0:
+                    continue  # no contract hours to prorate against
+                factor = max(1, round(4000 / hours))  # 40 h -> 100
+                before = int((emp.get("fairness_balance") or {}).get(name) or 0)
+                terms = [
+                    var
+                    for (e2, d_idx, s_idx), shift_vars in self.vars_by_emp_day_shift.items()
+                    if e2 == e_idx and counts(d_idx, s_idx)
+                    for var in shift_vars
+                ]
+                any_terms = any_terms or bool(terms)
+                total = self.model.NewIntVar(0, (before + self.num_days) * factor, f"fair_{name}_{e_idx}")
+                self.model.Add(total == factor * (before + sum(terms)))
+                scaled_totals.append(total)
+            if not any_terms or len(scaled_totals) < 2:
+                continue
+            upper = max(1, (self.num_days + max(
+                int((e.get("fairness_balance") or {}).get(name) or 0) for e in self.employees
+            )) * 4000)
+            high = self.model.NewIntVar(0, upper, f"fair_{name}_max")
+            low = self.model.NewIntVar(0, upper, f"fair_{name}_min")
+            self.model.AddMaxEquality(high, scaled_totals)
+            self.model.AddMinEquality(low, scaled_totals)
+            self.obj_terms.append(-self.fairness_w * (high - low))
+
     # ---- Solving & output --------------------------------------------------
 
     def _run_solver(self, time_limit: float, phase: str):
@@ -1635,12 +1847,16 @@ class ShiftPlanner:
         fallback = None  # phase-1 plan, if phase 2 finds nothing in time
         coverage_proven = True
 
-        if self.shortfall_vars or self.fixed_terms or self.personal_excess or self.change_terms or self.rule_breaches:
+        surplus_vars = getattr(self, "surplus_vars", [])
+        if self.shortfall_vars or self.fixed_terms or self.personal_excess or self.change_terms or self.rule_breaches or surplus_vars:
             # Fixed assignments first, then coverage, then personal limits,
-            # then stability: each tier's weight exceeds the largest total the
-            # tiers below it can reach, so the order is strict.
-            changes = sum(self.change_terms)
-            excess_weight = len(self.change_terms) + 1
+            # then stability, then surplus over demand curves: each tier's
+            # weight exceeds the largest total the tiers below it can reach,
+            # so the order is strict.
+            surplus_ub = sum(ub for _v, ub in surplus_vars)
+            change_weight = surplus_ub + 1
+            changes = change_weight * sum(self.change_terms) + sum(v for v, _ub in surplus_vars)
+            excess_weight = change_weight * len(self.change_terms) + surplus_ub + 1
             # Soft personal limits and soft skill-mix / pairing rules share a
             # tier: the ward's own soft rules, broken only for coverage.
             soft_rules = self.personal_excess + self.rule_breaches
@@ -1780,6 +1996,8 @@ class ShiftPlanner:
                     wid = ws["id"]
                     if sid not in self.ws_op_shifts[wid] or self._ws_unavailable_on(wid, day):
                         continue
+                    if (w_idx, wday) in self.ws_demand:
+                        continue  # covered hour by hour instead (_demand_gaps)
                     need = self.ws_min_emp.get(wid, 1)
                     have = per_slot.get((d_idx, s_idx, w_idx), 0)
                     if have < need:
@@ -1802,10 +2020,13 @@ class ShiftPlanner:
         plan goes over — only possible in soft mode."""
         nights: dict = {}
         weekends: dict = {}
+        on_call: dict = {}
         for (e_idx, d_idx), (s_idx, _w_idx) in assigned.items():
             day = self.days[d_idx]
-            if self.shift_is_night[self.shifts[s_idx]["id"]]:
-                key = (e_idx, day.year, day.month)
+            key = (e_idx, day.year, day.month)
+            if self._on_call(s_idx):
+                on_call[key] = on_call.get(key, 0) + 1
+            elif self.shift_is_night[self.shifts[s_idx]["id"]]:
                 nights[key] = nights.get(key, 0) + 1
             saturday = weekend_key(day, self.holidays)
             if saturday is not None:
@@ -1816,6 +2037,11 @@ class ShiftPlanner:
             if limit is not None and count > limit:
                 name = self.employees[e_idx]["name"]
                 over.append(f"{name}: {count} nights in {year}-{month:02d} (max {limit})")
+        for (e_idx, year, month), count in sorted(on_call.items()):
+            limit = self.employees[e_idx].get("max_on_call_per_month")
+            if limit is not None and count > limit:
+                name = self.employees[e_idx]["name"]
+                over.append(f"{name}: {count} on-call duties in {year}-{month:02d} (max {limit})")
         for (e_idx, year, month), saturdays in sorted(weekends.items()):
             limit = self.employees[e_idx].get("max_weekends_per_month")
             if limit is not None and len(saturdays) > limit:
@@ -1909,6 +2135,7 @@ class ShiftPlanner:
             _listing("Fixed assignment(s) not kept", not_kept),
             _listing("Ignored locked assignment(s)", self.lock_warnings),
             _listing("Below minimum staffing", gaps),
+            _listing("Demand not covered", self._demand_gaps(assigned)),
             _listing("Personal limit(s) exceeded", self._personal_limits_exceeded(assigned)),
             _listing("Skill-mix or pairing rule(s) not met", self._rule_breaches_in(assigned)),
             note,

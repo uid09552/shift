@@ -308,6 +308,7 @@ mod tests {
             color: "#000".into(),
             order: 1,
             break_minutes: 0,
+            duty_type: "regular".into(),
             weekday_times: times
                 .map(|(start, end)| {
                     (0..7)

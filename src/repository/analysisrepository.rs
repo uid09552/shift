@@ -504,7 +504,15 @@ impl AnalysisRepository for DieselAnalysisRepository {
                 .map_err(|_| AppError::Internal)?
                 .unwrap_or(models::NewPlannerSettings::defaults(&tenant_id).default_weekly_working_hours);
 
-            Ok(fairness(&staff, default_weekly, &plans, &times, &wishes, &holidays, from_date, to_date))
+            let on_call: HashSet<Uuid> = crate::schema::shifts::table
+                .filter(crate::schema::shifts::tenant_id.eq(&tenant_id))
+                .filter(crate::schema::shifts::duty_type.eq("on_call"))
+                .select(crate::schema::shifts::id)
+                .load::<Uuid>(&mut conn)
+                .map_err(|_| AppError::Internal)?
+                .into_iter()
+                .collect();
+            Ok(fairness(&staff, default_weekly, &plans, &times, &wishes, &holidays, &on_call, from_date, to_date))
         })
         .await
         .map_err(|_| AppError::Internal)?
@@ -921,6 +929,7 @@ fn fairness(
     times: &[models::ShiftWeekdayTime],
     wishes: &[models::ShiftWish],
     holidays: &HashSet<NaiveDate>,
+    on_call: &HashSet<Uuid>,
     from_date: NaiveDate,
     to_date: NaiveDate,
 ) -> Vec<EmployeeFairnessDomain> {
@@ -940,6 +949,8 @@ fn fairness(
                 night_shifts: 0,
                 weekend_days: 0,
                 weekends: 0,
+                holiday_shifts: 0,
+                on_call_duties: 0,
                 wishes_asked: 0,
                 wishes_granted: 0,
                 days_absent: 0,
@@ -958,8 +969,17 @@ fn fairness(
             continue;
         }
         let Some(shift_id) = plan.shift_id else { continue };
+        if on_call.contains(&shift_id) {
+            // On call from home: its own count — no hours, no night, no weekend.
+            row.on_call_duties += 1;
+            worked.insert((plan.employee_id, plan.date, shift_id));
+            continue;
+        }
         let count = clock.count(plan.date, shift_id);
         row.shifts += 1;
+        if holidays.contains(&plan.date) {
+            row.holiday_shifts += 1;
+        }
         row.hours += count.hours;
         if count.night {
             row.night_shifts += 1;
@@ -1070,7 +1090,7 @@ mod tests {
             models::ShiftWish { id: Uuid::new_v4(), employee_id: anna.id, shift_id: early, wish_date: date("2026-09-16"), tenant_id: "t".into(), created_at: NaiveDateTime::default() },
         ];
 
-        let rows = fairness(&staff, 40.0, &plans, &all_times, &wishes, &HashSet::new(), date("2026-09-01"), date("2026-09-30"));
+        let rows = fairness(&staff, 40.0, &plans, &all_times, &wishes, &HashSet::new(), &HashSet::new(), date("2026-09-01"), date("2026-09-30"));
 
         let a = rows.iter().find(|r| r.employee_name == "Anna").unwrap();
         assert_eq!(a.shifts, 3);
@@ -1110,6 +1130,7 @@ mod tests {
                 order: 0,
                 tenant_id: "t".into(),
                 break_minutes: 30,
+                duty_type: "regular".into(),
             })
             .collect();
         roster_facts(RosterFactInput {
@@ -1146,7 +1167,7 @@ mod tests {
         ];
 
         let facts = facts_for(&staff, &all_times, &plans, &holidays, "2026-09-01", "2026-09-30");
-        let fair = fairness(&staff, 40.0, &plans, &all_times, &[], &holidays, date("2026-09-01"), date("2026-09-30"));
+        let fair = fairness(&staff, 40.0, &plans, &all_times, &[], &holidays, &HashSet::new(), date("2026-09-01"), date("2026-09-30"));
         let a = fair.iter().find(|r| r.employee_name == "Anna").unwrap();
 
         let rows = &facts.rows;
@@ -1232,7 +1253,7 @@ mod tests {
         facts.dims.shifts.sort_by_key(|s| s.id);
         let index: HashMap<Uuid, usize> = facts.dims.shifts.iter().enumerate().map(|(i, s)| (s.id, i)).collect();
         facts.rows.shift = plans.iter().map(|p| p.shift_id.map(|s| index[&s])).collect();
-        let fair = fairness(&staff, 40.0, &plans, &all_times, &[], &holidays, date(from), date(to));
+        let fair = fairness(&staff, 40.0, &plans, &all_times, &[], &holidays, &HashSet::new(), date(from), date(to));
 
         let actual = serde_json::json!({
             "_about": "Written by analysisrepository.rs (hours_fixture_matches_what_the_backend_sends_and_counts); read by model/hours.spec.ts. Do not edit by hand.",
@@ -1273,7 +1294,7 @@ mod tests {
         t[1].end_time = NaiveTime::from_hms_opt(18, 0, 0).unwrap();
         let staff = [employee("Anna", Some(0.0))];
         let plans = [plan(&staff[0], "2026-09-07", Some(shift), None)];
-        let rows = fairness(&staff, 40.0, &plans, &t, &[], &HashSet::new(), date("2026-09-07"), date("2026-09-07"));
+        let rows = fairness(&staff, 40.0, &plans, &t, &[], &HashSet::new(), &HashSet::new(), date("2026-09-07"), date("2026-09-07"));
         assert_eq!(rows[0].hours, 8.0);
     }
 }

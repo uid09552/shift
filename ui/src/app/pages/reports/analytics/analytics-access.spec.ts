@@ -68,10 +68,12 @@ describe('Analytics access', () => {
   };
 
   it('shows Analytics next to the network page in a planner\'s Reports menu', () => {
-    expect(reportPaths(true)).toEqual(['/ontology', '/analytics']);
+    expect(reportPaths(true)).toEqual(['/ontology', '/analytics', '/forecast']);
   });
 
   it('hides it from a viewer', () => {
-    expect(reportPaths(false)).not.toContain('/analytics');
+    const paths = reportPaths(false);
+    expect(paths).not.toContain('/analytics');
+    expect(paths).not.toContain('/forecast');
   });
 });

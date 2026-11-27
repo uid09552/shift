@@ -51,6 +51,10 @@ export interface EmployeeFairness {
   night_shifts: number;
   weekend_days: number;
   weekends: number;
+  /** Shifts on a public holiday (on-call duties not included). */
+  holiday_shifts?: number;
+  /** On-call duties, counted apart: no hours, no nights. */
+  on_call_duties?: number;
   wishes_asked: number;
   wishes_granted: number;
   /** Sick, leave or holiday — not a plain day off. */

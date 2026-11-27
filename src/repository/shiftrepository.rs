@@ -71,6 +71,7 @@ impl ShiftRepository for DieselShiftRepository {
                 color: shift.color,
                 order: shift.order,
                 break_minutes: shift.break_minutes,
+                duty_type: shift.duty_type,
                 weekday_times: vec![],
             })
         })
@@ -99,11 +100,27 @@ impl ShiftRepository for DieselShiftRepository {
                         color: shift.color,
                         order: shift.order,
                         break_minutes: shift.break_minutes,
+                        duty_type: shift.duty_type,
                         weekday_times: wt_map.get(&shift.id).cloned().unwrap_or_default(),
                     }))
                 }
                 None => Ok(None),
             }
+        })
+        .await.map_err(|_| AppError::Internal)?
+    }
+
+    async fn set_shift_duty_type(&self, tenant_id: &str, id: Uuid, duty_type: &str) -> Result<(), AppError> {
+        let tenant_id = tenant_id.to_string();
+        let duty_type = duty_type.to_string();
+        let pool = Arc::clone(&self.pool);
+        telemetry::db_blocking(move || {
+            let mut conn = pool.get().map_err(|_| AppError::DbError)?;
+            let n = diesel::update(shifts::table.filter(shifts::id.eq(id)).filter(shifts::tenant_id.eq(&tenant_id)))
+                .set(shifts::duty_type.eq(&duty_type))
+                .execute(&mut conn)
+                .map_err(|_| AppError::DbError)?;
+            if n == 0 { Err(AppError::NotFound) } else { Ok(()) }
         })
         .await.map_err(|_| AppError::Internal)?
     }
@@ -163,6 +180,7 @@ impl ShiftRepository for DieselShiftRepository {
                 color: updated_shift.color,
                 order: updated_shift.order,
                 break_minutes: updated_shift.break_minutes,
+                duty_type: updated_shift.duty_type,
                 weekday_times: vec![],
             })
         })
@@ -190,6 +208,7 @@ impl ShiftRepository for DieselShiftRepository {
                 color: s.color,
                 order: s.order,
                 break_minutes: s.break_minutes,
+                duty_type: s.duty_type,
                 weekday_times: wt_map.get(&s.id).cloned().unwrap_or_default(),
             }).collect();
 

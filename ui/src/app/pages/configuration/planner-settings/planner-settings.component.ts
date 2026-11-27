@@ -644,6 +644,36 @@ const DEFAULT_BAND: { min: number; max: number } = { min: 30, max: 45 };
                 </span>
               </button>
             </app-setting-row>
+
+            <!-- Long-term fairness: the duty balance continues across periods -->
+            <app-setting-row
+              controlId="fairnessHorizon"
+              [label]="'plannerSettings.fairnessHorizon.label' | t"
+              [description]="'plannerSettings.fairnessHorizon.hint' | t"
+              [tooltip]="'plannerSettings.fairnessHorizon.tooltip' | t"
+            >
+              <app-range-slider
+                id="fairnessHorizon"
+                data-testid="planner-settings-fairness-horizon"
+                [min]="0" [max]="24" [step]="1"
+                [value]="form.fairness_horizon_months ?? 6"
+                [valueLabel]="monthsLabel(form.fairness_horizon_months ?? 6)"
+                (valueChange)="form.fairness_horizon_months = $event"
+              />
+            </app-setting-row>
+            <app-setting-row
+              controlId="fairnessWeight"
+              [label]="'plannerSettings.fairnessWeight.label' | t"
+              [description]="'plannerSettings.fairnessWeight.hint' | t"
+            >
+              <app-range-slider
+                id="fairnessWeight"
+                data-testid="planner-settings-fairness-weight"
+                [min]="0" [max]="20000" [step]="500"
+                [value]="form.fairness_weight ?? 2000"
+                (valueChange)="form.fairness_weight = $event"
+              />
+            </app-setting-row>
           </div>
         </section>
 
@@ -890,6 +920,8 @@ export class PlannerSettingsComponent implements OnInit {
     publish_lead_days: 28,
     freeze_days: 7,
     change_weight: 100000,
+    fairness_horizon_months: 6,
+    fairness_weight: 2000,
     labor_law_profile: 'none',
     labor_law_averaging_weeks: 24,
     use_case: null,
@@ -1081,6 +1113,10 @@ export class PlannerSettingsComponent implements OnInit {
 
   onSliderChange(field: SliderField, value: number): void {
     this.form[field] = value;
+  }
+
+  monthsLabel(value: number): string {
+    return value === 0 ? this.translations.t('plannerSettings.fairnessHorizon.off') : this.translations.t('plannerSettings.fairnessHorizon.months', { count: value });
   }
 
   daysLabel(value: number): string {

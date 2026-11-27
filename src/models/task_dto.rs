@@ -59,6 +59,9 @@ pub struct ConstraintTask {
     pub labor_law_profile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub labor_law_averaging_weeks: Option<i16>,
+    /// Weight of the long-term duty balance (`employees[].fairness_balance`); 0 = off.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fairness_weight: Option<i32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -142,6 +145,9 @@ pub struct HistoryShiftTask {
     pub employee_id: String,
     pub date: String,
     pub shift_id: String,
+    /// On an on-call duty: the minutes actually called in (working time).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub called_in_minutes: Option<i32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -176,7 +182,31 @@ pub struct ShiftTask {
     /// Unpaid break inside the shift's span; counted off its hours.
     #[serde(default)]
     pub break_minutes: i16,
+    /// `regular`, `standby` (on-site, working time) or `on_call` (from home,
+    /// rest time until called in) — see planner/shift_planner/legal.py.
+    #[serde(default = "regular_duty")]
+    pub duty_type: String,
     pub weekday_times: Vec<ShiftWeekdayTimeTask>,
+}
+
+fn regular_duty() -> String {
+    "regular".to_string()
+}
+
+/// A workstation's headcount per hour of one weekday ("0" = Monday … "6").
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct DemandCurveTask {
+    pub weekday: String,
+    pub hours: Vec<i16>,
+}
+
+/// What an employee already did over the fairness horizon before the period.
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
+pub struct FairnessBalanceTask {
+    pub nights: i64,
+    pub weekend_days: i64,
+    pub holiday_shifts: i64,
+    pub on_call: i64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -196,6 +226,9 @@ pub struct WorkstationTask {
     pub max_employees: Option<i16>,
     #[serde(default)]
     pub unavailability: Vec<WorkstationUnavailabilityRange>,
+    /// Headcount by hour; a weekday with a curve replaces `min_employees` there.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub demand: Vec<DemandCurveTask>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -259,6 +292,11 @@ pub struct EmployeeTask {
     /// Shifts a recurring availability rule takes out on given days — hard.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blocked_shifts: Vec<BlockedShiftTask>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_on_call_per_month: Option<i16>,
+    /// The long-term duty balance; None when fairness_horizon_months is 0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fairness_balance: Option<FairnessBalanceTask>,
 }
 
 /// One shift on one day an employee's recurring availability rules out.

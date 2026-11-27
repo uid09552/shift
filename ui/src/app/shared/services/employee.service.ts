@@ -66,6 +66,8 @@ export interface AddAvailableShiftRequest {
 export interface PersonalLimits {
   max_nights_per_month: number | null;
   max_weekends_per_month: number | null;
+  /** On-call duties per calendar month (null = no limit). */
+  max_on_call_per_month?: number | null;
   no_night_shifts: boolean;
   preferred_days_off: number[];
   /** YYYY-MM-DD; the labor-law profile applies JArbSchG while under 18. Planners and admins only. */

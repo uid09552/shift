@@ -1,3 +1,4 @@
+import { DemandEditorComponent } from './demand-editor.component';
 import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -53,7 +54,7 @@ interface WorkstationForm {
     ButtonComponent,
     DateRangePickerComponent,
     LoadErrorComponent,
-    TranslatePipe,
+    TranslatePipe, DemandEditorComponent,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
@@ -220,6 +221,7 @@ interface WorkstationForm {
           </div>
         </div>
       </div>
+      <app-demand-editor [workstationId]="editingId" />
     }
     </app-form-page>
   `,

@@ -2674,6 +2674,205 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /workstation-demand:
+    get:
+      tags: [Workstations]
+      summary: Every workstation's demand curves
+      operationId: listWorkstationDemand
+      responses:
+        '200':
+          description: Curves per workstation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkstationDemand'
+
+  /workstations/{workstation_id}/demand:
+    parameters:
+      - name: workstation_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Workstations]
+      summary: A workstation's staffing demand by hour
+      operationId: getWorkstationDemand
+      responses:
+        '200':
+          description: The curves (weekdays without one are left out)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkstationDemand'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Workstations]
+      summary: Replace a workstation's demand curves
+      description: >
+        Planners and admins. One entry per weekday (0 = Monday … 6 = Sunday, which
+        public holidays use too), 24 headcounts each (0–99); all-zero days are
+        dropped and an empty list removes every curve. On a weekday with a curve
+        the optimizer covers every hour (soft or hard per min_staffing_mode)
+        instead of the workstation's per-shift minimum, keeps surplus low, and
+        names uncovered hours in `message` ("Demand not covered").
+      operationId: putWorkstationDemand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                weekdays:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/DemandDay'
+      responses:
+        '200':
+          description: The stored curves
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkstationDemand'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /call-ins:
+    get:
+      tags: [Shifts]
+      summary: Call-ins on on-call duties in a period
+      description: Planners and admins see everyone's; a viewer their own. At most a year.
+      operationId: listCallIns
+      parameters:
+        - { name: from_date, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to_date, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Call-ins by day
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CallIn'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    put:
+      tags: [Shifts]
+      summary: Record the minutes someone on call was called in
+      description: >
+        Planners and admins, afterwards. The confirmed roster that day must be an
+        on-call duty (400 otherwise). Replaces what was recorded. The minutes count
+        as working time for the labor-law hour windows of later plans
+        (`history[].called_in_minutes`).
+      operationId: recordCallIn
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employee_id, date, minutes]
+              properties:
+                employee_id: { type: string, format: uuid }
+                date: { type: string, format: date }
+                minutes: { type: integer, minimum: 0, maximum: 1440 }
+                note: { type: string, nullable: true }
+      responses:
+        '200':
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CallIn'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /call-ins/{employee_id}/{date}:
+    delete:
+      tags: [Shifts]
+      summary: Remove a recorded call-in
+      operationId: deleteCallIn
+      parameters:
+        - { name: employee_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: date, in: path, required: true, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Removed
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /planner/scenarios:
+    post:
+      tags: [Planner]
+      summary: Solve a what-if scenario
+      description: >
+        Planners and admins. The real planning input of the period with overrides
+        — extra absences, closed workstations, hypothetical hires, a different
+        minimum staffing — solved like any run (poll `/planner/plan/{task_id}/status`).
+        The result is stored with `source: scenario`: never the latest proposal,
+        listed only with `?scenarios=true`, and refused by Take as Plan (409).
+        Nothing is written to the roster.
+      operationId: createScenario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenarioRequest'
+      responses:
+        '200':
+          description: The run's task
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task_id: { type: string, format: uuid }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          description: The planner queue is not available
+
+  /analysis/capacity-forecast:
+    get:
+      tags: [Analysis]
+      summary: Capacity forecast per month
+      description: >
+        Planners and admins. For each month: contracted hours (weekly × days ÷ 7)
+        minus recorded whole-day absences on weekdays (a fifth of the week each)
+        against the hours the workstations need — their per-shift minimum, or
+        their demand curve — in total and per capability (one person counts for
+        each capability they hold). `gap_hours` > 0 is a shortfall.
+      operationId: getCapacityForecast
+      parameters:
+        - { name: from, in: query, required: false, description: First month (YYYY-MM), default this month, schema: { type: string } }
+        - { name: months, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 12, default: 6 } }
+      responses:
+        '200':
+          description: The forecast
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CapacityForecast'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /saved-views:
     get:
       tags: [Saved Views]
@@ -3413,7 +3612,13 @@ paths:
       parameters:
         - name: latest
           in: query
-          description: When true, returns only the most recent optimization result
+          description: When true, returns only the most recent optimization result (never a scenario's)
+          schema:
+            type: boolean
+            default: false
+        - name: scenarios
+          in: query
+          description: When true, lists only what-if scenarios' results; otherwise they are left out
           schema:
             type: boolean
             default: false
@@ -5571,6 +5776,21 @@ components:
             A change to a published month on a day from today to today + freeze_days − 1
             needs a reason (`X-Change-Reason`). 0 switches the freeze window off.
           example: 7
+        fairness_horizon_months:
+          type: integer
+          minimum: 0
+          maximum: 24
+          default: 6
+          description: >
+            Months of confirmed roster before a period whose nights, weekend days,
+            public-holiday shifts and on-call duties the optimizer balances per
+            contract hour together with the period's (`employees[].fairness_balance`);
+            also turns on the year-end holiday rotation. 0 = off.
+        fairness_weight:
+          type: integer
+          minimum: 0
+          default: 2000
+          description: Weight of that long-term balance in the optimizer (0 = off).
         change_weight:
           type: integer
           minimum: 0
@@ -5799,6 +6019,21 @@ components:
           type: integer
           minimum: 0
           default: 100000
+        fairness_horizon_months:
+          type: integer
+          minimum: 0
+          maximum: 24
+          default: 6
+          description: >
+            Months of confirmed roster before a period whose nights, weekend days,
+            public-holiday shifts and on-call duties the optimizer balances per
+            contract hour together with the period's (`employees[].fairness_balance`);
+            also turns on the year-end holiday rotation. 0 = off.
+        fairness_weight:
+          type: integer
+          minimum: 0
+          default: 2000
+          description: Weight of that long-term balance in the optimizer (0 = off).
         labor_law_profile:
           type: string
           enum: [none, arbzg_de]
@@ -6001,6 +6236,15 @@ components:
           maximum: 240
           default: 0
           description: Unpaid break inside the shift's start–end span, in minutes; counted off its hours. ArbZG asks 30 above 6 h and 45 above 9 h
+        duty_type:
+          type: string
+          enum: [regular, standby, on_call]
+          default: regular
+          description: >
+            `standby` is on-site standby (Bereitschaftsdienst): working time, up to
+            24 h a day under the arbzg_de profile. `on_call` is on call from home
+            (Rufbereitschaft): rest time — no hours, no rest needed around it, no
+            night recovery; only recorded call-ins (`/call-ins`) count as work.
         weekday_times:
           type: array
           description: Start/end times per weekday for this shift
@@ -6128,6 +6372,15 @@ components:
           maximum: 240
           default: 0
           description: Unpaid break inside the shift's start–end span, in minutes; counted off its hours. ArbZG asks 30 above 6 h and 45 above 9 h
+        duty_type:
+          type: string
+          enum: [regular, standby, on_call]
+          default: regular
+          description: >
+            `standby` is on-site standby (Bereitschaftsdienst): working time, up to
+            24 h a day under the arbzg_de profile. `on_call` is on call from home
+            (Rufbereitschaft): rest time — no hours, no rest needed around it, no
+            night recovery; only recorded call-ins (`/call-ins`) count as work.
 
     Capability:
       type: object
@@ -6630,6 +6883,119 @@ components:
         constraints:
           $ref: '#/components/schemas/ConstraintTask'
 
+    DemandDay:
+      type: object
+      required: [weekday, hours]
+      properties:
+        weekday: { type: integer, minimum: 0, maximum: 6 }
+        hours:
+          type: array
+          minItems: 24
+          maxItems: 24
+          items: { type: integer, minimum: 0, maximum: 99 }
+    WorkstationDemand:
+      type: object
+      properties:
+        workstation_id: { type: string, format: uuid }
+        weekdays:
+          type: array
+          items:
+            $ref: '#/components/schemas/DemandDay'
+    CallIn:
+      type: object
+      properties:
+        employee_id: { type: string, format: uuid }
+        date: { type: string, format: date }
+        minutes: { type: integer }
+        note: { type: string, nullable: true }
+        recorded_by: { type: string, nullable: true }
+    ScenarioRequest:
+      type: object
+      required: [name, start_date, end_date]
+      properties:
+        name: { type: string, maxLength: 80 }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
+        employee_ids:
+          type: array
+          nullable: true
+          items: { type: string, format: uuid }
+        overrides:
+          type: object
+          properties:
+            absences:
+              type: array
+              items:
+                type: object
+                required: [employee_id, from_date, to_date]
+                properties:
+                  employee_id: { type: string, format: uuid }
+                  from_date: { type: string, format: date }
+                  to_date: { type: string, format: date }
+            closed_workstations:
+              type: array
+              items:
+                type: object
+                required: [workstation_id, from_date, to_date]
+                properties:
+                  workstation_id: { type: string, format: uuid }
+                  from_date: { type: string, format: date }
+                  to_date: { type: string, format: date }
+            extra_employees:
+              type: array
+              description: Hypothetical hires (at most 50 people in all); they start with the team's average fairness balance
+              items:
+                type: object
+                required: [name]
+                properties:
+                  name: { type: string }
+                  capability_ids: { type: array, items: { type: string, format: uuid } }
+                  shift_ids: { type: array, items: { type: string, format: uuid } }
+                  weekly_working_hours: { type: number, nullable: true, minimum: 0, maximum: 80 }
+                  count: { type: integer, minimum: 1, default: 1 }
+            min_staffing:
+              type: array
+              description: A different minimum per shift at a workstation; it replaces any demand curve there
+              items:
+                type: object
+                required: [workstation_id, min_employees]
+                properties:
+                  workstation_id: { type: string, format: uuid }
+                  min_employees: { type: integer, minimum: 0, maximum: 99 }
+    CapacityForecast:
+      type: object
+      properties:
+        from: { type: string, description: YYYY-MM }
+        months:
+          type: array
+          items:
+            type: object
+            properties:
+              month: { type: string }
+              days: { type: integer }
+              contracted_hours: { type: number }
+              absence_hours: { type: number }
+              available_hours: { type: number }
+              required_hours: { type: number }
+              gap_hours: { type: number }
+              workstations:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, format: uuid }
+                    name: { type: string }
+                    required_hours: { type: number }
+              capabilities:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, format: uuid }
+                    name: { type: string }
+                    required_hours: { type: number }
+                    available_hours: { type: number }
+                    gap_hours: { type: number }
     SavedView:
       type: object
       required: [id, page, name, filters, shared, mine]
@@ -7233,6 +7599,12 @@ components:
           minimum: 0
           maximum: 5
           description: Weekends (Saturday and/or Sunday worked) per calendar month; null = no limit
+        max_on_call_per_month:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 31
+          description: On-call duties (duty type on_call) per calendar month; null = no limit
         no_night_shifts:
           type: boolean
           description: Never on a night shift — always a hard rule
@@ -7275,6 +7647,11 @@ components:
           nullable: true
           minimum: 0
           maximum: 5
+        max_on_call_per_month:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 31
         no_night_shifts:
           type: boolean
           default: false
@@ -8192,10 +8569,16 @@ components:
           example: null
         source:
           type: string
-          enum: [manual, auto]
+          enum: [manual, auto, scenario]
           description: |
-            How the run was started: `manual` or `auto`. Set by the backend when it
+            How the run was started: `manual`, `auto` or `scenario` (a what-if
+            scenario, `POST /planner/scenarios`). Set by the backend when it
             stores the result; absent on results stored before automatic planning.
+        scenario:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: A what-if scenario's `name` and `overrides`. Such a result is never the latest proposal and never taken as the roster.
 
     EmployeeDailyPlan:
       type: object
@@ -8684,6 +9067,12 @@ components:
         weekends:
           type: integer
           description: Weekends with at least one day worked
+        holiday_shifts:
+          type: integer
+          description: Shifts on a public holiday (on-call duties not included)
+        on_call_duties:
+          type: integer
+          description: On-call duties, counted apart — no hours, no nights, no weekends
         wishes_asked:
           type: integer
         wishes_granted:

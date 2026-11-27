@@ -11,6 +11,8 @@ export type FairnessColumn =
   | 'target_delta'
   | 'night_shifts'
   | 'weekend_days'
+  | 'holiday_shifts'
+  | 'on_call_duties'
   | 'wishes'
   | 'days_absent';
 
@@ -34,6 +36,10 @@ function value(row: EmployeeFairness, column: FairnessColumn): number | string |
       return targetDelta(row);
     case 'wishes':
       return wishRate(row);
+    case 'holiday_shifts':
+      return row.holiday_shifts ?? 0;
+    case 'on_call_duties':
+      return row.on_call_duties ?? 0;
     default:
       return row[column];
   }

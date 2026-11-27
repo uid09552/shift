@@ -99,6 +99,9 @@ fn validate(body: &mut UpdatePersonalLimits) -> Result<(), AppError> {
     if body.max_weekends_per_month.is_some_and(|n| !(0..=5).contains(&n)) {
         return Err(AppError::Validation("max_weekends_per_month must be between 0 and 5".into()));
     }
+    if body.max_on_call_per_month.is_some_and(|n| !(0..=31).contains(&n)) {
+        return Err(AppError::Validation("max_on_call_per_month must be between 0 and 31".into()));
+    }
     if body.preferred_days_off.iter().any(|d| !(0..=6).contains(d)) {
         return Err(AppError::Validation(
             "preferred_days_off holds weekdays 0 (Monday) to 6 (Sunday)".into(),
@@ -122,6 +125,7 @@ mod tests {
             max_weekends_per_month: weekends,
             no_night_shifts: false,
             preferred_days_off: days.to_vec(),
+            max_on_call_per_month: None,
             date_of_birth: None,
             maternity_protection: false,
         }

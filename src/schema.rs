@@ -44,6 +44,7 @@ diesel::table! {
         order -> Int4,
         tenant_id -> Varchar,
         break_minutes -> Int2,
+        duty_type -> Varchar,
     }
 }
 
@@ -212,6 +213,8 @@ diesel::table! {
         auto_plan_last_note -> Nullable<Text>,
         auto_plan_last_task_id -> Nullable<Uuid>,
         auto_plan_last_started_at -> Nullable<Timestamp>,
+        fairness_horizon_months -> Int2,
+        fairness_weight -> Int4,
     }
 }
 
@@ -227,6 +230,7 @@ diesel::table! {
         updated_at -> Timestamptz,
         date_of_birth -> Nullable<Date>,
         maternity_protection -> Bool,
+        max_on_call_per_month -> Nullable<Int2>,
     }
 }
 
@@ -527,6 +531,27 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    on_call_call_ins (employee_id, date) {
+        tenant_id -> Varchar,
+        employee_id -> Uuid,
+        date -> Date,
+        minutes -> Int4,
+        note -> Nullable<Varchar>,
+        recorded_by -> Nullable<Varchar>,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    workstation_demand (workstation_id, weekday) {
+        tenant_id -> Varchar,
+        workstation_id -> Uuid,
+        weekday -> Int2,
+        hours -> Array<Int2>,
+    }
+}
+
 diesel::joinable!(planning_tasks -> optimized_shift_results (result_id));
 diesel::joinable!(employee_available_shifts -> employees (employee_id));
 diesel::joinable!(employee_available_shifts -> shifts (shift_id));
@@ -596,4 +621,6 @@ diesel::allow_tables_to_appear_in_same_query!(
     availability_rules,
     saved_views,
     saved_view_preferences,
+    on_call_call_ins,
+    workstation_demand,
 );

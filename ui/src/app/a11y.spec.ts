@@ -18,6 +18,8 @@ import { ConfirmDialogService } from './shared/components/ui/confirm-dialog/conf
 import { EmployeeService } from './shared/services/employee.service';
 import { PlannerSettingsService } from './shared/services/planner-settings.service';
 import { Component } from '@angular/core';
+import { ForecastComponent } from './pages/reports/forecast/forecast.component';
+import { ScenariosComponent } from './pages/planner/scenarios/scenarios.component';
 
 /**
  * Automated accessibility checks (axe-core) on the pages the WCAG pass is
@@ -165,6 +167,32 @@ describe('Accessibility (axe)', () => {
     await fixture.whenStable();
     fixture.detectChanges();
     await expectAccessible(fixture.nativeElement);
+  });
+
+  it('Capacity forecast and scenarios, colour contrast included', async () => {
+    configure();
+    const forecast = TestBed.createComponent(ForecastComponent);
+    forecast.detectChanges();
+    const month = (m: string, available: number, required: number) => ({
+      month: m, days: 30, contracted_hours: available, absence_hours: 0, available_hours: available, required_hours: required,
+      gap_hours: required - available, workstations: [], capabilities: [{ id: 'c1', name: 'ICU care', required_hours: required, available_hours: available, gap_hours: required - available }],
+    });
+    answer('/analysis/capacity-forecast', { from: '2026-12', months: [month('2026-12', 400, 300), month('2027-01', 300, 420)] });
+    forecast.detectChanges();
+    await expectAccessible(forecast.nativeElement, { contrast: true });
+
+    const scenarios = TestBed.createComponent(ScenariosComponent);
+    scenarios.detectChanges();
+    answer('/employees', { data: [anna], total: 1 });
+    answer('/workstations', [ward]);
+    answer('/shifts', [shift]);
+    answer('/capabilities', [{ id: 'c1', name: 'General care' }]);
+    answer('/optimized-shifts', { data: [], total: 0 });
+    scenarios.componentInstance.addAbsence();
+    scenarios.componentInstance.addHire();
+    scenarios.detectChanges();
+    await scenarios.whenStable();
+    await expectAccessible(scenarios.nativeElement, { contrast: true });
   });
 
   it('the command palette is a labelled combobox dialog', async () => {

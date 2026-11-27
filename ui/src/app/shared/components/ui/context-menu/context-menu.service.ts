@@ -8,7 +8,8 @@ export type ContextMenuIcon =
   | 'workstation'
   | 'trash'
   | 'plus'
-  | 'ban';
+  | 'ban'
+  | 'clock';
 
 export interface ContextMenuItem {
   label: string;

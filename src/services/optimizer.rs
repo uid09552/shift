@@ -62,6 +62,8 @@ pub struct ListOptimizedShiftResultsQuery {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub latest: Option<bool>,
+    /// true: only what-if scenarios' results; otherwise real proposals only.
+    pub scenarios: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -291,7 +293,10 @@ impl OptimizerService {
             });
         }
 
+        let on_call_shifts: std::collections::HashSet<Uuid> =
+            shifts.iter().filter(|s| s.duty_type == "on_call").map(|s| s.id).collect();
         let shift_tasks = Self::build_shift_tasks(shifts);
+        let mut demand_map = crate::services::demand::curves_for_tenant(state, tenant_id).await?;
 
         let total_workstations = workstations.len();
         let workstation_tasks: Vec<WorkstationTask> = workstations.into_iter()
@@ -307,6 +312,12 @@ impl OptimizerService {
                     min_employees: ws.min_employees,
                     max_employees: ws.max_employees,
                     unavailability,
+                    demand: demand_map
+                        .remove(&ws.id)
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|(weekday, hours)| crate::models::DemandCurveTask { weekday: weekday.to_string(), hours })
+                        .collect(),
                 }
             }).collect();
 
@@ -340,6 +351,7 @@ impl OptimizerService {
             .await?;
         let history_start = period_start - chrono::Duration::days(history_days(&planner_settings));
         let history_end = period_start - chrono::Duration::days(1);
+        let call_ins = crate::services::call_in::minutes_in_range(state, tenant_id, history_start, history_end).await?;
         let history: Vec<HistoryShiftTask> = state
             .confirmed_shift_plan_repo
             .get_confirmed_shift_plans_for_date_range(tenant_id, history_start, history_end, None, None, false)
@@ -351,6 +363,10 @@ impl OptimizerService {
                     employee_id: p.employee_id.to_string(),
                     date: p.date.to_string(),
                     shift_id: shift_id.to_string(),
+                    called_in_minutes: on_call_shifts
+                        .contains(&shift_id)
+                        .then(|| call_ins.get(&(p.employee_id, p.date)).copied())
+                        .flatten(),
                 })
             })
             .collect();
@@ -395,6 +411,20 @@ impl OptimizerService {
             .await?
             .default_weekly_working_hours;
 
+        // Long-term fairness: what each employee did over the horizon before
+        // the period, and who worked which year-end holiday last year.
+        let mut balance_map = crate::services::fairness_history::balances(
+            state, tenant_id, period_start, planner_settings.fairness_horizon_months,
+        ).await?;
+        if planner_settings.fairness_horizon_months > 0 {
+            for (employee_id, days) in crate::services::fairness_history::holiday_rotation(state, tenant_id, period_start, period_end).await? {
+                preferred_off_map.entry(employee_id).or_default().extend(days.into_iter().map(|d| PreferredOffTask {
+                    date: d.to_string(),
+                    shift_id: None,
+                }));
+            }
+        }
+
         let employee_tasks: Vec<EmployeeTask> = employees.into_iter()
             .map(|emp| {
                 let unavailability = unavail_map.get(&emp.id).cloned().unwrap_or_default();
@@ -437,6 +467,8 @@ impl OptimizerService {
                     date_of_birth: limits.date_of_birth.map(|d| d.to_string()),
                     maternity_protection: limits.maternity_protection.unwrap_or(false),
                     preferred_days_off: limits.preferred_days_off.iter().map(|d| d.to_string()).collect(),
+                    max_on_call_per_month: limits.max_on_call_per_month,
+                    fairness_balance: balance_map.remove(&emp.id),
                 }
             }).collect();
 
@@ -504,6 +536,7 @@ impl OptimizerService {
                 name: shift.name,
                 is_night_shift,
                 break_minutes: shift.break_minutes,
+                duty_type: shift.duty_type,
                 weekday_times,
             }
         }).collect()
@@ -530,15 +563,32 @@ impl OptimizerService {
         constraints: Option<ConstraintTask>,
         source: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.state.nats_client.as_ref().ok_or("NATS client not configured")?;
+        let task_dto = Self::build_task_dto(&self.state, tenant_id, employee_filter, start_date, end_date, constraints).await?;
+        self.publish(tenant_id, task_id, &task_dto, source, None).await
+    }
+
+    /// Stores the task and publishes it to the planner. `scenario`, when given,
+    /// rides along in the payload (the planner ignores it) and marks the result
+    /// as a what-if scenario's — see services::scenario.
+    pub async fn publish(
+        &self,
+        tenant_id: &str,
+        task_id: Uuid,
+        task_dto: &TaskDTO,
+        source: &str,
+        scenario: Option<serde_json::Value>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let nats_client = self.state.nats_client.as_ref()
             .ok_or("NATS client not configured")?;
 
-        let task_dto = Self::build_task_dto(&self.state, tenant_id, employee_filter, start_date, end_date, constraints).await?;
-
         // Wrap with job_id so the Python can echo it back
-        let mut payload_value = serde_json::to_value(&task_dto)?;
+        let mut payload_value = serde_json::to_value(task_dto)?;
         if let serde_json::Value::Object(ref mut map) = payload_value {
             map.insert("job_id".to_string(), serde_json::Value::String(task_id.to_string()));
+            if let Some(scenario) = scenario {
+                map.insert("scenario".to_string(), scenario);
+            }
             // NATS carries no headers here, so the trace context rides along in
             // the payload: the planner picks it up and its solve shows up under
             // the request that asked for the plan.
@@ -669,6 +719,7 @@ pub async fn handle_result_message(
     // Deserialize the result, store it, update task
     let mut result_dto: TaskResultDto = serde_json::from_value(raw.clone())?;
     result_dto.source = task.as_ref().map(|t| t.source.clone());
+    result_dto.scenario = task.as_ref().and_then(|t| t.payload.get("scenario").cloned());
     let result_json = serde_json::to_value(&result_dto)?;
     let stored = state.optimized_shift_result_repo.create_optimized_shift_result(tenant_id, result_json).await?;
     state.planning_task_repo.update_planning_task_done(tenant_id, job_id, stored.id).await?;
@@ -722,6 +773,7 @@ pub(crate) async fn build_constraints(
                 keep_fixed_assignments: Some(s.keep_fixed_assignments),
                 personal_limits_mode: Some(s.personal_limits_mode.as_str().to_string()),
                 change_weight: Some(s.change_weight),
+                fairness_weight: Some(if s.fairness_horizon_months > 0 { s.fairness_weight } else { 0 }),
                 labor_law_profile: Some(s.labor_law_profile.clone()),
                 labor_law_averaging_weeks: Some(s.labor_law_averaging_weeks),
             }
@@ -839,9 +891,10 @@ pub async fn list_optimized_shifts(
     }
     let limit = q.limit.map(|l| l as i64);
     let offset = q.offset.map(|o| o as i64);
-    let results = state.optimized_shift_result_repo.list_optimized_shift_results(&tenant.0, limit, offset).await
+    let scenarios = q.scenarios.unwrap_or(false);
+    let results = state.optimized_shift_result_repo.list_optimized_shift_results(&tenant.0, limit, offset, scenarios).await
         .map_err(|e| { eprintln!("Failed to list optimized shift results: {}", e); AppError::Internal })?;
-    let total = state.optimized_shift_result_repo.count_optimized_shift_results(&tenant.0).await
+    let total = state.optimized_shift_result_repo.count_optimized_shift_results(&tenant.0, scenarios).await
         .map_err(|e| { eprintln!("Failed to count optimized shift results: {}", e); AppError::Internal })?;
     let data: Vec<OptimizedShiftResultResponse> = results.into_iter().filter_map(|r| {
         let result_dto: TaskResultDto = serde_json::from_value(r.result.clone()).ok()?;
@@ -987,6 +1040,11 @@ pub async fn take_as_plan(
         .ok_or(AppError::NotFound)?;
     let result: TaskResultDto = serde_json::from_value(stored.result)
         .map_err(|_| AppError::Internal)?;
+    if result.source.as_deref() == Some("scenario") {
+        return Err(AppError::Conflict(
+            "A what-if scenario is never taken as the roster: plan the period again with the real data".into(),
+        ));
+    }
 
     let filter_ids: Option<Vec<String>> = request.employee_ids
         .filter(|ids| !ids.is_empty())
@@ -1147,6 +1205,7 @@ mod tests {
             color: "#000000".into(),
             order: 0,
             break_minutes: 0,
+            duty_type: "regular".into(),
             weekday_times: times
                 .iter()
                 .enumerate()

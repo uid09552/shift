@@ -44,6 +44,7 @@ function noLimits(): PersonalLimits {
   return {
     max_nights_per_month: null,
     max_weekends_per_month: null,
+    max_on_call_per_month: null,
     no_night_shifts: false,
     preferred_days_off: [],
     date_of_birth: null,
@@ -227,6 +228,21 @@ function noLimits(): PersonalLimits {
               class="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
             />
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ 'userProfiles.limits.weekendsHint' | t }}</p>
+          </div>
+          <div>
+            <app-label for="limitMaxOnCall" className="mb-1.5">{{ 'userProfiles.limits.maxOnCall' | t }}</app-label>
+            <input
+              id="limitMaxOnCall"
+              type="number"
+              min="0"
+              max="31"
+              data-testid="personal-limits-max-on-call"
+              [placeholder]="'userProfiles.limits.noLimit' | t"
+              [ngModel]="form.limits.max_on_call_per_month"
+              (ngModelChange)="form.limits.max_on_call_per_month = limitValue($event, 31)"
+              [ngModelOptions]="{ standalone: true }"
+              class="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
+            />
           </div>
         </div>
 
@@ -538,6 +554,7 @@ export class EmployeeFormComponent implements OnInit, DirtyAware {
           limits: {
             max_nights_per_month: limits.max_nights_per_month,
             max_weekends_per_month: limits.max_weekends_per_month,
+            max_on_call_per_month: limits.max_on_call_per_month ?? null,
             no_night_shifts: limits.no_night_shifts,
             preferred_days_off: [...limits.preferred_days_off],
             date_of_birth: limits.date_of_birth ?? null,

@@ -219,4 +219,27 @@ describe('KalenderComponent', () => {
       expect(fixture.componentInstance.formatDate(fixture.componentInstance.anchorDate)).toBe('2026-11-18');
     });
   });
+
+  describe('duties', () => {
+    it('marks on-call and standby duties in the cell and records a call-in', () => {
+      open();
+      const monday = fixture.componentInstance.formatDate(fixture.componentInstance.days[0].date);
+      fixture.componentInstance.shifts = [
+        { id: 'oc', name: 'Night on call', short_name: 'OC', color: '#6366F1', order: 1, duty_type: 'on_call', weekday_times: [] },
+      ] as never;
+      answerRoster([{ id: 'p1', employee_id: 'e1', date: monday, shift_id: 'oc', workstation_id: null, is_present: true, absence_type: null, creation_type: 'manual' }]);
+      fixture.detectChanges();
+      expect(query('[data-testid="duty-badge-on_call"]')?.textContent).toContain('On call');
+
+      fixture.componentInstance.openCallIn('e1', monday);
+      http.expectOne((r) => r.url.endsWith('/call-ins') && r.method === 'GET').flush([]);
+      fixture.componentInstance.callIn!.minutes = 45;
+      fixture.componentInstance.saveCallIn();
+      const put = http.expectOne((r) => r.url.endsWith('/call-ins') && r.method === 'PUT');
+      expect(put.request.body).toEqual({ employee_id: 'e1', date: monday, minutes: 45, note: null });
+      put.flush({ ...put.request.body, recorded_by: 'p' });
+      expect(fixture.componentInstance.callIn).toBeNull();
+      expect(fixture.componentInstance.notice).toContain('45 min');
+    });
+  });
 });
