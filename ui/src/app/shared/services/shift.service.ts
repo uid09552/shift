@@ -21,8 +21,13 @@ export interface Shift {
   order: number;
   /** Unpaid break inside the shift, in minutes; its hours are counted net of it. */
   break_minutes?: number;
+  /** Regular work, on-site standby (working time) or on call from home (rest time until called in). */
+  duty_type?: DutyType;
   weekday_times: WeekdayTime[];
 }
+
+export type DutyType = 'regular' | 'standby' | 'on_call';
+export const DUTY_TYPES: DutyType[] = ['regular', 'standby', 'on_call'];
 
 export interface CreateShiftRequest {
   name: string;
@@ -30,6 +35,7 @@ export interface CreateShiftRequest {
   color: string;
   order?: number;
   break_minutes?: number;
+  duty_type?: DutyType;
 }
 
 export interface UpdateShiftRequest {
@@ -38,6 +44,7 @@ export interface UpdateShiftRequest {
   color?: string;
   order?: number;
   break_minutes?: number;
+  duty_type?: DutyType;
 }
 
 export interface SetWeekdayTimeRequest {

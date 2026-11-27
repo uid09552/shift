@@ -850,7 +850,7 @@
               data-testid="compare-a"
               class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
             >
-              @for (r of allResults; track r.id) {
+              @for (r of compareCandidates; track r.id) {
                 <option [ngValue]="r.id">{{ resultLabel(r) }}</option>
               }
             </select>
@@ -874,7 +874,7 @@
               data-testid="compare-b"
               class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
             >
-              @for (r of allResults; track r.id) {
+              @for (r of compareCandidates; track r.id) {
                 <option [ngValue]="r.id">{{ resultLabel(r) }}</option>
               }
             </select>

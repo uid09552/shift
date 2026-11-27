@@ -430,6 +430,10 @@
                               }
                             }
                             <span class="truncate">{{ cell.shift?.name ?? getShiftShortName(cell.shift) }}</span>
+                            @if (dutyKey(cell.shift); as duty) {
+                              <span class="shrink-0 rounded bg-white/70 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-gray-700 ring-1 ring-inset ring-gray-300 dark:bg-white/10 dark:text-gray-200 dark:ring-white/20"
+                                [attr.data-testid]="'duty-badge-' + duty">{{ 'schedule.duty.' + duty | t }}</span>
+                            }
                           </span>
                           <span class="truncate font-mono text-[10.5px] leading-none text-gray-600 tabular-nums dark:text-gray-300">
                             {{ shiftTime(cell.shift, day) || (cell.workstation ? getWorkstationName(cell.workstation) : '') }}
@@ -446,7 +450,10 @@
                           <span class="text-xs font-bold leading-tight text-gray-800 dark:text-white/90" aria-hidden="true">
                             {{ getShiftShortName(cell.shift) }}
                           </span>
-                          <span class="sr-only">{{ cell.shift?.name ?? getShiftShortName(cell.shift) }}</span>
+                          @if (dutyKey(cell.shift); as duty) {
+                            <span class="text-[8px] font-semibold uppercase leading-none text-gray-600 dark:text-gray-300" aria-hidden="true">{{ 'schedule.dutyShort.' + duty | t }}</span>
+                          }
+                          <span class="sr-only">{{ cell.shift?.name ?? getShiftShortName(cell.shift) }}{{ dutyKey(cell.shift) ? ', ' + ('schedule.duty.' + dutyKey(cell.shift) | t) : '' }}</span>
                         </div>
                       }
 
@@ -790,6 +797,30 @@
         </button>
       </div>
     </div>
+  }
+</app-modal>
+
+<!-- Minutes called in on an on-call duty (planners) -->
+<app-modal [isOpen]="!!callIn" (close)="callIn = null" ariaLabelledby="call-in-title" className="max-w-md m-4">
+  @if (callIn) {
+    <form class="p-6" (submit)="$event.preventDefault(); saveCallIn()" data-testid="call-in-dialog">
+      <h3 id="call-in-title" class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ 'schedule.callInTitle' | t }}</h3>
+      <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">{{ 'schedule.callInText' | t: { name: callIn.name, date: callIn.date } }}</p>
+      <label for="call-in-minutes" class="mt-4 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ 'schedule.callInMinutes' | t }}</label>
+      <input id="call-in-minutes" type="number" min="0" max="1440" step="5" name="minutes" [(ngModel)]="callIn.minutes" data-testid="call-in-minutes"
+        class="mt-1.5 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:text-white/90" />
+      <label for="call-in-note" class="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ 'schedule.callInNote' | t }}</label>
+      <input id="call-in-note" name="note" [(ngModel)]="callIn.note" maxlength="200"
+        class="mt-1.5 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:text-white/90" />
+      <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ 'schedule.callInHint' | t }}</p>
+      @if (callInError) {
+        <p class="mt-2 text-sm text-error-600 dark:text-error-400" role="alert">{{ callInError }}</p>
+      }
+      <div class="mt-5 flex justify-end gap-3">
+        <button type="button" (click)="callIn = null" class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400">{{ 'common.cancel' | t }}</button>
+        <button type="submit" data-testid="call-in-save" class="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600">{{ 'common.save' | t }}</button>
+      </div>
+    </form>
   }
 </app-modal>
 

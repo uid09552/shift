@@ -298,6 +298,8 @@ class Assignment:
     day: date
     shift_id: str
     workstation_id: str | None
+    # History only: minutes called in on an on-call duty (legal.working_hours).
+    called_in_minutes: int | None = None
 
 
 def _assignments(result: dict) -> list[Assignment]:
@@ -494,7 +496,7 @@ class _Validator:
                 continue
             if day < self.start and row.get("employee_id") and row.get("shift_id"):
                 self.history.append(
-                    Assignment(row["employee_id"], day, row["shift_id"], None)
+                    Assignment(row["employee_id"], day, row["shift_id"], None, row.get("called_in_minutes"))
                 )
         self.history_by_emp_day: dict[tuple[str, date], list[Assignment]] = defaultdict(list)
         self.history_days: dict[str, set[date]] = defaultdict(set)
@@ -825,9 +827,10 @@ class _Validator:
             weekday_time = self.shift_wt.get((a.shift_id, _weekday(a.day, self.holidays))) or {}
             if shift is None:
                 continue
+            night = shift.get("is_night_shift") and legal.needs_rest(legal.duty_type(shift))
             recovery = max(
                 weekday_time.get("free_days_after_shift") or 0,
-                night_recovery if shift.get("is_night_shift") else 0,
+                night_recovery if night else 0,
             )
             for offset in range(1, recovery + 1):
                 following = a.day + timedelta(days=offset)
@@ -889,10 +892,14 @@ class _Validator:
                 first_time = self.shift_wt.get((first.shift_id, _weekday(day, self.holidays)))
                 if shift is None or first_time is None or shift.get("is_night_shift"):
                     continue
+                if not legal.needs_rest(legal.duty_type(shift)):
+                    continue  # on call from home is rest time
                 end = _minutes(first_time["end_time"])
                 for second in next_rows:
                     second_time = self.shift_wt.get((second.shift_id, _weekday(following, self.holidays)))
                     if second_time is None:
+                        continue
+                    if not legal.needs_rest(legal.duty_type(self.shifts.get(second.shift_id))):
                         continue
                     rest = (24 * 60 - end + _minutes(second_time["start_time"])) / 60.0
                     if rest < min_rest and not self._legal_rest_breach(employee_id, following, rest):
@@ -1087,11 +1094,15 @@ class _Validator:
     def _person(self, employee_id: str, day: date):
         return legal.person_rules(self.legal, self.employees.get(employee_id) or {}, day)
 
-    def _net_hours(self, shift_id: str, day: date) -> float | None:
+    def _net_hours(self, shift_id: str, day: date, called_in_minutes: int | None = None) -> float | None:
+        """Working hours of a shift that day, net of its break; an on-call duty
+        counts only what was called in (0 while planning)."""
         weekday_time = self.shift_wt.get((shift_id, _weekday(day, self.holidays)))
         if weekday_time is None:
             return None
-        return legal.net_hours(_duration_hours(weekday_time), (self.shifts.get(shift_id) or {}).get("break_minutes"))
+        shift = self.shifts.get(shift_id) or {}
+        net = legal.net_hours(_duration_hours(weekday_time), shift.get("break_minutes"))
+        return legal.working_hours(legal.duty_type(shift), net, called_in_minutes)
 
     def _legal_rest_breach(self, employee_id: str, day: date, rest: float) -> bool:
         """Whether a rest gap before `day` is too short by law — then the legal
@@ -1114,11 +1125,12 @@ class _Validator:
                 continue
             person = self._person(a.employee_id, a.day)
             hours = self._net_hours(a.shift_id, a.day)
-            if hours is not None and hours > person.max_day_hours + 1e-9:
+            limit, statute = legal.day_limit(person, legal.duty_type(self.shifts.get(a.shift_id)))
+            if hours is not None and hours > limit + 1e-9:
                 self._legal(
-                    f"legal_day_hours_{person.day_statute}", f"More than {person.max_day_hours:g} hours in a day",
-                    f"At most {person.max_day_hours:g} working hours a day (net of breaks).",
-                    f"{self._where(a)} — {hours:g} h", person.day_statute,
+                    f"legal_day_hours_{statute}", f"More than {limit:g} hours in a day",
+                    f"At most {limit:g} working hours a day (net of breaks).",
+                    f"{self._where(a)} — {hours:g} h", statute,
                 )
             if person.group is None:
                 continue
@@ -1166,6 +1178,7 @@ class _Validator:
                 first_time = self.shift_wt.get((first.shift_id, _weekday(day, self.holidays)))
                 if first_time is None:
                     continue
+                first_duty = legal.duty_type(self.shifts.get(first.shift_id))
                 start1 = _minutes(first_time["start_time"])
                 end1 = _minutes(first_time["end_time"])
                 if end1 <= start1:
@@ -1176,6 +1189,9 @@ class _Validator:
                         continue
                     rest = (24 * 60 + _minutes(second_time["start_time"]) - end1) / 60.0
                     person = self._person(employee_id, following)
+                    second_duty = legal.duty_type(self.shifts.get(second.shift_id))
+                    if not (legal.needs_rest(first_duty) and legal.needs_rest(second_duty)):
+                        continue  # on-call time is rest time
                     if rest < person.min_rest_hours:
                         self._legal(
                             f"legal_rest_{person.rest_statute}", f"Less than {person.min_rest_hours:g} hours of rest",
@@ -1192,7 +1208,7 @@ class _Validator:
         One finding per person and rule: the worst window."""
         hours: dict[str, dict[date, float]] = defaultdict(dict)
         for a in [*self.history, *self.assignments]:
-            h = self._net_hours(a.shift_id, a.day) if a.shift_id in self.shifts else None
+            h = self._net_hours(a.shift_id, a.day, a.called_in_minutes) if a.shift_id in self.shifts else None
             if h is not None:
                 hours[a.employee_id][a.day] = hours[a.employee_id].get(a.day, 0.0) + h
 

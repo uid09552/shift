@@ -33,6 +33,10 @@ use crate::services::{
     calendar_feed::CalendarFeedService,
     saved_view::SavedViewService,
     setup::SetupService,
+    demand::DemandService,
+    call_in::CallInService,
+    scenario::ScenarioService,
+    forecast::ForecastService,
     staffing_rules::StaffingRuleService,
     availability::AvailabilityService,
     tenant,
@@ -234,6 +238,15 @@ pub fn create_router(state: AppState) -> Router {
         // First-run setup checklist, and sample data for an empty tenant (admin)
         .route("/setup-status", get(SetupService::status))
         .route("/setup/sample-data", post(SetupService::sample_data))
+        // Staffing demand by hour, per workstation and weekday
+        .route("/workstation-demand", get(DemandService::list_all))
+        .route("/workstations/:workstation_id/demand", get(DemandService::get).put(DemandService::put))
+        // Minutes called in on on-call duties (recorded afterwards)
+        .route("/call-ins", get(CallInService::list).put(CallInService::put))
+        .route("/call-ins/:employee_id/:date", delete(CallInService::delete))
+        // What-if scenarios, stored apart from real proposals
+        .route("/planner/scenarios", post(ScenarioService::create))
+        .route("/analysis/capacity-forecast", get(ForecastService::get))
         // Shift wish window (readable by everyone, writable by shift-admin only)
         .route(
             "/wish-settings",

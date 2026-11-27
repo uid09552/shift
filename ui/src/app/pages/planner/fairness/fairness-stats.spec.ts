@@ -57,6 +57,9 @@ describe('fairness stats', () => {
     expect(presetRange('lastMonth', today)).toEqual(['2026-08-01', '2026-08-31']);
     expect(presetRange('thisQuarter', today)).toEqual(['2026-07-01', '2026-09-30']);
     expect(presetRange('last3Months', today)).toEqual(['2026-07-01', '2026-09-30']);
+    // The long horizons the optimizer balances over; a year stays within the 366-day limit.
+    expect(presetRange('last6Months', today)).toEqual(['2026-04-01', '2026-09-30']);
+    expect(presetRange('last12Months', today)).toEqual(['2025-10-01', '2026-09-30']);
     // Across a year boundary.
     expect(presetRange('lastMonth', new Date(2027, 0, 10))).toEqual(['2026-12-01', '2026-12-31']);
   });

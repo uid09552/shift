@@ -1,5 +1,6 @@
 import { Component, HostListener, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { forkJoin, of, Subscription } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -37,6 +38,7 @@ import { ReplacementDialogComponent, ReplacementDone, ReplacementRequest } from 
 import { SwapRequestsDialogComponent } from './swap-requests-dialog.component';
 import { RosterMonthStatusComponent } from './roster-month-status.component';
 import { ShiftSwapService } from '../../../shared/services/shift-swap.service';
+import { CallInService } from '../../../shared/services/call-in.service';
 import { SwapNotificationService } from '../../../shared/services/swap-notification.service';
 import { UserService } from '../../../shared/services/user.service';
 import { GroupedPlanViewComponent } from './grouped-plan-view.component';
@@ -117,6 +119,7 @@ interface WishCellData {
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     PageBreadcrumbComponent,
     CalendarNavComponent,
     GroupedPlanViewComponent,
@@ -240,6 +243,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private userService: UserService,
     private shiftSwapService: ShiftSwapService,
+    private callInService: CallInService,
     readonly swapNotifications: SwapNotificationService,
   ) {}
 
@@ -1085,6 +1089,19 @@ export class KalenderComponent implements OnInit, OnDestroy {
       );
     }
 
+    const onCall = this.shifts.find((s) => s.id === plan?.shift_id)?.duty_type === 'on_call';
+    if (this.canPlan && plan?.is_present && onCall && dateStr <= this.formatDate(this.normalizeDate(new Date()))) {
+      items.push(
+        {
+          label: t('schedule.recordCallIn'),
+          icon: 'clock',
+          testId: 'cell-menu-call-in',
+          action: () => this.openCallIn(employeeId, dateStr),
+        },
+        { label: '', separator: true },
+      );
+    }
+
     if (!plan) {
       shiftItems(t('schedule.assignShift'));
     } else if (plan.is_present) {
@@ -1188,6 +1205,44 @@ export class KalenderComponent implements OnInit, OnDestroy {
         replaceUrl: true,
       });
     }
+  }
+
+  // ── Call-ins on on-call duties ─────────────────────────────────
+
+  /** The on-call day whose call-in is being recorded, if the dialog is open. */
+  callIn: { employeeId: string; date: string; name: string; minutes: number; note: string } | null = null;
+  callInError: string | null = null;
+
+  openCallIn(employeeId: string, date: string): void {
+    this.callInError = null;
+    this.callIn = { employeeId, date, name: this.employeeName(employeeId), minutes: 0, note: '' };
+    this.callInService.list(date, date).subscribe({
+      next: (rows) => {
+        const row = rows.find((r) => r.employee_id === employeeId);
+        if (row && this.callIn?.employeeId === employeeId) {
+          this.callIn = { ...this.callIn, minutes: row.minutes, note: row.note ?? '' };
+        }
+      },
+      error: () => {},
+    });
+  }
+
+  saveCallIn(): void {
+    const c = this.callIn;
+    if (!c) return;
+    this.callInService.record(c.employeeId, c.date, Math.max(0, Math.round(c.minutes || 0)), c.note).subscribe({
+      next: () => {
+        this.notice = this.translations.t('schedule.callInSaved', { name: c.name, date: c.date, minutes: c.minutes });
+        this.callIn = null;
+      },
+      error: (err) => (this.callInError = apiErrorMessage(err, 'schedule.callInFailed', this.translations)),
+    });
+  }
+
+  /** On call or on-site standby: a duty, not regular work — marked in the cell. */
+  dutyKey(shift: Shift | null): 'on_call' | 'standby' | null {
+    const duty = shift?.duty_type;
+    return duty === 'on_call' || duty === 'standby' ? duty : null;
   }
 
   // ── Short-notice replacement ──────────────────────────────────

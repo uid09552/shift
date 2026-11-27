@@ -53,7 +53,24 @@ export interface TaskResultDto {
   employee_plans: EmployeeDailyPlan[];
   message?: string;
   /** How the run was started; absent on results stored before automatic planning. */
-  source?: 'manual' | 'auto';
+  source?: 'manual' | 'auto' | 'scenario';
+  /** A what-if scenario's name and overrides: never taken as the roster. */
+  scenario?: { name: string; overrides?: ScenarioOverrides } | null;
+}
+
+/** What a what-if scenario changes about the real planning input. */
+export interface ScenarioOverrides {
+  absences: { employee_id: string; from_date: string; to_date: string }[];
+  closed_workstations: { workstation_id: string; from_date: string; to_date: string }[];
+  extra_employees: { name: string; capability_ids: string[]; shift_ids: string[]; weekly_working_hours: number | null; count: number }[];
+  min_staffing: { workstation_id: string; min_employees: number }[];
+}
+
+export interface ScenarioRequest {
+  name: string;
+  start_date: string;
+  end_date: string;
+  overrides: ScenarioOverrides;
 }
 
 // ── API Response types ───────────────────────────────────────────────────────
@@ -209,9 +226,13 @@ export class PlannerService {
   getOptimizedShifts(
     limit?: number,
     offset?: number,
-    latest?: boolean
+    latest?: boolean,
+    scenarios?: boolean,
   ): Observable<PaginatedOptimizedShiftResultsResponse> {
     let params = new HttpParams();
+    if (scenarios) {
+      params = params.set('scenarios', 'true');
+    }
     if (limit !== undefined) {
       params = params.set('limit', limit.toString());
     }
@@ -225,6 +246,11 @@ export class PlannerService {
       `${this.apiUrl}/optimized-shifts`,
       { params }
     );
+  }
+
+  /** POST /planner/scenarios — solve a what-if scenario; poll its task like any run. */
+  createScenario(request: ScenarioRequest): Observable<PlanTaskResponse> {
+    return this.http.post<PlanTaskResponse>(`${this.apiUrl}/scenarios`, request);
   }
 
   /**

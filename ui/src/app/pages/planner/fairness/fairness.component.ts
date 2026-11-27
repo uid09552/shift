@@ -20,7 +20,7 @@ import {
   teamSpread,
 } from './fairness-stats';
 
-type Preset = 'thisMonth' | 'lastMonth' | 'thisQuarter' | 'last3Months' | 'custom';
+type Preset = 'thisMonth' | 'lastMonth' | 'thisQuarter' | 'last3Months' | 'last6Months' | 'last12Months' | 'custom';
 
 /**
  * Who has had the nights, the weekends and the hours — per person, over a
@@ -169,6 +169,8 @@ type Preset = 'thisMonth' | 'lastMonth' | 'thisQuarter' | 'last3Months' | 'custo
                     <td class="table-td" [title]="'fairness.weekendsTitle' | t: { count: row.weekends }">
                       <ng-container [ngTemplateOutlet]="bar" [ngTemplateOutletContext]="{ value: row.weekend_days, max: team.weekendDays!.max }" />
                     </td>
+                    <td class="table-td table-num">{{ row.holiday_shifts || '—' }}</td>
+                    <td class="table-td table-num">{{ row.on_call_duties || '—' }}</td>
                     <td class="table-td table-num">
                       {{ row.wishes_asked ? row.wishes_granted + ' / ' + row.wishes_asked : '—' }}
                     </td>
@@ -194,7 +196,7 @@ type Preset = 'thisMonth' | 'lastMonth' | 'thisQuarter' | 'last3Months' | 'custo
   `,
 })
 export class FairnessComponent implements OnInit {
-  readonly presets: Preset[] = ['thisMonth', 'lastMonth', 'thisQuarter', 'last3Months', 'custom'];
+  readonly presets: Preset[] = ['thisMonth', 'lastMonth', 'thisQuarter', 'last3Months', 'last6Months', 'last12Months', 'custom'];
   readonly columns: { key: FairnessColumn; label: string }[] = [
     { key: 'employee_name', label: 'fairness.col.employee' },
     { key: 'shifts', label: 'fairness.col.shifts' },
@@ -202,6 +204,8 @@ export class FairnessComponent implements OnInit {
     { key: 'target_delta', label: 'fairness.col.target' },
     { key: 'night_shifts', label: 'fairness.col.nights' },
     { key: 'weekend_days', label: 'fairness.col.weekendDays' },
+    { key: 'holiday_shifts', label: 'fairness.col.holidays' },
+    { key: 'on_call_duties', label: 'fairness.col.onCall' },
     { key: 'wishes', label: 'fairness.col.wishes' },
     { key: 'days_absent', label: 'fairness.col.absent' },
   ];
@@ -307,5 +311,11 @@ export function presetRange(preset: Exclude<Preset, 'custom'>, today: Date): [st
     }
     case 'last3Months':
       return [iso(new Date(y, m - 2, 1)), iso(lastDay(y, m))];
+    // The long horizon the optimizer balances over (fairness_horizon_months).
+    case 'last6Months':
+      return [iso(new Date(y, m - 5, 1)), iso(lastDay(y, m))];
+    case 'last12Months':
+      // At most a year (366 days): the twelve months up to this one's end, from the 1st after a year back.
+      return [iso(new Date(y, m - 11, 1)), iso(lastDay(y, m))];
   }
 }

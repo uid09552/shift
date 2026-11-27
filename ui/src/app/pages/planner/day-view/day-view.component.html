@@ -109,6 +109,32 @@
           </div>
         </div>
 
+        <!-- Demand by hour (workstations with a curve today): bars = planned, line = needed -->
+        @for (d of demandRows; track d.workstationId) {
+          <div class="flex border-b border-gray-100 bg-gray-50/60 dark:border-white/[0.05] dark:bg-white/[0.02]" [attr.data-testid]="'demand-row-' + d.workstationId">
+            <div class="gantt-label sticky left-0 z-10 flex flex-col justify-center bg-gray-50 px-5 py-1 dark:bg-gray-900 sm:px-6" [style.width.px]="labelWidth">
+              <span class="truncate text-xs font-semibold text-gray-700 dark:text-gray-300">{{ 'dayView.demandOf' | t: { name: d.workstationName } }}</span>
+              <span class="truncate text-[11px]" [ngClass]="d.shortHours.length ? 'text-error-600 dark:text-error-400' : 'text-success-700 dark:text-success-400'">
+                {{ d.shortHours.length ? ('dayView.demandShort' | t: { hours: d.shortHours.join(', ') }) : ('dayView.demandMet' | t) }}
+              </span>
+            </div>
+            <div class="relative shrink-0" [style.width.px]="trackWidth">
+              <svg [attr.width]="trackWidth" height="40" role="img" [attr.aria-label]="'dayView.demandChart' | t: { name: d.workstationName }">
+                @for (n of d.have; track $index) {
+                  <rect
+                    [attr.x]="$index * hourWidth + 2"
+                    [attr.width]="hourWidth - 4"
+                    [attr.y]="40 - n * demandScale(d, 40)"
+                    [attr.height]="n * demandScale(d, 40)"
+                    [attr.class]="n < d.need[$index] ? 'fill-error-400/70' : 'fill-brand-400/50'"
+                  ><title>{{ hourLabel($index) }}: {{ n }}/{{ d.need[$index] }}</title></rect>
+                }
+                <polyline [attr.points]="demandPath(d.need, 40, demandScale(d, 40))" fill="none" class="stroke-gray-800 dark:stroke-white" stroke-width="2" />
+              </svg>
+            </div>
+          </div>
+        }
+
         <!-- One row per employee -->
         @for (row of rows; track row.employeeId) {
           <div class="gantt-row flex border-b border-gray-50 last:border-b-0 dark:border-white/[0.03]">

@@ -58,6 +58,11 @@ class Shift(BaseModel):
     # Unpaid break inside the start-end span; the labor-law profile counts a
     # shift's hours net of it and checks it against ArbZG §4.
     break_minutes: int = Field(default=0, ge=0, le=240)
+    # "regular" work, on-site "standby" (Bereitschaftsdienst: working time, a
+    # day of up to 24 h under arbzg_de) or "on_call" from home (Rufbereitschaft:
+    # rest time — no hours, no rest needed around it, no night recovery).
+    # See legal.py.
+    duty_type: Literal["regular", "standby", "on_call"] = "regular"
     weekday_times: List[ShiftWeekdayTime] = Field(..., min_length=1)
 
     @field_validator("weekday_times")
@@ -85,6 +90,22 @@ class WorkstationUnavailabilityRange(BaseModel):
         return v
 
 
+class DemandCurve(BaseModel):
+    """Headcount a workstation needs per hour of one weekday ('0' = Monday,
+    '6' = Sunday, which public holidays use too). hours[h] covers h:00–h+1:00.
+    A shift covers an hour when it is on duty at the hour's middle."""
+
+    weekday: str
+    hours: List[int] = Field(..., min_length=24, max_length=24)
+
+    @field_validator("hours")
+    @classmethod
+    def non_negative(cls, v):
+        if any(h < 0 for h in v):
+            raise ValueError("demand headcounts must be >= 0")
+        return v
+
+
 class Workstation(BaseModel):
     """Workstation definition with skills and priority."""
 
@@ -100,6 +121,10 @@ class Workstation(BaseModel):
     max_employees: Optional[int] = Field(default=None, ge=0)
     # Periods during which this workstation cannot be staffed (e.g. maintenance).
     unavailability: List[WorkstationUnavailabilityRange] = Field(default_factory=list)
+    # Staffing demand by hour, per weekday. On a weekday with a curve the
+    # curve replaces min_employees for this workstation: every hour must be
+    # covered (soft or hard per min_staffing_mode), surplus is kept low.
+    demand: List[DemandCurve] = Field(default_factory=list)
     # False = deactivated: closed on every day, as if one period covered the
     # whole plan. The backend leaves such workstations out of its payload; the
     # flag is for callers that send them anyway.
@@ -188,6 +213,12 @@ class Employee(BaseModel):
     skill_expiry: Dict[str, date] = Field(default_factory=dict)
     # Shifts a recurring availability rule takes out on given days — hard.
     blocked_shifts: List[BlockedShift] = Field(default_factory=list)
+    # On-call duties (duty_type on_call) per calendar month; hard or soft per
+    # personal_limits_mode, like the night and weekend limits.
+    max_on_call_per_month: Optional[int] = Field(default=None, ge=0, le=31)
+    # What the employee already worked over the fairness horizon before the
+    # period (filled by the backend). The duty balance continues from it.
+    fairness_balance: Optional["FairnessBalance"] = None
 
 
 class LockedAssignment(BaseModel):
@@ -223,6 +254,21 @@ class PublishedShift(BaseModel):
     workstation_id: Optional[str] = None
 
 
+class FairnessBalance(BaseModel):
+    """Counts from the confirmed roster over the fairness horizon before the
+    period: the solver balances nights, weekend days, public-holiday shifts
+    and on-call duties per contract hour including these, so the unpopular
+    duties do not restart at zero every period."""
+
+    nights: int = Field(default=0, ge=0)
+    weekend_days: int = Field(default=0, ge=0)
+    holiday_shifts: int = Field(default=0, ge=0)
+    on_call: int = Field(default=0, ge=0)
+
+
+Employee.model_rebuild()
+
+
 class HistoryShift(BaseModel):
     """A shift someone already worked in the days before the period.
 
@@ -236,6 +282,9 @@ class HistoryShift(BaseModel):
     employee_id: str = Field(..., min_length=1)
     date: date
     shift_id: str = Field(..., min_length=1)
+    # On-call (duty_type on_call): minutes actually called in, which count as
+    # working time for the labor-law hour windows.
+    called_in_minutes: Optional[int] = Field(default=None, ge=0, le=1440)
 
 
 class CapabilityInfo(BaseModel):
@@ -360,6 +409,15 @@ class ConstraintConfig(BaseModel):
     labor_law_profile: Literal["none", "arbzg_de"] = "none"
     # Reference period of the 48 h weekly average, in weeks (ArbZG §3).
     labor_law_averaging_weeks: int = Field(default=24, ge=1, le=52)
+
+    # Share of an on-call duty's span counted towards hours targets and the
+    # hour balance (0 = only call-ins count, as the law does).
+    on_call_hours_factor: float = Field(default=0.0, ge=0, le=1)
+    # Weight of the long-term duty balance (nights, weekend days, holiday
+    # shifts, on-call per contract hour, including fairness_balance). 0 = off.
+    fairness_weight: int = Field(default=2000, ge=0)
+    # Cost per person-hour planned above a workstation's demand curve.
+    demand_surplus_weight: int = Field(default=50, ge=0)
 
     # Solver time limit in seconds
     solver_time_limit_seconds: float = Field(default=120.0, gt=0)

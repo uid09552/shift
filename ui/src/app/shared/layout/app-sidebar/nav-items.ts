@@ -48,6 +48,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
       { name: "nav.employeeCalendar", path: "/employee-calendar", pro: false },
       { name: "nav.rotations", path: "/rotations", pro: false },
       { name: "nav.scheduleOptimizer", path: "/scheduler", pro: false },
+      { name: "nav.scenarios", path: "/scenarios", pro: false, plannerOnly: true },
       { name: "nav.fairness", path: "/fairness", pro: false }
     ],
   },
@@ -56,7 +57,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: `<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="6" r="2.25"/><circle cx="18" cy="8" r="2.25"/><circle cx="9" cy="18" r="2.25"/><path d="M8.1 6.4 15.8 7.6M7 8.1l1.4 7.7M16.4 9.7l-5.6 6.6"/></g></svg>`,
     subItems: [
       { name: "nav.ontology", path: "/ontology", pro: false, plannerOnly: true },
-      { name: "nav.analytics", path: "/analytics", pro: false, plannerOnly: true }
+      { name: "nav.analytics", path: "/analytics", pro: false, plannerOnly: true },
+      { name: "nav.forecast", path: "/forecast", pro: false, plannerOnly: true }
     ],
   },
 ];

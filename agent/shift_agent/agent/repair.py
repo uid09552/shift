@@ -407,7 +407,9 @@ class _Rules:
             except (KeyError, TypeError, ValueError):
                 continue
             if day < self.start and row.get("employee_id") in self.employees and row.get("shift_id") in self.shifts:
-                self.history_hours[row["employee_id"]][day] = self.net_hours(row["shift_id"], day)
+                self.history_hours[row["employee_id"]][day] = self.net_hours(
+                    row["shift_id"], day, row.get("called_in_minutes")
+                )
 
         self.unavailable = {
             eid: {d for d in (e.get("unavailability") or [])}
@@ -468,17 +470,26 @@ class _Rules:
         if weekday_time is None:
             return 0
         night = self.cfg["night_shift_recovery_days"] or 0
+        shift = self.shifts.get(shift_id) or {}
+        # An overnight on-call duty is rest time: no night recovery owed.
+        overnight = shift.get("is_night_shift") and legal.needs_rest(legal.duty_type(shift))
         return max(
             weekday_time.get("free_days_after_shift") or 0,
-            night if (self.shifts.get(shift_id) or {}).get("is_night_shift") else 0,
+            night if overnight else 0,
         )
 
     def hours(self, shift_id: str, day: date) -> float:
         weekday_time = self.weekday_time(shift_id, day)
         return _duration_hours(weekday_time) if weekday_time else 0.0
 
-    def net_hours(self, shift_id: str, day: date) -> float:
-        return legal.net_hours(self.hours(shift_id, day), (self.shifts.get(shift_id) or {}).get("break_minutes"))
+    def net_hours(self, shift_id: str, day: date, called_in_minutes: int | None = None) -> float:
+        """Working hours, net of the break; on call only what was called in."""
+        shift = self.shifts.get(shift_id) or {}
+        net = legal.net_hours(self.hours(shift_id, day), shift.get("break_minutes"))
+        return legal.working_hours(legal.duty_type(shift), net, called_in_minutes)
+
+    def needs_rest(self, shift_id: str) -> bool:
+        return legal.needs_rest(legal.duty_type(self.shifts.get(shift_id)))
 
     def person(self, employee_id: str, day: date):
         return legal.person_rules(self.legal, self.employees.get(employee_id) or {}, day) if self.legal else None
@@ -547,8 +558,9 @@ class _Rules:
         weekday_time = self.weekday_time(shift_id, day)
         if person is None or weekday_time is None:
             return None
-        if self.net_hours(shift_id, day) > person.max_day_hours + 1e-9:
-            return f"labor law: more than {person.max_day_hours:g} h a day ({person.day_statute})"
+        limit, statute = legal.day_limit(person, legal.duty_type(self.shifts.get(shift_id)))
+        if self.net_hours(shift_id, day) > limit + 1e-9:
+            return f"labor law: more than {limit:g} h a day ({statute})"
         if person.no_protected_night and legal.touches_protected_night(
             weekday_time["start_time"], weekday_time["end_time"]
         ):
@@ -650,7 +662,12 @@ class _Rules:
         rest_after = self.min_rest_before(employee_id, day + timedelta(days=1))
         if max(min_rest, rest_after) > 0 and weekday_time is not None:
             previous = plan.get(employee_id, day - timedelta(days=1))
-            if previous and not (self.shifts.get(previous[0]) or {}).get("is_night_shift"):
+            if (
+                previous
+                and not (self.shifts.get(previous[0]) or {}).get("is_night_shift")
+                and self.needs_rest(previous[0])
+                and self.needs_rest(shift_id)
+            ):
                 earlier_time = self.weekday_time(previous[0], day - timedelta(days=1))
                 if earlier_time is not None:
                     rest = (
@@ -660,7 +677,12 @@ class _Rules:
                     if rest < min_rest:
                         yield f"only {rest:.1f} h rest after the previous day's shift"
             following = plan.get(employee_id, day + timedelta(days=1))
-            if following and not (self.shifts.get(shift_id) or {}).get("is_night_shift"):
+            if (
+                following
+                and not (self.shifts.get(shift_id) or {}).get("is_night_shift")
+                and self.needs_rest(shift_id)
+                and self.needs_rest(following[0])
+            ):
                 later_time = self.weekday_time(following[0], day + timedelta(days=1))
                 if later_time is not None:
                     rest = (

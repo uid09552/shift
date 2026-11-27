@@ -3,7 +3,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Observable, forkJoin, of, switchMap } from 'rxjs';
 
-import { Shift, ShiftService } from '../../../shared/services/shift.service';
+import { DUTY_TYPES, DutyType, Shift, ShiftService } from '../../../shared/services/shift.service';
+import { NgClass } from '@angular/common';
 import { FormPageComponent } from '../../../shared/components/form/form-page/form-page.component';
 import { errorText } from '../../../shared/components/form/form-page/form-errors';
 import { InputFieldComponent } from '../../../shared/components/form/input/input-field.component';
@@ -31,6 +32,7 @@ interface ShiftForm {
   color: string;
   order: number;
   breakMinutes: number;
+  dutyType: DutyType;
   weekdays: WeekdayForm[];
 }
 
@@ -51,7 +53,7 @@ function emptyWeekdays(): WeekdayForm[] {
  */
 @Component({
   selector: 'app-shift-form',
-  imports: [FormPageComponent, InputFieldComponent, LabelComponent, TranslatePipe],
+  imports: [FormPageComponent, InputFieldComponent, LabelComponent, NgClass, TranslatePipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <app-form-page
@@ -149,6 +151,26 @@ function emptyWeekdays(): WeekdayForm[] {
       <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ 'shifts.breakHint' | t }}</p>
     </div>
 
+    <!-- Duty type: regular work, on-site standby, on call from home -->
+    <fieldset class="mb-5" data-testid="shift-duty-type">
+      <legend class="mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-400">{{ 'shifts.duty.label' | t }}</legend>
+      <div class="grid gap-2 sm:grid-cols-3">
+        @for (duty of dutyTypes; track duty) {
+          <label
+            class="flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm"
+            [ngClass]="form.dutyType === duty ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10' : 'border-gray-200 dark:border-gray-700'"
+          >
+            <input type="radio" name="dutyType" class="mt-0.5" [value]="duty" [checked]="form.dutyType === duty"
+              (change)="form.dutyType = duty" [attr.data-testid]="'shift-duty-' + duty" />
+            <span>
+              <span class="block font-medium text-gray-800 dark:text-white/90">{{ 'shifts.duty.' + duty | t }}</span>
+              <span class="block text-xs text-gray-500 dark:text-gray-400">{{ 'shifts.duty.' + duty + 'Hint' | t }}</span>
+            </span>
+          </label>
+        }
+      </div>
+    </fieldset>
+
     <!-- Weekday Times (only in edit mode) -->
     @if (editingId) {
       <div class="mb-5">
@@ -239,7 +261,8 @@ function emptyWeekdays(): WeekdayForm[] {
 })
 export class ShiftFormComponent implements OnInit, DirtyAware {
   editingId: string | null = null;
-  form: ShiftForm = { name: '', shortName: '', color: '#3B82F6', order: 0, breakMinutes: 0, weekdays: emptyWeekdays() };
+  form: ShiftForm = { name: '', shortName: '', color: '#3B82F6', order: 0, breakMinutes: 0, dutyType: 'regular', weekdays: emptyWeekdays() };
+  readonly dutyTypes = DUTY_TYPES;
   loading = false;
   notFound = false;
   saving = false;
@@ -369,6 +392,7 @@ export class ShiftFormComponent implements OnInit, DirtyAware {
       color: this.form.color,
       order: this.form.order,
       break_minutes: this.form.breakMinutes,
+      duty_type: this.form.dutyType,
     };
     this.saving = true;
     this.error = null;
@@ -443,6 +467,7 @@ export class ShiftFormComponent implements OnInit, DirtyAware {
       color: shift.color,
       order: shift.order ?? 0,
       breakMinutes: shift.break_minutes ?? 0,
+      dutyType: shift.duty_type ?? 'regular',
       weekdays,
     };
     this.snapshot = JSON.stringify(this.form);

@@ -62,6 +62,8 @@ pub struct PlannerSettings {
     pub auto_plan_last_note: Option<String>,
     pub auto_plan_last_task_id: Option<uuid::Uuid>,
     pub auto_plan_last_started_at: Option<NaiveDateTime>,
+    pub fairness_horizon_months: i16,
+    pub fairness_weight: i32,
 }
 
 #[derive(Insertable, AsChangeset, Debug, Clone)]
@@ -102,6 +104,9 @@ pub struct NewPlannerSettings {
     pub change_weight: i32,
     pub labor_law_profile: String,
     pub labor_law_averaging_weeks: i16,
+    /// Months of confirmed roster the long-term duty balance reaches back (0 = off).
+    pub fairness_horizon_months: i16,
+    pub fairness_weight: i32,
     // The schedule a planner sets. The columns the job writes (`auto_plan_last_*`,
     // `auto_plan_armed_at`) are not here: an upsert must never overwrite them.
     pub auto_plan_enabled: bool,
@@ -148,6 +153,8 @@ impl NewPlannerSettings {
             change_weight: 100000,
             labor_law_profile: "none".to_string(),
             labor_law_averaging_weeks: 24,
+            fairness_horizon_months: 6,
+            fairness_weight: 2000,
             auto_plan_enabled: false,
             auto_plan_every_weeks: 4,
             auto_plan_weekday: 0,

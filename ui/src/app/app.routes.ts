@@ -27,6 +27,8 @@ import { OpenShiftsComponent } from './pages/planner/open-shifts/open-shifts.com
 import { NotificationSettingsComponent } from './pages/configuration/notifications/notification-settings.component';
 import { StaffingRulesComponent } from './pages/configuration/staffing-rules/staffing-rules.component';
 import { SetupComponent } from './pages/configuration/setup/setup.component';
+import { ScenariosComponent } from './pages/planner/scenarios/scenarios.component';
+import { ForecastComponent } from './pages/reports/forecast/forecast.component';
 
 export const routes: Routes = [
   {
@@ -245,6 +247,20 @@ export const routes: Routes = [
         canActivate:[adminGuard],
         canDeactivate:[unsavedChangesGuard],
         data:{ listPath:'/users' }
+      },
+      {
+        // What-if scenarios, stored apart from real proposals (planners)
+        path:'scenarios',
+        component:ScenariosComponent,
+        title:'title.scenarios',
+        canActivate:[writerGuard],
+      },
+      {
+        // Contracted hours against what the workstations need, months ahead (planners)
+        path:'forecast',
+        component:ForecastComponent,
+        title:'title.forecast',
+        canActivate:[writerGuard],
       },
       {
         // The first-run setup guide (admins); the overview links to it while setup is incomplete.

@@ -52,6 +52,11 @@ pub struct PlannerSettingsResponse {
     /// A re-solve keeps the published roster, changing as few employee-days as
     /// coverage needs, when > 0; 0 ignores it.
     pub change_weight: i32,
+    /// Months of confirmed roster the optimizer's duty balance (nights, weekend
+    /// days, holiday shifts, on-call) reaches back; 0 = off (6).
+    pub fairness_horizon_months: i16,
+    /// Weight of that balance in the optimizer (2000, 0 = off).
+    pub fairness_weight: i32,
     /// `none` (default) or `arbzg_de`: the legal rule set enforced as hard rules.
     pub labor_law_profile: String,
     /// Reference period of the 48 h weekly average, in weeks (24).
@@ -115,6 +120,8 @@ impl From<PlannerSettingsDomain> for PlannerSettingsResponse {
             publish_lead_days: s.publish_lead_days,
             freeze_days: s.freeze_days,
             change_weight: s.change_weight,
+            fairness_horizon_months: s.fairness_horizon_months,
+            fairness_weight: s.fairness_weight,
             labor_law_profile: s.labor_law_profile,
             labor_law_averaging_weeks: s.labor_law_averaging_weeks,
             auto_plan_next_run,
@@ -179,6 +186,10 @@ pub struct UpdatePlannerSettingsRequest {
     pub freeze_days: i16,
     #[serde(default = "default_change_weight")]
     pub change_weight: i32,
+    #[serde(default = "default_fairness_horizon_months")]
+    pub fairness_horizon_months: i16,
+    #[serde(default = "default_fairness_weight")]
+    pub fairness_weight: i32,
     #[serde(default = "default_labor_law_profile")]
     pub labor_law_profile: String,
     #[serde(default = "default_labor_law_averaging_weeks")]
@@ -291,6 +302,8 @@ fn default_labor_law_averaging_weeks() -> i16 { 24 }
 fn default_publish_lead_days() -> i16 { 28 }
 fn default_freeze_days() -> i16 { 7 }
 fn default_change_weight() -> i32 { 100000 }
+fn default_fairness_horizon_months() -> i16 { 6 }
+fn default_fairness_weight() -> i32 { 2000 }
 
 fn default_weekly_working_hours() -> f64 { 40.0 }
 fn default_weekly_hours_target_weight() -> i32 { 1000 }
@@ -355,6 +368,8 @@ impl PlannerSettingsService {
             publish_lead_days: body.publish_lead_days,
             freeze_days: body.freeze_days,
             change_weight: body.change_weight,
+            fairness_horizon_months: body.fairness_horizon_months,
+            fairness_weight: body.fairness_weight,
             labor_law_profile: body.labor_law_profile,
             labor_law_averaging_weeks: body.labor_law_averaging_weeks,
             use_case: body.use_case.clone(),
@@ -448,6 +463,12 @@ fn validate(body: &UpdatePlannerSettingsRequest) -> Result<(), AppError> {
     }
     if body.change_weight < 0 {
         return Err(AppError::Validation("change_weight must be >= 0".into()));
+    }
+    if !(0..=24).contains(&body.fairness_horizon_months) {
+        return Err(AppError::Validation("fairness_horizon_months must be between 0 and 24".into()));
+    }
+    if body.fairness_weight < 0 {
+        return Err(AppError::Validation("fairness_weight must be >= 0".into()));
     }
     if !matches!(body.labor_law_profile.as_str(), "none" | "arbzg_de") {
         return Err(AppError::Validation("labor_law_profile must be 'none' or 'arbzg_de'".into()));

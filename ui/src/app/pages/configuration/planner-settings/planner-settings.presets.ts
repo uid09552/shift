@@ -114,6 +114,8 @@ export type PresetValues = Omit<
   | 'publish_lead_days'
   | 'freeze_days'
   | 'change_weight'
+  | 'fairness_horizon_months'
+  | 'fairness_weight'
   | 'labor_law_profile'
   | 'labor_law_averaging_weeks'
   | 'use_case'

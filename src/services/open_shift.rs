@@ -648,6 +648,7 @@ mod tests {
             color: "#000".into(),
             order: 1,
             break_minutes: 0,
+            duty_type: "regular".into(),
             weekday_times: (0..7)
                 .map(|weekday| crate::repository::domain::WeekdayTime {
                     weekday,

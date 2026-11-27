@@ -49,6 +49,10 @@ export interface PlannerSettings {
   freeze_days: number;
   /** > 0: a re-plan keeps the published roster, changing as few days as it must; 0: off. */
   change_weight: number;
+  /** Months of confirmed roster the duty balance (nights, weekend days, holiday shifts, on call) reaches back; 0 = off (6). */
+  fairness_horizon_months?: number;
+  /** Weight of that long-term balance (2000, 0 = off). */
+  fairness_weight?: number;
   /** Legal rule set held as hard rules: none, or ArbZG with JArbSchG and MuSchG. */
   labor_law_profile: LaborLawProfile;
   /** Reference period of the 48 h weekly average, in weeks (24). */

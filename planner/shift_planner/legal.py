@@ -22,6 +22,13 @@ What is modelled is a subset of the law, and not legal advice:
              20:00–06:00, no Sundays or public holidays
 - MuSchG     maternity protection: 8.5 h a day, 90 h a double week, no work
              20:00–06:00, no Sundays or public holidays
+- ArbZG §7   on-site standby (Bereitschaftsdienst, duty type `standby`) is
+             working time, but a collective agreement may extend the day to
+             24 h for it — modelled as that extension. Protected groups keep
+             their own day limit.
+- ArbZG §2   on-call from home (Rufbereitschaft, duty type `on_call`) is rest
+             time: only the time actually called in counts as work, and it
+             neither needs nor breaks the rest between two shifts.
 
 Hours are net: a shift's span minus its `break_minutes`.
 """
@@ -46,6 +53,13 @@ JARBSCHG_SUNDAY = "JArbSchG §17, §18"
 MUSCHG_HOURS = "MuSchG §4"
 MUSCHG_NIGHT = "MuSchG §5"
 MUSCHG_SUNDAY = "MuSchG §6"
+ARBZG_STANDBY = "ArbZG §7"
+
+# A shift's duty type (`shifts[].duty_type`): regular work, on-site standby
+# (Bereitschaftsdienst) or on-call from home (Rufbereitschaft).
+DUTY_TYPES = ("regular", "standby", "on_call")
+# The day a collective agreement may allow for on-site standby (ArbZG §7).
+STANDBY_MAX_DAY_HOURS = 24.0
 
 # The window protected groups may not work in: 20:00 to 06:00.
 _PROTECTED_NIGHT_START = 20 * 60
@@ -200,3 +214,37 @@ def touches_protected_night(start_time, end_time) -> bool:
 
 def is_sunday_or_holiday(day: date, holidays=()) -> bool:
     return day.weekday() == 6 or day in holidays
+
+
+def duty_type(shift: dict | None) -> str:
+    """A shift's duty type; anything unknown is regular work."""
+    value = (shift or {}).get("duty_type") or "regular"
+    return value if value in DUTY_TYPES else "regular"
+
+
+def counts_as_work(duty: str) -> bool:
+    """Whether the scheduled span is working time. On-call from home is rest
+    time until someone is called in."""
+    return duty != "on_call"
+
+
+def working_hours(duty: str, net: float, called_in_minutes: int | None = None) -> float:
+    """The working time a duty counts with: its net hours, or — on call — only
+    the minutes actually called in (0 while planning)."""
+    if counts_as_work(duty):
+        return net
+    return max(0, called_in_minutes or 0) / 60.0
+
+
+def day_limit(person: PersonRules, duty: str) -> tuple[float, str]:
+    """(hours, statute) a duty may last that day. On-site standby gets the
+    24 h of ArbZG §7 unless a protected group's own limit applies."""
+    if duty == "standby" and person.group is None:
+        return max(person.max_day_hours, STANDBY_MAX_DAY_HOURS), ARBZG_STANDBY
+    return person.max_day_hours, person.day_statute
+
+
+def needs_rest(duty: str) -> bool:
+    """Whether the rest before and after this duty is checked. On-call time is
+    rest time itself, so it neither needs nor breaks rest."""
+    return duty != "on_call"

@@ -38,17 +38,20 @@ HIGH VALUE
 
 PLANNING QUALITY
 ----------------
-[ ] Long-horizon fairness: carry night/weekend/holiday counts across months
+[x] Long-horizon fairness: carry night/weekend/holiday counts across months  -- #181
     (history beyond 14 days), alternate Christmas / New Year fairly
 [x] Recurring availability (not just wishes): "only early shifts", "never Wednesdays",  -- #180
     part-time on fixed days; hard or soft per employee
-[ ] Time-of-day demand: staffing curve per hour instead of per shift;
+[x] Time-of-day demand: staffing curve per hour instead of per shift;  -- #184
     optimizer chooses shift types / split and overlap shifts to cover it
+    - Not done: split shifts (one person, two blocks a day); the agent's plan
+      check does not check demand curves yet
 [ ] Float / pool staff: employees shared across workstations or departments,
     with a "home" station preference and lending between teams
-[ ] On-call / standby duties (Bereitschaft, Rufdienst) as their own duty type
+[x] On-call / standby duties (Bereitschaft, Rufdienst) as their own duty type  -- #183
     with own limits and rest rules
-[ ] Scenario planning: what-if (sick wave, closed ward, +2 hires) without
+    - Not done: a regular shift and an on-call duty on the same day for one person
+[x] Scenario planning: what-if (sick wave, closed ward, +2 hires) without  -- #182
     touching the real proposal; capacity forecast months ahead (staffing gaps
     from leave + contracts)
 [ ] Plan-quality KPIs per run: coverage %, wishes met %, rule breaks, fairness

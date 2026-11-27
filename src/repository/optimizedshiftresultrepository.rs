@@ -12,6 +12,12 @@ use crate::repository::domain::{
 use crate::models as models;
 use crate::schema::{optimized_shift_results, planning_tasks};
 
+/// Whether a stored result is a what-if scenario's (`result.source`): those
+/// are kept apart from real proposals — never the latest, never in the list.
+fn is_scenario() -> diesel::expression::SqlLiteral<diesel::sql_types::Bool> {
+    diesel::dsl::sql::<diesel::sql_types::Bool>("COALESCE(result->>'source' = 'scenario', false)")
+}
+
 #[derive(Clone)]
 pub struct DieselOptimizedShiftResultRepository {
     pub pool: Arc<DbPool>,
@@ -78,6 +84,7 @@ impl OptimizedShiftResultRepository for DieselOptimizedShiftResultRepository {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             optimized_shift_results::table
                 .filter(optimized_shift_results::tenant_id.eq(&tenant_id))
+                .filter(is_scenario().eq(false))
                 .order(optimized_shift_results::creation_date.desc())
                 .first::<models::OptimizedShiftResult>(&mut conn)
                 .optional()
@@ -96,6 +103,7 @@ impl OptimizedShiftResultRepository for DieselOptimizedShiftResultRepository {
         tenant_id: &str,
         limit: Option<i64>,
         offset: Option<i64>,
+        scenarios: bool,
     ) -> Result<Vec<OptimizedShiftResultDomain>, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
@@ -103,6 +111,7 @@ impl OptimizedShiftResultRepository for DieselOptimizedShiftResultRepository {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             let mut query = optimized_shift_results::table
                 .filter(optimized_shift_results::tenant_id.eq(tenant_id))
+                .filter(is_scenario().eq(scenarios))
                 .order(optimized_shift_results::creation_date.desc())
                 .into_boxed();
             if let Some(l) = limit {
@@ -131,6 +140,7 @@ impl OptimizedShiftResultRepository for DieselOptimizedShiftResultRepository {
     async fn count_optimized_shift_results(
         &self,
         tenant_id: &str,
+        scenarios: bool,
     ) -> Result<i64, AppError> {
         let tenant_id = tenant_id.to_string();
         let pool = Arc::clone(&self.pool);
@@ -138,6 +148,7 @@ impl OptimizedShiftResultRepository for DieselOptimizedShiftResultRepository {
             let mut conn = pool.get().map_err(|_| AppError::DbError)?;
             optimized_shift_results::table
                 .filter(optimized_shift_results::tenant_id.eq(tenant_id))
+                .filter(is_scenario().eq(scenarios))
                 .count()
                 .first(&mut conn)
                 .map_err(|_| AppError::DbError)

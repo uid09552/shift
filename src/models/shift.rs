@@ -16,7 +16,15 @@ pub struct Shift {
     pub order: i32,
     pub tenant_id: String,
     pub break_minutes: i16,
+    /// `regular`, `standby` or `on_call` (see `DUTY_TYPES`).
+    pub duty_type: String,
 }
+
+/// A shift's duty types: regular work, on-site standby (Bereitschaftsdienst,
+/// working time) and on call from home (Rufbereitschaft, rest time until
+/// called in). What each means for hours and rest lives in
+/// planner/shift_planner/legal.py.
+pub const DUTY_TYPES: [&str; 3] = ["regular", "standby", "on_call"];
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
 #[diesel(table_name = shifts)]

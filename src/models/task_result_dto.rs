@@ -21,6 +21,10 @@ pub struct TaskResultDto {
     /// Set by the backend when it stores the result; absent on older results.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
+    /// A what-if scenario's name and overrides (source `scenario`); absent on
+    /// real proposals. Never taken as the roster.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scenario: Option<serde_json::Value>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

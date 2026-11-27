@@ -386,6 +386,8 @@ mod tests {
             publish_lead_days: 28,
             freeze_days: 7,
             change_weight: 0,
+            fairness_horizon_months: 6,
+            fairness_weight: 2000,
             labor_law_profile: "none".into(),
             labor_law_averaging_weeks: 24,
             use_case: None,

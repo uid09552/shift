@@ -315,7 +315,7 @@ export class SchedulerComponent implements OnInit, OnDestroy {
       { id: 'calculate', label: t('scheduler.tab.calculate') },
       { id: 'proposal', label: t('scheduler.tab.proposal') },
       { id: 'check', label: t('scheduler.tab.check'), badge: report ? (open || '✓') : null },
-      { id: 'compare', label: t('scheduler.tab.compare'), disabled: this.allResults.length < 2 },
+      { id: 'compare', label: t('scheduler.tab.compare'), disabled: this.compareCandidates.length < 2 },
       {
         id: 'runs',
         label: t('scheduler.tab.runs'),
@@ -454,6 +454,22 @@ export class SchedulerComponent implements OnInit, OnDestroy {
         this.dataLoadError = true;
       },
     });
+    // What-if scenarios: offered on the Compare tab only, never as the proposal.
+    this.plannerService.getOptimizedShifts(20, 0, false, true).subscribe({
+      next: (r) => {
+        this.scenarioResults = r.data || [];
+        if (this.activeTab === 'compare') this.openCompare();
+      },
+      error: () => {},
+    });
+  }
+
+  /** Scenario results, to compare against real proposals. */
+  scenarioResults: OptimizedShiftResultResponse[] = [];
+
+  /** Plans the Compare tab can pick: the proposals, then the scenarios. */
+  get compareCandidates(): OptimizedShiftResultResponse[] {
+    return [...this.allResults, ...this.scenarioResults];
   }
 
   loadEmployees(): void {
@@ -791,9 +807,13 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   /** Opening the Compare tab: the plan on screen against the run before it, unless a pair is already picked. */
   openCompare(): void {
     const a = this.selectedResult?.id ?? this.allResults[0]?.id ?? null;
-    if (!this.compareAId || !this.allResults.some((r) => r.id === this.compareAId)) this.compareAId = a;
-    if (!this.compareBId || this.compareBId === this.compareAId || !this.allResults.some((r) => r.id === this.compareBId)) {
-      this.compareBId = this.allResults.find((r) => r.id !== this.compareAId)?.id ?? null;
+    const candidates = this.compareCandidates;
+    // `?tab=compare&b=<id>` — the Scenarios page's "compare with the proposal".
+    const fromUrl = this.route.snapshot.queryParamMap.get('b');
+    if (fromUrl && !this.compareBId && candidates.some((r) => r.id === fromUrl)) this.compareBId = fromUrl;
+    if (!this.compareAId || !candidates.some((r) => r.id === this.compareAId)) this.compareAId = a;
+    if (!this.compareBId || this.compareBId === this.compareAId || !candidates.some((r) => r.id === this.compareBId)) {
+      this.compareBId = candidates.find((r) => r.id !== this.compareAId)?.id ?? null;
     }
     this.runComparison();
   }
@@ -804,8 +824,8 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   }
 
   runComparison(): void {
-    const a = this.allResults.find((r) => r.id === this.compareAId);
-    const b = this.allResults.find((r) => r.id === this.compareBId);
+    const a = this.compareCandidates.find((r) => r.id === this.compareAId);
+    const b = this.compareCandidates.find((r) => r.id === this.compareBId);
     this.compareError = null;
     if (!a || !b || a.id === b.id) {
       this.comparison = null;
@@ -848,7 +868,9 @@ export class SchedulerComponent implements OnInit, OnDestroy {
       minute: '2-digit',
     });
     const { start_date, end_date } = result.result.planning_period;
-    return `${created} · ${this.formatDateLabel(start_date)} – ${this.formatDateLabel(end_date)}`;
+    const label = `${created} · ${this.formatDateLabel(start_date)} – ${this.formatDateLabel(end_date)}`;
+    const scenario = result.result.source === 'scenario' ? result.result.scenario?.name : null;
+    return scenario ? `${this.translations.t('scheduler.compare.scenario', { name: scenario })} · ${label}` : label;
   }
 
   /** B against A, and whether that is better: fewer places short, more wishes, a smaller hours gap. */

@@ -47,7 +47,14 @@ pub struct Shift {
     /// Unpaid break inside the shift's span, in minutes; counted off its hours.
     #[serde(default)]
     pub break_minutes: i16,
+    /// `regular`, `standby` (on-site standby) or `on_call` (from home).
+    #[serde(default = "regular_duty")]
+    pub duty_type: String,
     pub weekday_times: Vec<WeekdayTime>,
+}
+
+pub fn regular_duty() -> String {
+    "regular".to_string()
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -297,6 +304,8 @@ use async_trait::async_trait;
     async fn list_shifts(&self, tenant_id: &str) -> Result<Vec<Shift>, AppError>;
     async fn update_shift(&self, tenant_id: &str, id: Uuid, name: Option<String>, short_name: Option<String>, color: Option<String>, order: Option<i32>, break_minutes: Option<i16>) -> Result<Shift, AppError>;
     async fn delete_shift(&self, tenant_id: &str, id: Uuid) -> Result<(), AppError>;
+    /// Sets the shift's duty type (`regular`, `standby`, `on_call`).
+    async fn set_shift_duty_type(&self, tenant_id: &str, id: Uuid, duty_type: &str) -> Result<(), AppError>;
 }
 
 #[async_trait]
@@ -532,6 +541,12 @@ pub struct EmployeeFairnessDomain {
     pub weekend_days: i64,
     /// Weekends (Saturday–Sunday of one week) with at least one day worked.
     pub weekends: i64,
+    /// Shifts worked on a public holiday (on-call duties not included).
+    #[serde(default)]
+    pub holiday_shifts: i64,
+    /// On-call duties (duty type `on_call`), counted apart: no hours, no nights.
+    #[serde(default)]
+    pub on_call_duties: i64,
     pub wishes_asked: i64,
     pub wishes_granted: i64,
     /// Days marked absent — sick, leave, holiday — as opposed to a plain day off.
@@ -738,9 +753,11 @@ pub trait AnalysisRepository {
 pub trait OptimizedShiftResultRepository {
     async fn create_optimized_shift_result(&self, tenant_id: &str, result: serde_json::Value) -> Result<OptimizedShiftResultDomain, AppError>;
     async fn get_optimized_shift_result_by_id(&self, tenant_id: &str, id: Uuid) -> Result<Option<OptimizedShiftResultDomain>, AppError>;
+    /// The newest real proposal — never a what-if scenario.
     async fn get_latest_optimized_shift_result(&self, tenant_id: &str) -> Result<Option<OptimizedShiftResultDomain>, AppError>;
-    async fn list_optimized_shift_results(&self, tenant_id: &str, limit: Option<i64>, offset: Option<i64>) -> Result<Vec<OptimizedShiftResultDomain>, AppError>;
-    async fn count_optimized_shift_results(&self, tenant_id: &str) -> Result<i64, AppError>;
+    /// Real proposals, or (`scenarios`) only the what-if scenarios' results.
+    async fn list_optimized_shift_results(&self, tenant_id: &str, limit: Option<i64>, offset: Option<i64>, scenarios: bool) -> Result<Vec<OptimizedShiftResultDomain>, AppError>;
+    async fn count_optimized_shift_results(&self, tenant_id: &str, scenarios: bool) -> Result<i64, AppError>;
     async fn update_optimized_shift_result(&self, tenant_id: &str, id: Uuid, result: serde_json::Value) -> Result<OptimizedShiftResultDomain, AppError>;
     async fn delete_optimized_shift_result(&self, tenant_id: &str, id: Uuid) -> Result<(), AppError>;
 }
@@ -874,6 +891,8 @@ pub struct PlannerSettingsDomain {
     pub freeze_days: i16,
     /// > 0: a re-solve changes as few published employee-days as it must; 0: off.
     pub change_weight: i32,
+    pub fairness_horizon_months: i16,
+    pub fairness_weight: i32,
     /// `none` or `arbzg_de`: the legal rule set applied as hard rules.
     pub labor_law_profile: String,
     /// Reference period, in weeks, of the 48 h average.
@@ -985,6 +1004,10 @@ pub struct UpdatePlannerSettings {
     pub freeze_days: i16,
     #[serde(default = "default_change_weight")]
     pub change_weight: i32,
+    #[serde(default = "default_fairness_horizon_months")]
+    pub fairness_horizon_months: i16,
+    #[serde(default = "default_fairness_weight")]
+    pub fairness_weight: i32,
     #[serde(default = "default_labor_law_profile")]
     pub labor_law_profile: String,
     #[serde(default = "default_labor_law_averaging_weeks")]
@@ -1007,6 +1030,8 @@ fn default_labor_law_averaging_weeks() -> i16 { 24 }
 fn default_publish_lead_days() -> i16 { 28 }
 fn default_freeze_days() -> i16 { 7 }
 fn default_change_weight() -> i32 { 100000 }
+fn default_fairness_horizon_months() -> i16 { 6 }
+fn default_fairness_weight() -> i32 { 2000 }
 
 fn default_weekly_working_hours() -> f64 { 40.0 }
 fn default_weekly_hours_target_weight() -> i32 { 1000 }
@@ -1275,6 +1300,9 @@ pub struct PersonalLimitsDomain {
     pub no_night_shifts: bool,
     /// Weekdays they would rather have off, 0 = Monday … 6 = Sunday. Soft.
     pub preferred_days_off: Vec<i16>,
+    /// On-call duties (duty type `on_call`) per calendar month; None = no limit.
+    #[serde(default)]
+    pub max_on_call_per_month: Option<i16>,
     /// Basis of the JArbSchG rules (a minor is under 18 on the day). Personal
     /// data: left out of what a `shift-viewer` reads.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1295,6 +1323,7 @@ impl PersonalLimitsDomain {
             max_weekends_per_month: None,
             no_night_shifts: false,
             preferred_days_off: Vec::new(),
+            max_on_call_per_month: None,
             date_of_birth: None,
             maternity_protection: Some(false),
             updated_at: None,
@@ -1306,6 +1335,7 @@ impl PersonalLimitsDomain {
             && self.max_weekends_per_month.is_none()
             && !self.no_night_shifts
             && self.preferred_days_off.is_empty()
+            && self.max_on_call_per_month.is_none()
             && self.date_of_birth.is_none()
             && self.maternity_protection != Some(true)
     }
@@ -1328,6 +1358,8 @@ pub struct UpdatePersonalLimits {
     pub no_night_shifts: bool,
     #[serde(default)]
     pub preferred_days_off: Vec<i16>,
+    #[serde(default)]
+    pub max_on_call_per_month: Option<i16>,
     #[serde(default)]
     pub date_of_birth: Option<chrono::NaiveDate>,
     #[serde(default)]

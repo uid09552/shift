@@ -348,6 +348,34 @@ expands them into what the solver and the agent already read: hard weekday rules
 into whole-day `unavailability`, hard shift rules into `blocked_shifts`, soft
 ones into `preferred_off`. Open shifts refuse a volunteer a hard rule keeps out.
 
+## Duty types, call-ins and demand curves
+
+A shift's `duty_type` is `regular`, `standby` (on-site standby: working time,
+up to 24 h a day under `arbzg_de`) or `on_call` (on call from home: rest time,
+no hours, no rest needed around it, no night recovery). Personal limits carry
+`max_on_call_per_month`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/call-ins?from_date&to_date` | Recorded call-ins (viewers: their own) |
+| `PUT` | `/call-ins` | `{employee_id, date, minutes, note?}` — planners, on an on-call roster day only (400 otherwise); counts as work in later plans' legal hour windows |
+| `DELETE` | `/call-ins/{employee_id}/{date}` | Remove one |
+| `GET` | `/workstation-demand` | Every workstation's demand curves |
+| `GET` / `PUT` | `/workstations/{id}/demand` | `{weekdays: [{weekday, hours[24]}]}` — headcount per hour (0–99); all-zero days dropped, `[]` removes all. Planners write |
+
+## What-if scenarios and capacity forecast
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/planner/scenarios` | `{name, start_date, end_date, employee_ids?, overrides: {absences, closed_workstations, extra_employees, min_staffing}}` → `{task_id}`; poll as any run. Result `source: scenario` |
+| `GET` | `/planner/optimized-shifts?scenarios=true` | Scenario results only; without it they are left out, and `latest` never returns one |
+| `POST` | `/planner/optimized-shifts/{id}/take-as-plan` | 409 for a scenario's result |
+| `GET` | `/analysis/capacity-forecast?from=YYYY-MM&months=6` | Per month: contracted, absence, available and required hours, the gap, per workstation and per capability (planners/admins) |
+
+Planner settings gain `fairness_horizon_months` (6, 0–24; 0 = off) and
+`fairness_weight` (2000): the duty balance and holiday rotation sent to the
+solver. The fairness report rows gain `holiday_shifts` and `on_call_duties`.
+
 ## Saved views
 
 Named filter sets per user and page (only `schedule` so far), so the Schedule

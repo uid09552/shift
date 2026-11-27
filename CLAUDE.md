@@ -89,10 +89,12 @@ backend/
 │       │   │   ├── scheduler/       # Optimizer, in tabs: Calculate · Proposal · Check & fix · Compare · Runs
 │       │   │   ├── leave/           # Leave requests; planners: queue · year overview · blackouts & limits
 │       │   │   ├── open-shifts/     # Open shifts: volunteer / offer, assign, gaps
+│       │   │   ├── scenarios/       # What-if scenarios (planners), compared on the scheduler's Compare tab
 │       │   │   └── employee-calendar/
 │       │   ├── reports/
 │       │   │   ├── ontology/        # Who can work where: d3 network, optional roster layer; read-only
-│       │   │   └── analytics/       # ECharts report: coverage, hours, absences, changes, audit, runs; read-only
+│       │   │   ├── analytics/       # ECharts report: coverage, hours, absences, changes, audit, runs; read-only
+│       │   │   └── forecast/        # Capacity forecast: available vs required hours per month (planners)
 │       │   └── configuration/  # Admin settings
 │       │       ├── shifts/
 │       │       ├── workstations/
@@ -130,6 +132,15 @@ backend/
 - Have start/end times for each weekday
 - Color-coded for visualization
 - Employee limits per shift per weekday
+- A **duty type** (`shifts.duty_type`): `regular`, `standby` (on-site standby,
+  Bereitschaftsdienst — working time, up to 24 h a day under `arbzg_de`) or
+  `on_call` (on call from home, Rufbereitschaft — rest time: no hours, no rest
+  around it, no night recovery). What each means lives in `legal.py` (planner +
+  agent copy). Personal limit `max_on_call_per_month`. Planners record the
+  minutes actually called in afterwards (`/call-ins`, the Schedule cell menu);
+  those count as work in the next plans' legal hour windows
+  (`history[].called_in_minutes`). The Schedule page marks on-call/standby cells;
+  the Fairness page counts on-call duties apart
 
 ### Capabilities
 - Skills or qualifications required for workstations
@@ -147,6 +158,11 @@ backend/
 - Hospital units/departments
 - Have required capabilities
 - Active shifts assigned per workstation
+- Optionally a **demand curve** per weekday: headcount per hour
+  (`/workstations/{id}/demand`, on the workstation's form). On a weekday with a
+  curve it replaces the per-shift minimum there: the solver covers every hour,
+  keeps surplus low and names uncovered hours in `message`. The Day view shows
+  demand against who is planned
 
 ### Shift Assignments
 - Fixed assignments: an employee works this shift on this day — or, with
@@ -198,6 +214,27 @@ backend/
   never publishes and never notifies. Audit actor `auto-planner`
 - A plan result is stored for the tenant of its task (`find_planning_task`), not
   the server's default tenant
+
+### Long-term fairness
+- A planner setting, `fairness_horizon_months` (6; 0 = off) and `fairness_weight`
+  (2000): `services/fairness_history.rs` counts nights, weekend days, holiday
+  shifts and on-call duties per employee over that many months of confirmed
+  roster before the period and sends them as `employees[].fairness_balance`; the
+  solver balances each count per contract hour *including* them
+- Holiday rotation: whoever worked Christmas (24–26 Dec) or New Year (31 Dec –
+  1 Jan) last year gets this year's days as preferred days off
+- The Fairness page shows holiday shifts and on-call duties, over up to 12 months
+
+### What-if scenarios and capacity forecast
+- `POST /planner/scenarios`: the real planning input with overrides (extra
+  absences, closed workstations, hypothetical hires, a different minimum —
+  `services::scenario::apply`), solved as a normal run with source `scenario`.
+  Its result is never the latest proposal, is listed only with
+  `?scenarios=true`, and Take as Plan refuses it (409). The Scenarios page runs
+  them; the scheduler's Compare tab compares them with real proposals
+- `GET /analysis/capacity-forecast`: per month, contracted hours minus recorded
+  absences against what the workstations need (minimum per shift or demand
+  curve), in total and per capability — the Capacity forecast page
 
 ### Labor law
 - A planner setting (`labor_law_profile`), not a per-ward rule: `arbzg_de`
@@ -412,6 +449,11 @@ Base URL: `http://localhost:8080/api/v1`
   The caller's saved views of a page (self-service; sharing: planners/admins)
 - `GET /setup-status`, `POST /setup/sample-data` (admin, empty tenant only) -
   First-run checklist
+- `GET /workstation-demand`, `GET/PUT /workstations/{id}/demand` - Staffing demand by hour
+- `GET/PUT /call-ins`, `DELETE /call-ins/{employee_id}/{date}` - Call-ins on on-call duties
+- `POST /planner/scenarios` - What-if scenario run (result `source: scenario`, kept apart);
+  `GET /planner/optimized-shifts?scenarios=true` lists them
+- `GET /analysis/capacity-forecast?from=YYYY-MM&months=6` - Capacity forecast (planner/admin)
 - `GET /info` - Version, commit and build date of the running backend (baked in
   by GitLab CI, overridable by the `build` config section; see `services/info.rs`)
 
@@ -605,6 +647,14 @@ tool posts to it and waits, which a queue cannot offer. In
   `agent/shift_agent/agent/legal.py` (a test fails on drift). The plan check
   reports breaches in a separate `legal` section with the statute. A modelled
   subset of the law, not legal advice
+- `fairness_weight`: int (default 2000, 0=off) — balance of nights, weekend days,
+  holiday shifts and on-call duties per contract hour, including
+  `employees[].fairness_balance` (the backend sends it when the planner setting
+  `fairness_horizon_months` > 0)
+- `on_call_hours_factor`: float (default 0.0) — share of an on-call span counted
+  towards hours targets and the hour balance
+- `demand_surplus_weight`: int (default 50) — cost per person-hour above a demand
+  curve (surplus is also minimised in the first phase, after stability)
 - `solver_time_limit_seconds`: float (default 120.0)
 - `solver_num_workers`: int (default 8)
 
