@@ -17,7 +17,7 @@ widget, to the agent.
 
 ## Design system
 
-[`Design.md`](../Design.md) is mandatory for every screen; CLAUDE.md lists the
+`Design.md` (repository root) is mandatory for every screen; CLAUDE.md lists the
 rules. The tokens are in `ui/src/styles.css`: the brand scale is SAP Blue
 (`brand-500` #0057d2, `brand-600` #0040b0), the light theme's gray scale is
 Design.md's slate text ladder and chrome/band surfaces, every `shadow-*` is
