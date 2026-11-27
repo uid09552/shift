@@ -233,7 +233,7 @@
             >
               <th
                 scope="col"
-                class="employee-col relative sticky left-0 top-0 z-20 border-r border-gray-100 bg-white px-5 py-4 text-left font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-gray-500 dark:border-white/[0.06] dark:bg-gray-900 dark:text-gray-400"
+                class="employee-col relative sticky left-0 top-0 z-20 border-r border-gray-100 bg-white px-5 py-4 text-left font-mono text-[11px] font-medium uppercase text-gray-500 dark:border-white/[0.06] dark:bg-gray-900 dark:text-gray-400"
                 [style.width.px]="employeeColWidth"
                 [style.minWidth.px]="employeeColWidth"
                 [style.maxWidth.px]="employeeColWidth"
@@ -274,7 +274,7 @@
                     class="w-full rounded-md py-0.5 uppercase transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 dark:hover:bg-white/[0.06]"
                   >
                   <div
-                    class="font-mono text-[11px] font-medium tracking-[0.12em]"
+                    class="font-mono text-[11px] font-medium"
                     [class.text-brand-600]="day.isToday"
                     [class.dark:text-amber-300]="day.isToday"
                     [class.text-gray-500]="!day.isToday"
@@ -293,7 +293,7 @@
                     {{ day.dayNum }}
                   </div>
                   @if (day.isToday && viewMode === 'week') {
-                    <div class="mt-1.5 font-mono text-[9px] font-medium tracking-[0.14em] text-brand-600 dark:text-amber-300/80">
+                    <div class="mt-1.5 font-mono text-[9px] font-medium text-brand-600 dark:text-amber-300/80">
                       {{ 'common.today' | t }}
                     </div>
                   }
@@ -306,7 +306,7 @@
                 </th>
               }
               @if (viewMode === 'week' && !wishesOnly) {
-                <th class="sticky top-0 z-10 w-20 bg-white px-3 py-4 text-center font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-gray-500 dark:bg-gray-900 dark:text-gray-400">
+                <th class="sticky top-0 z-10 w-20 bg-white px-3 py-4 text-center font-mono text-[11px] font-medium uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
                   {{ 'common.hours' | t }}
                 </th>
               }
@@ -441,7 +441,7 @@
                         </div>
                       } @else {
                         <div
-                          class="shift-chip group/chip relative flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-center transition-shadow hover:shadow-sm"
+                          class="shift-chip group/chip relative flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-1 text-center transition-shadow"
                           [style.backgroundColor]="getShiftBg(cell.shift)"
                           [style.borderLeft]="'3px solid ' + getShiftColor(cell.shift)"
                           [title]="cell.workstation ? getWorkstationName(cell.workstation) : null"
@@ -460,7 +460,7 @@
                       <!-- Delete confirmation -->
                       @if (isDeleting(employee.id, dateStr)) {
                         <div
-                          class="delete-confirm absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-red-200 bg-white p-2 shadow-lg dark:border-red-800 dark:bg-gray-800"
+                          class="delete-confirm absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-red-200 bg-white p-2 dark:border-red-800 dark:bg-gray-800"
                           (click)="$event.stopPropagation()"
                         >
                           <p class="mb-2 text-xs text-gray-600 dark:text-gray-300">
@@ -544,7 +544,7 @@
                         <!-- Delete confirmation -->
                         @if (isDeleting(employee.id, dateStr)) {
                           <div
-                            class="delete-confirm absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-red-200 bg-white p-2 shadow-lg dark:border-red-800 dark:bg-gray-800"
+                            class="delete-confirm absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-red-200 bg-white p-2 dark:border-red-800 dark:bg-gray-800"
                             (click)="$event.stopPropagation()"
                           >
                             <p class="mb-2 text-xs text-gray-600 dark:text-gray-300">

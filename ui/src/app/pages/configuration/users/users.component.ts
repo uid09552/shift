@@ -107,7 +107,7 @@ import { ROLE_OPTIONS } from './user-roles';
                       <span class="block font-medium text-gray-800 text-theme-sm dark:text-white/90">{{ displayName(user) }}</span>
                       <span class="block text-xs text-gray-500 dark:text-gray-400">{{ user.email || user.username }}</span>
                       @if (!user.enabled) {
-                        <span class="mt-1 inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/[0.08] dark:text-gray-300">
+                        <span class="mt-1 inline-flex items-center rounded-sm bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/[0.08] dark:text-gray-300">
                           {{ 'users.disabled' | t }}
                         </span>
                       }

@@ -71,7 +71,7 @@
                   <div class="min-w-0 flex-1">
                     <p class="text-gray-800 dark:text-white/90">{{ s.mine }} <span class="mx-1" aria-hidden="true">⇄</span><span class="sr-only">{{ 'overview.mine.for' | t }}</span> {{ s.otherName }}: {{ s.theirs }}</p>
                   </div>
-                  <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold"
+                  <span class="shrink-0 rounded-sm px-2 py-0.5 text-xs font-semibold"
                         [ngClass]="s.waitingForMe ? 'bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300' : 'bg-gray-100 text-gray-600 dark:bg-white/[0.06] dark:text-gray-400'"
                         data-testid="my-swap-status">
                     {{ (s.waitingForMe ? 'overview.mine.waitingForYou' : 'swaps.status.' + s.swap.status) | t }}

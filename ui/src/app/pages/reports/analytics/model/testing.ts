@@ -62,7 +62,7 @@ export const shift = (id: string, name: string, min = 1, byWeekday: Record<numbe
   id,
   name,
   short_name: name.slice(0, 1),
-  color: '#465fff',
+  color: '#0057d2',
   is_night: false,
   weekday: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, min: byWeekday[weekday] ?? min, max })),
 });

@@ -15,6 +15,21 @@ widget, to the agent.
 | Charts | ApexCharts, AMCharts 5 |
 | Reactivity | RxJS 7 |
 
+## Design system
+
+[`Design.md`](../Design.md) is mandatory for every screen; CLAUDE.md lists the
+rules. The tokens are in `ui/src/styles.css`: the brand scale is SAP Blue
+(`brand-500` #0057d2, `brand-600` #0040b0), the light theme's gray scale is
+Design.md's slate text ladder and chrome/band surfaces, every `shadow-*` is
+none, corners are 4 / 8 / 12px, `font-mono` is Inter, and letter-spacing is 0.
+Typography roles and bands are utilities (`type-*`, `band-neutral`,
+`band-blue`).
+
+`npm run lint:design` (`ui/scripts/design-lint.mjs`, also run before every
+`npm run build`, so the image build in CI) fails on shadows, letter-spacing,
+pill-shaped text, the old brand colour and a second font family. A line may opt
+out with `design-lint-ignore` and a reason.
+
 ## Routes
 
 All application routes render inside `AppLayoutComponent` (sidebar + header):

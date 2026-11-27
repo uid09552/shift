@@ -22,7 +22,7 @@
             <li class="flex flex-wrap items-center justify-between gap-3 py-2.5" [attr.data-testid]="'skill-mix-rule-' + r.id">
               <p class="text-sm text-gray-800 dark:text-white/90">
                 {{ describeMix(r) }}
-                <span class="ml-2 rounded-full px-2 py-0.5 text-xs font-medium"
+                <span class="ml-2 rounded-sm px-2 py-0.5 text-xs font-medium"
                   [ngClass]="r.mode === 'hard' ? 'bg-gray-100 text-gray-700 dark:bg-white/[0.06] dark:text-gray-300' : 'bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400'">{{ ('staffingRules.mode.' + r.mode) | t }}</span>
               </p>
               <button type="button" (click)="removeMixRule(r)" [disabled]="busy" [attr.data-testid]="'skill-mix-delete-' + r.id"
@@ -124,7 +124,7 @@
             <li class="flex flex-wrap items-center justify-between gap-3 py-2.5" [attr.data-testid]="'pairing-rule-' + r.id">
               <p class="text-sm text-gray-800 dark:text-white/90">
                 {{ describePair(r) }}
-                <span class="ml-2 rounded-full px-2 py-0.5 text-xs font-medium"
+                <span class="ml-2 rounded-sm px-2 py-0.5 text-xs font-medium"
                   [ngClass]="r.mode === 'hard' ? 'bg-gray-100 text-gray-700 dark:bg-white/[0.06] dark:text-gray-300' : 'bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400'">{{ ('staffingRules.mode.' + r.mode) | t }}</span>
               </p>
               <button type="button" (click)="removePairRule(r)" [disabled]="busy" [attr.data-testid]="'pairing-delete-' + r.id"

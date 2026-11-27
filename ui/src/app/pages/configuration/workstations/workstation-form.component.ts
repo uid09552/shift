@@ -105,7 +105,7 @@ interface WorkstationForm {
       <select
         id="wsPriority"
         [(ngModel)]="form.priority"
-        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
       >
         <option value="high">{{ 'workstations.priorityHigh' | t }}</option>
         <option value="medium">{{ 'workstations.priorityMedium' | t }}</option>

@@ -39,12 +39,12 @@ export interface Option {
     >
       {{ label | t }}
       @if (selected.length) {
-        <span class="rounded-full bg-brand-500 px-1.5 text-[11px] font-semibold text-white tabular-nums">{{ selected.length }}</span>
+        <span class="rounded-sm bg-brand-500 px-1.5 text-[11px] font-semibold text-white tabular-nums">{{ selected.length }}</span>
       }
       <svg class="size-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4Z" /></svg>
     </button>
     @if (open) {
-      <div class="absolute left-0 z-30 mt-1 w-64 rounded-xl border border-gray-200 bg-white p-2 shadow-theme-lg dark:border-gray-800 dark:bg-gray-900" role="listbox" [attr.aria-label]="label | t" aria-multiselectable="true">
+      <div class="absolute left-0 z-30 mt-1 w-64 rounded-xl border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-900" role="listbox" [attr.aria-label]="label | t" aria-multiselectable="true">
         @if (options.length > 8) {
           <input
             type="search"

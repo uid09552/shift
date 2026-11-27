@@ -15,7 +15,7 @@
     appFocusTrap
     [attr.aria-label]="ariaLabel"
     [attr.aria-labelledby]="ariaLabelledby"
-    [ngClass]="isFullscreen ? 'w-full h-full' : 'relative w-full rounded-2xl bg-white shadow-theme-xl dark:bg-gray-900'"
+    [ngClass]="isFullscreen ? 'w-full h-full' : 'relative w-full rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900'"
     [class]="className"
     (click)="onContentClick($event)"
   >

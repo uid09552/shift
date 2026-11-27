@@ -186,7 +186,7 @@ type DeactivateMode = 'complete' | 'period';
                   <td class="table-td" [attr.data-testid]="'ws-status-' + ws.id">
                     @let status = statusOf(ws);
                     <span
-                      class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium"
+                      class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium"
                       [ngClass]="{
                         'bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400': status.kind === 'active',
                         'bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400': status.kind === 'closed',
@@ -215,7 +215,7 @@ type DeactivateMode = 'complete' | 'period';
                   </td>
                   <td class="table-td">
                     <span
-                      class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                      class="inline-flex items-center rounded-sm px-2.5 py-0.5 text-xs font-medium"
                       [ngClass]="{
                         'bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400': ws.priority === 'high',
                         'bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400': ws.priority === 'medium',
@@ -235,7 +235,7 @@ type DeactivateMode = 'complete' | 'period';
                       <div class="flex flex-wrap gap-1.5">
                         @for (shiftId of ws.active_shift_ids; track shiftId) {
                           <span
-                            class="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-400"
+                            class="inline-flex items-center rounded-sm bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-400"
                           >
                             {{ getShiftName(shiftId) }}
                           </span>
@@ -250,7 +250,7 @@ type DeactivateMode = 'complete' | 'period';
                       <div class="flex flex-wrap gap-1.5">
                         @for (cap of getRequiredCapabilities(ws.id); track cap.id) {
                           <span
-                            class="inline-flex items-center rounded-full bg-success-50 px-2.5 py-0.5 text-xs font-medium text-success-700 dark:bg-success-500/15 dark:text-success-400"
+                            class="inline-flex items-center rounded-sm bg-success-50 px-2.5 py-0.5 text-xs font-medium text-success-700 dark:bg-success-500/15 dark:text-success-400"
                           >
                             {{ cap.name }}
                           </span>

@@ -5,11 +5,60 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+  Design system: /Design.md (mandatory — see CLAUDE.md, "Design system").
+  Its tokens live here, so every page picks them up through the utilities it
+  already uses: one acting blue (brand-*), a slate text ladder (gray-* in the
+  light theme), flat surfaces (no shadow), 8px controls / 12px panels, one
+  variable typeface with a 350–700 weight range and no letter-spacing.
+*/
 @theme {
   --font-*: initial;
+  /* One family only (Design.md: "no second family and no monospace"); figures
+     line up through tabular-nums, not a monospace face. */
   --font-outfit: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  /* Labels, dates, times and hours in the schedule; the system's own monospace. */
-  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  --font-mono: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Weights: 350 list items, 400 body / nav, 500 headings and buttons, 700 display. */
+  --font-weight-list: 350;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 500;
+  --font-weight-bold: 700;
+
+  /* No letter-spacing anywhere (Design.md). */
+  --tracking-tighter: 0em;
+  --tracking-tight: 0em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0em;
+  --tracking-wider: 0em;
+  --tracking-widest: 0em;
+
+  /* Corners: 4px inline anchors, 8px controls, 12px panels, dialogs and media. Nothing larger. */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 12px;
+  --radius-3xl: 12px;
+
+  /* Design.md colour tokens, by name. */
+  --color-canvas: #ffffff;
+  --color-chrome: #f5f6f7;
+  --color-band: #eaecee;
+  --color-band-blue: #ebf8ff;
+  --color-band-lavender: #f7f4ff;
+  --color-ink: #000000;
+  --color-ink-lead: #3c3c3c;
+  --color-ink-body: #223548;
+  --color-ink-list: #354a5f;
+  --color-ink-meta: #475e75;
+  --color-ink-nav: #545454;
+  --color-hairline: #475e75;
+  --color-primary: #0057d2;
+  --color-primary-deep: #0040b0;
+  --color-navy: #022879;
+  --color-sky: #6bc0ff;
 
   --breakpoint-*: initial;
   --breakpoint-2xsm: 375px;
@@ -43,18 +92,19 @@
   --color-white: #ffffff;
   --color-black: #101828;
 
-  --color-brand-25: #f2f7ff;
-  --color-brand-50: #ecf3ff;
-  --color-brand-100: #dde9ff;
-  --color-brand-200: #c2d6ff;
-  --color-brand-300: #9cb9ff;
-  --color-brand-400: #7592ff;
-  --color-brand-500: #465fff;
-  --color-brand-600: #3641f5;
-  --color-brand-700: #2a31d8;
-  --color-brand-800: #252dae;
-  --color-brand-900: #262e89;
-  --color-brand-950: #161950;
+  /* The one acting colour: SAP Blue (500) and Deep Blue (600); 50 is Band Blue. */
+  --color-brand-25: #f5fbff;
+  --color-brand-50: #ebf8ff;
+  --color-brand-100: #d6ecff;
+  --color-brand-200: #b0d8fb;
+  --color-brand-300: #6bc0ff;
+  --color-brand-400: #4c9bf0;
+  --color-brand-500: #0057d2;
+  --color-brand-600: #0040b0;
+  --color-brand-700: #00339a;
+  --color-brand-800: #022879;
+  --color-brand-900: #021d57;
+  --color-brand-950: #01123a;
 
   --color-blue-light-25: #f5fbff;
   --color-blue-light-50: #f0f9ff;
@@ -139,21 +189,23 @@
 
   --color-theme-purple-500: #7a5af8;
 
-  --shadow-theme-md: 0px 4px 8px -2px rgba(16, 24, 40, 0.1),
-    0px 2px 4px -2px rgba(16, 24, 40, 0.06);
-  --shadow-theme-lg: 0px 12px 16px -4px rgba(16, 24, 40, 0.08),
-    0px 4px 6px -2px rgba(16, 24, 40, 0.03);
-  --shadow-theme-sm: 0px 1px 3px 0px rgba(16, 24, 40, 0.1),
-    0px 1px 2px 0px rgba(16, 24, 40, 0.06);
-  --shadow-theme-xs: 0px 1px 2px 0px rgba(16, 24, 40, 0.05);
-  --shadow-theme-xl: 0px 20px 24px -4px rgba(16, 24, 40, 0.08),
-    0px 8px 8px -4px rgba(16, 24, 40, 0.03);
+  /* Flat by default (Design.md "Elevation & Depth"): controls, cards and
+     panels carry no shadow; separation is a band colour or a hairline. */
+  --shadow-theme-md: none;
+  --shadow-theme-lg: none;
+  --shadow-theme-sm: none;
+  --shadow-theme-xs: none;
+  --shadow-theme-xl: none;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-xl: none;
+  --shadow-2xl: none;
   --shadow-datepicker: -5px 0 0 #262d3c, 5px 0 0 #262d3c;
-  --shadow-focus-ring: 0px 0px 0px 4px rgba(70, 95, 255, 0.12);
+  --shadow-focus-ring: 0px 0px 0px 4px rgba(0, 87, 210, 0.16);
   --shadow-slider-navigation: 0px 1px 2px 0px rgba(16, 24, 40, 0.1),
     0px 1px 3px 0px rgba(16, 24, 40, 0.1);
-  --shadow-tooltip: 0px 4px 6px -2px rgba(16, 24, 40, 0.05),
-    -8px 0px 20px 8px rgba(16, 24, 40, 0.05);
+  --shadow-tooltip: none;
 
   --drop-shadow-4xl: 0 35px 35px rgba(0, 0, 0, 0.25),
     0 45px 65px rgba(0, 0, 0, 0.15);
@@ -189,11 +241,18 @@
   }
   body {
     @apply relative font-normal font-outfit z-1;
+    letter-spacing: 0;
   }
   h1,
   h2,
   h3 {
     text-wrap: balance;
+    font-weight: 500;
+  }
+  /* Headings in true black (Design.md: the hue shift from black headings to
+     slate body carries the hierarchy). */
+  :root:not(.dark) :is(h1, h2, h3, h4) {
+    color: var(--color-ink);
   }
   /* Keyboard focus is always visible; mouse clicks do not draw a ring. */
   :focus-visible {
@@ -212,9 +271,25 @@
   input[type="date"] {
     font-variant-numeric: tabular-nums;
   }
-  /* Light-mode gray-400 text fails contrast on white; darken it, dark mode keeps the original. */
-  :root {
-    --color-gray-400: #707b91;
+  /*
+    Light theme: the gray scale is Design.md's text and surface ladder, so the
+    utilities every page uses resolve to it — 50 Chrome, 100 Band, 200–300
+    rules, 400–600 Ink Meta (captions, hints), 700 Ink List, 800 Ink Body,
+    900 Ink. All text tiers stay at 4.5:1 or more on Canvas and Chrome. The
+    dark theme keeps its own scale (Design.md has none).
+  */
+  :root:not(.dark) {
+    --color-gray-25: #fbfbfc;
+    --color-gray-50: #f5f6f7;
+    --color-gray-100: #eaecee;
+    --color-gray-200: #dde1e5;
+    --color-gray-300: #8494a5;
+    --color-gray-400: #5d7186;
+    --color-gray-500: #4d6379;
+    --color-gray-600: #475e75;
+    --color-gray-700: #354a5f;
+    --color-gray-800: #223548;
+    --color-gray-900: #000000;
   }
   :root.dark {
     --color-gray-400: #98a2b3;
@@ -247,12 +322,13 @@
   @apply relative flex items-center w-full gap-3 px-3 py-2 font-medium rounded-lg text-theme-sm transition-colors duration-150;
 }
 
+/* Design.md ex-app-shell-row: active marked by the primary blue, not a fill. */
 @utility menu-item-active {
-  @apply bg-brand-50 text-brand-500 dark:bg-brand-500/[0.12] dark:text-brand-400;
+  @apply text-brand-500 shadow-[inset_3px_0_0_var(--color-brand-500)] dark:bg-brand-500/[0.12] dark:text-brand-400;
 }
 
 @utility menu-item-inactive {
-  @apply text-gray-700 hover:bg-gray-100 group-hover:text-gray-700 dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-gray-300;
+  @apply text-ink-nav hover:bg-gray-50 group-hover:text-ink dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-gray-300;
 }
 
 @utility menu-item-icon {
@@ -286,18 +362,18 @@
 }
 
 @utility menu-dropdown-item {
-  @apply relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-theme-sm font-medium;
+  @apply relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-theme-sm font-normal;
 }
 @utility menu-dropdown-item-active {
-  @apply bg-brand-50 text-brand-500 dark:bg-brand-500/[0.12] dark:text-brand-400;
+  @apply font-medium text-brand-500 shadow-[inset_3px_0_0_var(--color-brand-500)] dark:bg-brand-500/[0.12] dark:text-brand-400;
 }
 
 @utility menu-dropdown-item-inactive {
-  @apply text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5;
+  @apply text-ink-nav hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5;
 }
 
 @utility menu-dropdown-badge {
-  @apply text-success-600 dark:text-success-500 block rounded-full px-2.5 py-0.5 text-xs font-medium uppercase;
+  @apply text-success-600 dark:text-success-500 block rounded-sm px-2 py-0.5 text-xs font-medium;
 }
 
 @utility menu-dropdown-badge-active {
@@ -309,7 +385,7 @@
 }
 
 @utility menu-dropdown-badge-pro {
-  @apply text-brand-600 dark:text-brand-500 block rounded-full px-2.5 py-0.5 text-xs font-medium uppercase;
+  @apply text-brand-600 dark:text-brand-500 block rounded-sm px-2 py-0.5 text-xs font-medium;
 }
 
 @utility menu-dropdown-badge-pro-active {
@@ -349,7 +425,7 @@
 /* List and data tables. Header and body cells share one horizontal padding so
    columns line up at every width; pages add only what is specific to a cell. */
 @utility table-card {
-  @apply overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03];
+  @apply overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03];
 }
 
 @utility table-scroll {
@@ -360,22 +436,25 @@
   @apply w-full text-theme-sm text-gray-700 dark:text-gray-300;
 }
 
+/* Design.md ex-data-table-cell: header on canvas, hairline row rules, 12px 16px cells. */
 @utility table-head {
-  @apply border-y border-gray-100 bg-gray-50 dark:border-white/[0.05] dark:bg-white/[0.02];
+  @apply border-b border-gray-300 bg-white dark:border-white/[0.08] dark:bg-white/[0.02];
 }
 
 @utility table-th {
-  @apply px-5 py-3 text-start text-theme-xs font-medium uppercase tracking-wide whitespace-nowrap text-gray-500 dark:text-gray-400;
+  @apply px-4 py-3 text-start text-theme-sm font-medium whitespace-nowrap text-ink dark:text-gray-300;
 }
 
 @utility table-tr {
-  @apply border-b border-gray-100 transition-colors last:border-0 hover:bg-brand-50 dark:border-white/[0.05] dark:hover:bg-white/[0.05];
+  @apply border-b border-gray-200 transition-colors last:border-0 hover:bg-brand-50 dark:border-white/[0.05] dark:hover:bg-white/[0.05];
 }
 
 /* Zebra rows. :where() keeps the stripe weaker than a row's hover. */
 @utility table-striped {
+  /* Rows are separated by hairlines (Design.md); the stripe is only a whisper,
+     light enough that status colours keep 4.5:1 on it. */
   & > tr:where(:nth-child(even)) {
-    @apply bg-gray-50;
+    @apply bg-gray-25;
   }
   @variant dark {
     & > tr:where(:nth-child(even)) {
@@ -386,7 +465,7 @@
 
 @utility table-td {
   /* No colour here: cells inherit table-base's, so a cell's own colour always wins. */
-  @apply px-5 py-3 align-middle;
+  @apply px-4 py-3 align-middle;
 }
 
 /* Modifiers on a table-th / table-td; important so they win over its text-start. */
@@ -399,7 +478,34 @@
 }
 
 @utility table-empty {
-  @apply px-5 py-12 text-center text-gray-400 dark:text-gray-500;
+  @apply px-4 py-10 text-center text-gray-500 dark:text-gray-500;
+}
+
+/* Design.md typography roles as utilities, for new UI. */
+@utility type-section-title {
+  @apply text-[32px] leading-[35.2px] font-medium text-ink dark:text-white/90;
+}
+@utility type-subhead {
+  @apply text-[20px] leading-[22px] font-medium text-ink dark:text-white/90;
+}
+@utility type-body {
+  @apply text-base leading-6 font-normal text-ink-body dark:text-gray-300;
+}
+@utility type-list-item {
+  @apply text-[15px] leading-[21px] font-list text-ink-list dark:text-gray-300;
+}
+@utility type-nav-link {
+  @apply text-[15px] leading-[21px] font-normal text-ink-nav dark:text-gray-400;
+}
+@utility type-caption {
+  @apply text-sm leading-[21px] font-normal text-ink-meta dark:text-gray-400;
+}
+/* Full-width flat bands that separate sections: square, never rounded. */
+@utility band-neutral {
+  @apply rounded-none bg-chrome dark:bg-white/[0.02];
+}
+@utility band-blue {
+  @apply rounded-none bg-band-blue dark:bg-brand-500/[0.08];
 }
 
 @layer utilities {
@@ -645,13 +751,13 @@ span.flatpickr-weekday,
 .flatpickr-day.selected.nextMonthDay,
 .flatpickr-day.startRange.nextMonthDay,
 .flatpickr-day.endRange.nextMonthDay {
-  background: #465fff;
+  background: #0057d2;
   @apply !border-brand-500 !bg-brand-500 hover:!border-brand-500 hover:!bg-brand-500;
 }
 .flatpickr-day.selected.startRange + .endRange:not(:nth-child(7n + 1)),
 .flatpickr-day.startRange.startRange + .endRange:not(:nth-child(7n + 1)),
 .flatpickr-day.endRange.startRange + .endRange:not(:nth-child(7n + 1)) {
-  box-shadow: -10px 0 0 #465fff;
+  box-shadow: -10px 0 0 #0057d2;
 }
 
 .flatpickr-months .flatpickr-prev-month svg,

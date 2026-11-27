@@ -72,17 +72,17 @@
 
 .calendar-cell.today {
   background-color: #f5f8ff;
-  box-shadow: inset 0 0 0 1px rgba(70, 95, 255, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(0, 87, 210, 0.35);
 }
 
 .dark .calendar-cell.today {
-  background-color: rgba(70, 95, 255, 0.07);
-  box-shadow: inset 0 0 0 1px rgba(70, 95, 255, 0.45);
+  background-color: rgba(0, 87, 210, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(0, 87, 210, 0.45);
 }
 
 .calendar-cell.today .day-number {
   /* brand-500 — the accent the rest of the app marks "now" with. */
-  background-color: #465fff;
+  background-color: #0057d2;
   color: #ffffff;
   border-radius: 50%;
   width: 22px;
@@ -312,15 +312,15 @@
 }
 
 .absence-pick:hover {
-  background: rgba(70, 95, 255, 0.07);
+  background: rgba(0, 87, 210, 0.07);
 }
 
 .absence-pick.picked {
-  background: rgba(70, 95, 255, 0.14);
-  box-shadow: inset 0 0 0 2px rgba(70, 95, 255, 0.6);
+  background: rgba(0, 87, 210, 0.14);
+  box-shadow: inset 0 0 0 2px rgba(0, 87, 210, 0.6);
 }
 
 .absence-pick:focus-visible {
-  outline: 2px solid rgba(70, 95, 255, 0.9);
+  outline: 2px solid rgba(0, 87, 210, 0.9);
   outline-offset: -2px;
 }

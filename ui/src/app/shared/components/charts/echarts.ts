@@ -43,7 +43,7 @@ echarts.use([
 export type ChartTheme = 'light' | 'dark';
 
 /** Series colours, from the app's palette (styles.css), in the order series get them. */
-export const SERIES_COLORS = ['#465fff', '#12b76a', '#f79009', '#0ba5ec', '#f04438', '#7a5af8', '#fb6514', '#667085'];
+export const SERIES_COLORS = ['#0057d2', '#12b76a', '#f79009', '#0ba5ec', '#f04438', '#7a5af8', '#fb6514', '#667085'];
 
 function theme(text: string, muted: string, grid: string, tooltip: string) {
   const axis = {

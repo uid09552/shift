@@ -73,7 +73,7 @@ const DEFAULT_BAND: { min: number; max: number } = { min: 30, max: 45 };
           [class]="expert ? 'bg-brand-500' : 'bg-gray-200 dark:bg-white/10'"
         >
           <span
-            class="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-theme-xs transition-transform duration-150"
+            class="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform duration-150"
             [class]="expert ? 'translate-x-4' : 'translate-x-0'"
           ></span>
         </span>
@@ -294,7 +294,7 @@ const DEFAULT_BAND: { min: number; max: number } = { min: 30, max: 45 };
                   [class]="bandEnabled ? 'bg-brand-500' : 'bg-gray-200 dark:bg-white/10'"
                 >
                   <span
-                    class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-theme-xs transition-transform duration-150"
+                    class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-150"
                     [class]="bandEnabled ? 'translate-x-5' : 'translate-x-0'"
                   ></span>
                 </span>
@@ -445,7 +445,7 @@ const DEFAULT_BAND: { min: number; max: number } = { min: 30, max: 45 };
                   [class]="form.keep_fixed_assignments ? 'bg-brand-500' : 'bg-gray-200 dark:bg-white/10'"
                 >
                   <span
-                    class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-theme-xs transition-transform duration-150"
+                    class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-150"
                     [class]="form.keep_fixed_assignments ? 'translate-x-5' : 'translate-x-0'"
                   ></span>
                 </span>
@@ -638,7 +638,7 @@ const DEFAULT_BAND: { min: number; max: number } = { min: 30, max: 45 };
                   [class]="form.change_weight > 0 ? 'bg-brand-500' : 'bg-gray-200 dark:bg-white/10'"
                 >
                   <span
-                    class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-theme-xs transition-transform duration-150"
+                    class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-150"
                     [class]="form.change_weight > 0 ? 'translate-x-5' : 'translate-x-0'"
                   ></span>
                 </span>
@@ -706,7 +706,7 @@ const DEFAULT_BAND: { min: number; max: number } = { min: 30, max: 45 };
                   [class]="form.auto_plan_enabled ? 'bg-brand-500' : 'bg-gray-200 dark:bg-white/10'"
                 >
                   <span
-                    class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-theme-xs transition-transform duration-150"
+                    class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-150"
                     [class]="form.auto_plan_enabled ? 'translate-x-5' : 'translate-x-0'"
                   ></span>
                 </span>

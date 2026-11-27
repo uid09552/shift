@@ -115,7 +115,7 @@ export class ChangesTabComponent extends TabBase {
         total: bySource.total,
         list: sourceKeys.map((k, i) => `${sourceNames[i]} ${[...bySource.bySourceOverTime.get(k)!.values()].reduce((a, b) => a + b, 0)}`).join(', '),
       }),
-      ack: categoryBars(`changes-ack_${this.fileStem()}`, ackNames, ACK_BUCKETS.map((b) => ({ value: all.ack[b], itemStyle: { color: b === 'unread' ? '#f04438' : '#465fff' } }))),
+      ack: categoryBars(`changes-ack_${this.fileStem()}`, ackNames, ACK_BUCKETS.map((b) => ({ value: all.ack[b], itemStyle: { color: b === 'unread' ? '#f04438' : '#0057d2' } }))),
       ackSummary: ACK_BUCKETS.map((b, i) => `${ackNames[i]} ${all.ack[b]}`).join(', '),
       byEmployee: categoryBars(`changes-people_${this.fileStem()}`, topPeople.map(([n]) => n), emphasise(topPeople.map(([, c]) => c), employeeKeys, this.selected('employee')), { horizontal: true }),
       peopleSummary: topPeople.slice(0, 3).map(([n, c]) => `${n} ${c}`).join(', '),

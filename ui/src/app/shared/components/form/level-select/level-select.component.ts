@@ -29,7 +29,7 @@ export interface LevelOption {
           [value]="value"
           [disabled]="disabled"
           (change)="onChange($event)"
-          class="h-10 w-44 appearance-none rounded-lg border border-gray-300 bg-transparent py-2 pl-3 pr-9 text-sm text-gray-800 shadow-theme-xs transition-colors hover:border-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:hover:border-gray-600 dark:focus:border-brand-800"
+          class="h-10 w-44 appearance-none rounded-lg border border-gray-300 bg-transparent py-2 pl-3 pr-9 text-sm text-gray-800 transition-colors hover:border-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:hover:border-gray-600 dark:focus:border-brand-800"
         >
           <!-- [selected] per option, not just [value] on the select: the select's
                value is set before its options exist, so on first render it

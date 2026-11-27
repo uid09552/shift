@@ -150,7 +150,7 @@ import { crossesMidnight, trimTime, weekdayName } from './shift-time';
                     </div>
                   </td>
                   <td class="table-td">
-                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                    <span class="inline-flex items-center rounded-sm px-2.5 py-0.5 text-xs font-semibold"
                       [style.backgroundColor]="shift.color + '20'"
                       [style.color]="shift.color"
                     >
@@ -169,7 +169,7 @@ import { crossesMidnight, trimTime, weekdayName } from './shift-time';
                       <div class="flex flex-wrap gap-1.5">
                         @for (wt of shift.weekday_times; track wt.weekday) {
                           <span
-                            class="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-400"
+                            class="inline-flex items-center rounded-sm bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-400"
                           >
                             {{ getWeekdayName(wt.weekday) }} {{ trimTime(wt.start_time) }}–{{ trimTime(wt.end_time) }}
                             @if (crossesMidnight(wt)) {

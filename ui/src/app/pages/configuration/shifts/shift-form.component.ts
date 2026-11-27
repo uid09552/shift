@@ -207,7 +207,7 @@ function emptyWeekdays(): WeekdayForm[] {
                   <!-- A shift may run past midnight; say so where the end time is entered. -->
                   @if (form.weekdays[day.value].enabled && crossesMidnight(form.weekdays[day.value])) {
                     <span
-                      class="pointer-events-none absolute -right-1.5 -top-1.5 rounded-full bg-brand-500 px-1.5 py-px text-[11px] font-semibold leading-tight text-white shadow-theme-xs"
+                      class="pointer-events-none absolute -right-1.5 -top-1.5 rounded-sm bg-brand-500 px-1.5 py-px text-[11px] font-semibold leading-tight text-white"
                       [title]="'shifts.nextDayHint' | t"
                     >{{ 'shifts.nextDay' | t }}</span>
                   }

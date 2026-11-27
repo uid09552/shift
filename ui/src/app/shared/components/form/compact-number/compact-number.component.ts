@@ -20,7 +20,7 @@ import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from 
       [value]="value"
       [attr.aria-label]="ariaLabel"
       (input)="onInput($event)"
-      class="h-10 rounded-lg border border-gray-300 bg-transparent px-2.5 py-2 text-right text-sm tabular-nums text-gray-700 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:focus:border-brand-800"
+      class="h-10 rounded-lg border border-gray-300 bg-transparent px-2.5 py-2 text-right text-sm tabular-nums text-gray-700 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:focus:border-brand-800"
       [style.width.rem]="widthRem"
     />
   `,

@@ -62,7 +62,7 @@
             }
             <div class="sm:col-span-2 flex items-center justify-end">
               <button type="submit" [disabled]="!formValid || busy" data-testid="leave-submit"
-                class="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white shadow-theme-xs transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-brand-300">
+                class="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-brand-300">
                 {{ 'leave.request.submit' | t }}
               </button>
             </div>
@@ -159,7 +159,7 @@
                 }
               </div>
               <div class="flex items-center gap-2">
-                <span class="rounded-full px-2.5 py-0.5 text-xs font-medium" [ngClass]="statusClass(r.status)" [attr.data-testid]="'leave-status-' + r.id">
+                <span class="rounded-sm px-2.5 py-0.5 text-xs font-medium" [ngClass]="statusClass(r.status)" [attr.data-testid]="'leave-status-' + r.id">
                   {{ ('leave.status.' + r.status) | t }}
                 </span>
                 @if (!canPlan && r.status === 'pending') {

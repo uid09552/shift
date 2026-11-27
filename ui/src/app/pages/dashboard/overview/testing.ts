@@ -20,7 +20,7 @@ export function factsPayload(
       employees: [0, 1, 2].map((i) => ({ id: `e${i}`, name: `Person ${i}`, capabilities: [], weekly_hours: 40 })),
       capabilities: [],
       shifts: [
-        { id: 'day', name: 'Day', short_name: 'D', color: '#465fff', is_night: false, weekday: everyDay(2) },
+        { id: 'day', name: 'Day', short_name: 'D', color: '#0057d2', is_night: false, weekday: everyDay(2) },
         { id: 'night', name: 'Night', short_name: 'N', color: '#101828', is_night: true, weekday: everyDay(1) },
       ],
       workstations: [

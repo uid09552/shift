@@ -22,7 +22,7 @@ const MODES: { value: WishMode; label: string; hint: string }[] = [
 ];
 
 const INPUT_CLASS =
-  'h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:[color-scheme:dark] dark:disabled:bg-gray-800';
+  'h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:[color-scheme:dark] dark:disabled:bg-gray-800';
 
 const UNITS: { value: ScheduleUnit; label: string }[] = [
   { value: 'days', label: 'wishSettings.schedule.unit.days' },
@@ -143,7 +143,7 @@ const MAX_INTERVAL: Record<ScheduleUnit, number> = { days: 365, weeks: 52, month
                 (ngModelChange)="onWindowChange('window_start', $event)"
                 [max]="form.window_end || ''"
                 [disabled]="!canEdit || form.mode !== 'date_range'"
-                class="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:[color-scheme:dark] dark:disabled:bg-gray-800"
+                class="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:[color-scheme:dark] dark:disabled:bg-gray-800"
               />
               <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'wishSettings.windowStartHint' | t }}</p>
             </div>
@@ -156,7 +156,7 @@ const MAX_INTERVAL: Record<ScheduleUnit, number> = { days: 365, weeks: 52, month
                 (ngModelChange)="onWindowChange('window_end', $event)"
                 [min]="form.window_start || ''"
                 [disabled]="!canEdit || form.mode !== 'date_range'"
-                class="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:[color-scheme:dark] dark:disabled:bg-gray-800"
+                class="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:[color-scheme:dark] dark:disabled:bg-gray-800"
               />
               <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ 'wishSettings.windowEndHint' | t }}</p>
             </div>
@@ -190,7 +190,7 @@ const MAX_INTERVAL: Record<ScheduleUnit, number> = { days: 365, weeks: 52, month
               [class]="schedule.enabled ? 'bg-brand-500' : 'bg-gray-300 dark:bg-gray-700'"
             >
               <span
-                class="inline-block h-5 w-5 transform rounded-full bg-white shadow-theme-xs transition-transform"
+                class="inline-block h-5 w-5 transform rounded-full bg-white transition-transform"
                 [class]="schedule.enabled ? 'translate-x-5' : 'translate-x-0.5'"
               ></span>
             </button>
@@ -259,7 +259,7 @@ const MAX_INTERVAL: Record<ScheduleUnit, number> = { days: 365, weeks: 52, month
           <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-gray-100 bg-gray-50/60 px-5 py-3.5 dark:border-white/[0.05] dark:bg-white/[0.02] sm:px-6">
             @if (schedule.enabled) {
               @if (nextChange) {
-                <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
+                <span class="inline-flex items-center gap-1.5 rounded-sm px-2.5 py-0.5 text-xs font-medium"
                   [class]="nextChange.opens
                     ? 'bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400'
                     : 'bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400'">

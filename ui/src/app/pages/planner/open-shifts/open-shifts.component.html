@@ -36,7 +36,7 @@
         </div>
         <div class="sm:col-span-2 lg:col-span-4 flex justify-end">
           <button type="submit" [disabled]="!formValid || busy" data-testid="open-shift-submit"
-            class="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-brand-300">{{ 'openShifts.offer.submit' | t }}</button>
+            class="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-brand-300">{{ 'openShifts.offer.submit' | t }}</button>
         </div>
       </form>
     </section>
@@ -69,7 +69,7 @@
                   <span class="font-medium tabular-nums">{{ dayLabel(g.date) }}</span>
                   <span class="text-gray-400"> · </span>{{ shift(g.shift_id)?.name ?? '—' }}
                   <span class="text-gray-400"> · </span>{{ wardName(g.workstation_id) }}
-                  <span class="ml-2 rounded-full bg-warning-50 px-2 py-0.5 text-xs font-medium text-warning-700 dark:bg-warning-500/15 dark:text-warning-400">{{ 'openShifts.gaps.short' | t: { count: g.short } }}</span>
+                  <span class="ml-2 rounded-sm bg-warning-50 px-2 py-0.5 text-xs font-medium text-warning-700 dark:bg-warning-500/15 dark:text-warning-400">{{ 'openShifts.gaps.short' | t: { count: g.short } }}</span>
                 </p>
                 <button type="button" (click)="offerGap(g)" [disabled]="busy"
                   class="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.05]">{{ 'openShifts.gaps.offer' | t }}</button>
@@ -101,7 +101,7 @@
                 <p class="flex flex-wrap items-center gap-x-2 text-sm text-gray-800 dark:text-white/90">
                   <span class="font-medium tabular-nums">{{ dayLabel(o.date) }}</span>
                   @if (shift(o.shift_id); as s) {
-                    <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium text-white" [style.background-color]="s.color">{{ s.name }}</span>
+                    <span class="inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-xs font-medium text-white" [style.background-color]="s.color">{{ s.name }}</span>
                   }
                   @if (wardName(o.workstation_id); as ward) { <span class="text-gray-500 dark:text-gray-400">· {{ ward }}</span> }
                 </p>
@@ -175,7 +175,7 @@
               <span class="font-medium tabular-nums">{{ dayLabel(o.date) }}</span> · {{ shift(o.shift_id)?.name ?? '—' }}
               @if (o.status === 'filled') { <span class="text-gray-500 dark:text-gray-400"> → {{ employeeName(o.assigned_employee_id) }}</span> }
             </span>
-            <span class="rounded-full px-2.5 py-0.5 text-xs font-medium"
+            <span class="rounded-sm px-2.5 py-0.5 text-xs font-medium"
               [ngClass]="o.status === 'filled' ? 'bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400' : 'bg-gray-100 text-gray-600 dark:bg-white/[0.06] dark:text-gray-400'">{{ ('openShifts.status.' + o.status) | t }}</span>
           </li>
         }

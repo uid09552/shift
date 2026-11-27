@@ -1,7 +1,7 @@
 @if (state) {
   <div class="fixed inset-0 z-99999 flex items-center justify-center bg-black/50 backdrop-blur-[2px]" (click)="cancel()">
     <div
-      class="mx-4 w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-900"
+      class="mx-4 w-full max-w-sm rounded-2xl bg-white p-6 dark:bg-gray-900 border border-gray-200 dark:border-gray-800"
       role="alertdialog"
       aria-modal="true"
       [attr.aria-labelledby]="state.title ? 'confirm-dialog-title' : null"

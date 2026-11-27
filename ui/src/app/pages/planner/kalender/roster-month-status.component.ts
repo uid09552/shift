@@ -55,7 +55,7 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
             <app-dropdown
               [isOpen]="openMonth === m.month"
               (close)="openMonth = null"
-              className="absolute left-0 z-40 mt-2 w-72 rounded-xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"
+              className="absolute left-0 z-40 mt-2 w-72 rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-dark"
             >
               <p class="text-sm font-medium text-gray-800 dark:text-white/90">
                 {{ monthName(m.month, 'long') }} · {{ ('rosterMonth.status.' + m.status) | t }}

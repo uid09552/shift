@@ -163,7 +163,7 @@ export class StaffingTabComponent extends TabBase {
           name: this.t('analytics.coverage.staffed'),
           data: days.map((d) => ({
             value: d.staffed,
-            itemStyle: { color: d.short > 0 ? '#f04438' : '#465fff', opacity: picked.size && !picked.has(isoDay(d.day)) ? 0.35 : 1 },
+            itemStyle: { color: d.short > 0 ? '#f04438' : '#0057d2', opacity: picked.size && !picked.has(isoDay(d.day)) ? 0.35 : 1 },
           })),
           markArea: draftAreas.length ? { silent: true, itemStyle: { color: 'rgba(152,162,179,0.15)' }, label: { position: 'insideTop', fontSize: 10 }, data: draftAreas } : undefined,
         },

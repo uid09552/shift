@@ -4,9 +4,11 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve ",
+    "prebuild": "node scripts/design-lint.mjs",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "lint:design": "node scripts/design-lint.mjs"
   },
   "private": true,
   "license": "Apache-2.0",
