@@ -4,11 +4,11 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex flex-wrap items-center gap-3">
         @if (!loading) {
-          <span class="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+          <span class="inline-flex items-center rounded-sm bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
             {{ 'dayView.onDuty' | t: { count: onDutyCount } }}
           </span>
           @if (absentCount > 0) {
-            <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
+            <span class="inline-flex items-center rounded-sm bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
               {{ 'dayView.absent' | t: { count: absentCount } }}
             </span>
           }

@@ -16,23 +16,21 @@
 
 /* Workstation header styling */
 .workstation-header {
-  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+  box-shadow: 1px 0 0 var(--color-gray-200);
 }
 
 .workstation-cell {
-  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.03);
+  box-shadow: 1px 0 0 var(--color-gray-200);
 }
 
 /* Shift badge styles */
 .shift-badge {
   min-height: 28px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   transition: all 0.15s ease;
 }
 
 .shift-badge:hover {
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transform: translateY(-1px);
+  filter: brightness(0.97);
 }
 
 /* Cell button styles */
@@ -70,11 +68,11 @@
 /* Dark mode adjustments */
 @media (prefers-color-scheme: dark) {
   .workstation-header {
-    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.2);
+    box-shadow: 1px 0 0 rgb(255 255 255 / 0.08);
   }
 
   .workstation-cell {
-    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.15);
+    box-shadow: 1px 0 0 rgb(255 255 255 / 0.06);
   }
 
   .cell-button:hover {

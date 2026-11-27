@@ -71,12 +71,12 @@ type FilterKey = 'workstations' | 'capabilities' | 'employees';
             role="dialog"
             [attr.aria-label]="'scheduleFilter.title' | t"
             data-testid="schedule-filter-panel"
-            class="absolute left-0 z-40 mt-2 w-[min(42rem,calc(100vw-2rem))] rounded-xl border border-gray-200 bg-white p-4 shadow-theme-lg dark:border-gray-800 dark:bg-gray-900"
+            class="absolute left-0 z-40 mt-2 w-[min(42rem,calc(100vw-2rem))] rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900"
           >
             <div class="grid gap-4 sm:grid-cols-3">
               @for (group of groups; track group.key) {
                 <fieldset class="min-w-0">
-                  <legend class="mb-2 font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">
+                  <legend class="mb-2 font-mono text-[11px] font-medium uppercase text-gray-500 dark:text-gray-400">
                     {{ group.label | t }}
                     @if (state[group.key].length) {
                       <span class="ml-1 normal-case tracking-normal text-brand-600 dark:text-brand-400">({{ state[group.key].length }})</span>
@@ -150,7 +150,7 @@ type FilterKey = 'workstations' | 'capabilities' | 'employees';
             role="dialog"
             [attr.aria-label]="'views.title' | t"
             data-testid="schedule-views-menu"
-            class="absolute left-0 z-40 mt-2 w-80 rounded-xl border border-gray-200 bg-white p-2 shadow-theme-lg dark:border-gray-800 dark:bg-gray-900"
+            class="absolute left-0 z-40 mt-2 w-80 rounded-xl border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-900"
           >
             @if (loadError) {
               <p class="px-2 py-1.5 text-xs text-error-600 dark:text-error-400" role="alert">{{ loadError }}</p>

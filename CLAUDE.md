@@ -15,7 +15,8 @@ This is a **Hospital Shift Management System** - a full-stack application for ma
 
 ### Frontend (Angular)
 - **Framework**: Angular 21 with TypeScript
-- **UI Library**: Tailwind CSS with TailAdmin template
+- **Design system**: [`Design.md`](Design.md) — **mandatory**, see *Design system* below
+- **UI Library**: Tailwind CSS 4 (TailAdmin base) themed to Design.md in `ui/src/styles.css`
 - **Charts**: ApexCharts
 - **Calendar**: FullCalendar
 - **UI Components**: Angular Material
@@ -26,6 +27,58 @@ This is a **Hospital Shift Management System** - a full-stack application for ma
 - **Framework**: Flask for REST API
 - **Message Broker**: NATS JetStream subscriber
 - **Package Manager**: uv (modern Python package manager)
+
+## Design system (mandatory)
+
+[`Design.md`](Design.md) is the design source of truth for every screen. Any UI
+change — a new page, a component, a tweak — follows it; where existing code and
+Design.md disagree, Design.md wins and the code is fixed. A review rejects UI
+that breaks these rules.
+
+**Where the tokens live.** `ui/src/styles.css` (`@theme` and the light-theme
+`:root:not(.dark)` block) maps Design.md onto the utilities pages already use.
+Use utilities, never raw hex in templates or component CSS:
+
+| Design.md | Utility |
+|---|---|
+| `primary` #0057d2 / `primary-deep` #0040b0 | `brand-500` / `brand-600` (also `primary`, `primary-deep`) |
+| `canvas` / `chrome` / `band` / `band-blue` | `bg-white` / `bg-chrome` (= `gray-50`) / `bg-band` (= `gray-100`) / `bg-band-blue` (= `brand-50`) |
+| `ink` → `ink-body` → `ink-list` → `ink-meta` | `text-gray-900` (headings) → `text-gray-800` (body) → `text-gray-700` (lists) → `text-gray-500`/`600` (captions, hints) |
+| `ink-nav` (chrome only) | `text-ink-nav` |
+| `hairline` | `ring-hairline` / `border-gray-300` (rules), `border-gray-200` (panel edges) |
+| `rounded.sm` / `md` / `lg` | `rounded-sm` 4px / `rounded-md`, `rounded-lg` 8px / `rounded-xl`, `rounded-2xl` 12px |
+| typography roles | `type-section-title`, `type-subhead`, `type-body`, `type-list-item`, `type-nav-link`, `type-caption`; weight 350 = `font-list` |
+| bands | `band-neutral`, `band-blue` |
+
+**Rules — every one of them, on every screen:**
+1. **One acting colour.** `brand-500` only for what acts: buttons, links, the
+   active tab / nav row / toggle, selection. No second accent hue; success,
+   warning and error colours only for status. Shift colours are user data.
+2. **Text ladder.** Headings black (`gray-900`, set by the base styles for
+   `h1`–`h4`), body `gray-800`, lists `gray-700`, captions `gray-500`/`600`.
+   Navigation and chrome in `ink-nav`; never body copy in `ink-nav`.
+3. **Flat.** No shadows: every `shadow-*` utility resolves to none — do not add
+   `box-shadow` or `drop-shadow` for depth. Separate with a band colour, white
+   space or a hairline. Only inset indicators (an active row's 3px bar, a cell's
+   colour edge) use `shadow-[inset…]`.
+4. **Corners.** 4px badges and inline anchors, 8px controls, 12px panels,
+   dialogs and media; full-width bands square. **No pills**: nothing with text
+   gets `rounded-full`; circles only for avatars, dots and switch knobs.
+5. **Type.** Inter Variable only (`font-mono` is Inter too; figures align with
+   `tabular-nums`). Weights 350 / 400 / 500 / 700 (`font-semibold` = 500). **No
+   letter-spacing**: no `tracking-*` classes.
+6. **Buttons.** `app-button`: primary 44px, 12×14px, 16px/500; outline on white
+   with a hairline rule and a `primary-deep` label. Never elevated.
+7. **Chrome.** Header: 60px `bg-chrome` bar. Sidebar rows on white, active row
+   marked by `brand-500` text and a 3px inset bar, not a fill (`menu-item-active`).
+8. **Tables.** The `table-*` utilities: header on white, hairline rules,
+   12×16px cells.
+9. **Dialogs.** 12px panel with a hairline border (no shadow), focus trapped
+   (`FocusTrapDirective`).
+10. **Dark mode** keeps its own `dark:` scale (Design.md defines none); a new
+    component styles both.
+11. **Accessible.** Text at 4.5:1 or more in both themes; `ui/src/app/a11y.spec.ts`
+    (axe, contrast included) must stay green, and a new page is added to it.
 
 ## Project Structure
 

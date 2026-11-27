@@ -182,7 +182,7 @@ export function searchPalette(
           role="dialog"
           aria-modal="true"
           [attr.aria-label]="'palette.title' | t"
-          class="relative w-full max-w-xl overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xl dark:border-gray-800 dark:bg-gray-900"
+          class="relative w-full max-w-xl overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
           (keydown)="onKeydown($event)"
         >
           <div class="flex items-center gap-3 border-b border-gray-100 px-4 dark:border-white/[0.06]">

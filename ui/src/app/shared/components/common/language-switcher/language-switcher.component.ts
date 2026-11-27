@@ -17,7 +17,7 @@ import { TranslationService, Language } from '../../../i18n/translation.service'
       <button
         type="button"
         (click)="toggle($event)"
-        class="relative flex items-center justify-center gap-1 text-gray-500 transition-colors bg-white border border-gray-200 rounded-full hover:text-gray-700 h-11 px-3 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+        class="relative flex items-center justify-center gap-1 text-gray-500 transition-colors bg-white border border-gray-200 rounded-md hover:text-gray-700 h-11 px-3 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
         [attr.aria-label]="'header.languageSwitcher' | t"
         [attr.aria-expanded]="open"
         [title]="'header.languageSwitcher' | t"
@@ -31,7 +31,7 @@ import { TranslationService, Language } from '../../../i18n/translation.service'
 
       @if (open) {
         <div
-          class="absolute right-0 z-50 mt-2 min-w-[9rem] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-800 dark:bg-gray-900"
+          class="absolute right-0 z-50 mt-2 min-w-[9rem] rounded-lg border border-gray-200 bg-white py-1 dark:border-gray-800 dark:bg-gray-900"
           role="listbox"
         >
           <div class="px-3 py-1.5 text-[11px] font-semibold uppercase text-gray-400 dark:text-gray-500">

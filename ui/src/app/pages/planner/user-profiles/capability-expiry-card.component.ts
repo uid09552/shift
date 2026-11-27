@@ -31,7 +31,7 @@ import { AvailabilityRulesService, HeldCapability } from '../../../shared/servic
               <input type="date" [value]="cap.valid_until ?? ''" (change)="setExpiry(cap, $any($event.target).value)" [attr.aria-label]="'expiry.until' | t: { name: cap.name }"
                 class="h-9 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90" />
               @if (cap.valid_until && isPast(cap.valid_until)) {
-                <span class="rounded-full bg-error-50 px-2 py-0.5 text-xs font-medium text-error-700 dark:bg-error-500/15 dark:text-error-400">{{ 'expiry.expired' | t }}</span>
+                <span class="rounded-sm bg-error-50 px-2 py-0.5 text-xs font-medium text-error-700 dark:bg-error-500/15 dark:text-error-400">{{ 'expiry.expired' | t }}</span>
               }
               @if (saving === cap.id) { <span class="text-xs text-gray-400">{{ 'common.loading' | t }}</span> }
             </li>

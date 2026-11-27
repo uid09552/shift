@@ -332,7 +332,6 @@ function noLimits(): PersonalLimits {
               <button type="button" (click)="leaveType = 'unavailable'"
                 class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
                 [class.bg-white]="leaveType === 'unavailable'"
-                [class.shadow-sm]="leaveType === 'unavailable'"
                 [class.text-amber-700]="leaveType === 'unavailable'"
                 [class.dark:bg-gray-700]="leaveType === 'unavailable'"
                 [class.dark:text-amber-300]="leaveType === 'unavailable'"
@@ -342,7 +341,6 @@ function noLimits(): PersonalLimits {
               <button type="button" (click)="leaveType = 'day_off'"
                 class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
                 [class.bg-white]="leaveType === 'day_off'"
-                [class.shadow-sm]="leaveType === 'day_off'"
                 [class.text-yellow-700]="leaveType === 'day_off'"
                 [class.dark:bg-gray-700]="leaveType === 'day_off'"
                 [class.dark:text-yellow-300]="leaveType === 'day_off'"
@@ -352,7 +350,6 @@ function noLimits(): PersonalLimits {
               <button type="button" (click)="leaveType = 'sick'"
                 class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
                 [class.bg-white]="leaveType === 'sick'"
-                [class.shadow-sm]="leaveType === 'sick'"
                 [class.text-red-600]="leaveType === 'sick'"
                 [class.dark:bg-gray-700]="leaveType === 'sick'"
                 [class.dark:text-red-400]="leaveType === 'sick'"
@@ -411,7 +408,7 @@ function noLimits(): PersonalLimits {
                   <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/50">
                     <div class="flex items-center gap-2.5">
                       <span class="font-mono text-sm text-gray-700 dark:text-gray-300">{{ entry.date }}</span>
-                      <span class="rounded-full px-2 py-0.5 text-xs font-medium"
+                      <span class="rounded-sm px-2 py-0.5 text-xs font-medium"
                         [class.bg-amber-100]="entry.type === 'unavailable'"
                         [class.text-amber-700]="entry.type === 'unavailable'"
                         [class.dark:bg-amber-900]="entry.type === 'unavailable'"
@@ -427,7 +424,7 @@ function noLimits(): PersonalLimits {
                       >{{ leaveTypeLabelKey(entry.type) | t }}</span>
                       @if (entry.is_soft_preference) {
                         <span
-                          class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-white/[0.08] dark:text-gray-400"
+                          class="rounded-sm bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-white/[0.08] dark:text-gray-400"
                           [title]="'userProfiles.softPreference' | t"
                         >{{ 'userProfiles.soft' | t }}</span>
                       }

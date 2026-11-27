@@ -115,12 +115,12 @@
 
         <!-- The selected day — the one thing this section exists to answer -->
         <div class="lg:col-span-7">
-          <div class="relative h-full overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900/40">
+          <div class="relative h-full overflow-hidden rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900/40">
             @if (selected?.shiftName) {
               <!-- The shift's own colour, used as a functional marker rather than decoration -->
               <span
                 class="absolute inset-y-0 left-0 w-1.5"
-                [style.background-color]="selected?.shiftColor || '#465fff'"
+                [style.background-color]="selected?.shiftColor || '#0057d2'"
                 aria-hidden="true"
               ></span>
               <div class="pl-3">
@@ -251,7 +251,7 @@
                     (click)="selectDay(day)"
                     [ngClass]="[
                       day.isSelected
-                        ? 'border-brand-500 bg-white shadow-md ring-1 ring-brand-500/30 dark:border-brand-500 dark:bg-gray-900'
+                        ? 'border-brand-500 bg-white ring-1 ring-brand-500/30 dark:border-brand-500 dark:bg-gray-900'
                         : 'border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-white dark:border-gray-800 dark:bg-white/[0.03] dark:hover:border-gray-700',
                       day.isPast && !day.isSelected ? 'opacity-60' : ''
                     ]"
@@ -273,8 +273,8 @@
 
                     @if (day.shiftName) {
                       <span
-                        class="mt-2 inline-flex max-w-full items-center rounded-full px-1 py-0.5 text-[11px] font-medium leading-4 sm:px-2 sm:text-[11px]"
-                        [style.background-color]="day.shiftColor || '#465fff'"
+                        class="mt-2 inline-flex max-w-full items-center rounded-sm px-1 py-0.5 text-[11px] font-medium leading-4 sm:px-2 sm:text-[11px]"
+                        [style.background-color]="day.shiftColor || '#0057d2'"
                         [style.color]="textOn(day.shiftColor)"
                         aria-hidden="true"
                       >

@@ -1,6 +1,6 @@
 <svg width="258" height="48" viewBox="0 0 172 32" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ShiftPlanner">
   <!-- Badge -->
-  <path d="M0 8.42105C0 3.77023 3.77023 0 8.42105 0H23.5789C28.2298 0 32 3.77023 32 8.42105V23.5789C32 28.2298 28.2298 32 23.5789 32H8.42105C3.77023 32 0 28.2298 0 23.5789V8.42105Z" fill="#465FFF"/>
+  <path d="M0 8.42105C0 3.77023 3.77023 0 8.42105 0H23.5789C28.2298 0 32 3.77023 32 8.42105V23.5789C32 28.2298 28.2298 32 23.5789 32H8.42105C3.77023 32 0 28.2298 0 23.5789V8.42105Z" fill="#0057D2"/>
   <!-- Shift ring: three arcs for the three shifts of a day, fading around the rotation -->
   <g stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" fill="none">
     <path d="M9.489 10.536A8.5 8.5 0 0 1 22.511 10.536"/>

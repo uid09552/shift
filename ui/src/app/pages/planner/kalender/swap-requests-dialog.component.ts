@@ -161,7 +161,7 @@ import {
             <span class="text-gray-500 dark:text-gray-400"> · {{ describe(swap.colleague) }}</span>
           </p>
         </div>
-        <span class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium" [class]="statusClass(swap.status)"
+        <span class="shrink-0 rounded-sm px-2 py-0.5 text-[11px] font-medium" [class]="statusClass(swap.status)"
               [attr.data-testid]="'swap-status-' + swap.status">
           {{ 'swaps.status.' + swap.status | t }}
         </span>

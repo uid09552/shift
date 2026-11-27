@@ -91,7 +91,7 @@ type AbsenceReason = 'sick' | 'day_off' | 'unavailable';
                   (click)="reason = option.value"
                   class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
                   [class]="reason === option.value
-                    ? 'bg-white text-gray-800 shadow-sm dark:bg-gray-700 dark:text-white/90'
+                    ? 'bg-white text-gray-800 dark:bg-gray-700 dark:text-white/90'
                     : 'text-gray-500 dark:text-gray-400'"
                 >{{ option.labelKey | t }}</button>
               }
@@ -126,13 +126,13 @@ type AbsenceReason = 'sick' | 'day_off' | 'unavailable';
                     @if (c.wished || c.preferred_day_off || c.notes.length) {
                       <div class="mt-1 flex flex-wrap gap-1">
                         @if (c.wished) {
-                          <span class="rounded-full bg-success-50 px-2 py-0.5 text-[11px] font-medium text-success-700 dark:bg-success-500/15 dark:text-success-400">{{ 'replacement.wished' | t }}</span>
+                          <span class="rounded-sm bg-success-50 px-2 py-0.5 text-[11px] font-medium text-success-700 dark:bg-success-500/15 dark:text-success-400">{{ 'replacement.wished' | t }}</span>
                         }
                         @if (c.preferred_day_off) {
-                          <span class="rounded-full bg-warning-50 px-2 py-0.5 text-[11px] font-medium text-warning-700 dark:bg-warning-500/15 dark:text-warning-400">{{ 'replacement.preferredOff' | t }}</span>
+                          <span class="rounded-sm bg-warning-50 px-2 py-0.5 text-[11px] font-medium text-warning-700 dark:bg-warning-500/15 dark:text-warning-400">{{ 'replacement.preferredOff' | t }}</span>
                         }
                         @if (overHours(c)) {
-                          <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-white/[0.06] dark:text-gray-400">{{ 'replacement.overHours' | t }}</span>
+                          <span class="rounded-sm bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-white/[0.06] dark:text-gray-400">{{ 'replacement.overHours' | t }}</span>
                         }
                       </div>
                     }

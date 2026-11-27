@@ -159,7 +159,7 @@ import { PlannerSettingsService } from '../../../shared/services/planner-setting
                       <div class="flex flex-wrap gap-1.5">
                         @for (shift of employee.shifts; track shift) {
                           <span
-                            class="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-400"
+                            class="inline-flex items-center rounded-sm bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-400"
                           >
                             {{ shift }}
                           </span>
@@ -174,7 +174,7 @@ import { PlannerSettingsService } from '../../../shared/services/planner-setting
                       <div class="flex flex-wrap gap-1.5">
                         @for (cap of employee.capabilities; track cap) {
                           <span
-                            class="inline-flex items-center rounded-full bg-success-50 px-2.5 py-0.5 text-xs font-medium text-success-700 dark:bg-success-500/15 dark:text-success-400"
+                            class="inline-flex items-center rounded-sm bg-success-50 px-2.5 py-0.5 text-xs font-medium text-success-700 dark:bg-success-500/15 dark:text-success-400"
                           >
                             {{ cap }}
                           </span>

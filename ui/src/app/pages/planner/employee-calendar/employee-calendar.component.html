@@ -21,7 +21,7 @@
         id="employee-select"
         [(ngModel)]="selectedEmployeeId"
         (ngModelChange)="onEmployeeChange()"
-        class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm transition focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+        class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 transition focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
       >
         <option value="">{{ 'employeeCalendar.selectEmployeeOption' | t }}</option>
         @for (emp of employees; track emp.id) {
@@ -208,7 +208,7 @@
               <!-- Public holiday: runs on Sunday times and counts as a weekend day -->
               @if (day.isCurrentMonth && day.holidayName) {
                 <div class="mb-0.5 flex items-center justify-center" [title]="'schedule.holidayHint' | t">
-                  <span class="inline-flex max-w-full items-center truncate rounded-full bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
+                  <span class="inline-flex max-w-full items-center truncate rounded-sm bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
                     {{ day.holidayName }}
                   </span>
                 </div>
@@ -217,7 +217,7 @@
               <!-- Unavailability indicator -->
               @if (day.isCurrentMonth && day.isUnavailable) {
                 <div class="mb-0.5 flex items-center justify-center">
-                  <span class="inline-flex items-center rounded-full bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                  <span class="inline-flex items-center rounded-sm bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
                     {{ 'employeeCalendar.unavailable' | t }}
                   </span>
                 </div>
@@ -246,7 +246,7 @@
                   >
                     <button
                       (click)="startDeleteWish(formatDate(day.date), day.wish!.id, $event)"
-                      class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 shadow-sm ring-1 ring-gray-200 transition hover:text-red-600 hover:ring-red-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-red-400 dark:hover:ring-red-600"
+                      class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 ring-1 ring-gray-200 transition hover:text-red-600 hover:ring-red-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-red-400 dark:hover:ring-red-600"
                       [title]="'employeeCalendar.deleteWish' | t"
                     >
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -256,7 +256,7 @@
                   </div>
                   @if (isDeletingWish(formatDate(day.date))) {
                     <div
-                      class="delete-confirm absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-red-200 bg-white p-2 shadow-lg dark:border-red-800 dark:bg-gray-800"
+                      class="delete-confirm absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-red-200 bg-white p-2 dark:border-red-800 dark:bg-gray-800"
                       (click)="$event.stopPropagation()"
                     >
                       <p class="mb-2 text-xs text-gray-600 dark:text-gray-300">{{ 'employeeCalendar.deleteWishConfirm' | t }}</p>
@@ -272,7 +272,7 @@
 
               @if (day.isCurrentMonth && day.plan && day.plan.is_present) {
                 <div
-                  class="shift-chip group/chip relative flex flex-col items-center gap-0.5 rounded-lg px-2 py-1.5 text-center transition-shadow hover:shadow-sm"
+                  class="shift-chip group/chip relative flex flex-col items-center gap-0.5 rounded-lg px-2 py-1.5 text-center transition-shadow"
                   [style.backgroundColor]="(day.shiftColor || '#6B7280') + '18'"
                   [style.borderLeft]="'3px solid ' + (day.shiftColor || '#6B7280')"
                 >
@@ -308,7 +308,7 @@
                   >
                     <button
                       (click)="startEdit(formatDate(day.date), $event)"
-                      class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 shadow-sm ring-1 ring-gray-200 transition hover:text-brand-600 hover:ring-brand-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-brand-400 dark:hover:ring-brand-600"
+                      class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 ring-1 ring-gray-200 transition hover:text-brand-600 hover:ring-brand-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-brand-400 dark:hover:ring-brand-600"
                       [title]="'schedule.changeShiftType' | t"
                     >
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -317,7 +317,7 @@
                     </button>
                     <button
                       (click)="startDelete(formatDate(day.date), day.plan!.id, $event)"
-                      class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 shadow-sm ring-1 ring-gray-200 transition hover:text-red-600 hover:ring-red-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-red-400 dark:hover:ring-red-600"
+                      class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 ring-1 ring-gray-200 transition hover:text-red-600 hover:ring-red-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:text-red-400 dark:hover:ring-red-600"
                       [title]="'schedule.deleteAssignment' | t"
                     >
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -330,7 +330,7 @@
                 <!-- Shift type dropdown (edit mode) -->
                 @if (isEditing(formatDate(day.date))) {
                   <div
-                    class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                    class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 dark:border-gray-700 dark:bg-gray-800"
                     (click)="$event.stopPropagation()"
                   >
                     <div class="px-3 py-1.5 text-[11px] font-semibold uppercase text-gray-400 dark:text-gray-500">
@@ -405,7 +405,7 @@
                 <!-- Delete confirmation -->
                 @if (isDeleting(formatDate(day.date))) {
                   <div
-                    class="delete-confirm absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-red-200 bg-white p-2 shadow-lg dark:border-red-800 dark:bg-gray-800"
+                    class="delete-confirm absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-red-200 bg-white p-2 dark:border-red-800 dark:bg-gray-800"
                     (click)="$event.stopPropagation()"
                   >
                     <p class="mb-2 text-xs text-gray-600 dark:text-gray-300">
@@ -455,7 +455,7 @@
                   <div class="cell-actions absolute -top-1 right-0 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/chip:opacity-100">
                     <button
                       (click)="startDelete(formatDate(day.date), day.plan!.id, $event)"
-                      class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 shadow-sm ring-1 ring-gray-200 transition hover:text-red-600 hover:ring-red-300"
+                      class="flex h-5 w-5 items-center justify-center rounded bg-white text-gray-500 ring-1 ring-gray-200 transition hover:text-red-600 hover:ring-red-300"
                       [title]="'employeeCalendar.deleteAbsence' | t"
                     >
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -465,7 +465,7 @@
                   </div>
                   @if (isDeleting(formatDate(day.date))) {
                     <div
-                      class="delete-confirm absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-red-200 bg-white p-2 shadow-lg dark:border-red-800 dark:bg-gray-800"
+                      class="delete-confirm absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-red-200 bg-white p-2 dark:border-red-800 dark:bg-gray-800"
                       (click)="$event.stopPropagation()"
                     >
                       <p class="mb-2 text-xs text-gray-600 dark:text-gray-300">{{ 'schedule.deleteAbsenceConfirm' | t }}</p>
@@ -494,7 +494,7 @@
                 <!-- Shift type dropdown for empty cell (add mode) -->
                 @if (isEditing(formatDate(day.date))) {
                   <div
-                    class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                    class="shift-dropdown absolute left-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-gray-200 bg-white py-1 dark:border-gray-700 dark:bg-gray-800"
                     (click)="$event.stopPropagation()"
                   >
                     <div class="px-3 py-1.5 text-[11px] font-semibold uppercase text-gray-400 dark:text-gray-500">
@@ -877,7 +877,7 @@
     <div class="flex min-w-0 items-center gap-2.5">
       <span class="truncate text-sm text-gray-700 dark:text-gray-300">{{ leaveGroupLabel(group) }}</span>
       <span
-        class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
+        class="shrink-0 rounded-sm px-2 py-0.5 text-xs font-medium"
         [class.bg-amber-100]="group.type === 'unavailable'"
         [class.text-amber-700]="group.type === 'unavailable'"
         [class.dark:bg-amber-900]="group.type === 'unavailable'"
@@ -989,7 +989,7 @@
                 {{ detail.wishShift?.name ?? ('schedule.unknownShift' | t) }}
               </span>
               <span
-                class="ml-2 rounded-full px-2 py-0.5 text-xs font-medium"
+                class="ml-2 rounded-sm px-2 py-0.5 text-xs font-medium"
                 [class]="detailWishMatched(detail)
                   ? 'bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400'
                   : 'bg-gray-100 text-gray-500 dark:bg-white/[0.06] dark:text-gray-400'"

@@ -151,7 +151,7 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
                   <td class="table-td">
                     @if (capability.skill_group) {
                       <span
-                        class="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/[0.15] dark:text-brand-400"
+                        class="inline-flex items-center rounded-sm bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/[0.15] dark:text-brand-400"
                       >
                         {{ capability.skill_group }} · L{{ capability.level }}
                       </span>
@@ -161,7 +161,7 @@ import { TranslationService } from '../../../shared/i18n/translation.service';
                   </td>
                   <td class="table-td">
                     <span
-                      class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/[0.08] dark:text-gray-300"
+                      class="inline-flex items-center rounded-sm bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/[0.08] dark:text-gray-300"
                     >
                       {{ capability.id.substring(0, 8) }}…
                     </span>
