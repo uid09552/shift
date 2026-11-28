@@ -122,7 +122,7 @@ export function buildPrintRoster(input: PrintInput): string {
 @page { size: ${input.paper} landscape; margin: 8mm; }
 * { box-sizing: border-box; }
 :root { --print-font: 'Inter Variable', sans-serif; }
-body { margin: 0; font-family: var(--print-font); color: #000; font-size: 8pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; font-family:var(--print-font); color: #000; font-size: 8pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .ward { page-break-after: always; break-after: page; }
 .ward.last { page-break-after: auto; break-after: auto; }
 h1 { font-size: 12pt; font-weight: 500; margin: 0 0 3mm; }
