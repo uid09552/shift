@@ -19,6 +19,7 @@ import { EmployeeService } from './shared/services/employee.service';
 import { PlannerSettingsService } from './shared/services/planner-settings.service';
 import { Component } from '@angular/core';
 import { ForecastComponent } from './pages/reports/forecast/forecast.component';
+import { MyShiftsComponent } from './pages/dashboard/my-shifts/my-shifts.component';
 import { ScenariosComponent } from './pages/planner/scenarios/scenarios.component';
 
 /**
@@ -228,5 +229,29 @@ describe('Accessibility (axe)', () => {
     void TestBed.inject(ConfirmDialogService).confirm({ title: 'Delete?', message: 'This cannot be undone.', danger: true });
     fixture.detectChanges();
     await expectAccessible(fixture.nativeElement, { contrast: true });
+  });
+
+  it('My shifts, colour contrast included', async () => {
+    configure();
+    const page = TestBed.createComponent(MyShiftsComponent);
+    page.detectChanges();
+    answer('/self', { email: 'anna@clinic.test' });
+    answer('/employees/email/anna%40clinic.test', anna);
+    const day = new Date();
+    day.setDate(day.getDate() + 1);
+    const iso = `${day.getFullYear()}-${`${day.getMonth() + 1}`.padStart(2, '0')}-${`${day.getDate()}`.padStart(2, '0')}`;
+    answer('/employees/e1/confirmed-shift-plans', [
+      { id: 'p1', employee_id: 'e1', shift_id: 's1', workstation_id: 'w1', date: iso, is_present: true, absence_type: null, creation_type: 'manual', created_at: '', updated_at: '' },
+    ]);
+    answer('/shifts', [shift]);
+    answer('/workstations', [ward]);
+    answer('/open-shifts', []);
+    answer('/leave-requests', []);
+    answer('/shift-swaps', []);
+    answer('/roster-change-notices', []);
+    page.detectChanges();
+    await page.whenStable();
+    expect(page.nativeElement.querySelector('[data-testid="my-shift-' + iso + '"]')).not.toBeNull();
+    await expectAccessible(page.nativeElement, { contrast: true });
   });
 });

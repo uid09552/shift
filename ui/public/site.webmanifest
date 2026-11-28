@@ -1,16 +1,44 @@
 {
   "name": "ShiftPlanner",
-  "short_name": "ShiftPlanner",
+  "short_name": "Shifts",
   "description": "Shift planning and scheduling for hospital teams.",
-  "start_url": "./",
+  "start_url": "./my-shifts",
   "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#465fff",
+  "theme_color": "#0057d2",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
-    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "orientation": "portrait",
+  "shortcuts": [
+    {
+      "name": "My shifts",
+      "url": "./my-shifts"
+    },
+    {
+      "name": "Schedule",
+      "url": "./kalender"
+    }
   ]
 }
