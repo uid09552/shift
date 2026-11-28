@@ -256,7 +256,7 @@ function noLimits(): PersonalLimits {
             <select
               id="limitHome"
               data-testid="personal-limits-home"
-              [disabled]="form.limits.is_pool"
+              [disabled]="!!form.limits.is_pool"
               [ngModel]="form.limits.home_workstation_id ?? ''"
               (ngModelChange)="form.limits.home_workstation_id = $event || null"
               [ngModelOptions]="{ standalone: true }"
@@ -277,7 +277,7 @@ function noLimits(): PersonalLimits {
               min="0"
               max="31"
               data-testid="personal-limits-max-lent"
-              [disabled]="form.limits.is_pool || !form.limits.home_workstation_id"
+              [disabled]="!!form.limits.is_pool || !form.limits.home_workstation_id"
               [placeholder]="'userProfiles.limits.noLimit' | t"
               [ngModel]="form.limits.max_lent_per_month"
               (ngModelChange)="form.limits.max_lent_per_month = limitValue($event, 31)"
