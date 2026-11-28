@@ -13,6 +13,7 @@ export type FairnessColumn =
   | 'weekend_days'
   | 'holiday_shifts'
   | 'on_call_duties'
+  | 'lent_days'
   | 'wishes'
   | 'days_absent';
 
@@ -40,6 +41,8 @@ function value(row: EmployeeFairness, column: FairnessColumn): number | string |
       return row.holiday_shifts ?? 0;
     case 'on_call_duties':
       return row.on_call_duties ?? 0;
+    case 'lent_days':
+      return row.lent_days ?? 0;
     default:
       return row[column];
   }

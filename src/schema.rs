@@ -231,6 +231,9 @@ diesel::table! {
         date_of_birth -> Nullable<Date>,
         maternity_protection -> Bool,
         max_on_call_per_month -> Nullable<Int2>,
+        home_workstation_id -> Nullable<Uuid>,
+        is_pool -> Bool,
+        max_lent_per_month -> Nullable<Int2>,
     }
 }
 

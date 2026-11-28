@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::repository::domain::{
-    EmployeeRepository, PersonalLimitsDomain, PersonalLimitsRepository, UpdatePersonalLimits,
+    EmployeeRepository, PersonalLimitsDomain, PersonalLimitsRepository, UpdatePersonalLimits, WorkstationRepository,
 };
 use crate::repository::AppState;
 use crate::services::audit_log::{self, AuditActor};
@@ -50,6 +50,11 @@ impl PersonalLimitsService {
     ) -> Result<Json<PersonalLimitsDomain>, AppError> {
         ensure_employee(&state, &tenant.0, employee_id).await?;
         validate(&mut body)?;
+        if let Some(home) = body.home_workstation_id {
+            if state.workstation_repo.get_workstation(&tenant.0, home).await?.is_none() {
+                return Err(AppError::Validation("home_workstation_id is not a workstation of this organization".into()));
+            }
+        }
         let before = state.personal_limits_repo.get_personal_limits(&tenant.0, employee_id).await?;
         let saved = state
             .personal_limits_repo
@@ -102,6 +107,14 @@ fn validate(body: &mut UpdatePersonalLimits) -> Result<(), AppError> {
     if body.max_on_call_per_month.is_some_and(|n| !(0..=31).contains(&n)) {
         return Err(AppError::Validation("max_on_call_per_month must be between 0 and 31".into()));
     }
+    if body.max_lent_per_month.is_some_and(|n| !(0..=31).contains(&n)) {
+        return Err(AppError::Validation("max_lent_per_month must be between 0 and 31".into()));
+    }
+    if body.is_pool {
+        // Pool staff float: a home ward or a lend cap would contradict that.
+        body.home_workstation_id = None;
+        body.max_lent_per_month = None;
+    }
     if body.preferred_days_off.iter().any(|d| !(0..=6).contains(d)) {
         return Err(AppError::Validation(
             "preferred_days_off holds weekdays 0 (Monday) to 6 (Sunday)".into(),
@@ -126,6 +139,9 @@ mod tests {
             no_night_shifts: false,
             preferred_days_off: days.to_vec(),
             max_on_call_per_month: None,
+            home_workstation_id: None,
+            is_pool: false,
+            max_lent_per_month: None,
             date_of_birth: None,
             maternity_protection: false,
         }

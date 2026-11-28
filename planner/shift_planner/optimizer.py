@@ -123,6 +123,7 @@ _DEFAULT_CONSTRAINTS = {
     "weekly_hours_target_weight": 1000,
     "preference_weight": 300,  # Penalty for violating an employee's preferred_off
     "wish_weight": 20000,  # Reward for fulfilling an employee's shift wish
+    "home_workstation_weight": 300,  # Penalty per day worked away from the home workstation
     "skill_downgrade_weight": 200,  # Penalty for covering a slot with a higher-level skill
     "fatigue_weight": 100,  # Weight on worst-off employee's accumulated fatigue
     "night_shift_fatigue_multiplier": 2.0,
@@ -1182,6 +1183,16 @@ class ShiftPlanner:
             max_nights = emp.get("max_nights_per_month")
             max_weekends = emp.get("max_weekends_per_month")
             max_on_call = emp.get("max_on_call_per_month")
+            max_lent = emp.get("max_lent_per_month")
+            home = self._home_index(emp)
+            if max_lent is not None and home is not None:
+                by_month = {}
+                for (e, d_idx, _s, w_idx), var in self.x.items():
+                    if e == e_idx and w_idx != home:
+                        day = self.days[d_idx]
+                        by_month.setdefault((day.year, day.month), []).append(var)
+                for (year, month), terms in by_month.items():
+                    self._cap_personal(terms, max_lent, f"lent_{e_idx}_{year}_{month}")
             if max_on_call is not None and on_call_idx:
                 by_month: dict = {}
                 for d_idx, day in enumerate(self.days):
@@ -1304,6 +1315,7 @@ class ShiftPlanner:
         self._penalize_preference_violations()
         self._penalize_preferred_days_off()
         self._reward_wishes()
+        self._prefer_home_workstation()
         self._penalize_fatigue()
         self._reward_shift_continuity()
         self._track_changes_vs_published()
@@ -1574,6 +1586,40 @@ class ShiftPlanner:
         )
         for line in unschedulable:
             logger.warning("Wish cannot be fulfilled — %s", line)
+
+    def _home_index(self, emp: dict) -> int | None:
+        """Index of the employee's home workstation; None for pool staff, for
+        no home ward, or a home that is not part of this planning input."""
+        if emp.get("is_pool") or not emp.get("home_workstation_id"):
+            return None
+        for w_idx, ws in enumerate(self.workstations):
+            if ws["id"] == emp["home_workstation_id"]:
+                return w_idx
+        return None
+
+    def _prefer_home_workstation(self) -> None:
+        """3c-ter) Home ward: every day an employee works away from their home
+        workstation ("lent out") costs `home_workstation_weight`. Soft, so it
+        never keeps a slot empty — coverage is settled first. Pool staff and
+        employees without a home ward are not penalised."""
+        weight = self.cfg["home_workstation_weight"]
+        if weight <= 0:
+            return
+        homes = {e_idx: self._home_index(emp) for e_idx, emp in enumerate(self.employees)}
+        for (e_idx, _d, _s, w_idx), var in self.x.items():
+            home = homes[e_idx]
+            if home is not None and w_idx != home:
+                self.obj_terms.append(-weight * var)
+
+    def _lent_days(self, assigned: dict) -> dict:
+        """employee id -> days worked away from the home workstation."""
+        lent: dict = {}
+        for (e_idx, _d), (_s, w_idx) in assigned.items():
+            home = self._home_index(self.employees[e_idx])
+            if home is not None and w_idx != home:
+                eid = self.employees[e_idx]["id"]
+                lent[eid] = lent.get(eid, 0) + 1
+        return lent
 
     def _penalize_fatigue(self) -> None:
         """3d) Fatigue-aware objective (ergonomic factor, simplified from the
@@ -2079,6 +2125,7 @@ class ShiftPlanner:
             "fixed_not_kept": len(not_kept),
             "legal_breaks": 0,  # a hard rule for the solver; the plan check reports any in an edited plan
             "assignments": len(assigned),
+            "lent_days": sum(self._lent_days(assigned).values()),
             "fairness_spread": self._fairness_spread(assigned),
         }
 
@@ -2088,9 +2135,13 @@ class ShiftPlanner:
         nights: dict = {}
         weekends: dict = {}
         on_call: dict = {}
-        for (e_idx, d_idx), (s_idx, _w_idx) in assigned.items():
+        lent: dict = {}
+        for (e_idx, d_idx), (s_idx, w_idx) in assigned.items():
             day = self.days[d_idx]
             key = (e_idx, day.year, day.month)
+            home = self._home_index(self.employees[e_idx])
+            if home is not None and w_idx != home:
+                lent[key] = lent.get(key, 0) + 1
             if self._on_call(s_idx):
                 on_call[key] = on_call.get(key, 0) + 1
             elif self.shift_is_night[self.shifts[s_idx]["id"]]:
@@ -2104,6 +2155,11 @@ class ShiftPlanner:
             if limit is not None and count > limit:
                 name = self.employees[e_idx]["name"]
                 over.append(f"{name}: {count} nights in {year}-{month:02d} (max {limit})")
+        for (e_idx, year, month), count in sorted(lent.items()):
+            limit = self.employees[e_idx].get("max_lent_per_month")
+            if limit is not None and count > limit:
+                name = self.employees[e_idx]["name"]
+                over.append(f"{name}: {count} days lent out in {year}-{month:02d} (max {limit})")
         for (e_idx, year, month), count in sorted(on_call.items()):
             limit = self.employees[e_idx].get("max_on_call_per_month")
             if limit is not None and count > limit:

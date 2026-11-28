@@ -55,6 +55,9 @@ export interface EmployeeFairness {
   holiday_shifts?: number;
   /** On-call duties, counted apart: no hours, no nights. */
   on_call_duties?: number;
+  /** Days worked away from the home workstation; 0 for pool staff and without a home ward. */
+  lent_days?: number;
+  home_workstation_id?: string | null;
   wishes_asked: number;
   wishes_granted: number;
   /** Sick, leave or holiday — not a plain day off. */

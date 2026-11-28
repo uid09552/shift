@@ -216,6 +216,14 @@ class Employee(BaseModel):
     # On-call duties (duty_type on_call) per calendar month; hard or soft per
     # personal_limits_mode, like the night and weekend limits.
     max_on_call_per_month: Optional[int] = Field(default=None, ge=0, le=31)
+    # Home ward (a workstation id): working elsewhere is "lent out", which the
+    # solver avoids at `home_workstation_weight` a day. Pool staff (`is_pool`)
+    # float between wards and carry no home penalty; `max_lent_per_month` caps
+    # the lent-out days per calendar month for the others (hard or soft per
+    # personal_limits_mode).
+    home_workstation_id: Optional[str] = None
+    is_pool: bool = False
+    max_lent_per_month: Optional[int] = Field(default=None, ge=0, le=31)
     # What the employee already worked over the fairness horizon before the
     # period (filled by the backend). The duty balance continues from it.
     fairness_balance: Optional["FairnessBalance"] = None
@@ -366,6 +374,8 @@ class ConstraintConfig(BaseModel):
     # (equality_weight). Raise it towards equality_weight to make wishes
     # near-mandatory.
     wish_weight: int = Field(default=20000, ge=0)
+    # Cost of one lent-out day (working away from the home workstation); 0 = off.
+    home_workstation_weight: int = Field(default=300, ge=0)
 
     # Penalty for covering a workstation's required skill with a higher-level
     # capability from the same skill_group instead of the exact match (see

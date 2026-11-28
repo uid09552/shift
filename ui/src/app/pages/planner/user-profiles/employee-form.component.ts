@@ -10,6 +10,7 @@ import { Observable, forkJoin } from 'rxjs';
 import { EmployeeProfile, EmployeeService, PersonalLimits } from '../../../shared/services/employee.service';
 import { Capability, CapabilityService } from '../../../shared/services/capability.service';
 import { Shift, ShiftService } from '../../../shared/services/shift.service';
+import { Workstation, WorkstationService } from '../../../shared/services/workstation.service';
 import { UnavailabilityService } from '../../../shared/services/unavailability.service';
 import { ConfirmedShiftPlanService } from '../../../shared/services/confirmed-shift-plan.service';
 import { PlannerSettingsService } from '../../../shared/services/planner-settings.service';
@@ -45,6 +46,9 @@ function noLimits(): PersonalLimits {
     max_nights_per_month: null,
     max_weekends_per_month: null,
     max_on_call_per_month: null,
+    home_workstation_id: null,
+    is_pool: false,
+    max_lent_per_month: null,
     no_night_shifts: false,
     preferred_days_off: [],
     date_of_birth: null,
@@ -244,6 +248,57 @@ function noLimits(): PersonalLimits {
               class="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
             />
           </div>
+        </div>
+
+        <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <app-label for="limitHome" className="mb-1.5">{{ 'userProfiles.limits.home' | t }}</app-label>
+            <select
+              id="limitHome"
+              data-testid="personal-limits-home"
+              [disabled]="form.limits.is_pool"
+              [ngModel]="form.limits.home_workstation_id ?? ''"
+              (ngModelChange)="form.limits.home_workstation_id = $event || null"
+              [ngModelOptions]="{ standalone: true }"
+              class="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+            >
+              <option value="">{{ 'userProfiles.limits.noHome' | t }}</option>
+              @for (ws of allWorkstations; track ws.id) {
+                <option [value]="ws.id">{{ ws.name }}</option>
+              }
+            </select>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ 'userProfiles.limits.homeHint' | t }}</p>
+          </div>
+          <div>
+            <app-label for="limitMaxLent" className="mb-1.5">{{ 'userProfiles.limits.maxLent' | t }}</app-label>
+            <input
+              id="limitMaxLent"
+              type="number"
+              min="0"
+              max="31"
+              data-testid="personal-limits-max-lent"
+              [disabled]="form.limits.is_pool || !form.limits.home_workstation_id"
+              [placeholder]="'userProfiles.limits.noLimit' | t"
+              [ngModel]="form.limits.max_lent_per_month"
+              (ngModelChange)="form.limits.max_lent_per_month = limitValue($event, 31)"
+              [ngModelOptions]="{ standalone: true }"
+              class="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
+            />
+          </div>
+          <label class="flex cursor-pointer items-start gap-2 pt-7 text-sm text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              data-testid="personal-limits-pool"
+              [ngModel]="form.limits.is_pool"
+              (ngModelChange)="setPool($event)"
+              [ngModelOptions]="{ standalone: true }"
+              class="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-700"
+            />
+            <span>
+              {{ 'userProfiles.limits.pool' | t }}
+              <span class="block text-xs text-gray-500 dark:text-gray-400">{{ 'userProfiles.limits.poolHint' | t }}</span>
+            </span>
+          </label>
         </div>
 
         <label class="mt-4 flex cursor-pointer items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
@@ -461,6 +516,7 @@ export class EmployeeFormComponent implements OnInit, DirtyAware {
 
   allCapabilities: Capability[] = [];
   allShifts: Shift[] = [];
+  allWorkstations: Workstation[] = [];
 
   // Unified leave & unavailability
   leaveEntries: LeaveEntry[] = [];
@@ -490,13 +546,27 @@ export class EmployeeFormComponent implements OnInit, DirtyAware {
     private employeeService: EmployeeService,
     private capabilityService: CapabilityService,
     private shiftService: ShiftService,
+    private workstationService: WorkstationService,
     private unavailabilityService: UnavailabilityService,
     private confirmedShiftPlanService: ConfirmedShiftPlanService,
     private plannerSettingsService: PlannerSettingsService,
     private translations: TranslationService,
   ) {}
 
+  /** Pool staff float: a home ward and a lend cap would contradict that. */
+  setPool(pool: boolean): void {
+    this.form.limits.is_pool = pool;
+    if (pool) {
+      this.form.limits.home_workstation_id = null;
+      this.form.limits.max_lent_per_month = null;
+    }
+  }
+
   ngOnInit(): void {
+    this.workstationService.getWorkstations().subscribe({
+      next: (list) => (this.allWorkstations = list),
+      error: () => {},
+    });
     // Readable by every role; on failure the shipped default stays shown.
     this.plannerSettingsService.getPlannerSettings().subscribe({
       next: (s) => (this.defaultWeeklyHours = s.default_weekly_working_hours),
@@ -552,6 +622,9 @@ export class EmployeeFormComponent implements OnInit, DirtyAware {
             max_nights_per_month: limits.max_nights_per_month,
             max_weekends_per_month: limits.max_weekends_per_month,
             max_on_call_per_month: limits.max_on_call_per_month ?? null,
+            home_workstation_id: limits.home_workstation_id ?? null,
+            is_pool: limits.is_pool ?? false,
+            max_lent_per_month: limits.max_lent_per_month ?? null,
             no_night_shifts: limits.no_night_shifts,
             preferred_days_off: [...limits.preferred_days_off],
             date_of_birth: limits.date_of_birth ?? null,

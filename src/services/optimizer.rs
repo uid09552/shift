@@ -468,6 +468,9 @@ impl OptimizerService {
                     maternity_protection: limits.maternity_protection.unwrap_or(false),
                     preferred_days_off: limits.preferred_days_off.iter().map(|d| d.to_string()).collect(),
                     max_on_call_per_month: limits.max_on_call_per_month,
+                    home_workstation_id: limits.home_workstation_id.map(|w| w.to_string()),
+                    is_pool: limits.is_pool,
+                    max_lent_per_month: limits.max_lent_per_month,
                     fairness_balance: balance_map.remove(&emp.id),
                 }
             }).collect();

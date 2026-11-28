@@ -276,6 +276,15 @@ backend/
   per run. Shown on the scheduler's Runs tab and as a trend + columns on the
   Analytics Runs tab (up to a year)
 
+### Float / pool staff
+- In an employee's personal limits: `home_workstation_id`, `is_pool`,
+  `max_lent_per_month`. Working on another workstation is a **lent-out day**: the
+  solver pays `home_workstation_weight` (300; 0 = off) per day, after coverage
+  (soft, never leaves a slot short); the monthly cap follows
+  `personal_limits_mode`. Pool staff have neither home nor cap (cleared on save)
+- `/analysis/fairness` reports `lent_days` and `home_workstation_id`; the Fairness
+  page has a *Lent out* column. `kpis.lent_days` counts them per plan
+
 ### Long-term fairness
 - A planner setting, `fairness_horizon_months` (6; 0 = off) and `fairness_weight`
   (2000): `services/fairness_history.rs` counts nights, weekend days, holiday

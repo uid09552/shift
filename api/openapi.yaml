@@ -7605,6 +7605,34 @@ components:
           minimum: 0
           maximum: 31
           description: On-call duties (duty type on_call) per calendar month; null = no limit
+        home_workstation_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Home ward. Working on another workstation is "lent out" and softly avoided by the solver (never at the cost of coverage). Ignored for pool staff; must be a workstation of the organization
+        is_pool:
+          type: boolean
+          description: Pool staff float between wards — no home ward and no lend cap (both are cleared on save)
+        max_lent_per_month:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 31
+          description: Days per calendar month a non-pool employee may be lent out; hard or soft per personal_limits_mode; null = no cap
+        home_workstation_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Home ward. Working on another workstation is "lent out" and softly avoided by the solver (never at the cost of coverage). Cleared for pool staff; must be a workstation of the organization
+        is_pool:
+          type: boolean
+          description: Pool staff float between wards — no home ward and no lend cap (both are cleared on save)
+        max_lent_per_month:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 31
+          description: Days per calendar month a non-pool employee may be lent out; hard or soft per personal_limits_mode; null = no cap
         no_night_shifts:
           type: boolean
           description: Never on a night shift — always a hard rule
@@ -7648,6 +7676,18 @@ components:
           minimum: 0
           maximum: 5
         max_on_call_per_month:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 31
+        home_workstation_id:
+          type: string
+          format: uuid
+          nullable: true
+        is_pool:
+          type: boolean
+          default: false
+        max_lent_per_month:
           type: integer
           nullable: true
           minimum: 0
@@ -9104,6 +9144,13 @@ components:
         on_call_duties:
           type: integer
           description: On-call duties, counted apart — no hours, no nights, no weekends
+        lent_days:
+          type: integer
+          description: Days worked on a workstation other than the employee's home ward (0 for pool staff and without a home ward)
+        home_workstation_id:
+          type: string
+          format: uuid
+          nullable: true
         wishes_asked:
           type: integer
         wishes_granted:
