@@ -285,6 +285,24 @@ backend/
 - `/analysis/fairness` reports `lent_days` and `home_workstation_id`; the Fairness
   page has a *Lent out* column. `kpis.lent_days` counts them per plan
 
+### My shifts and the installable app
+- `/my-shifts` (`pages/dashboard/my-shifts/`): the phone-first page for staff — next
+  shifts (confirmed roster, six weeks), open shifts they may take (volunteer in
+  place), unread change notices (acknowledge), leave and swap counts, link to the
+  calendar feed. 360 px wide, 44 px+ touch targets, no horizontal scroll
+- `ui/public/sw.js` (registered in `main.ts`, not on localhost) makes the UI
+  installable (with `site.webmanifest`, which opens `/my-shifts`) and keeps a short
+  allow-list of read-only API answers (`/self`, shifts, workstations, own roster,
+  change notices) for offline reading; the sign-out menu clears them
+
+### Printable roster
+- The Schedule page's *Print* button (week/month, A4 or A3) builds
+  `kalender/print-roster.ts`: one landscape page per workstation, employee rows ×
+  day columns, shift codes + a legend, hatch for absences and grey weekends (no
+  colour needed), month status and print date in the footer. Printed from a hidden
+  iframe; the browser's dialog saves a PDF. It prints what the grid shows, so a
+  `shift-viewer` gets published and locked months only
+
 ### Long-term fairness
 - A planner setting, `fairness_horizon_months` (6; 0 = off) and `fairness_weight`
   (2000): `services/fairness_history.rs` counts nights, weekend days, holiday

@@ -111,7 +111,7 @@ export class RunsTabComponent extends TabBase {
       }),
       qualitySummary: quality.length
         ? this.t('analytics.runs.qualitySummary', { first: quality[0].coverage, last: quality[quality.length - 1].coverage, n: quality.length })
-        : '',
+        : this.t('analytics.runs.qualityNone'),
       trend: baseOption(`runs-trend_${this.fileStem()}`, {
         legend: { top: 0, left: 0 },
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, confine: true },
