@@ -294,6 +294,14 @@ pub struct EmployeeTask {
     pub blocked_shifts: Vec<BlockedShiftTask>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_on_call_per_month: Option<i16>,
+    /// Home ward (workstation id), pool staff and the monthly lend cap: working
+    /// on another workstation is "lent out", softly avoided; see the planner.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub home_workstation_id: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub is_pool: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_lent_per_month: Option<i16>,
     /// The long-term duty balance; None when fairness_horizon_months is 0.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fairness_balance: Option<FairnessBalanceTask>,

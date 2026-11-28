@@ -24,6 +24,7 @@ import { UsersComponent } from './pages/configuration/users/users.component';
 import { ChangesComponent } from './pages/planner/changes/changes.component';
 import { LeaveComponent } from './pages/planner/leave/leave.component';
 import { OpenShiftsComponent } from './pages/planner/open-shifts/open-shifts.component';
+import { MyShiftsComponent } from './pages/dashboard/my-shifts/my-shifts.component';
 import { NotificationSettingsComponent } from './pages/configuration/notifications/notification-settings.component';
 import { StaffingRulesComponent } from './pages/configuration/staffing-rules/staffing-rules.component';
 import { SetupComponent } from './pages/configuration/setup/setup.component';
@@ -69,6 +70,13 @@ export const routes: Routes = [
         path:'changes',
         component:ChangesComponent,
         title:'title.changes'
+      },
+      {
+        // Phone-first page for staff: next shifts, open shifts, leave, swaps and changes.
+        // The installed app (site.webmanifest) opens here.
+        path:'my-shifts',
+        component:MyShiftsComponent,
+        title:'title.myShifts'
       },
       {
         // Employees ask for leave and see what became of it; planners decide,

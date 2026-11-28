@@ -241,6 +241,40 @@ export interface Runs {
   durations: number[];
 }
 
+export interface QualityPoint {
+  bucket: string;
+  /** Mean over the bucket's runs that have KPIs. */
+  coverage: number;
+  wishes: number | null;
+  softBreaks: number;
+  runs: number;
+}
+
+/** Plan quality per bucket: mean coverage %, wishes met % and soft breaches of the finished runs with KPIs. */
+export function qualityTrend(list: readonly PlanningRun[], from: number, to: number): QualityPoint[] {
+  const sums = new Map<string, { cov: number; wish: number; wishRuns: number; soft: number; n: number }>();
+  for (const r of list) {
+    if (!r.kpis) continue;
+    const b = bucketOf(dayNumber(r.created_at.slice(0, 10)), from, to);
+    const s = sums.get(b) ?? { cov: 0, wish: 0, wishRuns: 0, soft: 0, n: 0 };
+    s.cov += r.kpis.coverage_pct;
+    s.soft += r.kpis.soft_rule_breaks;
+    if (r.kpis.wishes_met_pct !== null) {
+      s.wish += r.kpis.wishes_met_pct;
+      s.wishRuns++;
+    }
+    s.n++;
+    sums.set(b, s);
+  }
+  const round = (v: number) => Math.round(v * 10) / 10;
+  return buckets(from, to)
+    .filter((b) => sums.has(b))
+    .map((b) => {
+      const s = sums.get(b)!;
+      return { bucket: b, coverage: round(s.cov / s.n), wishes: s.wishRuns ? round(s.wish / s.wishRuns) : null, softBreaks: round(s.soft / s.n), runs: s.n };
+    });
+}
+
 export function runs(list: readonly PlanningRun[], from: number, to: number): Runs {
   const result: Runs = { total: list.length, bySourceOverTime: new Map(), byOutcome: new Map(), autoTaken: 0, autoKept: 0, withMessage: 0, durations: [] };
   for (const r of list) {

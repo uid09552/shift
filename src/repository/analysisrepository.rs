@@ -512,7 +512,21 @@ impl AnalysisRepository for DieselAnalysisRepository {
                 .map_err(|_| AppError::Internal)?
                 .into_iter()
                 .collect();
-            Ok(fairness(&staff, default_weekly, &plans, &times, &wishes, &holidays, &on_call, from_date, to_date))
+            let homes: HashMap<Uuid, Uuid> = crate::schema::employee_personal_limits::table
+                .filter(crate::schema::employee_personal_limits::tenant_id.eq(&tenant_id))
+                .filter(crate::schema::employee_personal_limits::is_pool.eq(false))
+                .filter(crate::schema::employee_personal_limits::home_workstation_id.is_not_null())
+                .select((
+                    crate::schema::employee_personal_limits::employee_id,
+                    crate::schema::employee_personal_limits::home_workstation_id.assume_not_null(),
+                ))
+                .load::<(Uuid, Uuid)>(&mut conn)
+                .map_err(|_| AppError::Internal)?
+                .into_iter()
+                .collect();
+            let mut rows = fairness(&staff, default_weekly, &plans, &times, &wishes, &holidays, &on_call, from_date, to_date);
+            add_lent_days(&mut rows, &plans, &homes);
+            Ok(rows)
         })
         .await
         .map_err(|_| AppError::Internal)?
@@ -702,6 +716,7 @@ impl AnalysisRepository for DieselAnalysisRepository {
                         (r.result #>> '{planning_period,end_date}')::date AS period_end, \
                         r.result ->> 'status' AS solver_status, \
                         coalesce(r.result ->> 'message', '') <> '' AS has_message, \
+                        r.result -> 'kpis' AS kpis, \
                         CASE WHEN t.source = 'auto' THEN \
                             (SELECT (a.changes::jsonb ->> 'outcome') = 'taken_over' \
                                FROM audit_logs a \
@@ -919,6 +934,24 @@ fn roster_facts(input: RosterFactInput) -> RosterFactsDomain {
     }
 }
 
+/// Fills each row's home ward and counts the days worked on another workstation.
+/// `homes` holds non-pool employees with a home ward only.
+fn add_lent_days(rows: &mut [EmployeeFairnessDomain], plans: &[models::ConfirmedShiftPlan], homes: &HashMap<Uuid, Uuid>) {
+    for row in rows.iter_mut() {
+        row.home_workstation_id = homes.get(&row.employee_id).copied();
+    }
+    let mut lent: HashMap<Uuid, i64> = HashMap::new();
+    for plan in plans {
+        let (Some(&home), true, Some(ws), Some(_)) = (homes.get(&plan.employee_id), plan.is_present, plan.workstation_id, plan.shift_id) else { continue };
+        if ws != home {
+            *lent.entry(plan.employee_id).or_default() += 1;
+        }
+    }
+    for row in rows.iter_mut() {
+        row.lent_days = lent.get(&row.employee_id).copied().unwrap_or(0);
+    }
+}
+
 /// Everyone's share of the confirmed roster between two dates, inclusive —
 /// including people with nothing at all, since "who got the fewest" is half the
 /// question. Sorted by name; the caller sorts by whatever it is comparing.
@@ -951,6 +984,8 @@ fn fairness(
                 weekends: 0,
                 holiday_shifts: 0,
                 on_call_duties: 0,
+                lent_days: 0,
+                home_workstation_id: None,
                 wishes_asked: 0,
                 wishes_granted: 0,
                 days_absent: 0,
@@ -1284,6 +1319,27 @@ mod tests {
         let mut keys: Vec<&str> = value.as_object().unwrap().keys().map(String::as_str).collect();
         keys.sort();
         assert_eq!(keys, vec!["capabilities", "id", "name", "weekly_hours"]);
+    }
+
+    #[test]
+    fn days_on_another_ward_than_home_are_lent_days() {
+        let shift = Uuid::new_v4();
+        let (icu, er) = (Uuid::new_v4(), Uuid::new_v4());
+        let staff = [employee("Anna", Some(0.0)), employee("Pia", Some(0.0))];
+        let mut at_icu = plan(&staff[0], "2026-09-07", Some(shift), None);
+        at_icu.workstation_id = Some(icu);
+        let mut at_er = plan(&staff[0], "2026-09-08", Some(shift), None);
+        at_er.workstation_id = Some(er);
+        let mut pool = plan(&staff[1], "2026-09-08", Some(shift), None);
+        pool.workstation_id = Some(er);
+        let plans = [at_icu, at_er, pool];
+        let mut rows = fairness(&staff, 40.0, &plans, &times(shift, (6, 0), (14, 0)), &[], &HashSet::new(), &HashSet::new(), date("2026-09-07"), date("2026-09-08"));
+        // Pia is pool staff: no home ward, so nothing is lent.
+        add_lent_days(&mut rows, &plans, &HashMap::from([(staff[0].id, icu)]));
+        let anna = rows.iter().find(|r| r.employee_id == staff[0].id).unwrap();
+        let pia = rows.iter().find(|r| r.employee_id == staff[1].id).unwrap();
+        assert_eq!((anna.lent_days, anna.home_workstation_id), (1, Some(icu)));
+        assert_eq!((pia.lent_days, pia.home_workstation_id), (0, None));
     }
 
     #[test]

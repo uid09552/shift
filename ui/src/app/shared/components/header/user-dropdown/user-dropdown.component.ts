@@ -47,6 +47,8 @@ export class UserDropdownComponent implements OnInit {
   signOut() {
     // The next login opens the employee calendar on the user's own employee.
     clearSelection();
+    // Offline copies of this person's shifts must not outlive the session.
+    navigator.serviceWorker?.controller?.postMessage('clear-data');
     this.leaveTo('/logout');
   }
 

@@ -20,6 +20,9 @@ pub struct PersonalLimits {
     pub date_of_birth: Option<NaiveDate>,
     pub maternity_protection: bool,
     pub max_on_call_per_month: Option<i16>,
+    pub home_workstation_id: Option<Uuid>,
+    pub is_pool: bool,
+    pub max_lent_per_month: Option<i16>,
 }
 
 /// `treat_none_as_null` so removing a limit actually removes it (see
@@ -36,4 +39,7 @@ pub struct NewPersonalLimits {
     pub date_of_birth: Option<NaiveDate>,
     pub maternity_protection: bool,
     pub max_on_call_per_month: Option<i16>,
+    pub home_workstation_id: Option<Uuid>,
+    pub is_pool: bool,
+    pub max_lent_per_month: Option<i16>,
 }

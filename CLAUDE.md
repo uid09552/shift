@@ -268,6 +268,41 @@ backend/
 - A plan result is stored for the tenant of its task (`find_planning_task`), not
   the server's default tenant
 
+### Plan-quality KPIs
+- The solver puts `kpis` in every result it solves (`optimizer._kpis`): seat
+  coverage %, wishes met %, soft rule / personal-limit breaks, fixed assignments
+  not kept, fairness spread (max − min of nights, weekend days, shifts) and
+  solver seconds. Stored with the result; `/analysis/planning-runs` returns them
+  per run. Shown on the scheduler's Runs tab and as a trend + columns on the
+  Analytics Runs tab (up to a year)
+
+### Float / pool staff
+- In an employee's personal limits: `home_workstation_id`, `is_pool`,
+  `max_lent_per_month`. Working on another workstation is a **lent-out day**: the
+  solver pays `home_workstation_weight` (300; 0 = off) per day, after coverage
+  (soft, never leaves a slot short); the monthly cap follows
+  `personal_limits_mode`. Pool staff have neither home nor cap (cleared on save)
+- `/analysis/fairness` reports `lent_days` and `home_workstation_id`; the Fairness
+  page has a *Lent out* column. `kpis.lent_days` counts them per plan
+
+### My shifts and the installable app
+- `/my-shifts` (`pages/dashboard/my-shifts/`): the phone-first page for staff — next
+  shifts (confirmed roster, six weeks), open shifts they may take (volunteer in
+  place), unread change notices (acknowledge), leave and swap counts, link to the
+  calendar feed. 360 px wide, 44 px+ touch targets, no horizontal scroll
+- `ui/public/sw.js` (registered in `main.ts`, not on localhost) makes the UI
+  installable (with `site.webmanifest`, which opens `/my-shifts`) and keeps a short
+  allow-list of read-only API answers (`/self`, shifts, workstations, own roster,
+  change notices) for offline reading; the sign-out menu clears them
+
+### Printable roster
+- The Schedule page's *Print* button (week/month, A4 or A3) builds
+  `kalender/print-roster.ts`: one landscape page per workstation, employee rows ×
+  day columns, shift codes + a legend, hatch for absences and grey weekends (no
+  colour needed), month status and print date in the footer. Printed from a hidden
+  iframe; the browser's dialog saves a PDF. It prints what the grid shows, so a
+  `shift-viewer` gets published and locked months only
+
 ### Long-term fairness
 - A planner setting, `fairness_horizon_months` (6; 0 = off) and `fairness_weight`
   (2000): `services/fairness_history.rs` counts nights, weekend days, holiday

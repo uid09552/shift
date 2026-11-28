@@ -547,6 +547,13 @@ pub struct EmployeeFairnessDomain {
     /// On-call duties (duty type `on_call`), counted apart: no hours, no nights.
     #[serde(default)]
     pub on_call_duties: i64,
+    /// Days worked on a workstation other than the employee's home ward
+    /// (personal limits); 0 for pool staff and people without a home ward.
+    #[serde(default)]
+    pub lent_days: i64,
+    /// The employee's home workstation, if any.
+    #[serde(default)]
+    pub home_workstation_id: Option<Uuid>,
     pub wishes_asked: i64,
     pub wishes_granted: i64,
     /// Days marked absent — sick, leave, holiday — as opposed to a plain day off.
@@ -729,6 +736,10 @@ pub struct PlanningRunDomain {
     /// automatic run with no outcome recorded yet.
     #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Bool>)]
     pub taken_as_roster: Option<bool>,
+    /// The solver's plan-quality figures (`kpis` in the stored result); null
+    /// for runs stored before they existed.
+    #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Jsonb>)]
+    pub kpis: Option<serde_json::Value>,
 }
 
 #[async_trait]
@@ -1303,6 +1314,16 @@ pub struct PersonalLimitsDomain {
     /// On-call duties (duty type `on_call`) per calendar month; None = no limit.
     #[serde(default)]
     pub max_on_call_per_month: Option<i16>,
+    /// Home ward: working on another workstation is "lent out" and avoided
+    /// softly by the solver. None = no home ward.
+    #[serde(default)]
+    pub home_workstation_id: Option<Uuid>,
+    /// Pool staff float between wards: no home penalty, no lend cap.
+    #[serde(default)]
+    pub is_pool: bool,
+    /// Days per calendar month a non-pool employee may be lent out; None = no cap.
+    #[serde(default)]
+    pub max_lent_per_month: Option<i16>,
     /// Basis of the JArbSchG rules (a minor is under 18 on the day). Personal
     /// data: left out of what a `shift-viewer` reads.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1324,6 +1345,9 @@ impl PersonalLimitsDomain {
             no_night_shifts: false,
             preferred_days_off: Vec::new(),
             max_on_call_per_month: None,
+            home_workstation_id: None,
+            is_pool: false,
+            max_lent_per_month: None,
             date_of_birth: None,
             maternity_protection: Some(false),
             updated_at: None,
@@ -1336,6 +1360,9 @@ impl PersonalLimitsDomain {
             && !self.no_night_shifts
             && self.preferred_days_off.is_empty()
             && self.max_on_call_per_month.is_none()
+            && self.home_workstation_id.is_none()
+            && !self.is_pool
+            && self.max_lent_per_month.is_none()
             && self.date_of_birth.is_none()
             && self.maternity_protection != Some(true)
     }
@@ -1360,6 +1387,12 @@ pub struct UpdatePersonalLimits {
     pub preferred_days_off: Vec<i16>,
     #[serde(default)]
     pub max_on_call_per_month: Option<i16>,
+    #[serde(default)]
+    pub home_workstation_id: Option<Uuid>,
+    #[serde(default)]
+    pub is_pool: bool,
+    #[serde(default)]
+    pub max_lent_per_month: Option<i16>,
     #[serde(default)]
     pub date_of_birth: Option<chrono::NaiveDate>,
     #[serde(default)]

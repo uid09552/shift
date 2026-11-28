@@ -40,6 +40,8 @@ import { RosterMonthStatusComponent } from './roster-month-status.component';
 import { ShiftSwapService } from '../../../shared/services/shift-swap.service';
 import { CallInService } from '../../../shared/services/call-in.service';
 import { SwapNotificationService } from '../../../shared/services/swap-notification.service';
+import { RosterMonth, RosterService } from '../../../shared/services/roster.service';
+import { PrintDay, PrintEntry, buildPrintRoster, entryKey } from './print-roster';
 import { UserService } from '../../../shared/services/user.service';
 import { GroupedPlanViewComponent } from './grouped-plan-view.component';
 import { FilterOption, ScheduleViewsComponent } from './schedule-views.component';
@@ -244,6 +246,7 @@ export class KalenderComponent implements OnInit, OnDestroy {
     private userService: UserService,
     private shiftSwapService: ShiftSwapService,
     private callInService: CallInService,
+    private rosterService: RosterService,
     readonly swapNotifications: SwapNotificationService,
   ) {}
 
@@ -1671,6 +1674,98 @@ export class KalenderComponent implements OnInit, OnDestroy {
   // Navigate to employee calendar view
   goToEmployeeCalendar(employeeId: string): void {
     this.router.navigate(['/employee-calendar'], { queryParams: { employeeId } });
+  }
+
+  // ── Print / PDF ──────────────────────────────────────────────────
+
+  /** Paper for the printed roster; the browser's print dialog also saves a PDF. */
+  printPaper: 'A4' | 'A3' = 'A4';
+
+  /**
+   * Prints the shown month or week as the ward roster (`print-roster.ts`): one
+   * landscape page per workstation. Reads what the grid shows, so a shift-viewer
+   * prints only what the backend lets them see (published and locked months).
+   */
+  printRoster(): void {
+    const from = this.formatDate(this.periodStart);
+    const to = this.formatDate(this.periodEnd);
+    this.rosterService.listMonths(from, to).pipe(catchError(() => of([] as RosterMonth[]))).subscribe((months) => {
+      const t = (key: string) => this.translations.t(key);
+      const locale = this.translations.locale;
+      const days: PrintDay[] = this.days.map((d) => ({
+        iso: this.formatDate(d.date),
+        label: d.date.toLocaleDateString(locale, { weekday: 'short', day: '2-digit' }),
+        weekend: this.isWeekend(d),
+      }));
+      const absenceCodes: Record<string, string> = {
+        sick: t('schedule.print.codeSick'),
+        day_off: t('schedule.print.codeVacation'),
+        holiday: t('schedule.print.codeHoliday'),
+      };
+      const entries = new Map<string, PrintEntry>();
+      for (const emp of this.employees) {
+        for (const day of this.days) {
+          const cell = this.getCell(emp.id, day);
+          if (!cell.plan) continue;
+          const key = entryKey(emp.id, this.formatDate(day.date));
+          if (!cell.isPresent) {
+            if (cell.absenceType === 'free' || cell.absenceType === null) continue;
+            entries.set(key, {
+              kind: 'absence',
+              code: absenceCodes[cell.absenceType] ?? t('schedule.print.codeAbsent'),
+              name: t(this.absenceLabelKey(cell.absenceType)),
+            });
+          } else if (cell.shift) {
+            entries.set(key, {
+              kind: 'shift',
+              code: cell.shift.short_name,
+              name: cell.shift.name,
+              workstationId: cell.workstation?.id ?? null,
+              workstationName: cell.workstation?.name ?? '',
+            });
+          }
+        }
+      }
+      const statuses = [...new Set(months.map((m) => t('rosterMonth.status.' + m.status)))];
+      const first = this.periodStart;
+      const title =
+        this.viewMode === 'month'
+          ? first.toLocaleDateString(locale, { month: 'long', year: 'numeric' })
+          : `${days[0]?.iso} – ${days[days.length - 1]?.iso}`;
+      const html = buildPrintRoster({
+        title,
+        paper: this.printPaper,
+        days,
+        people: this.employees.map((e) => ({ id: e.id, name: e.name })),
+        entries,
+        noWorkstationLabel: t('schedule.noWorkstation'),
+        statusLabel: statuses.join(', ') || t('rosterMonth.status.draft'),
+        printedLabel: this.translations.t('schedule.print.printed', {
+          date: new Date().toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' }),
+        }),
+        legendTitle: t('schedule.print.legend'),
+        employeeHeader: t('common.employee'),
+        elsewhere: '↗',
+        emptyLabel: t('schedule.print.empty'),
+      });
+      this.printHtml(html);
+    });
+  }
+
+  /** Prints a document in a hidden frame, so the app's own page is untouched. */
+  private printHtml(html: string): void {
+    const frame = document.createElement('iframe');
+    frame.setAttribute('aria-hidden', 'true');
+    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+    frame.srcdoc = html;
+    frame.onload = () => {
+      const win = frame.contentWindow;
+      if (!win) return frame.remove();
+      win.addEventListener('afterprint', () => frame.remove());
+      win.focus();
+      win.print();
+    };
+    document.body.appendChild(frame);
   }
 
   // ── Excel export ─────────────────────────────────────────────────

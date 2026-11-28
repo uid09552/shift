@@ -171,6 +171,7 @@ type Preset = 'thisMonth' | 'lastMonth' | 'thisQuarter' | 'last3Months' | 'last6
                     </td>
                     <td class="table-td table-num">{{ row.holiday_shifts || '—' }}</td>
                     <td class="table-td table-num">{{ row.on_call_duties || '—' }}</td>
+                    <td class="table-td table-num" data-testid="fairness-lent">{{ row.lent_days || '—' }}</td>
                     <td class="table-td table-num">
                       {{ row.wishes_asked ? row.wishes_granted + ' / ' + row.wishes_asked : '—' }}
                     </td>
@@ -206,6 +207,7 @@ export class FairnessComponent implements OnInit {
     { key: 'weekend_days', label: 'fairness.col.weekendDays' },
     { key: 'holiday_shifts', label: 'fairness.col.holidays' },
     { key: 'on_call_duties', label: 'fairness.col.onCall' },
+    { key: 'lent_days', label: 'fairness.col.lent' },
     { key: 'wishes', label: 'fairness.col.wishes' },
     { key: 'days_absent', label: 'fairness.col.absent' },
   ];

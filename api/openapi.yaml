@@ -7605,6 +7605,34 @@ components:
           minimum: 0
           maximum: 31
           description: On-call duties (duty type on_call) per calendar month; null = no limit
+        home_workstation_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Home ward. Working on another workstation is "lent out" and softly avoided by the solver (never at the cost of coverage). Ignored for pool staff; must be a workstation of the organization
+        is_pool:
+          type: boolean
+          description: Pool staff float between wards — no home ward and no lend cap (both are cleared on save)
+        max_lent_per_month:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 31
+          description: Days per calendar month a non-pool employee may be lent out; hard or soft per personal_limits_mode; null = no cap
+        home_workstation_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Home ward. Working on another workstation is "lent out" and softly avoided by the solver (never at the cost of coverage). Cleared for pool staff; must be a workstation of the organization
+        is_pool:
+          type: boolean
+          description: Pool staff float between wards — no home ward and no lend cap (both are cleared on save)
+        max_lent_per_month:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 31
+          description: Days per calendar month a non-pool employee may be lent out; hard or soft per personal_limits_mode; null = no cap
         no_night_shifts:
           type: boolean
           description: Never on a night shift — always a hard rule
@@ -7648,6 +7676,18 @@ components:
           minimum: 0
           maximum: 5
         max_on_call_per_month:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 31
+        home_workstation_id:
+          type: string
+          format: uuid
+          nullable: true
+        is_pool:
+          type: boolean
+          default: false
+        max_lent_per_month:
           type: integer
           nullable: true
           minimum: 0
@@ -9038,6 +9078,37 @@ components:
           type: boolean
           nullable: true
           description: Automatic runs only; null for manual runs and while no outcome is recorded
+        kpis:
+          nullable: true
+          description: Plan-quality figures of the run's result; null for failed runs and runs stored before they existed
+          allOf:
+            - $ref: '#/components/schemas/PlanKpis'
+
+    PlanKpis:
+      type: object
+      description: >
+        How good a plan was, computed by the solver for every plan it returns
+        (`kpis` in the stored result).
+      required: [seats_required, seats_short, coverage_pct, wishes_total, wishes_met, soft_rule_breaks, fixed_not_kept, legal_breaks, assignments, fairness_spread]
+      properties:
+        seats_required: { type: integer, description: Places required by the workstations' and shifts' minimum staffing }
+        seats_short: { type: integer }
+        coverage_pct: { type: number, description: Share of required seats filled (0-100) }
+        wishes_total: { type: integer, description: Shift wishes inside the planning period }
+        wishes_met: { type: integer }
+        wishes_met_pct: { type: number, nullable: true, description: Null without wishes }
+        soft_rule_breaks: { type: integer, description: Soft personal limits and skill-mix or pairing rules the plan breaks }
+        fixed_not_kept: { type: integer }
+        legal_breaks: { type: integer, description: Always 0 from the solver (legal rules are hard); the plan check reports them in an edited plan }
+        assignments: { type: integer }
+        fairness_spread:
+          type: object
+          description: Max minus min per employee
+          properties:
+            nights: { type: integer }
+            weekend_days: { type: integer }
+            shifts: { type: integer }
+        solver_seconds: { type: number }
 
     EmployeeFairness:
       type: object
@@ -9073,6 +9144,13 @@ components:
         on_call_duties:
           type: integer
           description: On-call duties, counted apart — no hours, no nights, no weekends
+        lent_days:
+          type: integer
+          description: Days worked on a workstation other than the employee's home ward (0 for pool staff and without a home ward)
+        home_workstation_id:
+          type: string
+          format: uuid
+          nullable: true
         wishes_asked:
           type: integer
         wishes_granted:

@@ -10,6 +10,7 @@ import {
   buckets,
   changeAccessor,
   changes,
+  qualityTrend,
   runOutcome,
   runs,
 } from './breakdowns';
@@ -134,6 +135,7 @@ const run = (over: Partial<PlanningRun>): PlanningRun => ({
   solver_status: 'optimal',
   has_message: false,
   taken_as_roster: true,
+  kpis: null,
   ...over,
 });
 
@@ -150,6 +152,27 @@ describe('planning runs', () => {
     expect(runOutcome(run({ status: 'error', solver_status: null }))).toBe('error');
     expect(runOutcome(run({ status: 'scheduled', solver_status: null }))).toBe('scheduled');
     expect(runOutcome(run({ solver_status: 'infeasible' }))).toBe('infeasible');
+  });
+});
+
+describe('plan quality trend', () => {
+  const kpis = (coverage: number, wishes: number | null, soft = 0) => ({
+    seats_required: 100, seats_short: 100 - coverage, coverage_pct: coverage, wishes_total: 10, wishes_met: 0, wishes_met_pct: wishes,
+    soft_rule_breaks: soft, fixed_not_kept: 0, legal_breaks: 0, assignments: 90, fairness_spread: { nights: 1, weekend_days: 1, shifts: 2 },
+  });
+
+  it('averages the runs of each month and skips runs without KPIs', () => {
+    const list = [
+      run({ created_at: '2026-01-10T02:00:00', kpis: kpis(90, 50) }),
+      run({ created_at: '2026-01-20T02:00:00', kpis: kpis(100, null, 2) }),
+      run({ created_at: '2026-01-21T02:00:00', kpis: null }),
+      run({ created_at: '2026-03-05T02:00:00', kpis: kpis(80, 20) }),
+    ];
+    const points = qualityTrend(list, dayNumber('2026-01-01'), dayNumber('2026-06-30'));
+    expect(points).toEqual([
+      { bucket: '2026-01', coverage: 95, wishes: 50, softBreaks: 1, runs: 2 },
+      { bucket: '2026-03', coverage: 80, wishes: 20, softBreaks: 0, runs: 1 },
+    ]);
   });
 });
 

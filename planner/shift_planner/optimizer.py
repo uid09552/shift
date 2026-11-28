@@ -123,6 +123,7 @@ _DEFAULT_CONSTRAINTS = {
     "weekly_hours_target_weight": 1000,
     "preference_weight": 300,  # Penalty for violating an employee's preferred_off
     "wish_weight": 20000,  # Reward for fulfilling an employee's shift wish
+    "home_workstation_weight": 300,  # Penalty per day worked away from the home workstation
     "skill_downgrade_weight": 200,  # Penalty for covering a slot with a higher-level skill
     "fatigue_weight": 100,  # Weight on worst-off employee's accumulated fatigue
     "night_shift_fatigue_multiplier": 2.0,
@@ -1182,6 +1183,16 @@ class ShiftPlanner:
             max_nights = emp.get("max_nights_per_month")
             max_weekends = emp.get("max_weekends_per_month")
             max_on_call = emp.get("max_on_call_per_month")
+            max_lent = emp.get("max_lent_per_month")
+            home = self._home_index(emp)
+            if max_lent is not None and home is not None:
+                by_month = {}
+                for (e, d_idx, _s, w_idx), var in self.x.items():
+                    if e == e_idx and w_idx != home:
+                        day = self.days[d_idx]
+                        by_month.setdefault((day.year, day.month), []).append(var)
+                for (year, month), terms in by_month.items():
+                    self._cap_personal(terms, max_lent, f"lent_{e_idx}_{year}_{month}")
             if max_on_call is not None and on_call_idx:
                 by_month: dict = {}
                 for d_idx, day in enumerate(self.days):
@@ -1304,6 +1315,7 @@ class ShiftPlanner:
         self._penalize_preference_violations()
         self._penalize_preferred_days_off()
         self._reward_wishes()
+        self._prefer_home_workstation()
         self._penalize_fatigue()
         self._reward_shift_continuity()
         self._track_changes_vs_published()
@@ -1574,6 +1586,40 @@ class ShiftPlanner:
         )
         for line in unschedulable:
             logger.warning("Wish cannot be fulfilled — %s", line)
+
+    def _home_index(self, emp: dict) -> int | None:
+        """Index of the employee's home workstation; None for pool staff, for
+        no home ward, or a home that is not part of this planning input."""
+        if emp.get("is_pool") or not emp.get("home_workstation_id"):
+            return None
+        for w_idx, ws in enumerate(self.workstations):
+            if ws["id"] == emp["home_workstation_id"]:
+                return w_idx
+        return None
+
+    def _prefer_home_workstation(self) -> None:
+        """3c-ter) Home ward: every day an employee works away from their home
+        workstation ("lent out") costs `home_workstation_weight`. Soft, so it
+        never keeps a slot empty — coverage is settled first. Pool staff and
+        employees without a home ward are not penalised."""
+        weight = self.cfg["home_workstation_weight"]
+        if weight <= 0:
+            return
+        homes = {e_idx: self._home_index(emp) for e_idx, emp in enumerate(self.employees)}
+        for (e_idx, _d, _s, w_idx), var in self.x.items():
+            home = homes[e_idx]
+            if home is not None and w_idx != home:
+                self.obj_terms.append(-weight * var)
+
+    def _lent_days(self, assigned: dict) -> dict:
+        """employee id -> days worked away from the home workstation."""
+        lent: dict = {}
+        for (e_idx, _d), (_s, w_idx) in assigned.items():
+            home = self._home_index(self.employees[e_idx])
+            if home is not None and w_idx != home:
+                eid = self.employees[e_idx]["id"]
+                lent[eid] = lent.get(eid, 0) + 1
+        return lent
 
     def _penalize_fatigue(self) -> None:
         """3d) Fatigue-aware objective (ergonomic factor, simplified from the
@@ -1974,7 +2020,16 @@ class ShiftPlanner:
         return assigned
 
     def _staffing_gaps(self, assigned: dict) -> list[str]:
-        """Every slot the plan leaves below its minimum, and why.
+        return self._staffing_stats(assigned)[2]
+
+    def _staffing_stats(self, assigned: dict) -> tuple[int, int, list[str]]:
+        """(seats required, seats short, gap lines) over the whole period.
+
+        A seat is one place of a workstation's minimum on a day and shift (a
+        shift's all-workstation minimum counts the same way); workstations
+        covered by a demand curve are left out here (see `_demand_gaps`).
+
+        Every slot the plan leaves below its minimum, and why.
 
         Includes slots the model had no variable for at all — nobody qualified
         and present could take them — which the solver cannot even see as a
@@ -1986,6 +2041,7 @@ class ShiftPlanner:
             per_shift[d_idx, s_idx] = per_shift.get((d_idx, s_idx), 0) + 1
 
         gaps = []
+        required = short = 0
         for d_idx, day in enumerate(self.days):
             wday = self.day_wd[d_idx]
             for s_idx, shift in enumerate(self.shifts):
@@ -2000,6 +2056,8 @@ class ShiftPlanner:
                         continue  # covered hour by hour instead (_demand_gaps)
                     need = self.ws_min_emp.get(wid, 1)
                     have = per_slot.get((d_idx, s_idx, w_idx), 0)
+                    required += need
+                    short += max(0, need - have)
                     if have < need:
                         if (d_idx, s_idx, w_idx) in self.vars_by_day_shift_ws:
                             why = "not enough staff left"
@@ -2013,7 +2071,63 @@ class ShiftPlanner:
                 have = per_shift.get((d_idx, s_idx), 0)
                 if have < need and self._shift_open_somewhere(sid, day):
                     gaps.append(f"{day} {shift['name']} (all workstations) {have}/{need}")
-        return gaps
+        return required, short, gaps
+
+    def _wish_counts(self, assigned: dict) -> tuple[int, int]:
+        """(wishes inside the period, wishes the plan fulfils)."""
+        total = met = 0
+        for e_idx, emp in enumerate(self.employees):
+            for wish in self.emp_wishes.get(emp["id"], []):
+                wd = parse_date(wish["date"])
+                if wd not in self.day_index:
+                    continue
+                total += 1
+                hit = assigned.get((e_idx, self.day_index[wd]))
+                if hit is not None and self.shifts[hit[0]]["id"] == wish["shift_id"]:
+                    met += 1
+        return total, met
+
+    def _fairness_spread(self, assigned: dict) -> dict:
+        """Max minus min per employee of nights, weekend days and shifts —
+        over the employees who could work at all (at least one shift)."""
+        nights = [0] * len(self.employees)
+        weekend_days = [0] * len(self.employees)
+        shifts = [0] * len(self.employees)
+        for (e_idx, d_idx), (s_idx, _w) in assigned.items():
+            if self._on_call(s_idx):
+                continue
+            shifts[e_idx] += 1
+            if self.shift_is_night[self.shifts[s_idx]["id"]]:
+                nights[e_idx] += 1
+            if weekend_key(self.days[d_idx], self.holidays) is not None:
+                weekend_days[e_idx] += 1
+        def spread(values: list[int]) -> int:
+            return (max(values) - min(values)) if values else 0
+        return {
+            "nights": spread(nights),
+            "weekend_days": spread(weekend_days),
+            "shifts": spread(shifts),
+        }
+
+    def _kpis(self, assigned: dict, not_kept: list, rule_breaches: list, limits: list) -> dict:
+        """Plan-quality figures stored with the result, see issue 'Plan-quality
+        KPIs'. `solver_seconds` is added by `solve()`."""
+        required, short, _gaps = self._staffing_stats(assigned)
+        wishes_total, wishes_met = self._wish_counts(assigned)
+        return {
+            "seats_required": required,
+            "seats_short": short,
+            "coverage_pct": round(100.0 * (required - short) / required, 1) if required else 100.0,
+            "wishes_total": wishes_total,
+            "wishes_met": wishes_met,
+            "wishes_met_pct": round(100.0 * wishes_met / wishes_total, 1) if wishes_total else None,
+            "soft_rule_breaks": len(rule_breaches) + len(limits),
+            "fixed_not_kept": len(not_kept),
+            "legal_breaks": 0,  # a hard rule for the solver; the plan check reports any in an edited plan
+            "assignments": len(assigned),
+            "lent_days": sum(self._lent_days(assigned).values()),
+            "fairness_spread": self._fairness_spread(assigned),
+        }
 
     def _personal_limits_exceeded(self, assigned: dict) -> list[str]:
         """'Alice: 5 nights in 2026-09 (max 4)' for every personal limit the
@@ -2021,9 +2135,13 @@ class ShiftPlanner:
         nights: dict = {}
         weekends: dict = {}
         on_call: dict = {}
-        for (e_idx, d_idx), (s_idx, _w_idx) in assigned.items():
+        lent: dict = {}
+        for (e_idx, d_idx), (s_idx, w_idx) in assigned.items():
             day = self.days[d_idx]
             key = (e_idx, day.year, day.month)
+            home = self._home_index(self.employees[e_idx])
+            if home is not None and w_idx != home:
+                lent[key] = lent.get(key, 0) + 1
             if self._on_call(s_idx):
                 on_call[key] = on_call.get(key, 0) + 1
             elif self.shift_is_night[self.shifts[s_idx]["id"]]:
@@ -2037,6 +2155,11 @@ class ShiftPlanner:
             if limit is not None and count > limit:
                 name = self.employees[e_idx]["name"]
                 over.append(f"{name}: {count} nights in {year}-{month:02d} (max {limit})")
+        for (e_idx, year, month), count in sorted(lent.items()):
+            limit = self.employees[e_idx].get("max_lent_per_month")
+            if limit is not None and count > limit:
+                name = self.employees[e_idx]["name"]
+                over.append(f"{name}: {count} days lent out in {year}-{month:02d} (max {limit})")
         for (e_idx, year, month), count in sorted(on_call.items()):
             limit = self.employees[e_idx].get("max_on_call_per_month")
             if limit is not None and count > limit:
@@ -2131,13 +2254,15 @@ class ShiftPlanner:
         ]
         if not_kept:
             logger.warning("Fixed assignments not kept: %d", len(not_kept))
+        limits = self._personal_limits_exceeded(assigned)
+        rule_breaches = self._rule_breaches_in(assigned)
         parts = [
             _listing("Fixed assignment(s) not kept", not_kept),
             _listing("Ignored locked assignment(s)", self.lock_warnings),
             _listing("Below minimum staffing", gaps),
             _listing("Demand not covered", self._demand_gaps(assigned)),
-            _listing("Personal limit(s) exceeded", self._personal_limits_exceeded(assigned)),
-            _listing("Skill-mix or pairing rule(s) not met", self._rule_breaches_in(assigned)),
+            _listing("Personal limit(s) exceeded", limits),
+            _listing("Skill-mix or pairing rule(s) not met", rule_breaches),
             note,
         ]
         return SchedulingOutput(
@@ -2148,6 +2273,7 @@ class ShiftPlanner:
             employee_plans=self._build_employee_plans(assigned),
             message=" ".join(p for p in parts if p) or None,
             changes_vs_published=self._changes_vs_published(assigned),
+            kpis=self._kpis(assigned, not_kept, rule_breaches, limits),
         )
 
     # ---- Entry point -------------------------------------------------------
@@ -2205,5 +2331,7 @@ def solve(data: dict) -> SchedulingOutput:
             },
         )
         telemetry.record_solve(duration, result.status)
+        if result.kpis is not None:
+            result.kpis["solver_seconds"] = round(duration, 2)
 
     return result

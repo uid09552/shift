@@ -23,6 +23,9 @@ fn to_domain(p: PersonalLimits) -> PersonalLimitsDomain {
         no_night_shifts: p.no_night_shifts,
         preferred_days_off: p.preferred_days_off,
         max_on_call_per_month: p.max_on_call_per_month,
+        home_workstation_id: p.home_workstation_id,
+        is_pool: p.is_pool,
+        max_lent_per_month: p.max_lent_per_month,
         date_of_birth: p.date_of_birth,
         maternity_protection: Some(p.maternity_protection),
         updated_at: Some(p.updated_at),
@@ -81,6 +84,9 @@ impl PersonalLimitsRepository for DieselPersonalLimitsRepository {
                 date_of_birth: limits.date_of_birth,
                 maternity_protection: limits.maternity_protection,
                 max_on_call_per_month: limits.max_on_call_per_month,
+                home_workstation_id: limits.home_workstation_id,
+                is_pool: limits.is_pool,
+                max_lent_per_month: limits.max_lent_per_month,
             };
             let saved: PersonalLimits = diesel::insert_into(employee_personal_limits::table)
                 .values(&row)

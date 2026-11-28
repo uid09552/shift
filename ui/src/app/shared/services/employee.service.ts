@@ -68,6 +68,12 @@ export interface PersonalLimits {
   max_weekends_per_month: number | null;
   /** On-call duties per calendar month (null = no limit). */
   max_on_call_per_month?: number | null;
+  /** Home workstation: working elsewhere is "lent out", softly avoided by the planner. */
+  home_workstation_id?: string | null;
+  /** Pool staff float between wards: no home penalty, no lend cap. */
+  is_pool?: boolean;
+  /** Days per calendar month a non-pool employee may be lent out (null = no cap). */
+  max_lent_per_month?: number | null;
   no_night_shifts: boolean;
   preferred_days_off: number[];
   /** YYYY-MM-DD; the labor-law profile applies JArbSchG while under 18. Planners and admins only. */
