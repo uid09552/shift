@@ -702,6 +702,7 @@ impl AnalysisRepository for DieselAnalysisRepository {
                         (r.result #>> '{planning_period,end_date}')::date AS period_end, \
                         r.result ->> 'status' AS solver_status, \
                         coalesce(r.result ->> 'message', '') <> '' AS has_message, \
+                        r.result -> 'kpis' AS kpis, \
                         CASE WHEN t.source = 'auto' THEN \
                             (SELECT (a.changes::jsonb ->> 'outcome') = 'taken_over' \
                                FROM audit_logs a \

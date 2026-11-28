@@ -4,7 +4,7 @@ import { PlanningRun } from '../../../../shared/services/analysis.service';
 import { ChartCardComponent } from '../chart-card.component';
 import { DetailTableComponent } from '../detail-table.component';
 import { KpiTileComponent } from '../kpi-tile.component';
-import { buckets, ranked, runAccessor, runMinutes, runOutcome, runs } from '../model/breakdowns';
+import { buckets, qualityTrend, ranked, runAccessor, runMinutes, runOutcome, runs } from '../model/breakdowns';
 import { baseOption, categoryBars } from '../model/charts';
 import { dayNumber } from '../model/dates';
 import { filterItems } from '../model/filter';
@@ -29,6 +29,7 @@ import { TabBase, emphasise } from './tab-base';
         <app-chart-card testId="runs-trend" title="analytics.runs.trend" [summary]="v.trendSummary" [option]="v.trend" [empty]="!v.total" (chartClick)="selectSeries('runSource', v.sourceKeys, v.sourceNames, $event)" />
         <app-chart-card testId="runs-outcome" title="analytics.runs.outcome" [summary]="v.outcomeSummary" [option]="v.outcome" [empty]="!v.total" (chartClick)="select('runStatus', v.outcomeKeys, $event)" />
         <app-chart-card testId="runs-auto" title="analytics.runs.auto" [summary]="v.autoSummary" [option]="v.auto" [empty]="!(v.autoTaken + v.autoKept)" />
+        <app-chart-card testId="runs-quality" title="analytics.runs.quality" [summary]="v.qualitySummary" [option]="v.quality" [empty]="!v.qualityPoints" />
         <app-chart-card testId="runs-duration" title="analytics.runs.duration" [summary]="v.durationSummary" [option]="v.duration" [empty]="!v.durations" />
       </div>
       <div class="mt-3">
@@ -53,6 +54,11 @@ export class RunsTabComponent extends TabBase {
       { key: 'outcome', label: 'analytics.dim.runStatus', value: (r) => l.value('runStatus', runOutcome(r)) },
       { key: 'period', label: 'analytics.col.plannedPeriod', value: (r) => (r.period_start ? `${r.period_start} – ${r.period_end}` : null) },
       { key: 'minutes', label: 'analytics.col.minutes', value: (r) => runMinutes(r), numeric: true },
+      { key: 'coverage', label: 'analytics.col.coverage', value: (r) => r.kpis?.coverage_pct ?? null, numeric: true },
+      { key: 'wishes', label: 'analytics.col.wishesMet', value: (r) => r.kpis?.wishes_met_pct ?? null, numeric: true },
+      { key: 'softBreaks', label: 'analytics.col.softBreaks', value: (r) => r.kpis?.soft_rule_breaks ?? null, numeric: true },
+      { key: 'spread', label: 'analytics.col.nightSpread', value: (r) => r.kpis?.fairness_spread.nights ?? null, numeric: true },
+      { key: 'solver', label: 'analytics.col.solverSeconds', value: (r) => r.kpis?.solver_seconds ?? null, numeric: true },
       { key: 'message', label: 'analytics.col.message', value: (r) => (r.has_message ? this.t('common.yes') : null) },
       { key: 'taken', label: 'analytics.col.taken', value: (r) => (r.taken_as_roster === null ? null : this.t(r.taken_as_roster ? 'analytics.runs.taken' : 'analytics.runs.kept')) },
       { key: 'error', label: 'analytics.col.error', value: (r) => r.error_message },
@@ -80,6 +86,7 @@ export class RunsTabComponent extends TabBase {
     const outcomeNames = outcomeKeys.map((o) => l.value('runStatus', o));
     const timeBuckets = buckets(start, end);
     const [dMin, , dMid, , dMax] = fiveNumbers(all.durations);
+    const quality = qualityTrend(shown, start, end);
 
     return {
       runs: shown,
@@ -91,6 +98,20 @@ export class RunsTabComponent extends TabBase {
       sourceKeys,
       sourceNames,
       outcomeKeys,
+      qualityPoints: quality.length,
+      quality: baseOption(`runs-quality_${this.fileStem()}`, {
+        legend: { top: 0, left: 0 },
+        tooltip: { trigger: 'axis', confine: true },
+        xAxis: { type: 'category', data: quality.map((q) => l.bucket(q.bucket)) },
+        yAxis: { type: 'value', min: 0, max: 100, axisLabel: { formatter: '{value} %' } },
+        series: [
+          { type: 'line', name: this.t('analytics.runs.coverage'), data: quality.map((q) => q.coverage) },
+          { type: 'line', name: this.t('analytics.runs.wishes'), data: quality.map((q) => q.wishes) },
+        ],
+      }),
+      qualitySummary: quality.length
+        ? this.t('analytics.runs.qualitySummary', { first: quality[0].coverage, last: quality[quality.length - 1].coverage, n: quality.length })
+        : '',
       trend: baseOption(`runs-trend_${this.fileStem()}`, {
         legend: { top: 0, left: 0 },
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, confine: true },

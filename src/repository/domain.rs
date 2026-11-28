@@ -729,6 +729,10 @@ pub struct PlanningRunDomain {
     /// automatic run with no outcome recorded yet.
     #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Bool>)]
     pub taken_as_roster: Option<bool>,
+    /// The solver's plan-quality figures (`kpis` in the stored result); null
+    /// for runs stored before they existed.
+    #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Jsonb>)]
+    pub kpis: Option<serde_json::Value>,
 }
 
 #[async_trait]

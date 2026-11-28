@@ -17,6 +17,10 @@ pub struct TaskResultDto {
     /// (`TaskDTO::published_roster`); absent without one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub changes_vs_published: Option<i64>,
+    /// Plan-quality figures from the solver (coverage, wishes, rule breaks,
+    /// fairness spread, solver time); absent on older results and infeasible runs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kpis: Option<serde_json::Value>,
     /// How the run was started: `manual` (a planner) or `auto` (the schedule).
     /// Set by the backend when it stores the result; absent on older results.
     #[serde(default, skip_serializing_if = "Option::is_none")]

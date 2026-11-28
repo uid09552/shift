@@ -545,6 +545,9 @@ class SchedulingOutput(BaseModel):
     message: Optional[str] = None
     # Employee-days that differ from `published_roster`; None without one.
     changes_vs_published: Optional[int] = None
+    # Plan-quality figures (coverage, wishes, rule breaks, fairness spread,
+    # solver time); None for an infeasible run.
+    kpis: Optional[dict] = None
 
 
 # ---------------------------------------------------------------------------

@@ -9038,6 +9038,37 @@ components:
           type: boolean
           nullable: true
           description: Automatic runs only; null for manual runs and while no outcome is recorded
+        kpis:
+          nullable: true
+          description: Plan-quality figures of the run's result; null for failed runs and runs stored before they existed
+          allOf:
+            - $ref: '#/components/schemas/PlanKpis'
+
+    PlanKpis:
+      type: object
+      description: >
+        How good a plan was, computed by the solver for every plan it returns
+        (`kpis` in the stored result).
+      required: [seats_required, seats_short, coverage_pct, wishes_total, wishes_met, soft_rule_breaks, fixed_not_kept, legal_breaks, assignments, fairness_spread]
+      properties:
+        seats_required: { type: integer, description: Places required by the workstations' and shifts' minimum staffing }
+        seats_short: { type: integer }
+        coverage_pct: { type: number, description: Share of required seats filled (0-100) }
+        wishes_total: { type: integer, description: Shift wishes inside the planning period }
+        wishes_met: { type: integer }
+        wishes_met_pct: { type: number, nullable: true, description: Null without wishes }
+        soft_rule_breaks: { type: integer, description: Soft personal limits and skill-mix or pairing rules the plan breaks }
+        fixed_not_kept: { type: integer }
+        legal_breaks: { type: integer, description: Always 0 from the solver (legal rules are hard); the plan check reports them in an edited plan }
+        assignments: { type: integer }
+        fairness_spread:
+          type: object
+          description: Max minus min per employee
+          properties:
+            nights: { type: integer }
+            weekend_days: { type: integer }
+            shifts: { type: integer }
+        solver_seconds: { type: number }
 
     EmployeeFairness:
       type: object

@@ -1048,6 +1048,9 @@
                 @if (selectedResult?.id === r.id) {
                   <span class="rounded-sm bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">{{ 'scheduler.runs.current' | t }}</span>
                 }
+                @if (kpiLine(r); as line) {
+                  <span class="type-caption tabular-nums text-gray-600 dark:text-gray-400" data-testid="run-kpis">{{ line }}</span>
+                }
               </div>
               <div class="flex items-center gap-3">
                 @if (selectedResult?.id !== r.id) {

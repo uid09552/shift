@@ -860,6 +860,19 @@ export class SchedulerComponent implements OnInit, OnDestroy {
   }
 
   /** "15 Sep, 06:40 · Aug 31 – Sep 27": when it was calculated, and for which period. */
+  /** The plan-quality line under a proposal; empty for results stored before KPIs. */
+  kpiLine(result: OptimizedShiftResultResponse): string {
+    const k = result.result.kpis;
+    if (!k) return '';
+    return this.translations.t('scheduler.runs.kpis', {
+      coverage: k.coverage_pct,
+      wishes: k.wishes_met_pct === null ? this.translations.t('scheduler.runs.kpisNoWishes') : `${k.wishes_met_pct} %`,
+      breaks: k.soft_rule_breaks,
+      spread: k.fairness_spread.nights,
+      seconds: k.solver_seconds ?? '–',
+    });
+  }
+
   resultLabel(result: OptimizedShiftResultResponse): string {
     const created = new Date(result.creation_date).toLocaleString(this.translations.locale, {
       day: 'numeric',

@@ -72,6 +72,7 @@ const RUNS: PlanningRun[] = [
     solver_status: 'optimal',
     has_message: false,
     taken_as_roster: true,
+    kpis: null,
   },
 ];
 

@@ -1974,7 +1974,16 @@ class ShiftPlanner:
         return assigned
 
     def _staffing_gaps(self, assigned: dict) -> list[str]:
-        """Every slot the plan leaves below its minimum, and why.
+        return self._staffing_stats(assigned)[2]
+
+    def _staffing_stats(self, assigned: dict) -> tuple[int, int, list[str]]:
+        """(seats required, seats short, gap lines) over the whole period.
+
+        A seat is one place of a workstation's minimum on a day and shift (a
+        shift's all-workstation minimum counts the same way); workstations
+        covered by a demand curve are left out here (see `_demand_gaps`).
+
+        Every slot the plan leaves below its minimum, and why.
 
         Includes slots the model had no variable for at all — nobody qualified
         and present could take them — which the solver cannot even see as a
@@ -1986,6 +1995,7 @@ class ShiftPlanner:
             per_shift[d_idx, s_idx] = per_shift.get((d_idx, s_idx), 0) + 1
 
         gaps = []
+        required = short = 0
         for d_idx, day in enumerate(self.days):
             wday = self.day_wd[d_idx]
             for s_idx, shift in enumerate(self.shifts):
@@ -2000,6 +2010,8 @@ class ShiftPlanner:
                         continue  # covered hour by hour instead (_demand_gaps)
                     need = self.ws_min_emp.get(wid, 1)
                     have = per_slot.get((d_idx, s_idx, w_idx), 0)
+                    required += need
+                    short += max(0, need - have)
                     if have < need:
                         if (d_idx, s_idx, w_idx) in self.vars_by_day_shift_ws:
                             why = "not enough staff left"
@@ -2013,7 +2025,62 @@ class ShiftPlanner:
                 have = per_shift.get((d_idx, s_idx), 0)
                 if have < need and self._shift_open_somewhere(sid, day):
                     gaps.append(f"{day} {shift['name']} (all workstations) {have}/{need}")
-        return gaps
+        return required, short, gaps
+
+    def _wish_counts(self, assigned: dict) -> tuple[int, int]:
+        """(wishes inside the period, wishes the plan fulfils)."""
+        total = met = 0
+        for e_idx, emp in enumerate(self.employees):
+            for wish in self.emp_wishes.get(emp["id"], []):
+                wd = parse_date(wish["date"])
+                if wd not in self.day_index:
+                    continue
+                total += 1
+                hit = assigned.get((e_idx, self.day_index[wd]))
+                if hit is not None and self.shifts[hit[0]]["id"] == wish["shift_id"]:
+                    met += 1
+        return total, met
+
+    def _fairness_spread(self, assigned: dict) -> dict:
+        """Max minus min per employee of nights, weekend days and shifts —
+        over the employees who could work at all (at least one shift)."""
+        nights = [0] * len(self.employees)
+        weekend_days = [0] * len(self.employees)
+        shifts = [0] * len(self.employees)
+        for (e_idx, d_idx), (s_idx, _w) in assigned.items():
+            if self._on_call(s_idx):
+                continue
+            shifts[e_idx] += 1
+            if self.shift_is_night[self.shifts[s_idx]["id"]]:
+                nights[e_idx] += 1
+            if weekend_key(self.days[d_idx], self.holidays) is not None:
+                weekend_days[e_idx] += 1
+        def spread(values: list[int]) -> int:
+            return (max(values) - min(values)) if values else 0
+        return {
+            "nights": spread(nights),
+            "weekend_days": spread(weekend_days),
+            "shifts": spread(shifts),
+        }
+
+    def _kpis(self, assigned: dict, not_kept: list, rule_breaches: list, limits: list) -> dict:
+        """Plan-quality figures stored with the result, see issue 'Plan-quality
+        KPIs'. `solver_seconds` is added by `solve()`."""
+        required, short, _gaps = self._staffing_stats(assigned)
+        wishes_total, wishes_met = self._wish_counts(assigned)
+        return {
+            "seats_required": required,
+            "seats_short": short,
+            "coverage_pct": round(100.0 * (required - short) / required, 1) if required else 100.0,
+            "wishes_total": wishes_total,
+            "wishes_met": wishes_met,
+            "wishes_met_pct": round(100.0 * wishes_met / wishes_total, 1) if wishes_total else None,
+            "soft_rule_breaks": len(rule_breaches) + len(limits),
+            "fixed_not_kept": len(not_kept),
+            "legal_breaks": 0,  # a hard rule for the solver; the plan check reports any in an edited plan
+            "assignments": len(assigned),
+            "fairness_spread": self._fairness_spread(assigned),
+        }
 
     def _personal_limits_exceeded(self, assigned: dict) -> list[str]:
         """'Alice: 5 nights in 2026-09 (max 4)' for every personal limit the
@@ -2131,13 +2198,15 @@ class ShiftPlanner:
         ]
         if not_kept:
             logger.warning("Fixed assignments not kept: %d", len(not_kept))
+        limits = self._personal_limits_exceeded(assigned)
+        rule_breaches = self._rule_breaches_in(assigned)
         parts = [
             _listing("Fixed assignment(s) not kept", not_kept),
             _listing("Ignored locked assignment(s)", self.lock_warnings),
             _listing("Below minimum staffing", gaps),
             _listing("Demand not covered", self._demand_gaps(assigned)),
-            _listing("Personal limit(s) exceeded", self._personal_limits_exceeded(assigned)),
-            _listing("Skill-mix or pairing rule(s) not met", self._rule_breaches_in(assigned)),
+            _listing("Personal limit(s) exceeded", limits),
+            _listing("Skill-mix or pairing rule(s) not met", rule_breaches),
             note,
         ]
         return SchedulingOutput(
@@ -2148,6 +2217,7 @@ class ShiftPlanner:
             employee_plans=self._build_employee_plans(assigned),
             message=" ".join(p for p in parts if p) or None,
             changes_vs_published=self._changes_vs_published(assigned),
+            kpis=self._kpis(assigned, not_kept, rule_breaches, limits),
         )
 
     # ---- Entry point -------------------------------------------------------
@@ -2205,5 +2275,7 @@ def solve(data: dict) -> SchedulingOutput:
             },
         )
         telemetry.record_solve(duration, result.status)
+        if result.kpis is not None:
+            result.kpis["solver_seconds"] = round(duration, 2)
 
     return result

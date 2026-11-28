@@ -268,6 +268,14 @@ backend/
 - A plan result is stored for the tenant of its task (`find_planning_task`), not
   the server's default tenant
 
+### Plan-quality KPIs
+- The solver puts `kpis` in every result it solves (`optimizer._kpis`): seat
+  coverage %, wishes met %, soft rule / personal-limit breaks, fixed assignments
+  not kept, fairness spread (max − min of nights, weekend days, shifts) and
+  solver seconds. Stored with the result; `/analysis/planning-runs` returns them
+  per run. Shown on the scheduler's Runs tab and as a trend + columns on the
+  Analytics Runs tab (up to a year)
+
 ### Long-term fairness
 - A planner setting, `fairness_horizon_months` (6; 0 = off) and `fairness_weight`
   (2000): `services/fairness_history.rs` counts nights, weekend days, holiday

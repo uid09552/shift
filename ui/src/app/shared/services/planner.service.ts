@@ -2,6 +2,8 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
+import type { PlanKpis } from './analysis.service';
+
 // ── DTOs matching backend TaskResultDto ───────────────────────────────────────
 
 export interface PlanningPeriodResult {
@@ -52,6 +54,8 @@ export interface TaskResultDto {
   schedule: DaySchedule[];
   employee_plans: EmployeeDailyPlan[];
   message?: string;
+  /** Plan-quality figures; absent on results stored before they existed. */
+  kpis?: PlanKpis;
   /** How the run was started; absent on results stored before automatic planning. */
   source?: 'manual' | 'auto' | 'scenario';
   /** A what-if scenario's name and overrides: never taken as the roster. */

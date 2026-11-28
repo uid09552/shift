@@ -149,6 +149,26 @@ export interface AuditActivity {
   groups: AuditActivityGroup[];
 }
 
+/** Plan-quality figures the solver stores with every plan. */
+export interface PlanKpis {
+  seats_required: number;
+  seats_short: number;
+  /** Share of required seats filled, 0–100. */
+  coverage_pct: number;
+  wishes_total: number;
+  wishes_met: number;
+  /** Null without any wish in the period. */
+  wishes_met_pct: number | null;
+  /** Soft rule and personal-limit breaches named in the plan's message. */
+  soft_rule_breaks: number;
+  fixed_not_kept: number;
+  legal_breaks: number;
+  assignments: number;
+  /** Max minus min per employee. */
+  fairness_spread: { nights: number; weekend_days: number; shifts: number };
+  solver_seconds?: number;
+}
+
 /** One planning task and how it ended — never the plan itself. */
 export interface PlanningRun {
   id: string;
@@ -164,6 +184,8 @@ export interface PlanningRun {
   has_message: boolean;
   /** Automatic runs: whether the plan became the roster; null otherwise. */
   taken_as_roster: boolean | null;
+  /** Null for runs stored before KPIs existed, and for failed runs. */
+  kpis: PlanKpis | null;
 }
 
 @Injectable({
